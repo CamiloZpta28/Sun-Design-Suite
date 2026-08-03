@@ -4,7 +4,7 @@ import {
   Building2, Zap, Cog, Mountain, PenTool, Plus, Search, X, Printer,
   Paperclip, Trash2, ChevronLeft, Pencil, Save, MapPin, Calendar,
   Users, ExternalLink, Check, FileText, UploadCloud, XCircle, ClipboardList,
-  Loader2, RefreshCw, LogOut, ShieldCheck, Lock, History,
+  Loader2, RefreshCw, LogOut, ShieldCheck, Lock, History, ClipboardCheck, StickyNote, UserCog,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -13,7 +13,7 @@ import { supabase } from './supabaseClient';
    Gestión y Hoja de Vida de Minigranjas Fotovoltaicas
    ----------------------------------------------------------------------------
    - Autenticación real con Supabase (correo + contraseña). Cada ingeniero
-     crea su cuenta y su perfil (nombre, foto, especialidad).
+     crea su cuenta (nombre y foto); un líder le asigna el/los rol(es) luego.
    - Proyectos, enlaces y perfiles se guardan en una base de datos de
      Supabase compartida por todo el equipo.
    - Estructura "schema-driven": los campos técnicos por especialidad viven en
@@ -21,6 +21,10 @@ import { supabase } from './supabaseClient';
    ============================================================================ */
 
 /* --------------------------- 1. ROLES / ESPECIALIDADES --------------------- */
+/* Cada persona puede tener VARIOS roles a la vez (ej. Líder Civil + Ing.     */
+/* Civil). Los roles ya no se auto-asignan al crear la cuenta: solo un       */
+/* líder puede otorgarlos (ver TeamRolesView), para que nadie pueda          */
+/* entrar a proyectos que no le corresponden con solo elegir un rol.         */
 const ROLES = [
   { key: 'civil', label: 'Ing. Civil', icon: HardHat },
   { key: 'hidraulico', label: 'Ing. Hidráulico', icon: Droplets },
@@ -31,23 +35,35 @@ const ROLES = [
   { key: 'delineante', label: 'Delineante', icon: PenTool },
 ];
 
-/* Especialidades de liderazgo: son las únicas que pueden asignar el equipo   */
-/* de un proyecto y cambiar su estado (Activo / En Pausa / Inactivo). No      */
-/* ocupan una casilla del equipo técnico, son roles de coordinación.          */
+/* Roles de liderazgo: los únicos que pueden asignar el equipo de un         */
+/* proyecto, cambiar su estado, y otorgar roles a los demás. Un líder puede  */
+/* tener también un rol técnico en paralelo (ej. Líder Civil + Ing. Civil).  */
 const LEADER_ROLES = [
   { key: 'lider_civil', label: 'Líder Civil', icon: HardHat },
   { key: 'lider_electrico', label: 'Líder Eléctrico', icon: Zap },
   { key: 'lider_delineantes', label: 'Líder Delineantes', icon: PenTool },
   { key: 'lider_diseno', label: 'Líder de Diseño', icon: ShieldCheck },
 ];
+const LEADER_ROLE_KEYS = LEADER_ROLES.map((r) => r.key);
 
-const ALL_SPECIALTIES = [...ROLES, ...LEADER_ROLES];
+/* Rol de Control de Calidad Interno: puede ser paralelo a cualquier otro    */
+/* rol. Es el único que puede escribir comentarios en Control Documental.    */
+const QA_ROLE = { key: 'control_calidad', label: 'Control de Calidad Interno', icon: ClipboardCheck };
 
-function specialtyLabel(key) {
-  return ALL_SPECIALTIES.find((s) => s.key === key)?.label || key;
+const ALL_ROLE_DEFS = [...ROLES, ...LEADER_ROLES, QA_ROLE];
+
+function roleLabel(key) {
+  return ALL_ROLE_DEFS.find((r) => r.key === key)?.label || key;
+}
+function rolesLabel(perfil) {
+  if (!perfil || !perfil.roles || perfil.roles.length === 0) return 'Sin rol asignado';
+  return perfil.roles.map(roleLabel).join(' · ');
 }
 function isLeader(perfil) {
-  return !!perfil && LEADER_ROLES.some((r) => r.key === perfil.especialidad);
+  return !!perfil && !!perfil.roles && perfil.roles.some((k) => LEADER_ROLE_KEYS.includes(k));
+}
+function isQA(perfil) {
+  return !!perfil && !!perfil.roles && perfil.roles.includes(QA_ROLE.key);
 }
 function isAssignedToProject(perfil, project) {
   return !!perfil && Object.values(project.equipo).includes(perfil.nombre);
@@ -64,10 +80,12 @@ const SCHEMA = [
       { key: 'departamento', label: 'Departamento', type: 'text' },
       { key: 'pais', label: 'País', type: 'text' },
       { key: 'inversionista', label: 'Inversionista', type: 'text' },
+      { key: 'codigo_departamento', label: 'Departamento (abrev. p/código, ej. SANT)', type: 'text' },
+      { key: 'numero_minigranja', label: 'Número de minigranja (ej. 215)', type: 'text' },
+      { key: 'numero_predio', label: 'Número de predio (ej. 1)', type: 'text' },
       { key: 'magna_sirgas', label: 'Coord. MAGNA-SIRGAS (Bogotá)', type: 'text' },
       { key: 'lat_long', label: 'Coordenadas Lat/Long', type: 'text' },
       { key: 'altitud', label: 'Altitud (m.s.n.m.)', type: 'text' },
-      { key: 'particularidades', label: 'Particularidades Generales', type: 'textarea' },
       { key: 'fecha_inicio', label: 'Fecha de Inicio', type: 'date' },
       { key: 'fecha_entrega', label: 'Fecha de Entrega', type: 'date' },
     ],
@@ -153,7 +171,7 @@ const SCHEMA = [
       { key: 'inundabilidad', label: 'Inundabilidad', type: 'boolean' },
       { key: 'velocidades', label: 'Velocidades de flujo evaluadas', type: 'boolean' },
       { key: 'cuerpos_agua', label: 'Cuerpos de agua cercanos', type: 'boolean' },
-      { key: 'estaciones_pluviometricas', label: 'Estaciones pluviométricas', type: 'text' },
+      { key: 'estaciones_pluviometricas', label: 'Estaciones pluviométricas', type: 'stations' },
     ],
   },
   {
@@ -179,12 +197,19 @@ const STATUS_CONFIG = {
 };
 
 /* ------------------------------ 3. HELPERS ---------------------------------- */
+const STATION_ROWS = 7;
+function emptyStations() {
+  return Array.from({ length: STATION_ROWS }, () => ({ nombre: '', dias: '', peso: '' }));
+}
+
 function emptySchemaData() {
   const obj = {};
   SCHEMA.forEach((section) => {
     obj[section.id] = {};
     section.fields.forEach((f) => {
-      obj[section.id][f.key] = f.type === 'boolean' ? { valor: null, nota: '' } : '';
+      if (f.type === 'boolean') obj[section.id][f.key] = { valor: null, nota: '' };
+      else if (f.type === 'stations') obj[section.id][f.key] = emptyStations();
+      else obj[section.id][f.key] = '';
     });
   });
   return obj;
@@ -230,6 +255,10 @@ function diffSectionData(section, before, after) {
         const fmt = (v) => (v.valor === true ? 'Sí' : v.valor === false ? 'No' : 'sin definir') + (v.nota ? ` (${v.nota})` : '');
         cambios.push(`${field.label}: ${fmt(bv)} → ${fmt(av)}`);
       }
+    } else if (field.type === 'stations') {
+      if (JSON.stringify(b || []) !== JSON.stringify(a || [])) {
+        cambios.push(`${field.label}: se actualizó la tabla de estaciones`);
+      }
     } else if ((b || '') !== (a || '')) {
       cambios.push(`${field.label}: "${b || '—'}" → "${a || '—'}"`);
     }
@@ -258,7 +287,16 @@ function makeId(prefix) {
 }
 
 function projectToRow(p) {
-  return { id: p.id, nombre: p.nombre, estado: p.estado, equipo: p.equipo, data: p.data, archivos: p.archivos };
+  return {
+    id: p.id,
+    nombre: p.nombre,
+    estado: p.estado,
+    equipo: p.equipo,
+    data: p.data,
+    archivos: p.archivos,
+    notas: p.notas || [],
+    documentos: p.documentos || {},
+  };
 }
 function rowToProject(row) {
   return {
@@ -268,10 +306,12 @@ function rowToProject(row) {
     equipo: row.equipo || {},
     data: row.data || emptySchemaData(),
     archivos: row.archivos || [],
+    notas: row.notas || [],
+    documentos: row.documentos || {},
   };
 }
-function rowToProfile(row) {
-  return { id: row.id, nombre: row.nombre, especialidad: row.especialidad, foto: row.foto_url };
+function rowToProfile(row, roles) {
+  return { id: row.id, nombre: row.nombre, foto: row.foto_url, roles: roles || [] };
 }
 
 /* --------------------------- 4. DATOS SEMILLA -------------------------------- */
@@ -284,12 +324,17 @@ const INITIAL_PROJECTS = [
     estado: 'activo',
     equipo: { civil: '', hidraulico: '', estructural: '', electrico: '', mecanico: '', geotecnico: '', delineante: '' },
     archivos: [],
+    notas: [
+      { id: 'nota-1-1', texto: 'Terreno con pendiente suave hacia el costado sur, cercano a canal de riego existente.', autor: 'Sistema', fecha: '2025-03-12T14:30:00.000Z' },
+    ],
+    documentos: {},
     data: buildData({
       general: {
         municipio: 'Guacarí', departamento: 'Valle del Cauca', pais: 'Colombia',
         inversionista: 'Fondo Energético Andino S.A.S.',
+        codigo_departamento: 'VALLE', numero_minigranja: '087', numero_predio: '1',
         magna_sirgas: 'N 923450.12 / E 1056220.44', lat_long: '3.7644 N / -76.3311 W',
-        altitud: '1020', particularidades: 'Terreno con pendiente suave hacia el costado sur, cercano a canal de riego existente.',
+        altitud: '1020',
         fecha_inicio: '2025-03-10', fecha_entrega: '2026-02-28',
       },
       civil: {
@@ -310,9 +355,12 @@ const INITIAL_PROJECTS = [
     estado: 'activo',
     equipo: { civil: '', hidraulico: '', estructural: '', electrico: '', mecanico: '', geotecnico: '', delineante: '' },
     archivos: [],
+    notas: [],
+    documentos: {},
     data: buildData({
       general: {
-        municipio: 'El Espinal', departamento: 'Tolima', pais: 'Colombia', inversionista: 'Tolisol Energía S.A.S.',
+        municipio: 'El Espinal', departamento: 'Tolima', pais: 'Colombia', inversionista: 'CFM',
+        codigo_departamento: 'TOL', numero_minigranja: '203', numero_predio: '1',
         lat_long: '4.1517 N / -74.8834 W', altitud: '323',
         fecha_inicio: '2026-05-05', fecha_entrega: '2026-11-30',
       },
@@ -325,15 +373,28 @@ const INITIAL_PROJECTS = [
     estado: 'pausa',
     equipo: { civil: '', hidraulico: '', estructural: '', electrico: '', mecanico: '', geotecnico: '', delineante: '' },
     archivos: [],
+    notas: [
+      { id: 'nota-3-1', texto: 'Proyecto en pausa por ajustes en el cierre financiero.', autor: 'Sistema', fecha: '2025-09-15T09:00:00.000Z' },
+    ],
+    documentos: {},
     data: buildData({
       general: {
-        municipio: 'Montería', departamento: 'Córdoba', pais: 'Colombia', inversionista: 'Caribe Solar Holding',
+        municipio: 'Montería', departamento: 'Córdoba', pais: 'Colombia', inversionista: 'FENOGE',
+        codigo_departamento: 'CORD', numero_minigranja: '142', numero_predio: '1',
         fecha_inicio: '2025-08-01', fecha_entrega: '2026-06-15',
-        particularidades: 'Proyecto en pausa por ajustes en el cierre financiero.',
       },
       hidraulico: {
         obras_hidraulicas: bool(true), inundabilidad: bool(true, 'Zona con inundaciones ocasionales reportadas por la comunidad en época de lluvias.'),
-        cuerpos_agua: bool(true), estaciones_pluviometricas: 'Estación Montería IDEAM',
+        cuerpos_agua: bool(true),
+        estaciones_pluviometricas: [
+          { nombre: 'Estación Montería IDEAM', dias: '210', peso: '100' },
+          { nombre: '', dias: '', peso: '' },
+          { nombre: '', dias: '', peso: '' },
+          { nombre: '', dias: '', peso: '' },
+          { nombre: '', dias: '', peso: '' },
+          { nombre: '', dias: '', peso: '' },
+          { nombre: '', dias: '', peso: '' },
+        ],
       },
     }),
   },
@@ -347,6 +408,317 @@ const INITIAL_LINKS = [
   { id: 'l5', descripcion: 'IDEAM - datos hidroclimatológicos y estaciones pluviométricas', url: 'http://www.ideam.gov.co' },
   { id: 'l6', descripcion: 'Servicio Geológico Colombiano - amenaza sísmica y estudios geotécnicos', url: 'https://www.sgc.gov.co' },
 ];
+
+/* ------------------- LISTAS DE CONTROL DOCUMENTAL (por inversionista) ------ */
+const DOCS_ESTANDAR = [
+  { nombre: 'Listado de cables AC y DC (con tags)', codigo: 'COLXXXXXXPX-ELE-LIS-001', especialidad: 'ELECTRICA', tipo: 'Listado' },
+  { nombre: 'BOM eléctrico', codigo: 'COLXXXXXXPX-ELE-LIS-002', especialidad: 'ELECTRICA', tipo: 'Listado' },
+  { nombre: 'Listado de obras eléctrias', codigo: 'COLXXXXXXPX-ELE-LIS-003', especialidad: 'ELECTRICA', tipo: 'Listado' },
+  { nombre: 'SSAA y respaldo', codigo: 'COLXXXXXXPX-ELE-MEM-001', especialidad: 'ELECTRICA', tipo: 'Memoria' },
+  { nombre: 'Sistema de puesta a tierra', codigo: 'COLXXXXXXPX-ELE-MEM-002', especialidad: 'ELECTRICA', tipo: 'Memoria' },
+  { nombre: 'Distancias mínimas y de seguridad', codigo: 'COLXXXXXXPX-ELE-MEM-003', especialidad: 'ELECTRICA', tipo: 'Memoria' },
+  { nombre: 'Cargabilidad CT´s y PT´s', codigo: 'COLXXXXXXPX-ELE-MEM-004', especialidad: 'ELECTRICA', tipo: 'Memoria' },
+  { nombre: 'Documento OR', codigo: 'COLXXXXXXPX-ELE-INF-001', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'RETIE', codigo: 'COLXXXXXXPX-ELE-INF-002', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Proyecto especifico', codigo: 'COLXXXXXXPX-ELE-INF-003', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Etiqueta de cables', codigo: 'COLXXXXXXPX-ELE-INF-004', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Criterios de seleccion de MPPT', codigo: 'COLXXXXXXPX-ELE-INF-005', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Coordinación de aislamiento', codigo: 'COLXXXXXXPX-ELE-INF-006', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Apantallamiento', codigo: 'COLXXXXXXPX-ELE-INF-007', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Riesgo Electrico', codigo: 'COLXXXXXXPX-ELE-INF-008', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Simulación PVsyst', codigo: 'COLXXXXXXPX-ELE-INF-009', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Sistema de puesta a tierra', codigo: 'COLXXXXXXPX-ELE-INF-010', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Arco eléctrico', codigo: 'COLXXXXXXPX-ELE-INF-011', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Disposición física', codigo: 'COLXXXXXXPX-ELE-PL-001', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Cableado DC', codigo: 'COLXXXXXXPX-ELE-PL-002', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Rutas DC-AC-MT', codigo: 'COLXXXXXXPX-ELE-PL-003', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Rutas DC Inversores', codigo: 'COLXXXXXXPX-ELE-PL-004', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Rutas ACBT-MT y AÉREA', codigo: 'COLXXXXXXPX-ELE-PL-005', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Diagrama Unifilar', codigo: 'COLXXXXXXPX-ELE-PL-006', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Diagrama unifilar SSAA', codigo: 'COLXXXXXXPX-ELE-PL-007', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Sistema de puesta a tierra', codigo: 'COLXXXXXXPX-ELE-PL-008', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Ruta de Evacuación', codigo: 'COLXXXXXXPX-ELE-PL-009', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Estructura Inversores', codigo: 'COLXXXXXXPX-CIV-PL-001', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Conexion inversores', codigo: 'COLXXXXXXPX-ELE-PL-010', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Apantallamiento', codigo: 'COLXXXXXXPX-ELE-PL-011', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Distribución de equipos en SHELTER', codigo: 'COLXXXXXXPX-ELE-PL-012', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Celda Frontera o medidor', codigo: 'COLXXXXXXPX-ELE-PL-013', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Soporte de bandeja en Inversores', codigo: 'COLXXXXXXPX-ELE-PL-014', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Plano de diseño de la red MT', codigo: 'COLXXXXXXPX-ELE-PL-015', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Ficha Técnica de Inversores', codigo: 'COLXXXXXXPX-ELE-ESP-001', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha Técnica de Medidor', codigo: 'COLXXXXXXPX-ELE-ESP-002', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha Técnica de Paneles', codigo: 'COLXXXXXXPX-ELE-ESP-003', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha Técnica de Transformador', codigo: 'COLXXXXXXPX-ELE-ESP-004', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha Técnica de Tableros', codigo: 'COLXXXXXXPX-ELE-ESP-005', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha Técnica de Reconectador', codigo: 'COLXXXXXXPX-ELE-ESP-006', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha Técnica de TC y TP', codigo: 'COLXXXXXXPX-ELE-ESP-007', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha Técnica de Tracker', codigo: 'COLXXXXXXPX-ELE-ESP-008', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'BOM de comunicaciones', codigo: 'COLXXXXXXPX-COM-LIS-001', especialidad: 'COMUNICACIONES', tipo: 'Listado' },
+  { nombre: 'Listado de obras de comunicación', codigo: 'COLXXXXXXPX-COM-LIS-002', especialidad: 'COMUNICACIONES', tipo: 'Listado' },
+  { nombre: 'Listado de cables (Tags)', codigo: 'COLXXXXXXPX-COM-LIS-003', especialidad: 'COMUNICACIONES', tipo: 'Listado' },
+  { nombre: 'Inventario de equipos', codigo: 'COLXXXXXXPX-COM-LIS-004', especialidad: 'COMUNICACIONES', tipo: 'Listado' },
+  { nombre: 'Listado de señales', codigo: 'COLXXXXXXPX-COM-LIS-005', especialidad: 'COMUNICACIONES', tipo: 'Listado' },
+  { nombre: 'Comunicaciones', codigo: 'COLXXXXXXPX-COM-INF-001', especialidad: 'COMUNICACIONES', tipo: 'Informe' },
+  { nombre: 'Arquitectura', codigo: 'COLXXXXXXPX-COM-PL-001', especialidad: 'COMUNICACIONES', tipo: 'Plano' },
+  { nombre: 'Diagrama de conexiones', codigo: 'COLXXXXXXPX-COM-PL-002', especialidad: 'COMUNICACIONES', tipo: 'Plano' },
+  { nombre: 'Comunicacion Inversores y ruta_CCTV', codigo: 'COLXXXXXXPX-COM-PL-003', especialidad: 'COMUNICACIONES', tipo: 'Plano' },
+  { nombre: 'Ficha técnica de camaras', codigo: 'COLXXXXXXPX-COM-ESP-001', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de camaras en S/E', codigo: 'COLXXXXXXPX-COM-ESP-002', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de smartlogger', codigo: 'COLXXXXXXPX-COM-ESP-003', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de estación meteorológica', codigo: 'COLXXXXXXPX-COM-ESP-004', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de medidor', codigo: 'COLXXXXXXPX-COM-ESP-005', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de router', codigo: 'COLXXXXXXPX-COM-ESP-006', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de switch', codigo: 'COLXXXXXXPX-COM-ESP-007', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de camaras', codigo: 'COLXXXXXXPX-COM-ESP-008', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de NVR', codigo: 'COLXXXXXXPX-COM-ESP-009', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de starlink', codigo: 'COLXXXXXXPX-COM-ESP-010', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de AccessPoint', codigo: 'COLXXXXXXPX-COM-ESP-011', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Localizaciones y accesos', codigo: 'COLXXXXXXPX-CIV-PL-002', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Topografia del terreno', codigo: 'COLXXXXXXPX-CIV-PL-003', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Fijaciones mecánicas', codigo: 'COLXXXXXXPX-CIV-PL-004', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Caminos internos y vías perimetrales', codigo: 'COLXXXXXXPX-CIV-PL-005', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Áreas de circulación en el proyecto', codigo: 'COLXXXXXXPX-CIV-PL-006', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Canalizaciones de Baja y Media tensión; Redes', codigo: 'COLXXXXXXPX-CIV-PL-007', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Cerramiento y Especificaciones generales', codigo: 'COLXXXXXXPX-CIV-PL-008', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Cortes en mesas', codigo: 'COLXXXXXXPX-CIV-PL-009', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Cimentaciones de Shelter', codigo: 'COLXXXXXXPX-CIV-PL-010', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Arquitectonico Shelter', codigo: 'COLXXXXXXPX-CIV-PL-011', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Plano de obras hidráulicas (Si aplica)', codigo: 'COLXXXXXXPX-CIV-PL-012', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Movimientos de tierras (si aplica)', codigo: 'COLXXXXXXPX-CIV-PL-013', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Informe hidrológico', codigo: 'COLXXXXXXPX-CIV-INF-001', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Informe hidráulico (Si aplica)', codigo: 'COLXXXXXXPX-CIV-INF-002', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Estudio de suelos', codigo: 'COLXXXXXXPX-CIV-INF-003', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Topografía general', codigo: 'COLXXXXXXPX-CIV-INF-004', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Manual de instalación del tracker', codigo: 'COLXXXXXXPX-CIV-INF-005', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'ET para estudio de suelos', codigo: 'COLXXXXXXPX-CIV-ESP-001', especialidad: 'CIVIL', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'ET para Topografía', codigo: 'COLXXXXXXPX-CIV-ESP-002', especialidad: 'CIVIL', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Listado de obras y cantidades civiles', codigo: 'COLXXXXXXPX-CIV-LIS-001', especialidad: 'CIVIL', tipo: 'Listado' },
+  { nombre: 'Analisis de riesgo contra incendios (Si aplica)', codigo: 'COLXXXXXXPX-GEN-INF-001', especialidad: 'GENERAL', tipo: 'Informe' },
+  { nombre: 'Sistema de detección de incendios (Si aplica)', codigo: 'COLXXXXXXPX-GEN-PL-001', especialidad: 'GENERAL', tipo: 'Plano' },
+];
+
+const DOCS_CFM = [
+  { nombre: 'Layout general del proyecto', codigo: 'COLXXXXXXPX-GEN-PL-001', especialidad: 'GENERAL', tipo: 'Plano' },
+  { nombre: 'Layout ubicación geografica del proyecto', codigo: 'COLXXXXXXPX-GEN-PL-002', especialidad: 'GENERAL', tipo: 'Plano' },
+  { nombre: 'Layout planta de instalaciones provisionales', codigo: 'COLXXXXXXPX-GEN-PL-003', especialidad: 'GENERAL', tipo: 'Plano' },
+  { nombre: 'Layout vías de acceso y salida circuito', codigo: 'COLXXXXXXPX-GEN-PL-004', especialidad: 'GENERAL', tipo: 'Plano' },
+  { nombre: 'Informe de visita - equipo de ingenieria', codigo: 'COLXXXXXXPX-GEN-INF-001', especialidad: 'GENERAL', tipo: 'Informe' },
+  { nombre: 'Estudio de ajuste y coordinación de protecciones', codigo: 'COLXXXXXXPX-GEN-INF-002', especialidad: 'GENERAL', tipo: 'Informe' },
+  { nombre: 'Plano de señalizaciones y sistemas contra incendios', codigo: 'COLXXXXXXPX-GEN-PL-005', especialidad: 'GENERAL', tipo: 'Plano' },
+  { nombre: 'Estudio geotecnico', codigo: 'COLXXXXXXPX-CIV-INF-001', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Estudio de CBR - vías', codigo: 'COLXXXXXXPX-CIV-INF-002', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Estudio de corrosividad', codigo: 'COLXXXXXXPX-CIV-INF-003', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Estudio de interferencia Catódica (Si aplica)', codigo: 'COLXXXXXXPX-CIV-INF-004', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Protocolo Pull Out - Proveedor de Estrructura', codigo: 'COLXXXXXXPX-CIV-ESP-001', especialidad: 'CIVIL', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Informe Pull Out', codigo: 'COLXXXXXXPX-CIV-INF-005', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Layout Ubicación de las Pull Out Test', codigo: 'COLXXXXXXPX-CIV-PL-001', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Informe topográfico', codigo: 'COLXXXXXXPX-CIV-INF-006', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Plano o levantamiento topografico (con ortofoto)', codigo: 'COLXXXXXXPX-CIV-PL-002', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Estudio de resistividad electrica', codigo: 'COLXXXXXXPX-CIV-INF-007', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Estudio de hidrologia', codigo: 'COLXXXXXXPX-CIV-INF-008', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Layout Movimiento de Tierra (con secciones por fila de mesas)', codigo: 'COLXXXXXXPX-CIV-PL-003', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Informe Movimiento de Tierra (Cantidades de corte y relleno)', codigo: 'COLXXXXXXPX-CIV-INF-009', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Memoria Descriptiva Vías (Incluye Materiales tipo Invias)', codigo: 'COLXXXXXXPX-CIV-MEM-001', especialidad: 'CIVIL', tipo: 'Memoria' },
+  { nombre: 'Layout de Vías - Planta General', codigo: 'COLXXXXXXPX-CIV-PL-004', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Plano de Vías - Perfiles y secciones transversales', codigo: 'COLXXXXXXPX-CIV-PL-005', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Cantidades de Material - Vías', codigo: 'COLXXXXXXPX-CIV-LIS-001', especialidad: 'CIVIL', tipo: 'Lista de materiales' },
+  { nombre: 'Informe Vía de Acceso - Adecuación de Ingreso', codigo: 'COLXXXXXXPX-CIV-INF-0010', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Layout Vía de Acceso - Adecuación de Ingreso', codigo: 'COLXXXXXXPX-CIV-PL-006', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Memoria Descriptiva y Cálculo de Cerramiento', codigo: 'COLXXXXXXPX-CIV-MEM-002', especialidad: 'CIVIL', tipo: 'Memoria' },
+  { nombre: 'Plano Cerramiento Perimetral y Accesos - General y Detalles', codigo: 'COLXXXXXXPX-CIV-PL-007', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Plano Cajas con Despieces y Zanjas Eléctricas - Detalles Generales', codigo: 'COLXXXXXXPX-CIV-PL-008', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Memoria de cálculo de cajas y zanjas (Si aplica, en casos de que se modifique el diseño original del OR por condiciones del terreno)', codigo: 'COLXXXXXXPX-CIV-MEM-005', especialidad: 'CIVIL', tipo: 'Memoria' },
+  { nombre: 'Plano Cimentación Equipos y Despieces (CTs)', codigo: 'COLXXXXXXPX-CIV-PL-009', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Memoria de Cálculo Cimentaciones (CTs)', codigo: 'COLXXXXXXPX-CIV-MEM-003', especialidad: 'CIVIL', tipo: 'Memoria' },
+  { nombre: 'Memoria Cálculo Drenaje Aguas Lluvias (si aplica)', codigo: 'COLXXXXXXPX-CIV-MEM-004', especialidad: 'CIVIL', tipo: 'Memoria' },
+  { nombre: 'Plano de Drenaje Aguas Lluvias - General y Detalles (Si aplica)', codigo: 'COLXXXXXXPX-CIV-PL-010', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Plano Superposición de Zanjas, Vías, Drenajes y Cimentaciones.', codigo: 'COLXXXXXXPX-CIV-PL-011', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Listado de obras civiles', codigo: 'COLXXXXXXPX-CIV-LIS-002', especialidad: 'CIVIL', tipo: 'Lista de materiales' },
+  { nombre: 'Plano Esquemático Estructura de Mesas de Paneles', codigo: 'COLXXXXXXPX-MEC-PL-001', especialidad: 'MECANICA', tipo: 'Plano' },
+  { nombre: 'Memoria de Cálculo Estructura de Mesas - Entregados por el Proveedor', codigo: 'COLXXXXXXPX-MEC-MEM-001', especialidad: 'MECANICA', tipo: 'Memoria' },
+  { nombre: 'Plano Ubicación de Hincas - Estructura de Mesas de Paneles', codigo: 'COLXXXXXXPX-MEC-PL-002', especialidad: 'MECANICA', tipo: 'Plano' },
+  { nombre: 'Listado de Elementos de Mesas de Paneles - Entregado por el Proveedor', codigo: 'COLXXXXXXPX-MEC-LIS-001', especialidad: 'MECANICA', tipo: 'Lista de materiales' },
+  { nombre: 'Ficha Técnica de Estructura de Mesas de Paneles', codigo: 'COLXXXXXXPX-MEC-ESP-001', especialidad: 'MECANICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Plano Esquemático Estructura de Inversores', codigo: 'COLXXXXXXPX-MEC-PL-003', especialidad: 'MECANICA', tipo: 'Plano' },
+  { nombre: 'Memoria de Cálculo Estructura de Inversores - Entregados por el Proveedor', codigo: 'COLXXXXXXPX-MEC-MEM-002', especialidad: 'MECANICA', tipo: 'Memoria' },
+  { nombre: 'Listado de Elementos de Estructura Inversores - Entregado por el Proveedor', codigo: 'COLXXXXXXPX-MEC-LIS-002', especialidad: 'MECANICA', tipo: 'Lista de materiales' },
+  { nombre: 'Ficha Técnica de Estructura de Inversores', codigo: 'COLXXXXXXPX-MEC-ESP-002', especialidad: 'MECANICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Memoria de Cálculo Eléctrica', codigo: 'COLXXXXXXPX-ELE-MEM-001', especialidad: 'ELECTRICA', tipo: 'Memoria' },
+  { nombre: 'Esquema Unifilar General PSFV', codigo: 'COLXXXXXXPX-ELE-PL-001', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Simulación de Generación PVSyst (PDF y ZIP)', codigo: 'COLXXXXXXPX-ELE-INF-001', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Ficha Técnica Panel con Certificado RETIE', codigo: 'COLXXXXXXPX-ELE-ESP-001', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha Técnica Inversor', codigo: 'COLXXXXXXPX-ELE-ESP-002', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Manual de Instalación del Inversor', codigo: 'COLXXXXXXPX-ELE-ESP-003', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Certificados del Inversor', codigo: 'COLXXXXXXPX-ELE-ESP-004', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Diagrama Constructivo del Inversor', codigo: 'COLXXXXXXPX-ELE-PL-002', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Detalle Conexionado del Inversor', codigo: 'COLXXXXXXPX-ELE-PL-003', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Memoria de Cálculo Red MT (Línea o Subterráneo)', codigo: 'COLXXXXXXPX-ELE-MEM-002', especialidad: 'ELECTRICA', tipo: 'Memoria' },
+  { nombre: 'Plano de Planta Red MT y Cámaras de Inspección', codigo: 'COLXXXXXXPX-ELE-PL-004', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Ficha Técnica Centro de Transformación', codigo: 'COLXXXXXXPX-ELE-ESP-005', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Detalle Conexionado del Centro de Transformación', codigo: 'COLXXXXXXPX-ELE-PL-005', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Manual del Centro de Transformación', codigo: 'COLXXXXXXPX-ELE-ESP-006', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Planos Centro de Transformación - Proveedor o Fabricante', codigo: 'COLXXXXXXPX-ELE-PL-006', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Memoria de Cálculo Red BT DC y AC', codigo: 'COLXXXXXXPX-ELE-MEM-003', especialidad: 'ELECTRICA', tipo: 'Memoria' },
+  { nombre: 'Plano de Planta Red BT DC y AC y Cámaras de Inspección', codigo: 'COLXXXXXXPX-ELE-PL-007', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Estudio Sistema Puesta Tierra', codigo: 'COLXXXXXXPX-ELE-INF-002', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Plano Sistema Puesta Tierra', codigo: 'COLXXXXXXPX-ELE-PL-008', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Plano Apantallamiento Equipos Mayores', codigo: 'COLXXXXXXPX-ELE-PL-009', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Listado de Cables DC, AC BT y AC MT', codigo: 'COLXXXXXXPX-ELE-LIS-001', especialidad: 'ELECTRICA', tipo: 'Lista de materiales' },
+  { nombre: 'Detalle Conexión Paneles Solares y Mesas', codigo: 'COLXXXXXXPX-ELE-PL-010', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Detalle Conexión Inversores y Strings', codigo: 'COLXXXXXXPX-ELE-PL-011', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Ubicación de Tableros AC y SSAA', codigo: 'COLXXXXXXPX-ELE-PL-012', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Esquema Unifilar Tableros AC y SSAA', codigo: 'COLXXXXXXPX-ELE-PL-013', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Detalle Conexionado Tableros AC y SSAA', codigo: 'COLXXXXXXPX-ELE-PL-014', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Plano Distribución Shelter y Listado de Materiales Tableros AC y SSAA', codigo: 'COLXXXXXXPX-ELE-PL-015', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Fichas Técnicas Celdas MT - SHELTER', codigo: 'COLXXXXXXPX-ELE-ESP-007', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Listado de obras eléctricas', codigo: 'COLXXXXXXPX-ELE-LIS-007', especialidad: 'ELECTRICA', tipo: 'Lista de materiales' },
+  { nombre: 'FORMATO 1 - SOLICITUD PARA INCENTIVOS A LA INVERSIÓN EN PROYECTOS DE FNCE', codigo: 'COLXXXXXXPX-ELE-LIS-002', especialidad: 'ELECTRICA', tipo: 'Lista de materiales' },
+  { nombre: 'FORMATO 2 - GENERALIDADES DEL PROYECTO DE FNCE', codigo: 'COLXXXXXXPX-ELE-LIS-003', especialidad: 'ELECTRICA', tipo: 'Lista de materiales' },
+  { nombre: 'FORMATO 3 - ESPECIFICACIONES DE ELEMENTOS, EQUIPOS Y/O MAQUINARIA', codigo: 'COLXXXXXXPX-ELE-LIS-004', especialidad: 'ELECTRICA', tipo: 'Lista de materiales' },
+  { nombre: 'FORMATO 4 - ESPECIFICACIONES DE SERVICIOS', codigo: 'COLXXXXXXPX-ELE-LIS-005', especialidad: 'ELECTRICA', tipo: 'Lista de materiales' },
+  { nombre: 'Certificados de Conformidad Equipos UPME', codigo: 'COLXXXXXXPX-ELE-LIS-006', especialidad: 'ELECTRICA', tipo: 'Lista de materiales' },
+  { nombre: 'Arquitectura de Comunicaciones', codigo: 'COLXXXXXXPX-COM-PL-001', especialidad: 'COMUNICACIONES', tipo: 'Plano' },
+  { nombre: 'Especificaciones Técnicas Equipos comunicación', codigo: 'COLXXXXXXPX-COM-ESP-001', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Listado de Elementos comunicación', codigo: 'COLXXXXXXPX-COM-LIS-001', especialidad: 'COMUNICACIONES', tipo: 'Lista de materiales' },
+  { nombre: 'Listado de señales', codigo: 'COLXXXXXXPX-COM-LIS-002', especialidad: 'COMUNICACIONES', tipo: 'Lista de materiales' },
+  { nombre: 'Memoria Descriptiva comunicaciones', codigo: 'COLXXXXXXPX-COM-MEM-001', especialidad: 'COMUNICACIONES', tipo: 'Memoria' },
+  { nombre: 'Plano Constructivo y Conexionado Rack comunicacione', codigo: 'COLXXXXXXPX-COM-PL-002', especialidad: 'COMUNICACIONES', tipo: 'Plano' },
+  { nombre: 'Protocolo SAT comunicaciones', codigo: 'COLXXXXXXPX-COM-INF-001', especialidad: 'COMUNICACIONES', tipo: 'Informe' },
+  { nombre: 'Plano de Ruta Cableado Comunicaciones', codigo: 'COLXXXXXXPX-COM-PL-003', especialidad: 'COMUNICACIONES', tipo: 'Plano' },
+  { nombre: 'Ficha Técnica Fibra Óptica o UTP', codigo: 'COLXXXXXXPX-COM-ESP-002', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha Técnica Smart Logger', codigo: 'COLXXXXXXPX-COM-ESP-003', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Manual Smart Logger', codigo: 'COLXXXXXXPX-COM-ESP-004', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Especificaciones Técnicas equipos EEMM (Equipos Electrico de Maniobra y Medida)', codigo: 'COLXXXXXXPX-ELE-ESP-008', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Listado de Equipos y accesorios de montaje', codigo: 'COLXXXXXXPX-ELE-LIS-008', especialidad: 'ELECTRICA', tipo: 'Lista de materiales' },
+  { nombre: 'Protocolo SAT Equipos EM', codigo: 'COLXXXXXXPX-ELE-INF-003', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Montaje Equipos Meteorologicos', codigo: 'COLXXXXXXPX-ELE-PL-016', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Especificación Técnica Sistema de seguridad', codigo: 'COLXXXXXXPX-COM-ESP-005', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Planta General y Detalles Equipos de Seguridad', codigo: 'COLXXXXXXPX-COM-PL-004', especialidad: 'COMUNICACIONES', tipo: 'Plano' },
+  { nombre: 'Listado de Señales Equipos de Seguridad', codigo: 'COLXXXXXXPX-COM-LIS-003', especialidad: 'COMUNICACIONES', tipo: 'Lista de materiales' },
+  { nombre: 'Ficha Técnica equipos sistema de seguridad', codigo: 'COLXXXXXXPX-COM-ESP-006', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+];
+
+const DOCS_FENOGE = [
+  { nombre: 'Listado de cables AC y DC (con tags)', codigo: 'COLXXXXXXPX-ELE-LIS-001', especialidad: 'ELECTRICA', tipo: 'Listado' },
+  { nombre: 'BOM eléctrico', codigo: 'COLXXXXXXPX-ELE-LIS-002', especialidad: 'ELECTRICA', tipo: 'Listado' },
+  { nombre: 'Listado de obras eléctrias', codigo: 'COLXXXXXXPX-ELE-LIS-003', especialidad: 'ELECTRICA', tipo: 'Listado' },
+  { nombre: 'SSAA y respaldo', codigo: 'COLXXXXXXPX-ELE-MEM-001', especialidad: 'ELECTRICA', tipo: 'Memoria' },
+  { nombre: 'Sistema de puesta a tierra', codigo: 'COLXXXXXXPX-ELE-MEM-002', especialidad: 'ELECTRICA', tipo: 'Memoria' },
+  { nombre: 'Distancias mínimas y de seguridad', codigo: 'COLXXXXXXPX-ELE-MEM-003', especialidad: 'ELECTRICA', tipo: 'Memoria' },
+  { nombre: 'Cargabilidad CT´s y PT´s', codigo: 'COLXXXXXXPX-ELE-MEM-004', especialidad: 'ELECTRICA', tipo: 'Memoria' },
+  { nombre: 'Documento OR', codigo: 'COLXXXXXXPX-ELE-INF-001', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'RETIE', codigo: 'COLXXXXXXPX-ELE-INF-002', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Proyecto especifico', codigo: 'COLXXXXXXPX-ELE-INF-003', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Etiqueta de cables', codigo: 'COLXXXXXXPX-ELE-INF-004', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Criterios de seleccion de MPPT', codigo: 'COLXXXXXXPX-ELE-INF-005', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Coordinación de aislamiento', codigo: 'COLXXXXXXPX-ELE-INF-006', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Apantallamiento', codigo: 'COLXXXXXXPX-ELE-INF-007', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Riesgo Electrico', codigo: 'COLXXXXXXPX-ELE-INF-008', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Simulación PVsyst', codigo: 'COLXXXXXXPX-ELE-INF-009', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Sistema de puesta a tierra', codigo: 'COLXXXXXXPX-ELE-INF-010', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Arco eléctrico', codigo: 'COLXXXXXXPX-ELE-INF-011', especialidad: 'ELECTRICA', tipo: 'Informe' },
+  { nombre: 'Disposición física', codigo: 'COLXXXXXXPX-ELE-PL-001', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Cableado DC', codigo: 'COLXXXXXXPX-ELE-PL-002', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Rutas DC-AC-MT', codigo: 'COLXXXXXXPX-ELE-PL-003', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Rutas DC Inversores', codigo: 'COLXXXXXXPX-ELE-PL-004', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Rutas ACBT-MT y AÉREA', codigo: 'COLXXXXXXPX-ELE-PL-005', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Diagrama Unifilar', codigo: 'COLXXXXXXPX-ELE-PL-006', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Diagrama unifilar SSAA', codigo: 'COLXXXXXXPX-ELE-PL-007', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Sistema de puesta a tierra', codigo: 'COLXXXXXXPX-ELE-PL-008', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Ruta de Evacuación', codigo: 'COLXXXXXXPX-ELE-PL-009', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Estructura Inversores', codigo: 'COLXXXXXXPX-CIV-PL-001', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Conexion inversores', codigo: 'COLXXXXXXPX-ELE-PL-010', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Apantallamiento', codigo: 'COLXXXXXXPX-ELE-PL-011', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Distribución de equipos en SHELTER', codigo: 'COLXXXXXXPX-ELE-PL-012', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Celda Frontera o medidor', codigo: 'COLXXXXXXPX-ELE-PL-013', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Soporte de bandeja en Inversores', codigo: 'COLXXXXXXPX-ELE-PL-014', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Plano de diseño de la red MT', codigo: 'COLXXXXXXPX-ELE-PL-015', especialidad: 'ELECTRICA', tipo: 'Plano' },
+  { nombre: 'Ficha Técnica de Inversores', codigo: 'COLXXXXXXPX-ELE-ESP-001', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha Técnica de Medidor', codigo: 'COLXXXXXXPX-ELE-ESP-002', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha Técnica de Paneles', codigo: 'COLXXXXXXPX-ELE-ESP-003', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha Técnica de Transformador', codigo: 'COLXXXXXXPX-ELE-ESP-004', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha Técnica de Tableros', codigo: 'COLXXXXXXPX-ELE-ESP-005', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha Técnica de Reconectador', codigo: 'COLXXXXXXPX-ELE-ESP-006', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha Técnica de TC y TP', codigo: 'COLXXXXXXPX-ELE-ESP-007', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha Técnica de Tracker', codigo: 'COLXXXXXXPX-ELE-ESP-008', especialidad: 'ELECTRICA', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'BOM de comunicaciones', codigo: 'COLXXXXXXPX-COM-LIS-001', especialidad: 'COMUNICACIONES', tipo: 'Listado' },
+  { nombre: 'Listado de obras de comunicación', codigo: 'COLXXXXXXPX-COM-LIS-002', especialidad: 'COMUNICACIONES', tipo: 'Listado' },
+  { nombre: 'Listado de cables (Tags)', codigo: 'COLXXXXXXPX-COM-LIS-003', especialidad: 'COMUNICACIONES', tipo: 'Listado' },
+  { nombre: 'Inventario de equipos', codigo: 'COLXXXXXXPX-COM-LIS-004', especialidad: 'COMUNICACIONES', tipo: 'Listado' },
+  { nombre: 'Listado de señales', codigo: 'COLXXXXXXPX-COM-LIS-005', especialidad: 'COMUNICACIONES', tipo: 'Listado' },
+  { nombre: 'Comunicaciones', codigo: 'COLXXXXXXPX-COM-INF-001', especialidad: 'COMUNICACIONES', tipo: 'Informe' },
+  { nombre: 'Arquitectura', codigo: 'COLXXXXXXPX-COM-PL-001', especialidad: 'COMUNICACIONES', tipo: 'Plano' },
+  { nombre: 'Diagrama de conexiones', codigo: 'COLXXXXXXPX-COM-PL-002', especialidad: 'COMUNICACIONES', tipo: 'Plano' },
+  { nombre: 'Comunicacion Inversores y ruta_CCTV', codigo: 'COLXXXXXXPX-COM-PL-003', especialidad: 'COMUNICACIONES', tipo: 'Plano' },
+  { nombre: 'Ficha técnica de camaras', codigo: 'COLXXXXXXPX-COM-ESP-001', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de camaras en S/E', codigo: 'COLXXXXXXPX-COM-ESP-002', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de smartlogger', codigo: 'COLXXXXXXPX-COM-ESP-003', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de estación meteorológica', codigo: 'COLXXXXXXPX-COM-ESP-004', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de medidor', codigo: 'COLXXXXXXPX-COM-ESP-005', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de router', codigo: 'COLXXXXXXPX-COM-ESP-006', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de switch', codigo: 'COLXXXXXXPX-COM-ESP-007', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de camaras', codigo: 'COLXXXXXXPX-COM-ESP-008', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de NVR', codigo: 'COLXXXXXXPX-COM-ESP-009', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de starlink', codigo: 'COLXXXXXXPX-COM-ESP-010', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Ficha técnica de AccessPoint', codigo: 'COLXXXXXXPX-COM-ESP-011', especialidad: 'COMUNICACIONES', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Localizaciones y accesos', codigo: 'COLXXXXXXPX-CIV-PL-002', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Topografia del terreno', codigo: 'COLXXXXXXPX-CIV-PL-003', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Fijaciones mecánicas', codigo: 'COLXXXXXXPX-CIV-PL-004', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Caminos internos y vías perimetrales', codigo: 'COLXXXXXXPX-CIV-PL-005', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Áreas de circulación en el proyecto', codigo: 'COLXXXXXXPX-CIV-PL-006', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Canalizaciones de Baja y Media tensión; Redes', codigo: 'COLXXXXXXPX-CIV-PL-007', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Cerramiento y Especificaciones generales', codigo: 'COLXXXXXXPX-CIV-PL-008', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Cortes en mesas', codigo: 'COLXXXXXXPX-CIV-PL-009', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Cimentaciones de Shelter', codigo: 'COLXXXXXXPX-CIV-PL-010', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Arquitectonico Shelter', codigo: 'COLXXXXXXPX-CIV-PL-011', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Plano de obras hidráulicas (Si aplica)', codigo: 'COLXXXXXXPX-CIV-PL-012', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Movimientos de tierras (si aplica)', codigo: 'COLXXXXXXPX-CIV-PL-013', especialidad: 'CIVIL', tipo: 'Plano' },
+  { nombre: 'Informe hidrológico', codigo: 'COLXXXXXXPX-CIV-INF-001', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Informe hidráulico (Si aplica)', codigo: 'COLXXXXXXPX-CIV-INF-002', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Estudio de suelos', codigo: 'COLXXXXXXPX-CIV-INF-003', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Topografía general', codigo: 'COLXXXXXXPX-CIV-INF-004', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'Manual de instalación del tracker', codigo: 'COLXXXXXXPX-CIV-INF-005', especialidad: 'CIVIL', tipo: 'Informe' },
+  { nombre: 'ET para estudio de suelos', codigo: 'COLXXXXXXPX-CIV-ESP-001', especialidad: 'CIVIL', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'ET para Topografía', codigo: 'COLXXXXXXPX-CIV-ESP-002', especialidad: 'CIVIL', tipo: 'Especificaciones tecnicas' },
+  { nombre: 'Listado de obras y cantidades civiles', codigo: 'COLXXXXXXPX-CIV-LIS-001', especialidad: 'CIVIL', tipo: 'Listado' },
+  { nombre: 'Analisis de riesgo contra incendios (Si aplica)', codigo: 'COLXXXXXXPX-GEN-INF-001', especialidad: 'GENERAL', tipo: 'Informe' },
+  { nombre: 'Sistema de detección de incendios (Si aplica)', codigo: 'COLXXXXXXPX-GEN-PL-001', especialidad: 'GENERAL', tipo: 'Plano' },
+];
+
+/* Estados posibles de un documento en Control Documental. */
+const DOC_ESTADOS = [
+  'Pendiente',
+  'En proceso',
+  'No aplica',
+  'Aprobado para construcción con comentarios (APCC)',
+  'Aprobado para construcción (APC)',
+];
+const DOC_ESTADO_CONFIG = {
+  'Pendiente': { bg: 'bg-navy-100', text: 'text-navy-500' },
+  'En proceso': { bg: 'bg-gold-100', text: 'text-gold-700' },
+  'No aplica': { bg: 'bg-navy-50', text: 'text-navy-400' },
+  'Aprobado para construcción con comentarios (APCC)': { bg: 'bg-lime-100', text: 'text-lime-700' },
+  'Aprobado para construcción (APC)': { bg: 'bg-emerald-100', text: 'text-emerald-700' },
+};
+
+/* Según el inversionista del proyecto, se usa una lista de documentos u otra. */
+function pickDocumentList(inversionista) {
+  const v = (inversionista || '').trim().toUpperCase();
+  if (v === 'CFM') return DOCS_CFM;
+  if (v === 'FENOGE') return DOCS_FENOGE;
+  return DOCS_ESTANDAR;
+}
+
+/* Arma el prefijo de código del proyecto (ej. COLSANT215P1) a partir de los  */
+/* campos de General. Si falta algún dato, devuelve '' y el código de cada   */
+/* documento se muestra con el placeholder original (COLXXXXXXPX).          */
+function buildProjectCode(general) {
+  const dep = (general.codigo_departamento || '').trim().toUpperCase();
+  const num = (general.numero_minigranja || '').trim();
+  const predio = (general.numero_predio || '').trim();
+  if (!dep || !num || !predio) return '';
+  return `COL${dep}${num}P${predio}`;
+}
 
 /* ============================================================================
    5. COMPONENTES DE PRESENTACIÓN
@@ -388,6 +760,76 @@ function ReadOnlyValue({ label, value, mono = true }) {
 }
 
 function FieldRenderer({ field, value, editMode, onChange }) {
+  if (field.type === 'stations') {
+    const rows = Array.isArray(value) && value.length > 0 ? value : emptyStations();
+    if (!editMode) {
+      const conDatos = rows.filter((r) => r.nombre || r.dias || r.peso);
+      return (
+        <div className="py-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-2">{field.label}</p>
+          {conDatos.length === 0 ? (
+            <p className="text-sm text-navy-300 italic">Sin definir</p>
+          ) : (
+            <table className="w-full text-sm border border-navy-200 rounded-lg overflow-hidden">
+              <thead>
+                <tr className="bg-navy-50">
+                  <th className="text-left font-semibold text-navy-500 px-3 py-1.5 border-b border-navy-200">Nombre de la estación</th>
+                  <th className="text-left font-semibold text-navy-500 px-3 py-1.5 border-b border-navy-200">Días/año promedio</th>
+                  <th className="text-left font-semibold text-navy-500 px-3 py-1.5 border-b border-navy-200">Peso porcentual</th>
+                </tr>
+              </thead>
+              <tbody>
+                {conDatos.map((r, i) => (
+                  <tr key={i} className="border-b border-navy-100 last:border-b-0">
+                    <td className="px-3 py-1.5 font-mono text-navy-700">{r.nombre || '—'}</td>
+                    <td className="px-3 py-1.5 font-mono text-navy-700">{r.dias || '—'}</td>
+                    <td className="px-3 py-1.5 font-mono text-navy-700">{r.peso ? `${r.peso}%` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      );
+    }
+    function updateRow(i, key, val) {
+      const next = rows.map((r, idx) => (idx === i ? { ...r, [key]: val } : r));
+      onChange(next);
+    }
+    const cellInput = 'w-full rounded-md border border-navy-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400';
+    return (
+      <div className="py-1">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border border-navy-200 rounded-lg">
+            <thead>
+              <tr className="bg-navy-50">
+                <th className="text-left font-semibold text-navy-500 px-2 py-1.5 border-b border-navy-200">Nombre de la estación</th>
+                <th className="text-left font-semibold text-navy-500 px-2 py-1.5 border-b border-navy-200 w-40">Días/año promedio</th>
+                <th className="text-left font-semibold text-navy-500 px-2 py-1.5 border-b border-navy-200 w-36">Peso porcentual (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={i} className="border-b border-navy-100 last:border-b-0">
+                  <td className="p-1.5">
+                    <input type="text" className={cellInput} value={r.nombre} onChange={(e) => updateRow(i, 'nombre', e.target.value)} />
+                  </td>
+                  <td className="p-1.5">
+                    <input type="text" className={cellInput} value={r.dias} onChange={(e) => updateRow(i, 'dias', e.target.value)} />
+                  </td>
+                  <td className="p-1.5">
+                    <input type="text" className={cellInput} value={r.peso} onChange={(e) => updateRow(i, 'peso', e.target.value)} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
   if (field.type === 'boolean') {
     const val = value && typeof value === 'object' ? value : { valor: null, nota: '' };
     if (!editMode) {
@@ -451,7 +893,7 @@ function SectionFieldsGrid({ section, data, editMode, onFieldChange }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 divide-y divide-navy-100 md:divide-y-0">
       {section.fields.map((field) => (
-        <div key={field.key}>
+        <div key={field.key} className={field.type === 'stations' ? 'col-span-full' : ''}>
           <FieldRenderer
             field={field}
             value={data ? data[field.key] : undefined}
@@ -529,6 +971,174 @@ function AttachmentsPanel({ archivos, onAdd, onRemove, canEdit = true }) {
   );
 }
 
+function NotesPanel({ notas, onAdd, onRemove, canEdit }) {
+  const [texto, setTexto] = useState('');
+
+  function submit(e) {
+    e.preventDefault();
+    if (!texto.trim()) return;
+    onAdd(texto.trim());
+    setTexto('');
+  }
+
+  const ordenadas = [...(notas || [])].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+
+  return (
+    <div>
+      {canEdit ? (
+        <form onSubmit={submit} className="mb-5 space-y-2">
+          <textarea
+            rows={3}
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            placeholder="Escribe una particularidad o nota que haya surgido durante el diseño…"
+            className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400"
+          />
+          <div className="flex justify-end">
+            <button type="submit" className="flex items-center gap-1.5 text-xs font-semibold bg-gold-500 hover:bg-gold-600 text-navy-900 px-3 py-1.5 rounded-md transition-colors">
+              <Plus className="w-3.5 h-3.5" /> Agregar nota
+            </button>
+          </div>
+        </form>
+      ) : (
+        <p className="flex items-center gap-1.5 text-xs text-navy-400 mb-5">
+          <Lock className="w-3.5 h-3.5" /> Solo el equipo asignado puede agregar notas.
+        </p>
+      )}
+
+      {ordenadas.length === 0 ? (
+        <p className="text-sm text-navy-400 italic text-center py-8">Aún no hay notas para este proyecto.</p>
+      ) : (
+        <div className="space-y-3">
+          {ordenadas.map((n) => (
+            <div key={n.id} className="bg-navy-50 border border-navy-200 rounded-lg p-3">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <p className="text-xs text-navy-500">
+                  <span className="font-semibold text-navy-700">{n.autor}</span> · {formatDateTime(n.fecha)}
+                </p>
+                {canEdit && (
+                  <button onClick={() => onRemove(n.id)} className="text-navy-300 hover:text-red-500 shrink-0">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <p className="text-sm text-navy-700 whitespace-pre-wrap break-words">{n.texto}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Input de comentarios que solo confirma (y dispara la persistencia) al     */
+/* perder el foco, para no escribir en la base de datos en cada tecla.       */
+function ComentarioInput({ value, onCommit, disabled, placeholder }) {
+  const [draft, setDraft] = useState(value || '');
+  useEffect(() => {
+    setDraft(value || '');
+  }, [value]);
+
+  return (
+    <textarea
+      rows={2}
+      disabled={disabled}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        if (draft !== (value || '')) onCommit(draft);
+      }}
+      placeholder={placeholder}
+      className="w-full text-sm rounded-md border border-navy-300 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-gold-400 disabled:bg-navy-50 disabled:text-navy-400"
+    />
+  );
+}
+
+function DocEstadoBadge({ estado }) {
+  const cfg = DOC_ESTADO_CONFIG[estado] || DOC_ESTADO_CONFIG['Pendiente'];
+  return <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>{estado || 'Pendiente'}</span>;
+}
+
+function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, onDocChange }) {
+  const general = project.data.general;
+  const lista = pickDocumentList(general.inversionista);
+  const prefijo = buildProjectCode(general);
+  const estadoActual = project.documentos || {};
+
+  const grupos = [];
+  const idxByEsp = new Map();
+  lista.forEach((doc) => {
+    if (!idxByEsp.has(doc.especialidad)) {
+      idxByEsp.set(doc.especialidad, grupos.length);
+      grupos.push({ especialidad: doc.especialidad, docs: [] });
+    }
+    grupos[idxByEsp.get(doc.especialidad)].docs.push(doc);
+  });
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
+        <p className="text-xs text-navy-400">
+          Lista aplicable según inversionista: <span className="font-semibold text-navy-600">{general.inversionista || 'Ninguno definido — se usa Estándar'}</span>
+        </p>
+        <p className="text-xs font-mono text-navy-500 bg-navy-50 border border-navy-200 rounded px-2 py-1">
+          {prefijo ? `Prefijo de código: ${prefijo}` : 'Completa Departamento (abrev.), N.° de minigranja y N.° de predio en "General" para generar el código'}
+        </p>
+      </div>
+      {!puedeComentar && (
+        <p className="flex items-center gap-1.5 text-xs text-navy-400 mb-4">
+          <Lock className="w-3.5 h-3.5" /> Solo "Control de Calidad Interno" puede escribir comentarios.
+        </p>
+      )}
+      <div className="space-y-6">
+        {grupos.map((g) => (
+          <div key={g.especialidad}>
+            <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-2">{g.especialidad}</p>
+            <div className="space-y-2">
+              {g.docs.map((doc) => {
+                const codigoFinal = prefijo ? doc.codigo.replace('COLXXXXXXPX', prefijo) : doc.codigo;
+                const estadoDoc = estadoActual[doc.codigo] || {};
+                return (
+                  <div key={doc.codigo} className="border border-navy-200 rounded-lg p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-navy-700">{doc.nombre}</p>
+                        <p className="text-xs font-mono text-navy-400">{codigoFinal} · {doc.tipo}</p>
+                      </div>
+                      {puedeEditarContenido ? (
+                        <select
+                          value={estadoDoc.estado || 'Pendiente'}
+                          onChange={(e) => onDocChange(doc, { estado: e.target.value })}
+                          className="text-xs rounded-md border border-navy-300 px-2 py-1 shrink-0"
+                        >
+                          {DOC_ESTADOS.map((op) => (
+                            <option key={op} value={op}>{op}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <DocEstadoBadge estado={estadoDoc.estado} />
+                      )}
+                    </div>
+                    {puedeComentar ? (
+                      <ComentarioInput
+                        value={estadoDoc.comentarios}
+                        onCommit={(val) => onDocChange(doc, { comentarios: val })}
+                        placeholder="Comentarios de control de calidad…"
+                      />
+                    ) : estadoDoc.comentarios ? (
+                      <p className="text-sm text-navy-500 italic">{estadoDoc.comentarios}</p>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PrintableReport({ project }) {
   const general = project.data.general;
   return (
@@ -583,6 +1193,40 @@ function PrintableReport({ project }) {
             <tbody>
               {section.fields.map((field) => {
                 const raw = project.data[section.id] ? project.data[section.id][field.key] : undefined;
+
+                if (field.type === 'stations') {
+                  const filas = (Array.isArray(raw) ? raw : []).filter((r) => r.nombre || r.dias || r.peso);
+                  return (
+                    <tr key={field.key} className="border-b border-navy-100">
+                      <td className="py-1.5 pr-4 text-navy-500 w-1/2 align-top">{field.label}</td>
+                      <td className="py-1.5 align-top">
+                        {filas.length === 0 ? (
+                          <span className="font-mono text-navy-700">—</span>
+                        ) : (
+                          <table className="w-full text-xs border border-navy-300">
+                            <thead>
+                              <tr className="bg-navy-50">
+                                <th className="text-left px-2 py-1 border-b border-navy-300">Estación</th>
+                                <th className="text-left px-2 py-1 border-b border-navy-300">Días/año</th>
+                                <th className="text-left px-2 py-1 border-b border-navy-300">Peso %</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {filas.map((r, i) => (
+                                <tr key={i}>
+                                  <td className="px-2 py-1 font-mono">{r.nombre || '—'}</td>
+                                  <td className="px-2 py-1 font-mono">{r.dias || '—'}</td>
+                                  <td className="px-2 py-1 font-mono">{r.peso || '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                }
+
                 let val = raw;
                 let nota = '';
                 if (field.type === 'boolean') {
@@ -706,7 +1350,6 @@ function AuthGate() {
 
 function ProfileGate({ userId, initial, onSaved, onCancel }) {
   const [nombre, setNombre] = useState(initial?.nombre || '');
-  const [especialidad, setEspecialidad] = useState(initial?.especialidad || ROLES[0].key);
   const [preview, setPreview] = useState(initial?.foto || null);
   const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -736,9 +1379,9 @@ function ProfileGate({ userId, initial, onSaved, onCancel }) {
         const { data } = supabase.storage.from('avatars').getPublicUrl(path);
         foto = data.publicUrl;
       }
-      const { error: dbErr } = await supabase.from('profiles').upsert({ id: userId, nombre: nombre.trim(), especialidad, foto_url: foto });
+      const { error: dbErr } = await supabase.from('profiles').upsert({ id: userId, nombre: nombre.trim(), foto_url: foto });
       if (dbErr) throw dbErr;
-      onSaved({ id: userId, nombre: nombre.trim(), especialidad, foto });
+      onSaved({ id: userId, nombre: nombre.trim(), foto });
     } catch (err) {
       setError(err.message || 'No se pudo guardar el perfil.');
     } finally {
@@ -756,7 +1399,7 @@ function ProfileGate({ userId, initial, onSaved, onCancel }) {
             </div>
             <div>
               <p className="font-bold text-navy-800 leading-tight">Sun Design Suite</p>
-              <p className="text-xs text-navy-500">{initial ? 'Editar mi perfil' : 'Completa tu perfil de ingeniero'}</p>
+              <p className="text-xs text-navy-500">{initial ? 'Editar mi perfil' : 'Completa tu perfil'}</p>
             </div>
           </div>
           {onCancel && (
@@ -788,27 +1431,12 @@ function ProfileGate({ userId, initial, onSaved, onCancel }) {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Especialidad *</label>
-            <select value={especialidad} onChange={(e) => setEspecialidad(e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm">
-              <optgroup label="Especialidades técnicas">
-                {ROLES.map((r) => (
-                  <option key={r.key} value={r.key}>{r.label}</option>
-                ))}
-              </optgroup>
-              <optgroup label="Roles de liderazgo">
-                {LEADER_ROLES.map((r) => (
-                  <option key={r.key} value={r.key}>{r.label}</option>
-                ))}
-              </optgroup>
-            </select>
-            {LEADER_ROLES.some((r) => r.key === especialidad) && (
-              <p className="text-xs text-gold-700 mt-1.5 flex items-start gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                Como rol de liderazgo, podrás asignar el equipo y cambiar el estado de cualquier proyecto.
-              </p>
-            )}
-          </div>
+          {!initial && (
+            <p className="text-xs text-navy-400 flex items-start gap-1.5">
+              <Lock className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              Tu cuenta se crea sin rol. Pídele a un líder que te asigne tu(s) especialidad(es) desde la sección "Equipo" para poder ver y trabajar en tus proyectos.
+            </p>
+          )}
 
           {error && <p className="text-xs text-red-500">{error}</p>}
 
@@ -843,9 +1471,9 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { key: 'mis', label: 'Mis Proyectos', icon: FolderKanban },
     { key: 'todos', label: 'Todos los Proyectos', icon: Layers },
+    { key: 'equipo', label: 'Equipo', icon: UserCog },
     { key: 'enlaces', label: 'Enlaces de Interés', icon: Link2 },
   ];
-  const especialidadLabel = specialtyLabel(perfil.especialidad);
 
   return (
     <aside className="no-print w-64 shrink-0 bg-navy-900 text-navy-300 flex flex-col h-screen sticky top-0">
@@ -907,7 +1535,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
           <p className="text-white text-sm font-semibold truncate">{perfil.nombre}</p>
           <p className="text-navy-500 text-xs truncate flex items-center gap-1">
             {isLeader(perfil) && <ShieldCheck className="w-3 h-3 text-gold-400 shrink-0" />}
-            {especialidadLabel}
+            {rolesLabel(perfil)}
           </p>
         </div>
         <button onClick={onEditProfile} title="Editar mi perfil" className="text-navy-500 hover:text-white shrink-0">
@@ -977,7 +1605,7 @@ function Dashboard({ projects, misProyectos, onNewProject, openProject, setView,
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-navy-800">Hola, {primerNombre}</h1>
-          <p className="text-navy-500 text-sm mt-1">{specialtyLabel(perfil.especialidad)} · Panel general de proyectos</p>
+          <p className="text-navy-500 text-sm mt-1">{rolesLabel(perfil)} · Panel general de proyectos</p>
         </div>
         <button onClick={onNewProject} className="flex items-center gap-2 bg-gold-500 hover:bg-gold-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition-colors">
           <Plus className="w-4 h-4" /> Nuevo Proyecto
@@ -1071,7 +1699,7 @@ function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, dire
 }
 
 function EquipoSelect({ role, valorActual, directorio, onChange, readOnly }) {
-  const candidatos = directorio.filter((u) => u.especialidad === role.key);
+  const candidatos = directorio.filter((u) => u.roles && u.roles.includes(role.key));
   const actualRegistrado = valorActual && candidatos.some((u) => u.nombre === valorActual);
 
   if (readOnly) {
@@ -1099,7 +1727,11 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil }) {
     nombre: '',
     estado: 'activo',
     equipo: Object.fromEntries(ROLES.map((r) => [r.key, ''])),
-    general: { municipio: '', departamento: '', pais: 'Colombia', inversionista: '', fecha_inicio: '', fecha_entrega: '' },
+    general: {
+      municipio: '', departamento: '', pais: 'Colombia', inversionista: '',
+      codigo_departamento: '', numero_minigranja: '', numero_predio: '',
+      fecha_inicio: '', fecha_entrega: '',
+    },
   });
 
   function set(key, val) {
@@ -1124,6 +1756,8 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil }) {
       equipo: form.equipo,
       data,
       archivos: [],
+      notas: [],
+      documentos: {},
     });
   }
 
@@ -1166,7 +1800,7 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil }) {
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Inversionista</label>
-              <input value={form.general.inversionista} onChange={(e) => setGeneral('inversionista', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
+              <input value={form.general.inversionista} onChange={(e) => setGeneral('inversionista', e.target.value)} placeholder="CFM, FENOGE u otro" className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
             </div>
             <div>
               <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Fecha de Inicio</label>
@@ -1175,6 +1809,24 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil }) {
             <div>
               <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Fecha de Entrega</label>
               <input type="date" value={form.general.fecha_entrega} onChange={(e) => setGeneral('fecha_entrega', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase text-navy-500 mb-2">Código del proyecto (para Control Documental)</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs text-navy-500 mb-1">Depto. (abrev, ej. SANT)</label>
+                <input value={form.general.codigo_departamento} onChange={(e) => setGeneral('codigo_departamento', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm font-mono" />
+              </div>
+              <div>
+                <label className="block text-xs text-navy-500 mb-1">N.° de minigranja</label>
+                <input value={form.general.numero_minigranja} onChange={(e) => setGeneral('numero_minigranja', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm font-mono" />
+              </div>
+              <div>
+                <label className="block text-xs text-navy-500 mb-1">N.° de predio</label>
+                <input value={form.general.numero_predio} onChange={(e) => setGeneral('numero_predio', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm font-mono" />
+              </div>
             </div>
           </div>
 
@@ -1238,7 +1890,8 @@ function ProjectDetail({ project, updateProject, onBack, directorio, perfil }) {
   const [loadingHistorial, setLoadingHistorial] = useState(false);
 
   const puedeGestionar = isLeader(perfil); // asignar equipo + cambiar estado
-  const puedeEditarContenido = isAssignedToProject(perfil, project); // campos técnicos + archivos
+  const puedeEditarContenido = isAssignedToProject(perfil, project); // campos técnicos + archivos + notas
+  const puedeComentar = isQA(perfil); // comentarios en Control Documental
 
   async function loadHistorial() {
     setLoadingHistorial(true);
@@ -1308,6 +1961,27 @@ function ProjectDetail({ project, updateProject, onBack, directorio, perfil }) {
   function removeFile(fileId) {
     const archivo = project.archivos.find((f) => f.id === fileId);
     updateProject(project.id, (p) => ({ ...p, archivos: p.archivos.filter((f) => f.id !== fileId) }), archivo ? `Eliminó el archivo: ${archivo.nombre}` : 'Eliminó un archivo');
+    setHistorial(null);
+  }
+  function handleAddNota(texto) {
+    const nueva = { id: makeId('nota'), texto, autor: perfil.nombre, fecha: new Date().toISOString() };
+    const resumen = texto.length > 80 ? `${texto.slice(0, 80)}…` : texto;
+    updateProject(project.id, (p) => ({ ...p, notas: [...(p.notas || []), nueva] }), `Agregó una nota: "${resumen}"`);
+    setHistorial(null);
+  }
+  function handleRemoveNota(notaId) {
+    const nota = (project.notas || []).find((n) => n.id === notaId);
+    const resumen = nota ? (nota.texto.length > 80 ? `${nota.texto.slice(0, 80)}…` : nota.texto) : null;
+    updateProject(project.id, (p) => ({ ...p, notas: (p.notas || []).filter((n) => n.id !== notaId) }), resumen ? `Eliminó una nota: "${resumen}"` : 'Eliminó una nota');
+    setHistorial(null);
+  }
+  function handleDocChange(doc, patch) {
+    const anterior = (project.documentos || {})[doc.codigo] || {};
+    const nuevo = { ...anterior, ...patch };
+    const accion = patch.estado !== undefined
+      ? `Actualizó el estado de "${doc.nombre}" a "${patch.estado}"`
+      : `Comentó en "${doc.nombre}"`;
+    updateProject(project.id, (p) => ({ ...p, documentos: { ...(p.documentos || {}), [doc.codigo]: nuevo } }), accion);
     setHistorial(null);
   }
 
@@ -1411,6 +2085,22 @@ function ProjectDetail({ project, updateProject, onBack, directorio, perfil }) {
               );
             })}
             <button
+              onClick={() => setActiveTab('documentos')}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                activeTab === 'documentos' ? 'border-gold-500 text-gold-600 bg-gold-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
+              }`}
+            >
+              <ClipboardCheck className="w-4 h-4" /> Control Documental
+            </button>
+            <button
+              onClick={() => setActiveTab('notas')}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                activeTab === 'notas' ? 'border-gold-500 text-gold-600 bg-gold-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
+              }`}
+            >
+              <StickyNote className="w-4 h-4" /> Notas {project.notas && project.notas.length > 0 && `(${project.notas.length})`}
+            </button>
+            <button
               onClick={() => setActiveTab('archivos')}
               className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
                 activeTab === 'archivos' ? 'border-gold-500 text-gold-600 bg-gold-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
@@ -1429,7 +2119,7 @@ function ProjectDetail({ project, updateProject, onBack, directorio, perfil }) {
           </div>
 
           <div className="p-6">
-            {activeTab !== 'archivos' && activeTab !== 'historial' && activeSection && (
+            {activeTab !== 'archivos' && activeTab !== 'historial' && activeTab !== 'documentos' && activeTab !== 'notas' && activeSection && (
               <>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs text-navy-400">Campos de la especialidad · {activeSection.label}</p>
@@ -1462,6 +2152,17 @@ function ProjectDetail({ project, updateProject, onBack, directorio, perfil }) {
             )}
             {activeTab === 'archivos' && (
               <AttachmentsPanel archivos={project.archivos} onAdd={handleAddFiles} onRemove={removeFile} canEdit={puedeEditarContenido} />
+            )}
+            {activeTab === 'documentos' && (
+              <DocumentControlPanel
+                project={project}
+                puedeEditarContenido={puedeEditarContenido}
+                puedeComentar={puedeComentar}
+                onDocChange={handleDocChange}
+              />
+            )}
+            {activeTab === 'notas' && (
+              <NotesPanel notas={project.notas} onAdd={handleAddNota} onRemove={handleRemoveNota} canEdit={puedeEditarContenido} />
             )}
             {activeTab === 'historial' && (
               <div>
@@ -1608,6 +2309,66 @@ function LinksView({ links, onAdd, onUpdate, onRemove }) {
   );
 }
 
+function TeamRolesView({ directorio, perfil, onToggleRole }) {
+  const soyLider = isLeader(perfil);
+  const [pending, setPending] = useState(null); // `${userId}:${roleKey}` mientras se guarda
+
+  async function handleToggle(userId, roleKey, tieneRol) {
+    const key = `${userId}:${roleKey}`;
+    setPending(key);
+    await onToggleRole(userId, roleKey, tieneRol);
+    setPending(null);
+  }
+
+  return (
+    <div className="p-8 max-w-4xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-navy-800">Equipo</h1>
+        <p className="text-navy-500 text-sm mt-1">
+          {soyLider
+            ? 'Como líder, puedes otorgar o quitar roles a cualquier persona. Los roles determinan a qué proyectos puede asignarse cada quien.'
+            : 'Solo un líder puede asignar roles. Aquí puedes ver qué rol tiene cada persona del equipo.'}
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {directorio.map((u) => (
+          <div key={u.id} className="bg-white border border-navy-200 rounded-xl p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <Avatar name={u.nombre} foto={u.foto} />
+              <div className="min-w-0">
+                <p className="font-semibold text-navy-800 truncate">{u.nombre}{u.id === perfil.id ? ' (tú)' : ''}</p>
+                <p className="text-xs text-navy-400 truncate">{rolesLabel(u)}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {ALL_ROLE_DEFS.map((role) => {
+                const tieneRol = u.roles.includes(role.key);
+                const cargando = pending === `${u.id}:${role.key}`;
+                const RoleIcon = role.icon;
+                return (
+                  <button
+                    key={role.key}
+                    disabled={!soyLider || cargando}
+                    onClick={() => handleToggle(u.id, role.key, tieneRol)}
+                    className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
+                      tieneRol ? 'bg-gold-100 text-gold-800 border-gold-300' : 'bg-navy-50 text-navy-400 border-navy-200'
+                    } ${soyLider ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'} ${cargando ? 'opacity-50' : ''}`}
+                  >
+                    <RoleIcon className="w-3 h-3" />
+                    {role.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+        {directorio.length === 0 && <p className="text-sm text-navy-400 italic text-center py-8">Aún no hay cuentas creadas.</p>}
+      </div>
+    </div>
+  );
+}
+
 /* ============================================================================
    9. COMPONENTE RAÍZ
    ============================================================================ */
@@ -1636,7 +2397,7 @@ export default function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // Perfil del usuario logueado
+  // Perfil del usuario logueado + datos compartidos (proyectos, enlaces, equipo)
   useEffect(() => {
     if (!session) {
       setPerfil(null);
@@ -1644,22 +2405,24 @@ export default function App() {
     }
     let cancelled = false;
     setCheckingPerfil(true);
-    supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled) return;
-        setPerfil(data ? rowToProfile(data) : null);
+    (async () => {
+      const { data: ownRow } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+      if (cancelled) return;
+      if (!ownRow) {
+        setPerfil(null);
         setCheckingPerfil(false);
-      });
+        return;
+      }
+      setCheckingPerfil(false);
+      await loadSharedData(session.user.id);
+    })();
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
-  async function loadSharedData() {
+  async function loadSharedData(ownUserId) {
     const { data: projRows } = await supabase.from('projects').select('*').order('created_at', { ascending: true });
     if (!projRows || projRows.length === 0) {
       await supabase.from('projects').insert(INITIAL_PROJECTS.map(projectToRow));
@@ -1676,25 +2439,24 @@ export default function App() {
       setLinks(linkRows);
     }
 
-    const { data: profileRows } = await supabase.from('profiles').select('*');
-    setDirectorio((profileRows || []).map(rowToProfile));
+    const [{ data: profileRows }, { data: roleRows }] = await Promise.all([
+      supabase.from('profiles').select('*'),
+      supabase.from('user_roles').select('*'),
+    ]);
+    const rolesByUser = new Map();
+    (roleRows || []).forEach((r) => {
+      if (!rolesByUser.has(r.user_id)) rolesByUser.set(r.user_id, []);
+      rolesByUser.get(r.user_id).push(r.role_key);
+    });
+    const merged = (profileRows || []).map((row) => rowToProfile(row, rolesByUser.get(row.id) || []));
+    setDirectorio(merged);
+    if (ownUserId) {
+      const yo = merged.find((u) => u.id === ownUserId);
+      if (yo) setPerfil(yo);
+    }
 
     setDataLoaded(true);
   }
-
-  // Datos compartidos, una vez hay sesión y perfil
-  useEffect(() => {
-    if (!session || !perfil) return;
-    let cancelled = false;
-    (async () => {
-      await loadSharedData();
-      if (cancelled) return;
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, perfil]);
 
   function setView(v) {
     setViewState(v);
@@ -1766,19 +2528,41 @@ export default function App() {
     });
   }
   function handleProfileSaved(p) {
-    setPerfil(p);
+    const eraNuevo = !perfil;
+    setPerfil((prev) => ({ ...(prev || {}), ...p, roles: prev?.roles || [] }));
     setDirectorio((prev) => {
-      const exists = prev.some((u) => u.id === p.id);
-      return exists ? prev.map((u) => (u.id === p.id ? p : u)) : [...prev, p];
+      const existente = prev.find((u) => u.id === p.id);
+      const merged = { ...p, roles: existente?.roles || [] };
+      return existente ? prev.map((u) => (u.id === p.id ? merged : u)) : [...prev, merged];
     });
     setShowProfileEdit(false);
+    if (eraNuevo) loadSharedData(p.id);
+  }
+  async function handleToggleRole(userId, roleKey, tieneRol) {
+    try {
+      if (tieneRol) {
+        const { error } = await supabase.from('user_roles').delete().eq('user_id', userId).eq('role_key', roleKey);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('user_roles').insert({ user_id: userId, role_key: roleKey, assigned_by: perfil.id });
+        if (error) throw error;
+      }
+      const aplicarCambio = (roles) => (tieneRol ? roles.filter((r) => r !== roleKey) : [...roles, roleKey]);
+      setDirectorio((prev) => prev.map((u) => (u.id === userId ? { ...u, roles: aplicarCambio(u.roles) } : u)));
+      if (userId === perfil.id) {
+        setPerfil((prev) => ({ ...prev, roles: aplicarCambio(prev.roles) }));
+      }
+    } catch (e) {
+      console.error('Error actualizando rol:', e);
+      alert('No se pudo actualizar el rol. Esta acción requiere permisos de líder.');
+    }
   }
   async function handleLogout() {
     await supabase.auth.signOut();
   }
   async function handleRefresh() {
     setDataLoaded(false);
-    await loadSharedData();
+    await loadSharedData(perfil?.id);
   }
 
   if (session === undefined) return <LoadingScreen mensaje="Verificando sesión…" />;
@@ -1848,6 +2632,7 @@ export default function App() {
             directorio={directorio}
           />
         )}
+        {view === 'equipo' && <TeamRolesView directorio={directorio} perfil={perfil} onToggleRole={handleToggleRole} />}
         {view === 'enlaces' && <LinksView links={links} onAdd={handleAddLink} onUpdate={handleUpdateLink} onRemove={handleRemoveLink} />}
         {view === 'detalle' && selectedProject && (
           <ProjectDetail key={selectedProject.id} project={selectedProject} updateProject={updateProject} onBack={goBack} directorio={directorio} perfil={perfil} />
