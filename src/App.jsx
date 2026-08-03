@@ -4,7 +4,7 @@ import {
   Building2, Zap, Cog, Mountain, PenTool, Plus, Search, X, Printer,
   Paperclip, Trash2, ChevronLeft, Pencil, Save, MapPin, Calendar,
   Users, ExternalLink, Check, FileText, UploadCloud, XCircle, ClipboardList,
-  Loader2, RefreshCw, LogOut,
+  Loader2, RefreshCw, LogOut, ShieldCheck, Lock,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -30,6 +30,28 @@ const ROLES = [
   { key: 'geotecnico', label: 'Ing. Geotécnico', icon: Mountain },
   { key: 'delineante', label: 'Delineante', icon: PenTool },
 ];
+
+/* Especialidades de liderazgo: son las únicas que pueden asignar el equipo   */
+/* de un proyecto y cambiar su estado (Activo / En Pausa / Inactivo). No      */
+/* ocupan una casilla del equipo técnico, son roles de coordinación.          */
+const LEADER_ROLES = [
+  { key: 'lider_civil', label: 'Líder Civil', icon: HardHat },
+  { key: 'lider_electrico', label: 'Líder Eléctrico', icon: Zap },
+  { key: 'lider_delineantes', label: 'Líder Delineantes', icon: PenTool },
+  { key: 'lider_diseno', label: 'Líder de Diseño', icon: ShieldCheck },
+];
+
+const ALL_SPECIALTIES = [...ROLES, ...LEADER_ROLES];
+
+function specialtyLabel(key) {
+  return ALL_SPECIALTIES.find((s) => s.key === key)?.label || key;
+}
+function isLeader(perfil) {
+  return !!perfil && LEADER_ROLES.some((r) => r.key === perfil.especialidad);
+}
+function isAssignedToProject(perfil, project) {
+  return !!perfil && Object.values(project.equipo).includes(perfil.nombre);
+}
 
 /* --------------------- 2. ESQUEMA DE CAMPOS POR ESPECIALIDAD ---------------- */
 /* Los campos de tipo 'boolean' guardan { valor: true|false|null, nota: '' }   */
@@ -316,7 +338,7 @@ function Avatar({ name, foto, title, size = 'md' }) {
     return <img src={foto} alt={name} title={title ? `${title}: ${name}` : name} className={`${sizeClass} rounded-full object-cover border-2 border-white shrink-0`} />;
   }
   return (
-    <div title={title ? `${title}: ${name}` : name} className={`${sizeClass} rounded-full bg-slate-700 text-white flex items-center justify-center font-bold border-2 border-white shrink-0`}>
+    <div title={title ? `${title}: ${name}` : name} className={`${sizeClass} rounded-full bg-navy-700 text-white flex items-center justify-center font-bold border-2 border-white shrink-0`}>
       {initialsOf(name)}
     </div>
   );
@@ -326,8 +348,8 @@ function ReadOnlyValue({ label, value, mono = true }) {
   const isEmpty = value === '' || value === null || value === undefined;
   return (
     <div className="py-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">{label}</p>
-      <p className={`text-sm ${mono ? 'font-mono' : ''} ${isEmpty ? 'text-slate-300 italic' : 'text-slate-700'} whitespace-pre-wrap break-words`}>
+      <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-1">{label}</p>
+      <p className={`text-sm ${mono ? 'font-mono' : ''} ${isEmpty ? 'text-navy-300 italic' : 'text-navy-700'} whitespace-pre-wrap break-words`}>
         {isEmpty ? 'Sin definir' : value}
       </p>
     </div>
@@ -341,16 +363,16 @@ function FieldRenderer({ field, value, editMode, onChange }) {
       const valorTxt = val.valor === true ? 'Sí' : val.valor === false ? 'No' : '';
       return (
         <div className="py-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">{field.label}</p>
-          <p className={`text-sm ${valorTxt ? 'text-slate-700' : 'text-slate-300 italic'}`}>{valorTxt || 'Sin definir'}</p>
-          {val.nota && <p className="text-sm text-slate-500 mt-1 whitespace-pre-wrap break-words">{val.nota}</p>}
+          <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-1">{field.label}</p>
+          <p className={`text-sm ${valorTxt ? 'text-navy-700' : 'text-navy-300 italic'}`}>{valorTxt || 'Sin definir'}</p>
+          {val.nota && <p className="text-sm text-navy-500 mt-1 whitespace-pre-wrap break-words">{val.nota}</p>}
         </div>
       );
     }
-    const baseInput = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400';
+    const baseInput = 'w-full rounded-lg border border-navy-300 px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400';
     return (
       <div className="py-1">
-        <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">{field.label}</label>
+        <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
         <select
           className={baseInput}
           value={val.valor === true ? 'si' : val.valor === false ? 'no' : ''}
@@ -377,10 +399,10 @@ function FieldRenderer({ field, value, editMode, onChange }) {
     return <ReadOnlyValue label={field.label} value={display} mono={field.type !== 'textarea'} />;
   }
 
-  const baseInput = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400';
+  const baseInput = 'w-full rounded-lg border border-navy-300 px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400';
   return (
     <div className="py-1">
-      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">{field.label}</label>
+      <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
       {field.type === 'textarea' && (
         <textarea rows={3} className={baseInput} value={value || ''} onChange={(e) => onChange(e.target.value)} />
       )}
@@ -396,7 +418,7 @@ function FieldRenderer({ field, value, editMode, onChange }) {
 
 function SectionFieldsGrid({ section, data, editMode, onFieldChange }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 divide-y divide-slate-100 md:divide-y-0">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 divide-y divide-navy-100 md:divide-y-0">
       {section.fields.map((field) => (
         <div key={field.key}>
           <FieldRenderer
@@ -414,52 +436,60 @@ function SectionFieldsGrid({ section, data, editMode, onFieldChange }) {
 function TitleCell({ label, value, custom, span }) {
   return (
     <div className={`px-4 py-2.5 ${span === 2 ? 'col-span-2' : ''}`}>
-      <p className="text-xs uppercase tracking-wide text-slate-400 font-semibold">{label}</p>
+      <p className="text-xs uppercase tracking-wide text-navy-400 font-semibold">{label}</p>
       {custom ? (
         <div className="mt-1">{custom}</div>
       ) : (
-        <p className="text-sm font-mono text-slate-700 mt-0.5 truncate">{value || 'N/A'}</p>
+        <p className="text-sm font-mono text-navy-700 mt-0.5 truncate">{value || 'N/A'}</p>
       )}
     </div>
   );
 }
 
-function AttachmentsPanel({ archivos, onAdd, onRemove }) {
+function AttachmentsPanel({ archivos, onAdd, onRemove, canEdit = true }) {
   return (
     <div>
-      <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-300 rounded-xl py-8 cursor-pointer hover:border-amber-400 hover:bg-amber-50 transition-colors mb-5">
-        <UploadCloud className="w-7 h-7 text-slate-400" />
-        <p className="text-sm text-slate-500">
-          <span className="font-semibold text-amber-600">Haz clic para adjuntar</span> planos o documentos
+      {canEdit ? (
+        <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-navy-300 rounded-xl py-8 cursor-pointer hover:border-gold-400 hover:bg-gold-50 transition-colors mb-5">
+          <UploadCloud className="w-7 h-7 text-navy-400" />
+          <p className="text-sm text-navy-500">
+            <span className="font-semibold text-gold-600">Haz clic para adjuntar</span> planos o documentos
+          </p>
+          <p className="text-xs text-navy-400">Por ahora solo se guarda el nombre del archivo (sin subir el contenido)</p>
+          <input
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              if (e.target.files.length) onAdd(e.target.files);
+              e.target.value = '';
+            }}
+          />
+        </label>
+      ) : (
+        <p className="flex items-center gap-1.5 text-xs text-navy-400 mb-5">
+          <Lock className="w-3.5 h-3.5" /> Solo el equipo asignado a este proyecto puede adjuntar o eliminar documentos.
         </p>
-        <p className="text-xs text-slate-400">Por ahora solo se guarda el nombre del archivo (sin subir el contenido)</p>
-        <input
-          type="file"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            if (e.target.files.length) onAdd(e.target.files);
-            e.target.value = '';
-          }}
-        />
-      </label>
+      )}
 
       {archivos.length === 0 ? (
-        <p className="text-sm text-slate-400 italic text-center py-4">Aún no se han adjuntado documentos a este proyecto.</p>
+        <p className="text-sm text-navy-400 italic text-center py-4">Aún no se han adjuntado documentos a este proyecto.</p>
       ) : (
         <div className="space-y-2">
           {archivos.map((file) => (
-            <div key={file.id} className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5">
+            <div key={file.id} className="flex items-center justify-between bg-navy-50 border border-navy-200 rounded-lg px-4 py-2.5">
               <div className="flex items-center gap-3 min-w-0">
-                <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+                <FileText className="w-4 h-4 text-navy-400 shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-700 truncate">{file.nombre}</p>
-                  <p className="text-xs text-slate-400">{formatBytes(file.tamano)} · Subido el {formatDate(file.fecha)}</p>
+                  <p className="text-sm font-medium text-navy-700 truncate">{file.nombre}</p>
+                  <p className="text-xs text-navy-400">{formatBytes(file.tamano)} · Subido el {formatDate(file.fecha)}</p>
                 </div>
               </div>
-              <button onClick={() => onRemove(file.id)} className="text-slate-300 hover:text-red-500 shrink-0 ml-3">
-                <Trash2 className="w-4 h-4" />
-              </button>
+              {canEdit && (
+                <button onClick={() => onRemove(file.id)} className="text-navy-300 hover:text-red-500 shrink-0 ml-3">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -472,44 +502,44 @@ function PrintableReport({ project }) {
   const general = project.data.general;
   return (
     <div className="print-only p-10">
-      <div className="flex items-center justify-between border-b-2 border-slate-800 pb-4 mb-6">
+      <div className="flex items-center justify-between border-b-2 border-navy-800 pb-4 mb-6">
         <div className="flex items-center gap-2">
-          <Sun className="w-6 h-6 text-amber-500" />
+          <Sun className="w-6 h-6 text-gold-500" />
           <div>
-            <p className="font-bold text-lg text-slate-800">Sun Design Suite</p>
-            <p className="text-xs text-slate-500">Hoja de Vida de Minigranja Fotovoltaica</p>
+            <p className="font-bold text-lg text-navy-800">Sun Design Suite</p>
+            <p className="text-xs text-navy-500">Hoja de Vida de Minigranja Fotovoltaica</p>
           </div>
         </div>
-        <p className="text-xs text-slate-400">Generado el {new Date().toLocaleDateString('es-CO')}</p>
+        <p className="text-xs text-navy-400">Generado el {new Date().toLocaleDateString('es-CO')}</p>
       </div>
 
-      <h1 className="text-xl font-bold text-slate-800 mb-1">{project.nombre}</h1>
-      <p className="text-sm text-slate-500 mb-6">{general.municipio || 'N/A'}, {general.departamento || 'N/A'}, {general.pais || 'N/A'}</p>
+      <h1 className="text-xl font-bold text-navy-800 mb-1">{project.nombre}</h1>
+      <p className="text-sm text-navy-500 mb-6">{general.municipio || 'N/A'}, {general.departamento || 'N/A'}, {general.pais || 'N/A'}</p>
 
-      <table className="w-full text-sm mb-8 border border-slate-300">
+      <table className="w-full text-sm mb-8 border border-navy-300">
         <tbody>
-          <tr className="border-b border-slate-300">
-            <td className="px-3 py-2 font-semibold text-slate-500 bg-slate-50 w-1/4">Estado</td>
+          <tr className="border-b border-navy-300">
+            <td className="px-3 py-2 font-semibold text-navy-500 bg-navy-50 w-1/4">Estado</td>
             <td className="px-3 py-2">{STATUS_CONFIG[project.estado]?.label}</td>
-            <td className="px-3 py-2 font-semibold text-slate-500 bg-slate-50 w-1/4">Elaboró</td>
+            <td className="px-3 py-2 font-semibold text-navy-500 bg-navy-50 w-1/4">Elaboró</td>
             <td className="px-3 py-2">{project.equipo.civil || 'N/A'}</td>
           </tr>
           <tr>
-            <td className="px-3 py-2 font-semibold text-slate-500 bg-slate-50">Fecha de Inicio</td>
+            <td className="px-3 py-2 font-semibold text-navy-500 bg-navy-50">Fecha de Inicio</td>
             <td className="px-3 py-2 font-mono">{formatDate(general.fecha_inicio) || 'N/A'}</td>
-            <td className="px-3 py-2 font-semibold text-slate-500 bg-slate-50">Fecha de Entrega</td>
+            <td className="px-3 py-2 font-semibold text-navy-500 bg-navy-50">Fecha de Entrega</td>
             <td className="px-3 py-2 font-mono">{formatDate(general.fecha_entrega) || 'N/A'}</td>
           </tr>
         </tbody>
       </table>
 
-      <h2 className="text-sm font-bold uppercase tracking-wide text-slate-600 mb-2 border-b border-slate-300 pb-1">Equipo Asignado</h2>
+      <h2 className="text-sm font-bold uppercase tracking-wide text-navy-600 mb-2 border-b border-navy-300 pb-1">Equipo Asignado</h2>
       <table className="w-full text-sm mb-8">
         <tbody>
           {ROLES.map((role) => (
-            <tr key={role.key} className="border-b border-slate-100">
-              <td className="py-1.5 pr-4 text-slate-500 w-1/3">{role.label}</td>
-              <td className="py-1.5 font-medium text-slate-700">{project.equipo[role.key] || 'Sin asignar'}</td>
+            <tr key={role.key} className="border-b border-navy-100">
+              <td className="py-1.5 pr-4 text-navy-500 w-1/3">{role.label}</td>
+              <td className="py-1.5 font-medium text-navy-700">{project.equipo[role.key] || 'Sin asignar'}</td>
             </tr>
           ))}
         </tbody>
@@ -517,7 +547,7 @@ function PrintableReport({ project }) {
 
       {SCHEMA.map((section) => (
         <div key={section.id} className="mb-8 break-inside-avoid">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-600 mb-2 border-b border-slate-300 pb-1">{section.label}</h2>
+          <h2 className="text-sm font-bold uppercase tracking-wide text-navy-600 mb-2 border-b border-navy-300 pb-1">{section.label}</h2>
           <table className="w-full text-sm">
             <tbody>
               {section.fields.map((field) => {
@@ -534,11 +564,11 @@ function PrintableReport({ project }) {
                   val = '—';
                 }
                 return (
-                  <tr key={field.key} className="border-b border-slate-100">
-                    <td className="py-1.5 pr-4 text-slate-500 w-1/2 align-top">{field.label}</td>
-                    <td className="py-1.5 font-mono text-slate-700 align-top">
+                  <tr key={field.key} className="border-b border-navy-100">
+                    <td className="py-1.5 pr-4 text-navy-500 w-1/2 align-top">{field.label}</td>
+                    <td className="py-1.5 font-mono text-navy-700 align-top">
                       {val}
-                      {nota && <span className="block font-sans text-xs text-slate-500 mt-0.5">{nota}</span>}
+                      {nota && <span className="block font-sans text-xs text-navy-500 mt-0.5">{nota}</span>}
                     </td>
                   </tr>
                 );
@@ -548,9 +578,9 @@ function PrintableReport({ project }) {
         </div>
       ))}
 
-      <h2 className="text-sm font-bold uppercase tracking-wide text-slate-600 mb-2 border-b border-slate-300 pb-1">Archivos Adjuntos</h2>
+      <h2 className="text-sm font-bold uppercase tracking-wide text-navy-600 mb-2 border-b border-navy-300 pb-1">Archivos Adjuntos</h2>
       {project.archivos.length === 0 ? (
-        <p className="text-sm text-slate-400 italic">Sin documentos adjuntos.</p>
+        <p className="text-sm text-navy-400 italic">Sin documentos adjuntos.</p>
       ) : (
         <ul className="text-sm space-y-1 list-disc pl-5">
           {project.archivos.map((f) => (
@@ -559,7 +589,7 @@ function PrintableReport({ project }) {
         </ul>
       )}
 
-      <p className="text-xs text-slate-400 mt-10 pt-4 border-t border-slate-200">
+      <p className="text-xs text-navy-400 mt-10 pt-4 border-t border-navy-200">
         Documento generado automáticamente por Sun Design Suite. Uso interno del equipo de diseño.
       </p>
     </div>
@@ -600,32 +630,32 @@ function AuthGate() {
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900 flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-navy-900 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-8">
         <div className="flex items-center gap-2.5 mb-6">
-          <div className="w-10 h-10 rounded-lg bg-amber-500 flex items-center justify-center shrink-0">
-            <Sun className="w-5 h-5 text-slate-900" />
+          <div className="w-10 h-10 rounded-lg bg-gold-500 flex items-center justify-center shrink-0">
+            <Sun className="w-5 h-5 text-navy-900" />
           </div>
           <div>
-            <p className="font-bold text-slate-800 leading-tight">Sun Design Suite</p>
-            <p className="text-xs text-slate-500">{mode === 'login' ? 'Inicia sesión' : 'Crea tu cuenta'}</p>
+            <p className="font-bold text-navy-800 leading-tight">Sun Design Suite</p>
+            <p className="text-xs text-navy-500">{mode === 'login' ? 'Inicia sesión' : 'Crea tu cuenta'}</p>
           </div>
         </div>
         <form onSubmit={submit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">Correo</label>
-            <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="tu@empresa.com" />
+            <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Correo</label>
+            <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" placeholder="tu@empresa.com" />
           </div>
           <div>
-            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">Contraseña</label>
-            <input required type="password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="Mínimo 6 caracteres" />
+            <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Contraseña</label>
+            <input required type="password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" placeholder="Mínimo 6 caracteres" />
           </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
           {info && <p className="text-xs text-emerald-600">{info}</p>}
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-slate-900 font-semibold text-sm py-2.5 rounded-lg shadow-sm transition-colors"
+            className="w-full flex items-center justify-center gap-2 bg-gold-500 hover:bg-gold-600 disabled:opacity-60 text-navy-900 font-semibold text-sm py-2.5 rounded-lg shadow-sm transition-colors"
           >
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}
@@ -633,7 +663,7 @@ function AuthGate() {
           <button
             type="button"
             onClick={() => { setMode((m) => (m === 'login' ? 'signup' : 'login')); setError(''); setInfo(''); }}
-            className="w-full text-xs text-slate-500 hover:text-slate-700"
+            className="w-full text-xs text-navy-500 hover:text-navy-700"
           >
             {mode === 'login' ? '¿No tienes cuenta? Crear una' : '¿Ya tienes cuenta? Inicia sesión'}
           </button>
@@ -686,20 +716,20 @@ function ProfileGate({ userId, initial, onSaved, onCancel }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900 bg-opacity-90 flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-navy-900 bg-opacity-90 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-lg bg-amber-500 flex items-center justify-center shrink-0">
-              <Sun className="w-5 h-5 text-slate-900" />
+            <div className="w-10 h-10 rounded-lg bg-gold-500 flex items-center justify-center shrink-0">
+              <Sun className="w-5 h-5 text-navy-900" />
             </div>
             <div>
-              <p className="font-bold text-slate-800 leading-tight">Sun Design Suite</p>
-              <p className="text-xs text-slate-500">{initial ? 'Editar mi perfil' : 'Completa tu perfil de ingeniero'}</p>
+              <p className="font-bold text-navy-800 leading-tight">Sun Design Suite</p>
+              <p className="text-xs text-navy-500">{initial ? 'Editar mi perfil' : 'Completa tu perfil de ingeniero'}</p>
             </div>
           </div>
           {onCancel && (
-            <button onClick={onCancel} className="text-slate-400 hover:text-slate-600">
+            <button onClick={onCancel} className="text-navy-400 hover:text-navy-600">
               <X className="w-5 h-5" />
             </button>
           )}
@@ -708,32 +738,45 @@ function ProfileGate({ userId, initial, onSaved, onCancel }) {
         <form onSubmit={submit} className="space-y-4">
           <div className="flex flex-col items-center">
             <label className="cursor-pointer group">
-              <div className="w-20 h-20 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden group-hover:border-amber-400 transition-colors">
-                {preview ? <img src={preview} alt="Foto de perfil" className="w-full h-full object-cover" /> : <UploadCloud className="w-6 h-6 text-slate-400" />}
+              <div className="w-20 h-20 rounded-full bg-navy-100 border-2 border-dashed border-navy-300 flex items-center justify-center overflow-hidden group-hover:border-gold-400 transition-colors">
+                {preview ? <img src={preview} alt="Foto de perfil" className="w-full h-full object-cover" /> : <UploadCloud className="w-6 h-6 text-navy-400" />}
               </div>
               <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
             </label>
-            <p className="text-xs text-slate-400 mt-2">Foto de perfil (opcional)</p>
+            <p className="text-xs text-navy-400 mt-2">Foto de perfil (opcional)</p>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">Nombre completo *</label>
+            <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre completo *</label>
             <input
               required
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400"
               placeholder="Ej. Camilo Zapata"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">Especialidad *</label>
-            <select value={especialidad} onChange={(e) => setEspecialidad(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              {ROLES.map((r) => (
-                <option key={r.key} value={r.key}>{r.label}</option>
-              ))}
+            <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Especialidad *</label>
+            <select value={especialidad} onChange={(e) => setEspecialidad(e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm">
+              <optgroup label="Especialidades técnicas">
+                {ROLES.map((r) => (
+                  <option key={r.key} value={r.key}>{r.label}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Roles de liderazgo">
+                {LEADER_ROLES.map((r) => (
+                  <option key={r.key} value={r.key}>{r.label}</option>
+                ))}
+              </optgroup>
             </select>
+            {LEADER_ROLES.some((r) => r.key === especialidad) && (
+              <p className="text-xs text-gold-700 mt-1.5 flex items-start gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                Como rol de liderazgo, podrás asignar el equipo y cambiar el estado de cualquier proyecto.
+              </p>
+            )}
           </div>
 
           {error && <p className="text-xs text-red-500">{error}</p>}
@@ -741,7 +784,7 @@ function ProfileGate({ userId, initial, onSaved, onCancel }) {
           <button
             type="submit"
             disabled={saving}
-            className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-slate-900 font-semibold text-sm py-2.5 rounded-lg shadow-sm transition-colors"
+            className="w-full flex items-center justify-center gap-2 bg-gold-500 hover:bg-gold-600 disabled:opacity-60 text-navy-900 font-semibold text-sm py-2.5 rounded-lg shadow-sm transition-colors"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {initial ? 'Guardar cambios' : 'Crear mi perfil'}
@@ -754,9 +797,9 @@ function ProfileGate({ userId, initial, onSaved, onCancel }) {
 
 function LoadingScreen({ mensaje = 'Cargando…' }) {
   return (
-    <div className="fixed inset-0 bg-slate-50 flex flex-col items-center justify-center gap-3">
-      <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
-      <p className="text-sm text-slate-400">{mensaje}</p>
+    <div className="fixed inset-0 bg-navy-50 flex flex-col items-center justify-center gap-3">
+      <Loader2 className="w-8 h-8 text-gold-500 animate-spin" />
+      <p className="text-sm text-navy-400">{mensaje}</p>
     </div>
   );
 }
@@ -771,17 +814,17 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
     { key: 'todos', label: 'Todos los Proyectos', icon: Layers },
     { key: 'enlaces', label: 'Enlaces de Interés', icon: Link2 },
   ];
-  const especialidadLabel = ROLES.find((r) => r.key === perfil.especialidad)?.label || perfil.especialidad;
+  const especialidadLabel = specialtyLabel(perfil.especialidad);
 
   return (
-    <aside className="no-print w-64 shrink-0 bg-slate-900 text-slate-300 flex flex-col h-screen sticky top-0">
-      <div className="px-5 py-6 border-b border-slate-800 flex items-center gap-2.5">
-        <div className="w-9 h-9 rounded-lg bg-amber-500 flex items-center justify-center shrink-0">
-          <Sun className="w-5 h-5 text-slate-900" />
+    <aside className="no-print w-64 shrink-0 bg-navy-900 text-navy-300 flex flex-col h-screen sticky top-0">
+      <div className="px-5 py-6 border-b border-navy-800 flex items-center gap-2.5">
+        <div className="w-9 h-9 rounded-lg bg-gold-500 flex items-center justify-center shrink-0">
+          <Sun className="w-5 h-5 text-navy-900" />
         </div>
         <div>
           <p className="text-white font-bold leading-tight">Sun Design Suite</p>
-          <p className="text-xs text-slate-500 tracking-wide">Minigranjas Fotovoltaicas</p>
+          <p className="text-xs text-navy-500 tracking-wide">Minigranjas Fotovoltaicas</p>
         </div>
       </div>
 
@@ -794,7 +837,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
               key={item.key}
               onClick={() => setView(item.key)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border-l-2 ${
-                active ? 'bg-slate-800 text-white border-amber-500' : 'text-slate-400 border-transparent hover:bg-slate-800 hover:text-slate-200'
+                active ? 'bg-navy-800 text-white border-gold-500' : 'text-navy-400 border-transparent hover:bg-navy-800 hover:text-navy-200'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -806,37 +849,40 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
 
       <div className="px-6 pb-4">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Resumen</p>
-          <button onClick={onRefresh} title="Actualizar datos compartidos" className="text-slate-500 hover:text-white">
+          <p className="text-xs font-semibold uppercase tracking-wide text-navy-600">Resumen</p>
+          <button onClick={onRefresh} title="Actualizar datos compartidos" className="text-navy-500 hover:text-white">
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>
         <div className="grid grid-cols-3 gap-1.5">
-          <div className="bg-slate-800 rounded-md py-1.5 text-center">
+          <div className="bg-navy-800 rounded-md py-1.5 text-center">
             <p className="text-emerald-400 text-sm font-bold">{stats.activo}</p>
-            <p className="text-xs text-slate-500">Activos</p>
+            <p className="text-xs text-navy-500">Activos</p>
           </div>
-          <div className="bg-slate-800 rounded-md py-1.5 text-center">
+          <div className="bg-navy-800 rounded-md py-1.5 text-center">
             <p className="text-yellow-400 text-sm font-bold">{stats.pausa}</p>
-            <p className="text-xs text-slate-500">Pausa</p>
+            <p className="text-xs text-navy-500">Pausa</p>
           </div>
-          <div className="bg-slate-800 rounded-md py-1.5 text-center">
+          <div className="bg-navy-800 rounded-md py-1.5 text-center">
             <p className="text-red-400 text-sm font-bold">{stats.inactivo}</p>
-            <p className="text-xs text-slate-500">Inact.</p>
+            <p className="text-xs text-navy-500">Inact.</p>
           </div>
         </div>
       </div>
 
-      <div className="p-4 border-t border-slate-800 flex items-center gap-3">
+      <div className="p-4 border-t border-navy-800 flex items-center gap-3">
         <Avatar name={perfil.nombre} foto={perfil.foto} />
         <div className="min-w-0 flex-1">
           <p className="text-white text-sm font-semibold truncate">{perfil.nombre}</p>
-          <p className="text-slate-500 text-xs truncate">{especialidadLabel}</p>
+          <p className="text-navy-500 text-xs truncate flex items-center gap-1">
+            {isLeader(perfil) && <ShieldCheck className="w-3 h-3 text-gold-400 shrink-0" />}
+            {especialidadLabel}
+          </p>
         </div>
-        <button onClick={onEditProfile} title="Editar mi perfil" className="text-slate-500 hover:text-white shrink-0">
+        <button onClick={onEditProfile} title="Editar mi perfil" className="text-navy-500 hover:text-white shrink-0">
           <Pencil className="w-3.5 h-3.5" />
         </button>
-        <button onClick={onLogout} title="Cerrar sesión" className="text-slate-500 hover:text-red-400 shrink-0">
+        <button onClick={onLogout} title="Cerrar sesión" className="text-navy-500 hover:text-red-400 shrink-0">
           <LogOut className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -844,11 +890,11 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
   );
 }
 
-function StatCard({ label, value, icon: Icon, accent, textColor = 'text-slate-700' }) {
+function StatCard({ label, value, icon: Icon, accent, textColor = 'text-navy-700' }) {
   return (
-    <div className={`bg-white rounded-xl border-l-4 ${accent} border-t border-r border-b border-slate-200 p-4 shadow-sm`}>
+    <div className={`bg-white rounded-xl border-l-4 ${accent} border-t border-r border-b border-navy-200 p-4 shadow-sm`}>
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">{label}</p>
         <Icon className={`w-4 h-4 ${textColor}`} />
       </div>
       <p className={`text-2xl font-bold mt-2 ${textColor}`}>{value}</p>
@@ -859,25 +905,25 @@ function StatCard({ label, value, icon: Icon, accent, textColor = 'text-slate-70
 function ProjectCard({ project, onClick, directorio }) {
   const general = project.data.general;
   return (
-    <button onClick={onClick} className="text-left bg-white rounded-xl border border-slate-200 p-4 hover:border-amber-300 hover:shadow-md transition-all group">
+    <button onClick={onClick} className="text-left bg-white rounded-xl border border-navy-200 p-4 hover:border-gold-300 hover:shadow-md transition-all group">
       <div className="flex items-start justify-between mb-3 gap-2">
-        <h3 className="font-bold text-slate-800 leading-snug group-hover:text-amber-600 transition-colors">{project.nombre}</h3>
+        <h3 className="font-bold text-navy-800 leading-snug group-hover:text-gold-600 transition-colors">{project.nombre}</h3>
         <StatusBadge estado={project.estado} size="sm" />
       </div>
-      <p className="flex items-center gap-1.5 text-xs text-slate-500 mb-3">
+      <p className="flex items-center gap-1.5 text-xs text-navy-500 mb-3">
         <MapPin className="w-3.5 h-3.5 shrink-0" /> {general.municipio || 'Sin ubicación'}, {general.departamento || ''}
       </p>
-      <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+      <div className="flex items-center justify-between pt-3 border-t border-navy-100">
         <div className="flex -space-x-2">
           {ROLES.filter((r) => project.equipo[r.key]).slice(0, 4).map((r) => {
             const u = findUserByName(directorio, project.equipo[r.key]);
             return <Avatar key={r.key} name={project.equipo[r.key]} foto={u?.foto} title={r.label} size="sm" />;
           })}
           {ROLES.filter((r) => project.equipo[r.key]).length === 0 && (
-            <span className="text-xs text-slate-300 italic">Sin equipo asignado</span>
+            <span className="text-xs text-navy-300 italic">Sin equipo asignado</span>
           )}
         </div>
-        <p className="flex items-center gap-1 text-xs text-slate-400">
+        <p className="flex items-center gap-1 text-xs text-navy-400">
           <Calendar className="w-3.5 h-3.5" /> {formatDate(general.fecha_entrega) || 'Sin fecha'}
         </p>
       </div>
@@ -899,24 +945,24 @@ function Dashboard({ projects, misProyectos, onNewProject, openProject, setView,
     <div className="p-8 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Hola, {primerNombre}</h1>
-          <p className="text-slate-500 text-sm mt-1">{ROLES.find((r) => r.key === perfil.especialidad)?.label} · Panel general de proyectos</p>
+          <h1 className="text-2xl font-bold text-navy-800">Hola, {primerNombre}</h1>
+          <p className="text-navy-500 text-sm mt-1">{specialtyLabel(perfil.especialidad)} · Panel general de proyectos</p>
         </div>
-        <button onClick={onNewProject} className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition-colors">
+        <button onClick={onNewProject} className="flex items-center gap-2 bg-gold-500 hover:bg-gold-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition-colors">
           <Plus className="w-4 h-4" /> Nuevo Proyecto
         </button>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-        <StatCard label="Total Proyectos" value={total} icon={Layers} accent="border-slate-300" />
+        <StatCard label="Total Proyectos" value={total} icon={Layers} accent="border-navy-300" />
         <StatCard label="Activos" value={activos} icon={Check} accent="border-emerald-400" textColor="text-emerald-600" />
         <StatCard label="En Pausa" value={pausa} icon={Cog} accent="border-yellow-400" textColor="text-yellow-600" />
         <StatCard label="Inactivos" value={inactivos} icon={XCircle} accent="border-red-400" textColor="text-red-600" />
       </div>
 
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold text-slate-800">Mis proyectos</h2>
-        <button onClick={() => setView('mis')} className="text-sm font-medium text-amber-600 hover:text-amber-700">
+        <h2 className="text-lg font-bold text-navy-800">Mis proyectos</h2>
+        <button onClick={() => setView('mis')} className="text-sm font-medium text-gold-600 hover:text-gold-700">
           Ver todos →
         </button>
       </div>
@@ -924,7 +970,7 @@ function Dashboard({ projects, misProyectos, onNewProject, openProject, setView,
         {misProyectos.slice(0, 3).map((p) => (
           <ProjectCard key={p.id} project={p} onClick={() => openProject(p.id)} directorio={directorio} />
         ))}
-        {misProyectos.length === 0 && <p className="text-slate-400 text-sm italic col-span-full">No tienes proyectos asignados todavía.</p>}
+        {misProyectos.length === 0 && <p className="text-navy-400 text-sm italic col-span-full">No tienes proyectos asignados todavía.</p>}
       </div>
     </div>
   );
@@ -946,28 +992,28 @@ function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, dire
     <div className="p-8 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">{title}</h1>
-          <p className="text-slate-500 text-sm mt-1">{subtitle}</p>
+          <h1 className="text-2xl font-bold text-navy-800">{title}</h1>
+          <p className="text-navy-500 text-sm mt-1">{subtitle}</p>
         </div>
-        <button onClick={onNewProject} className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition-colors">
+        <button onClick={onNewProject} className="flex items-center gap-2 bg-gold-500 hover:bg-gold-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition-colors">
           <Plus className="w-4 h-4" /> Nuevo Proyecto
         </button>
       </div>
 
       <div className="flex items-center gap-3 my-6">
         <div className="relative flex-1 max-w-sm">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-navy-400 absolute left-3 top-1/2 -trannavy-y-1/2" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nombre o ubicación…"
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-navy-300 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400"
           />
         </div>
         <select
           value={estadoFiltro}
           onChange={(e) => setEstadoFiltro(e.target.value)}
-          className="text-sm rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          className="text-sm rounded-lg border border-navy-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gold-400"
         >
           <option value="todos">Todos los estados</option>
           <option value="activo">Activo</option>
@@ -982,7 +1028,7 @@ function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, dire
         ))}
       </div>
       {filtered.length === 0 && (
-        <div className="text-center py-16 text-slate-400">
+        <div className="text-center py-16 text-navy-400">
           <FolderKanban className="w-10 h-10 mx-auto mb-3 opacity-40" />
           <p className="text-sm">No se encontraron proyectos con esos filtros.</p>
         </div>
@@ -991,11 +1037,20 @@ function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, dire
   );
 }
 
-function EquipoSelect({ role, valorActual, directorio, onChange }) {
+function EquipoSelect({ role, valorActual, directorio, onChange, readOnly }) {
   const candidatos = directorio.filter((u) => u.especialidad === role.key);
   const actualRegistrado = valorActual && candidatos.some((u) => u.nombre === valorActual);
+
+  if (readOnly) {
+    return (
+      <p className={`text-sm font-medium py-1.5 ${valorActual ? 'text-navy-700' : 'text-navy-300 italic'}`}>
+        {valorActual || 'Sin asignar'}
+      </p>
+    );
+  }
+
   return (
-    <select value={valorActual || ''} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm">
+    <select value={valorActual || ''} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-navy-300 px-2.5 py-1.5 text-sm">
       <option value="">Sin asignar</option>
       {candidatos.map((u) => (
         <option key={u.id} value={u.nombre}>{u.nombre}</option>
@@ -1005,7 +1060,8 @@ function EquipoSelect({ role, valorActual, directorio, onChange }) {
   );
 }
 
-function ProjectFormModal({ onClose, onCreate, directorio }) {
+function ProjectFormModal({ onClose, onCreate, directorio, perfil }) {
+  const puedeGestionar = isLeader(perfil);
   const [form, setForm] = useState({
     nombre: '',
     estado: 'activo',
@@ -1039,85 +1095,99 @@ function ProjectFormModal({ onClose, onCreate, directorio }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900 bg-opacity-50 overflow-y-auto z-50 p-4 flex items-start justify-center">
+    <div className="fixed inset-0 bg-navy-900 bg-opacity-50 overflow-y-auto z-50 p-4 flex items-start justify-center">
       <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full my-8">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-bold text-slate-800">Nuevo Proyecto</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-navy-200">
+          <h2 className="text-lg font-bold text-navy-800">Nuevo Proyecto</h2>
+          <button onClick={onClose} className="text-navy-400 hover:text-navy-600">
             <X className="w-5 h-5" />
           </button>
         </div>
         <form onSubmit={submit} className="p-6 space-y-5">
           <div>
-            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">Nombre del Proyecto *</label>
+            <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre del Proyecto *</label>
             <input
               required
               value={form.nombre}
               onChange={(e) => set('nombre', e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400"
               placeholder="Ej. Minigranja Solar El Retiro 5MW"
             />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">Municipio</label>
-              <input value={form.general.municipio} onChange={(e) => setGeneral('municipio', e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Municipio</label>
+              <input value={form.general.municipio} onChange={(e) => setGeneral('municipio', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">Departamento</label>
-              <input value={form.general.departamento} onChange={(e) => setGeneral('departamento', e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Departamento</label>
+              <input value={form.general.departamento} onChange={(e) => setGeneral('departamento', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">País</label>
-              <input value={form.general.pais} onChange={(e) => setGeneral('pais', e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">País</label>
+              <input value={form.general.pais} onChange={(e) => setGeneral('pais', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">Inversionista</label>
-              <input value={form.general.inversionista} onChange={(e) => setGeneral('inversionista', e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Inversionista</label>
+              <input value={form.general.inversionista} onChange={(e) => setGeneral('inversionista', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">Fecha de Inicio</label>
-              <input type="date" value={form.general.fecha_inicio} onChange={(e) => setGeneral('fecha_inicio', e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Fecha de Inicio</label>
+              <input type="date" value={form.general.fecha_inicio} onChange={(e) => setGeneral('fecha_inicio', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">Fecha de Entrega</label>
-              <input type="date" value={form.general.fecha_entrega} onChange={(e) => setGeneral('fecha_entrega', e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Fecha de Entrega</label>
+              <input type="date" value={form.general.fecha_entrega} onChange={(e) => setGeneral('fecha_entrega', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">Estado</label>
-            <select value={form.estado} onChange={(e) => set('estado', e.target.value)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              <option value="activo">Activo</option>
-              <option value="pausa">En Pausa</option>
-              <option value="inactivo">Inactivo</option>
-            </select>
-          </div>
+          {puedeGestionar ? (
+            <div>
+              <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Estado</label>
+              <select value={form.estado} onChange={(e) => set('estado', e.target.value)} className="rounded-lg border border-navy-300 px-3 py-2 text-sm">
+                <option value="activo">Activo</option>
+                <option value="pausa">En Pausa</option>
+                <option value="inactivo">Inactivo</option>
+              </select>
+            </div>
+          ) : (
+            <p className="text-xs text-navy-400 flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5" /> El proyecto se crea como <strong className="font-semibold text-navy-600">Activo</strong>. Solo un líder puede cambiar el estado.
+            </p>
+          )}
 
           <div>
-            <p className="text-xs font-semibold uppercase text-slate-500 mb-2 flex items-center gap-1.5">
+            <p className="text-xs font-semibold uppercase text-navy-500 mb-2 flex items-center gap-1.5">
               <Users className="w-3.5 h-3.5" /> Asignación de Equipo
             </p>
-            <p className="text-xs text-slate-400 mb-2">Solo aparecen ingenieros que ya crearon su cuenta con esa especialidad.</p>
-            <div className="grid grid-cols-2 gap-3">
-              {ROLES.map((role) => (
-                <div key={role.key}>
-                  <label className="block text-xs text-slate-500 mb-1">{role.label}</label>
-                  <EquipoSelect role={role} valorActual={form.equipo[role.key]} directorio={directorio} onChange={(val) => setEquipo(role.key, val)} />
+            {puedeGestionar ? (
+              <>
+                <p className="text-xs text-navy-400 mb-2">Solo aparecen ingenieros que ya crearon su cuenta con esa especialidad.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {ROLES.map((role) => (
+                    <div key={role.key}>
+                      <label className="block text-xs text-navy-500 mb-1">{role.label}</label>
+                      <EquipoSelect role={role} valorActual={form.equipo[role.key]} directorio={directorio} onChange={(val) => setEquipo(role.key, val)} />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            ) : (
+              <p className="text-xs text-navy-400 flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5" /> Solo un líder (Civil, Eléctrico, Delineantes o Diseño) puede asignar el equipo. Pídele a uno que complete esta parte después de crear el proyecto.
+              </p>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-navy-600 hover:bg-navy-100 rounded-lg">
               Cancelar
             </button>
-            <button type="submit" className="px-4 py-2 text-sm font-semibold bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-lg shadow-sm">
+            <button type="submit" className="px-4 py-2 text-sm font-semibold bg-gold-500 hover:bg-gold-600 text-navy-900 rounded-lg shadow-sm">
               Crear Proyecto
             </button>
           </div>
@@ -1127,10 +1197,13 @@ function ProjectFormModal({ onClose, onCreate, directorio }) {
   );
 }
 
-function ProjectDetail({ project, updateProject, onBack, directorio }) {
+function ProjectDetail({ project, updateProject, onBack, directorio, perfil }) {
   const [activeTab, setActiveTab] = useState(SCHEMA[0].id);
   const [editMode, setEditMode] = useState(false);
   const [draftData, setDraftData] = useState(null);
+
+  const puedeGestionar = isLeader(perfil); // asignar equipo + cambiar estado
+  const puedeEditarContenido = isAssignedToProject(perfil, project); // campos técnicos + archivos
 
   function startEdit() {
     setDraftData(JSON.parse(JSON.stringify(project.data)));
@@ -1175,32 +1248,36 @@ function ProjectDetail({ project, updateProject, onBack, directorio }) {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="no-print p-8">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-6">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-navy-500 hover:text-navy-700 mb-6">
           <ChevronLeft className="w-4 h-4" /> Volver al listado
         </button>
 
-        <div className="bg-white border-2 border-slate-800 rounded-lg overflow-hidden mb-6">
-          <div className="flex items-center justify-between bg-slate-800 px-5 py-3">
+        <div className="bg-white border-2 border-navy-800 rounded-lg overflow-hidden mb-6">
+          <div className="flex items-center justify-between bg-navy-800 px-5 py-3">
             <div className="flex items-center gap-2">
-              <ClipboardList className="w-4 h-4 text-amber-400" />
+              <ClipboardList className="w-4 h-4 text-gold-400" />
               <p className="text-white font-bold text-sm tracking-wide">HOJA DE VIDA DEL PROYECTO</p>
             </div>
             <div className="flex items-center gap-2">
-              <select
-                value={project.estado}
-                onChange={(e) => handleEstadoChange(e.target.value)}
-                className="text-xs font-semibold rounded-md border-0 py-1.5 pl-2 pr-6 bg-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
-              >
-                <option value="activo">Activo</option>
-                <option value="pausa">En Pausa</option>
-                <option value="inactivo">Inactivo</option>
-              </select>
-              <button onClick={() => window.print()} className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-slate-900 text-xs font-bold px-3 py-1.5 rounded-md transition-colors">
+              {puedeGestionar ? (
+                <select
+                  value={project.estado}
+                  onChange={(e) => handleEstadoChange(e.target.value)}
+                  className="text-xs font-semibold rounded-md border-0 py-1.5 pl-2 pr-6 bg-navy-700 text-white focus:outline-none focus:ring-2 focus:ring-gold-400"
+                >
+                  <option value="activo">Activo</option>
+                  <option value="pausa">En Pausa</option>
+                  <option value="inactivo">Inactivo</option>
+                </select>
+              ) : (
+                <StatusBadge estado={project.estado} />
+              )}
+              <button onClick={() => window.print()} className="flex items-center gap-1.5 bg-gold-500 hover:bg-gold-600 text-navy-900 text-xs font-bold px-3 py-1.5 rounded-md transition-colors">
                 <Printer className="w-3.5 h-3.5" /> Exportar / Imprimir
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-slate-200">
+          <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-navy-200">
             <TitleCell label="Proyecto" value={project.nombre} span={2} />
             <TitleCell label="Ubicación" value={`${general.municipio || 'N/A'}, ${general.departamento || 'N/A'}`} />
             <TitleCell label="Estado" custom={<StatusBadge estado={project.estado} />} />
@@ -1211,21 +1288,34 @@ function ProjectDetail({ project, updateProject, onBack, directorio }) {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
-          <p className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-4">
-            <Users className="w-4 h-4 text-amber-500" /> Equipo Asignado
+        <div className="bg-white rounded-xl border border-navy-200 p-5 mb-6">
+          <p className="flex items-center justify-between text-sm font-bold text-navy-700 mb-4">
+            <span className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-gold-500" /> Equipo Asignado
+            </span>
+            {!puedeGestionar && (
+              <span className="flex items-center gap-1 text-xs font-normal text-navy-400">
+                <Lock className="w-3.5 h-3.5" /> Solo un líder puede editar esto
+              </span>
+            )}
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {ROLES.map((role) => {
               const RoleIcon = role.icon;
               return (
                 <div key={role.key} className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                    <RoleIcon className="w-4 h-4 text-slate-500" />
+                  <div className="w-8 h-8 rounded-lg bg-navy-100 flex items-center justify-center shrink-0">
+                    <RoleIcon className="w-4 h-4 text-navy-500" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs text-slate-400 mb-0.5">{role.label}</p>
-                    <EquipoSelect role={role} valorActual={project.equipo[role.key]} directorio={directorio} onChange={(val) => handleEquipoChange(role.key, val)} />
+                    <p className="text-xs text-navy-400 mb-0.5">{role.label}</p>
+                    <EquipoSelect
+                      role={role}
+                      valorActual={project.equipo[role.key]}
+                      directorio={directorio}
+                      onChange={(val) => handleEquipoChange(role.key, val)}
+                      readOnly={!puedeGestionar}
+                    />
                   </div>
                 </div>
               );
@@ -1233,8 +1323,8 @@ function ProjectDetail({ project, updateProject, onBack, directorio }) {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="flex items-center border-b border-slate-200 overflow-x-auto">
+        <div className="bg-white rounded-xl border border-navy-200 overflow-hidden">
+          <div className="flex items-center border-b border-navy-200 overflow-x-auto">
             {SCHEMA.map((section) => {
               const SIcon = section.icon;
               const active = activeTab === section.id;
@@ -1243,7 +1333,7 @@ function ProjectDetail({ project, updateProject, onBack, directorio }) {
                   key={section.id}
                   onClick={() => setActiveTab(section.id)}
                   className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                    active ? 'border-amber-500 text-amber-600 bg-amber-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                    active ? 'border-gold-500 text-gold-600 bg-gold-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
                   }`}
                 >
                   <SIcon className="w-4 h-4" /> {section.label}
@@ -1253,7 +1343,7 @@ function ProjectDetail({ project, updateProject, onBack, directorio }) {
             <button
               onClick={() => setActiveTab('archivos')}
               className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                activeTab === 'archivos' ? 'border-amber-500 text-amber-600 bg-amber-50' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                activeTab === 'archivos' ? 'border-gold-500 text-gold-600 bg-gold-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
               }`}
             >
               <Paperclip className="w-4 h-4" /> Archivos {project.archivos.length > 0 && `(${project.archivos.length})`}
@@ -1264,14 +1354,18 @@ function ProjectDetail({ project, updateProject, onBack, directorio }) {
             {activeTab !== 'archivos' && activeSection && (
               <>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs text-slate-400">Campos de la especialidad · {activeSection.label}</p>
-                  {!editMode ? (
-                    <button onClick={startEdit} className="flex items-center gap-1.5 text-xs font-semibold text-amber-600 hover:text-amber-700">
+                  <p className="text-xs text-navy-400">Campos de la especialidad · {activeSection.label}</p>
+                  {!puedeEditarContenido ? (
+                    <span className="flex items-center gap-1.5 text-xs text-navy-400">
+                      <Lock className="w-3.5 h-3.5" /> Solo el equipo asignado puede editar
+                    </span>
+                  ) : !editMode ? (
+                    <button onClick={startEdit} className="flex items-center gap-1.5 text-xs font-semibold text-gold-600 hover:text-gold-700">
                       <Pencil className="w-3.5 h-3.5" /> Editar campos
                     </button>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <button onClick={cancelEdit} className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700">
+                      <button onClick={cancelEdit} className="flex items-center gap-1.5 text-xs font-semibold text-navy-500 hover:text-navy-700">
                         <XCircle className="w-3.5 h-3.5" /> Cancelar
                       </button>
                       <button onClick={saveEdit} className="flex items-center gap-1.5 text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-md">
@@ -1288,7 +1382,9 @@ function ProjectDetail({ project, updateProject, onBack, directorio }) {
                 />
               </>
             )}
-            {activeTab === 'archivos' && <AttachmentsPanel archivos={project.archivos} onAdd={handleAddFiles} onRemove={removeFile} />}
+            {activeTab === 'archivos' && (
+              <AttachmentsPanel archivos={project.archivos} onAdd={handleAddFiles} onRemove={removeFile} canEdit={puedeEditarContenido} />
+            )}
           </div>
         </div>
       </div>
@@ -1325,33 +1421,33 @@ function LinksView({ links, onAdd, onUpdate, onRemove }) {
     <div className="p-8 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Enlaces de Interés</h1>
-          <p className="text-slate-500 text-sm mt-1">Recursos y herramientas de consulta para el equipo de diseño</p>
+          <h1 className="text-2xl font-bold text-navy-800">Enlaces de Interés</h1>
+          <p className="text-navy-500 text-sm mt-1">Recursos y herramientas de consulta para el equipo de diseño</p>
         </div>
-        <button onClick={() => setShowForm((s) => !s)} className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm">
+        <button onClick={() => setShowForm((s) => !s)} className="flex items-center gap-2 bg-gold-500 hover:bg-gold-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm">
           <Plus className="w-4 h-4" /> Agregar Enlace
         </button>
       </div>
 
       {showForm && (
-        <form onSubmit={submitNew} className="bg-white border border-slate-200 rounded-xl p-5 mb-8 space-y-3">
+        <form onSubmit={submitNew} className="bg-white border border-navy-200 rounded-xl p-5 mb-8 space-y-3">
           <input
             required
             placeholder="Descripción del recurso"
             value={form.descripcion}
             onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm"
           />
           <input
             required
             placeholder="https://…"
             value={form.url}
             onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm"
           />
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-slate-500">Cancelar</button>
-            <button type="submit" className="px-4 py-2 text-sm font-semibold bg-slate-800 text-white rounded-lg">Guardar Enlace</button>
+            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-navy-500">Cancelar</button>
+            <button type="submit" className="px-4 py-2 text-sm font-semibold bg-navy-800 text-white rounded-lg">Guardar Enlace</button>
           </div>
         </form>
       )}
@@ -1359,47 +1455,47 @@ function LinksView({ links, onAdd, onUpdate, onRemove }) {
       <div className="space-y-3">
         {links.map((link) =>
           editingId === link.id ? (
-            <div key={link.id} className="bg-white border border-amber-300 rounded-xl p-4 space-y-2">
+            <div key={link.id} className="bg-white border border-gold-300 rounded-xl p-4 space-y-2">
               <input
                 value={editForm.descripcion}
                 onChange={(e) => setEditForm((f) => ({ ...f, descripcion: e.target.value }))}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm"
                 placeholder="Descripción"
               />
               <input
                 value={editForm.url}
                 onChange={(e) => setEditForm((f) => ({ ...f, url: e.target.value }))}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm"
                 placeholder="https://…"
               />
               <div className="flex justify-end gap-2">
-                <button onClick={() => setEditingId(null)} className="px-3 py-1.5 text-xs font-medium text-slate-500">Cancelar</button>
+                <button onClick={() => setEditingId(null)} className="px-3 py-1.5 text-xs font-medium text-navy-500">Cancelar</button>
                 <button onClick={() => saveEdit(link.id)} className="px-3 py-1.5 text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white rounded-md">Guardar</button>
               </div>
             </div>
           ) : (
-            <div key={link.id} className="flex items-start justify-between bg-white border border-slate-200 rounded-xl p-4 hover:border-amber-300 transition-colors">
+            <div key={link.id} className="flex items-start justify-between bg-white border border-navy-200 rounded-xl p-4 hover:border-gold-300 transition-colors">
               <a href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-3 min-w-0 flex-1 group">
-                <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
-                  <ExternalLink className="w-4 h-4 text-amber-600" />
+                <div className="w-8 h-8 rounded-lg bg-gold-50 flex items-center justify-center shrink-0">
+                  <ExternalLink className="w-4 h-4 text-gold-600" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-700 group-hover:text-amber-600">{link.descripcion}</p>
-                  <p className="text-xs text-slate-400 truncate">{link.url}</p>
+                  <p className="text-sm font-semibold text-navy-700 group-hover:text-gold-600">{link.descripcion}</p>
+                  <p className="text-xs text-navy-400 truncate">{link.url}</p>
                 </div>
               </a>
               <div className="flex items-center gap-1 shrink-0 ml-2">
-                <button onClick={() => startEdit(link)} className="text-slate-300 hover:text-amber-500 p-1">
+                <button onClick={() => startEdit(link)} className="text-navy-300 hover:text-gold-500 p-1">
                   <Pencil className="w-4 h-4" />
                 </button>
-                <button onClick={() => onRemove(link.id)} className="text-slate-300 hover:text-red-500 p-1">
+                <button onClick={() => onRemove(link.id)} className="text-navy-300 hover:text-red-500 p-1">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </div>
           )
         )}
-        {links.length === 0 && <p className="text-sm text-slate-400 italic text-center py-8">Aún no hay enlaces guardados.</p>}
+        {links.length === 0 && <p className="text-sm text-navy-400 italic text-center py-8">Aún no hay enlaces guardados.</p>}
       </div>
     </div>
   );
@@ -1576,7 +1672,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-800 antialiased">
+    <div className="flex h-screen bg-navy-50 font-sans text-navy-800 antialiased">
       <style>{`
         @media print {
           .no-print { display: none !important; }
@@ -1630,11 +1726,11 @@ export default function App() {
         )}
         {view === 'enlaces' && <LinksView links={links} onAdd={handleAddLink} onUpdate={handleUpdateLink} onRemove={handleRemoveLink} />}
         {view === 'detalle' && selectedProject && (
-          <ProjectDetail key={selectedProject.id} project={selectedProject} updateProject={updateProject} onBack={goBack} directorio={directorio} />
+          <ProjectDetail key={selectedProject.id} project={selectedProject} updateProject={updateProject} onBack={goBack} directorio={directorio} perfil={perfil} />
         )}
       </main>
 
-      {showCreate && <ProjectFormModal onClose={() => setShowCreate(false)} onCreate={handleCreate} directorio={directorio} />}
+      {showCreate && <ProjectFormModal onClose={() => setShowCreate(false)} onCreate={handleCreate} directorio={directorio} perfil={perfil} />}
       {showProfileEdit && <ProfileGate initial={perfil} userId={perfil.id} onSaved={handleProfileSaved} onCancel={() => setShowProfileEdit(false)} />}
     </div>
   );
