@@ -4,7 +4,7 @@ import {
   Building2, Zap, Cog, Mountain, PenTool, Plus, Search, X, Printer,
   Paperclip, Trash2, ChevronLeft, Pencil, Save, MapPin, Calendar,
   Users, ExternalLink, Check, FileText, UploadCloud, XCircle, ClipboardList,
-  Loader2, RefreshCw, LogOut, ShieldCheck, Lock,
+  Loader2, RefreshCw, LogOut, ShieldCheck, Lock, History,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -140,6 +140,9 @@ const SCHEMA = [
       { key: 'res_conc_cctv', label: 'Resist. concreto CCTV', type: 'text' },
       { key: 'res_conc_postes', label: 'Resist. concreto postes', type: 'text' },
       { key: 'tipo_galvanizado', label: 'Tipo de galvanizado', type: 'text' },
+      { key: 'esquema_puntado', label: 'Esquema de puntado', type: 'text' },
+      { key: 'espec_aceros_pernos', label: 'Especificaciones de aceros y pernos', type: 'text' },
+      { key: 'espec_refuerzo', label: 'Especificación de refuerzo', type: 'text' },
     ],
   },
   {
@@ -204,6 +207,34 @@ function formatDate(iso) {
   const d = new Date(iso + 'T00:00:00');
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function formatDateTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+/* Compara los valores "antes" y "después" de una especialidad y devuelve una  */
+/* lista de textos legibles, uno por cada campo que realmente cambió.         */
+function diffSectionData(section, before, after) {
+  const cambios = [];
+  section.fields.forEach((field) => {
+    const b = before ? before[field.key] : undefined;
+    const a = after ? after[field.key] : undefined;
+    if (field.type === 'boolean') {
+      const bv = b && typeof b === 'object' ? b : { valor: null, nota: '' };
+      const av = a && typeof a === 'object' ? a : { valor: null, nota: '' };
+      if (bv.valor !== av.valor || (bv.nota || '') !== (av.nota || '')) {
+        const fmt = (v) => (v.valor === true ? 'Sí' : v.valor === false ? 'No' : 'sin definir') + (v.nota ? ` (${v.nota})` : '');
+        cambios.push(`${field.label}: ${fmt(bv)} → ${fmt(av)}`);
+      }
+    } else if ((b || '') !== (a || '')) {
+      cambios.push(`${field.label}: "${b || '—'}" → "${a || '—'}"`);
+    }
+  });
+  return cambios;
 }
 
 function formatBytes(bytes) {
@@ -1002,7 +1033,9 @@ function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, dire
 
       <div className="flex items-center gap-3 my-6">
         <div className="relative flex-1 max-w-sm">
-          <Search className="w-4 h-4 text-navy-400 absolute left-3 top-1/2 -trannavy-y-1/2" />
+          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+            <Search className="w-4 h-4 text-navy-400" />
+          </div>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -1201,9 +1234,30 @@ function ProjectDetail({ project, updateProject, onBack, directorio, perfil }) {
   const [activeTab, setActiveTab] = useState(SCHEMA[0].id);
   const [editMode, setEditMode] = useState(false);
   const [draftData, setDraftData] = useState(null);
+  const [historial, setHistorial] = useState(null);
+  const [loadingHistorial, setLoadingHistorial] = useState(false);
 
   const puedeGestionar = isLeader(perfil); // asignar equipo + cambiar estado
   const puedeEditarContenido = isAssignedToProject(perfil, project); // campos técnicos + archivos
+
+  async function loadHistorial() {
+    setLoadingHistorial(true);
+    const { data, error } = await supabase
+      .from('activity_log')
+      .select('*')
+      .eq('project_id', project.id)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (!error) setHistorial(data || []);
+    setLoadingHistorial(false);
+  }
+
+  useEffect(() => {
+    if (activeTab === 'historial' && historial === null) {
+      loadHistorial();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   function startEdit() {
     setDraftData(JSON.parse(JSON.stringify(project.data)));
@@ -1214,18 +1268,30 @@ function ProjectDetail({ project, updateProject, onBack, directorio, perfil }) {
     setEditMode(false);
   }
   function saveEdit() {
-    updateProject(project.id, (p) => ({ ...p, data: draftData }));
+    const cambios = diffSectionData(activeSection, project.data[activeSection.id], draftData[activeSection.id]);
+    const accion = cambios.length > 0
+      ? `Editó "${activeSection.label}" — ${cambios.join('; ')}`
+      : `Abrió "${activeSection.label}" en modo edición sin cambios`;
+    updateProject(project.id, (p) => ({ ...p, data: draftData }), accion);
     setEditMode(false);
     setDraftData(null);
+    setHistorial(null);
   }
   function handleFieldChange(sectionId, fieldKey, value) {
     setDraftData((prev) => ({ ...prev, [sectionId]: { ...prev[sectionId], [fieldKey]: value } }));
   }
   function handleEstadoChange(nuevoEstado) {
-    updateProject(project.id, (p) => ({ ...p, estado: nuevoEstado }));
+    const anterior = STATUS_CONFIG[project.estado]?.label || project.estado;
+    const nuevo = STATUS_CONFIG[nuevoEstado]?.label || nuevoEstado;
+    updateProject(project.id, (p) => ({ ...p, estado: nuevoEstado }), `Cambió el estado: ${anterior} → ${nuevo}`);
+    setHistorial(null);
   }
   function handleEquipoChange(roleKey, nombre) {
-    updateProject(project.id, (p) => ({ ...p, equipo: { ...p.equipo, [roleKey]: nombre } }));
+    const role = ROLES.find((r) => r.key === roleKey);
+    const anterior = project.equipo[roleKey] || 'Sin asignar';
+    const nuevo = nombre || 'Sin asignar';
+    updateProject(project.id, (p) => ({ ...p, equipo: { ...p.equipo, [roleKey]: nombre } }), `Asignó ${role?.label || roleKey}: ${anterior} → ${nuevo}`);
+    setHistorial(null);
   }
   function handleAddFiles(fileList) {
     const nuevos = Array.from(fileList).map((f) => ({
@@ -1235,10 +1301,14 @@ function ProjectDetail({ project, updateProject, onBack, directorio, perfil }) {
       tamano: f.size,
       fecha: new Date().toISOString().slice(0, 10),
     }));
-    updateProject(project.id, (p) => ({ ...p, archivos: [...p.archivos, ...nuevos] }));
+    const nombres = nuevos.map((f) => f.nombre).join(', ');
+    updateProject(project.id, (p) => ({ ...p, archivos: [...p.archivos, ...nuevos] }), `Adjuntó archivo(s): ${nombres}`);
+    setHistorial(null);
   }
   function removeFile(fileId) {
-    updateProject(project.id, (p) => ({ ...p, archivos: p.archivos.filter((f) => f.id !== fileId) }));
+    const archivo = project.archivos.find((f) => f.id === fileId);
+    updateProject(project.id, (p) => ({ ...p, archivos: p.archivos.filter((f) => f.id !== fileId) }), archivo ? `Eliminó el archivo: ${archivo.nombre}` : 'Eliminó un archivo');
+    setHistorial(null);
   }
 
   const dataForRender = editMode ? draftData : project.data;
@@ -1348,10 +1418,18 @@ function ProjectDetail({ project, updateProject, onBack, directorio, perfil }) {
             >
               <Paperclip className="w-4 h-4" /> Archivos {project.archivos.length > 0 && `(${project.archivos.length})`}
             </button>
+            <button
+              onClick={() => setActiveTab('historial')}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                activeTab === 'historial' ? 'border-gold-500 text-gold-600 bg-gold-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
+              }`}
+            >
+              <History className="w-4 h-4" /> Historial
+            </button>
           </div>
 
           <div className="p-6">
-            {activeTab !== 'archivos' && activeSection && (
+            {activeTab !== 'archivos' && activeTab !== 'historial' && activeSection && (
               <>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs text-navy-400">Campos de la especialidad · {activeSection.label}</p>
@@ -1384,6 +1462,35 @@ function ProjectDetail({ project, updateProject, onBack, directorio, perfil }) {
             )}
             {activeTab === 'archivos' && (
               <AttachmentsPanel archivos={project.archivos} onAdd={handleAddFiles} onRemove={removeFile} canEdit={puedeEditarContenido} />
+            )}
+            {activeTab === 'historial' && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-xs text-navy-400">Fecha, hora y responsable de cada cambio hecho a este proyecto</p>
+                  <button onClick={loadHistorial} className="flex items-center gap-1.5 text-xs font-semibold text-gold-600 hover:text-gold-700">
+                    <RefreshCw className="w-3.5 h-3.5" /> Actualizar
+                  </button>
+                </div>
+                {loadingHistorial ? (
+                  <p className="text-sm text-navy-400 text-center py-8">Cargando historial…</p>
+                ) : !historial || historial.length === 0 ? (
+                  <p className="text-sm text-navy-400 italic text-center py-8">Aún no hay cambios registrados para este proyecto.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {historial.map((h) => (
+                      <div key={h.id} className="flex gap-3 border-l-2 border-gold-300 pl-3">
+                        <div className="min-w-0">
+                          <p className="text-sm text-navy-700">
+                            <span className="font-semibold">{h.usuario_nombre}</span>
+                            <span className="text-navy-400"> · {formatDateTime(h.created_at)}</span>
+                          </p>
+                          <p className="text-sm text-navy-600 mt-0.5 whitespace-pre-wrap break-words">{h.accion}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -1603,7 +1710,22 @@ export default function App() {
     setSelectedId(null);
   }
 
-  function updateProject(id, updater) {
+  async function logActivity(projectId, accion) {
+    if (!accion) return;
+    try {
+      const { error } = await supabase.from('activity_log').insert({
+        project_id: projectId,
+        usuario_id: perfil?.id || null,
+        usuario_nombre: perfil?.nombre || 'Desconocido',
+        accion,
+      });
+      if (error) console.error('Error registrando historial:', error);
+    } catch (e) {
+      console.error('Error registrando historial:', e);
+    }
+  }
+
+  function updateProject(id, updater, accion) {
     setProjects((prev) => {
       const next = prev.map((p) => (p.id === id ? updater(p) : p));
       const updated = next.find((p) => p.id === id);
@@ -1614,12 +1736,14 @@ export default function App() {
       }
       return next;
     });
+    logActivity(id, accion);
   }
   function handleCreate(newProject) {
     setProjects((prev) => [...prev, newProject]);
     supabase.from('projects').insert(projectToRow(newProject)).then(({ error }) => {
       if (error) console.error('Error creando proyecto:', error);
     });
+    logActivity(newProject.id, 'Creó el proyecto');
     setShowCreate(false);
     openProject(newProject.id);
   }
