@@ -1064,6 +1064,7 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
   const lista = pickDocumentList(general.inversionista);
   const prefijo = buildProjectCode(general);
   const estadoActual = project.documentos || {};
+  const [filtroEspecialidad, setFiltroEspecialidad] = useState('todas');
 
   const grupos = [];
   const idxByEsp = new Map();
@@ -1075,6 +1076,8 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
     grupos[idxByEsp.get(doc.especialidad)].docs.push(doc);
   });
 
+  const gruposFiltrados = filtroEspecialidad === 'todas' ? grupos : grupos.filter((g) => g.especialidad === filtroEspecialidad);
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
@@ -1085,13 +1088,28 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
           {prefijo ? `Prefijo de código: ${prefijo}` : 'Completa Departamento (abrev.), N.° de minigranja y N.° de predio en "General" para generar el código'}
         </p>
       </div>
+
+      <div className="flex items-center gap-2 mb-4">
+        <label className="text-xs font-semibold text-navy-500">Filtrar por especialidad:</label>
+        <select
+          value={filtroEspecialidad}
+          onChange={(e) => setFiltroEspecialidad(e.target.value)}
+          className="text-sm rounded-lg border border-navy-300 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-gold-400"
+        >
+          <option value="todas">Todas ({lista.length})</option>
+          {grupos.map((g) => (
+            <option key={g.especialidad} value={g.especialidad}>{g.especialidad} ({g.docs.length})</option>
+          ))}
+        </select>
+      </div>
+
       {!puedeComentar && (
         <p className="flex items-center gap-1.5 text-xs text-navy-400 mb-4">
           <Lock className="w-3.5 h-3.5" /> Solo "Control de Calidad Interno" puede escribir comentarios.
         </p>
       )}
       <div className="space-y-6">
-        {grupos.map((g) => (
+        {gruposFiltrados.map((g) => (
           <div key={g.especialidad}>
             <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-2">{g.especialidad}</p>
             <div className="space-y-2">
@@ -1134,6 +1152,9 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
             </div>
           </div>
         ))}
+        {gruposFiltrados.length === 0 && (
+          <p className="text-sm text-navy-400 italic text-center py-8">No hay documentos para esta especialidad.</p>
+        )}
       </div>
     </div>
   );
@@ -2345,6 +2366,9 @@ function TeamRolesView({ directorio, perfil, onToggleRole }) {
     setPending(null);
   }
 
+  const [filtroRol, setFiltroRol] = useState('todos');
+  const directorioFiltrado = filtroRol === 'todos' ? directorio : directorio.filter((u) => u.roles.includes(filtroRol));
+
   return (
     <div className="p-8 max-w-4xl mx-auto">
       <div className="mb-8">
@@ -2356,8 +2380,25 @@ function TeamRolesView({ directorio, perfil, onToggleRole }) {
         </p>
       </div>
 
+      <div className="flex items-center gap-2 mb-4">
+        <label className="text-xs font-semibold text-navy-500">Filtrar por rol:</label>
+        <select
+          value={filtroRol}
+          onChange={(e) => setFiltroRol(e.target.value)}
+          className="text-sm rounded-lg border border-navy-300 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-gold-400"
+        >
+          <option value="todos">Todos ({directorio.length})</option>
+          {ALL_ROLE_DEFS.map((role) => {
+            const cantidad = directorio.filter((u) => u.roles.includes(role.key)).length;
+            return (
+              <option key={role.key} value={role.key}>{role.label} ({cantidad})</option>
+            );
+          })}
+        </select>
+      </div>
+
       <div className="space-y-3">
-        {directorio.map((u) => (
+        {directorioFiltrado.map((u) => (
           <div key={u.id} className="bg-white border border-navy-200 rounded-xl p-4">
             <div className="flex items-center gap-3 mb-3">
               <Avatar name={u.nombre} foto={u.foto} />
@@ -2388,7 +2429,7 @@ function TeamRolesView({ directorio, perfil, onToggleRole }) {
             </div>
           </div>
         ))}
-        {directorio.length === 0 && <p className="text-sm text-navy-400 italic text-center py-8">Aún no hay cuentas creadas.</p>}
+        {directorioFiltrado.length === 0 && <p className="text-sm text-navy-400 italic text-center py-8">Nadie tiene este rol todavía.</p>}
       </div>
     </div>
   );
