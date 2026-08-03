@@ -62,6 +62,9 @@ function rolesLabel(perfil) {
 function isLeader(perfil) {
   return !!perfil && !!perfil.roles && perfil.roles.some((k) => LEADER_ROLE_KEYS.includes(k));
 }
+function isDesignLeader(perfil) {
+  return !!perfil && !!perfil.roles && perfil.roles.includes('lider_diseno');
+}
 function isQA(perfil) {
   return !!perfil && !!perfil.roles && perfil.roles.includes(QA_ROLE.key);
 }
@@ -720,6 +723,14 @@ function buildProjectCode(general) {
   return `COL${dep}${num}P${predio}`;
 }
 
+/* Nombre del proyecto con el código documental al frente, ej.             */
+/* "Confines Occidente - COLSANT215P1". Si el código aún no está completo  */
+/* (faltan datos en General), se muestra solo el nombre.                   */
+function projectDisplayName(project) {
+  const codigo = buildProjectCode(project.data.general);
+  return codigo ? `${project.nombre} - ${codigo}` : project.nombre;
+}
+
 /* ============================================================================
    5. COMPONENTES DE PRESENTACIÓN
    ============================================================================ */
@@ -1175,7 +1186,7 @@ function PrintableReport({ project }) {
         <p className="text-xs text-navy-400">Generado el {new Date().toLocaleDateString('es-CO')}</p>
       </div>
 
-      <h1 className="text-xl font-bold text-navy-800 mb-1">{project.nombre}</h1>
+      <h1 className="text-xl font-bold text-navy-800 mb-1">{projectDisplayName(project)}</h1>
       <p className="text-sm text-navy-500 mb-6">{general.municipio || 'N/A'}, {general.departamento || 'N/A'}, {general.pais || 'N/A'}</p>
 
       <table className="w-full text-sm mb-8 border border-navy-300">
@@ -1587,7 +1598,7 @@ function ProjectCard({ project, onClick, directorio }) {
   return (
     <button onClick={onClick} className="text-left bg-white rounded-xl border border-navy-200 p-4 hover:border-gold-300 hover:shadow-md transition-all group">
       <div className="flex items-start justify-between mb-3 gap-2">
-        <h3 className="font-bold text-navy-800 leading-snug group-hover:text-gold-600 transition-colors">{project.nombre}</h3>
+        <h3 className="font-bold text-navy-800 leading-snug group-hover:text-gold-600 transition-colors">{projectDisplayName(project)}</h3>
         <StatusBadge estado={project.estado} size="sm" />
       </div>
       <p className="flex items-center gap-1.5 text-xs text-navy-500 mb-3">
@@ -1962,11 +1973,9 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
     setHistorial(null);
   }
   function handleEquipoChange(roleKey, nombre) {
-    const role = ROLES.find((r) => r.key === roleKey);
-    const anterior = project.equipo[roleKey] || 'Sin asignar';
-    const nuevo = nombre || 'Sin asignar';
-    updateProject(project.id, (p) => ({ ...p, equipo: { ...p.equipo, [roleKey]: nombre } }), `Asignó ${role?.label || roleKey}: ${anterior} → ${nuevo}`);
-    setHistorial(null);
+    // No se registra en el historial: las asignaciones de equipo/rol
+    // generaban demasiado ruido en la trazabilidad de cambios técnicos.
+    updateProject(project.id, (p) => ({ ...p, equipo: { ...p.equipo, [roleKey]: nombre } }));
   }
   function handleAddFiles(fileList) {
     const nuevos = Array.from(fileList).map((f) => ({
@@ -2068,7 +2077,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
             </div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-navy-200">
-            <TitleCell label="Proyecto" value={project.nombre} span={2} />
+            <TitleCell label="Proyecto" value={projectDisplayName(project)} span={2} />
             <TitleCell label="Ubicación" value={`${general.municipio || 'N/A'}, ${general.departamento || 'N/A'}`} />
             <TitleCell label="Estado" custom={<StatusBadge estado={project.estado} />} />
             <TitleCell label="Inversionista" value={general.inversionista} />
@@ -2355,15 +2364,25 @@ function LinksView({ links, onAdd, onUpdate, onRemove }) {
   );
 }
 
-function TeamRolesView({ directorio, perfil, onToggleRole }) {
+function TeamRolesView({ directorio, perfil, onToggleRole, onDeleteUser }) {
   const soyLider = isLeader(perfil);
+  const soyLiderDiseno = isDesignLeader(perfil);
   const [pending, setPending] = useState(null); // `${userId}:${roleKey}` mientras se guarda
+  const [confirmingUserId, setConfirmingUserId] = useState(null);
+  const [deletingUserId, setDeletingUserId] = useState(null);
 
   async function handleToggle(userId, roleKey, tieneRol) {
     const key = `${userId}:${roleKey}`;
     setPending(key);
     await onToggleRole(userId, roleKey, tieneRol);
     setPending(null);
+  }
+
+  async function handleDelete(userId) {
+    setDeletingUserId(userId);
+    await onDeleteUser(userId);
+    setDeletingUserId(null);
+    setConfirmingUserId(null);
   }
 
   const [filtroRol, setFiltroRol] = useState('todos');
@@ -2377,6 +2396,7 @@ function TeamRolesView({ directorio, perfil, onToggleRole }) {
           {soyLider
             ? 'Como líder, puedes otorgar o quitar roles a cualquier persona. Los roles determinan a qué proyectos puede asignarse cada quien.'
             : 'Solo un líder puede asignar roles. Aquí puedes ver qué rol tiene cada persona del equipo.'}
+          {soyLiderDiseno && ' Como Líder de Diseño, también puedes eliminar cuentas del equipo.'}
         </p>
       </div>
 
@@ -2400,12 +2420,39 @@ function TeamRolesView({ directorio, perfil, onToggleRole }) {
       <div className="space-y-3">
         {directorioFiltrado.map((u) => (
           <div key={u.id} className="bg-white border border-navy-200 rounded-xl p-4">
-            <div className="flex items-center gap-3 mb-3">
-              <Avatar name={u.nombre} foto={u.foto} />
-              <div className="min-w-0">
-                <p className="font-semibold text-navy-800 truncate">{u.nombre}{u.id === perfil.id ? ' (tú)' : ''}</p>
-                <p className="text-xs text-navy-400 truncate">{rolesLabel(u)}</p>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <Avatar name={u.nombre} foto={u.foto} />
+                <div className="min-w-0">
+                  <p className="font-semibold text-navy-800 truncate">{u.nombre}{u.id === perfil.id ? ' (tú)' : ''}</p>
+                  <p className="text-xs text-navy-400 truncate">{rolesLabel(u)}</p>
+                </div>
               </div>
+              {soyLiderDiseno && u.id !== perfil.id && (
+                confirmingUserId === u.id ? (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-xs text-navy-500 whitespace-nowrap">¿Eliminar a {u.nombre.split(' ')[0]}?</span>
+                    <button
+                      onClick={() => handleDelete(u.id)}
+                      disabled={deletingUserId === u.id}
+                      className="text-xs font-bold bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-2 py-1 rounded-md transition-colors"
+                    >
+                      Sí, eliminar
+                    </button>
+                    <button onClick={() => setConfirmingUserId(null)} className="text-xs text-navy-400 hover:text-navy-600 px-1.5">
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmingUserId(u.id)}
+                    title="Eliminar usuario"
+                    className="text-navy-300 hover:text-red-500 shrink-0 p-1"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )
+              )}
             </div>
             <div className="flex flex-wrap gap-1.5">
               {ALL_ROLE_DEFS.map((role) => {
@@ -2641,6 +2688,25 @@ export default function App() {
       alert('No se pudo actualizar el rol. Esta acción requiere permisos de líder.');
     }
   }
+  async function handleDeleteUser(userId) {
+    if (!isDesignLeader(perfil)) {
+      alert('Solo el Líder de Diseño puede eliminar usuarios.');
+      return;
+    }
+    if (userId === perfil.id) {
+      alert('No puedes eliminar tu propia cuenta desde aquí.');
+      return;
+    }
+    try {
+      await supabase.from('user_roles').delete().eq('user_id', userId);
+      const { error } = await supabase.from('profiles').delete().eq('id', userId);
+      if (error) throw error;
+      setDirectorio((prev) => prev.filter((u) => u.id !== userId));
+    } catch (e) {
+      console.error('Error eliminando usuario:', e);
+      alert('No se pudo eliminar el usuario. Esta acción requiere permisos de Líder de Diseño.');
+    }
+  }
   async function handleLogout() {
     await supabase.auth.signOut();
   }
@@ -2716,7 +2782,7 @@ export default function App() {
             directorio={directorio}
           />
         )}
-        {view === 'equipo' && <TeamRolesView directorio={directorio} perfil={perfil} onToggleRole={handleToggleRole} />}
+        {view === 'equipo' && <TeamRolesView directorio={directorio} perfil={perfil} onToggleRole={handleToggleRole} onDeleteUser={handleDeleteUser} />}
         {view === 'enlaces' && <LinksView links={links} onAdd={handleAddLink} onUpdate={handleUpdateLink} onRemove={handleRemoveLink} />}
         {view === 'detalle' && selectedProject && (
           <ProjectDetail key={selectedProject.id} project={selectedProject} updateProject={updateProject} onBack={goBack} onDelete={handleDeleteProject} directorio={directorio} perfil={perfil} />
