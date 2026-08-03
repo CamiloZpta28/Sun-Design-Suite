@@ -68,6 +68,13 @@ function isDesignLeader(perfil) {
 function isQA(perfil) {
   return !!perfil && !!perfil.roles && perfil.roles.includes(QA_ROLE.key);
 }
+/* Los roles de líder (incluido Líder de Diseño) solo los puede otorgar o    */
+/* quitar el propio Líder de Diseño. Los demás roles los puede gestionar    */
+/* cualquier líder.                                                          */
+function canAssignRole(perfil, roleKey) {
+  if (LEADER_ROLE_KEYS.includes(roleKey)) return isDesignLeader(perfil);
+  return isLeader(perfil);
+}
 function isAssignedToProject(perfil, project) {
   return !!perfil && Object.values(project.equipo).includes(perfil.nombre);
 }
@@ -2394,7 +2401,7 @@ function TeamRolesView({ directorio, perfil, onToggleRole, onDeleteUser }) {
         <h1 className="text-2xl font-bold text-navy-800">Equipo</h1>
         <p className="text-navy-500 text-sm mt-1">
           {soyLider
-            ? 'Como líder, puedes otorgar o quitar roles a cualquier persona. Los roles determinan a qué proyectos puede asignarse cada quien.'
+            ? 'Como líder, puedes otorgar o quitar roles técnicos. Solo el Líder de Diseño puede otorgar o quitar roles de líder.'
             : 'Solo un líder puede asignar roles. Aquí puedes ver qué rol tiene cada persona del equipo.'}
           {soyLiderDiseno && ' Como Líder de Diseño, también puedes eliminar cuentas del equipo.'}
         </p>
@@ -2458,15 +2465,17 @@ function TeamRolesView({ directorio, perfil, onToggleRole, onDeleteUser }) {
               {ALL_ROLE_DEFS.map((role) => {
                 const tieneRol = u.roles.includes(role.key);
                 const cargando = pending === `${u.id}:${role.key}`;
+                const puedeAsignarEste = canAssignRole(perfil, role.key);
                 const RoleIcon = role.icon;
                 return (
                   <button
                     key={role.key}
-                    disabled={!soyLider || cargando}
+                    disabled={!puedeAsignarEste || cargando}
+                    title={!puedeAsignarEste ? 'Solo el Líder de Diseño puede asignar roles de líder' : undefined}
                     onClick={() => handleToggle(u.id, role.key, tieneRol)}
                     className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
                       tieneRol ? 'bg-gold-100 text-gold-800 border-gold-300' : 'bg-navy-50 text-navy-400 border-navy-200'
-                    } ${soyLider ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'} ${cargando ? 'opacity-50' : ''}`}
+                    } ${puedeAsignarEste ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'} ${cargando ? 'opacity-50' : ''}`}
                   >
                     <RoleIcon className="w-3 h-3" />
                     {role.label}
