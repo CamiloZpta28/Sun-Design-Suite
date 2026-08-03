@@ -22,10 +22,17 @@ Sigue los pasos en orden. No necesitas experiencia previa con Supabase.
 1. En el menú lateral, entra a **SQL Editor** → **New query**.
 2. Abre el archivo `supabase/schema.sql` de este proyecto, copia **todo**
    su contenido, pégalo en el editor y presiona **Run**.
-3. Esto crea las tablas `profiles`, `projects` y `links`, las reglas de
-   seguridad (cada quien solo edita su propio perfil; el equipo completo
-   puede ver y editar proyectos y enlaces), y el bucket de almacenamiento
-   `avatars` para las fotos de perfil.
+3. Esto crea las tablas `profiles`, `projects`, `links` y `activity_log`
+   (el historial de cambios), las reglas de seguridad (cada quien solo
+   edita su propio perfil; el equipo completo puede ver y editar
+   proyectos y enlaces), y el bucket de almacenamiento `avatars` para las
+   fotos de perfil.
+
+> **¿Ya tenías este proyecto desplegado antes de esta actualización?**
+> Tu base de datos ya existe, así que **no vuelvas a correr `schema.sql`
+> completo** (las políticas de seguridad fallarían por estar duplicadas).
+> En su lugar, corre solo `supabase/migration_historial.sql`, que agrega
+> la nueva tabla del historial de cambios sin tocar lo que ya tenías.
 
 ## 3. Habilitar registro por correo (ya viene activo por defecto)
 
