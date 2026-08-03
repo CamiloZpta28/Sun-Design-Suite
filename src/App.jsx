@@ -1680,7 +1680,8 @@ function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, dire
 
   const filtered = projects.filter((p) => {
     const general = p.data.general;
-    const haystack = `${p.nombre} ${general.municipio || ''} ${general.departamento || ''}`.toLowerCase();
+    const codigo = buildProjectCode(general);
+    const haystack = `${p.nombre} ${general.municipio || ''} ${general.departamento || ''} ${codigo}`.toLowerCase();
     const matchSearch = haystack.includes(search.toLowerCase());
     const matchEstado = estadoFiltro === 'todos' || p.estado === estadoFiltro;
     return matchSearch && matchEstado;
@@ -1706,7 +1707,7 @@ function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, dire
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nombre o ubicación…"
+            placeholder="Buscar por nombre, ubicación o código…"
             className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-navy-300 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400"
           />
         </div>
