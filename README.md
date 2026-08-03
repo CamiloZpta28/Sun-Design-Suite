@@ -31,11 +31,12 @@ Sigue los pasos en orden. No necesitas experiencia previa con Supabase.
 > Tu base de datos ya existe, así que **no vuelvas a correr `schema.sql`
 > completo** (las políticas de seguridad fallarían por estar duplicadas).
 > En su lugar, corre — en este orden, y solo los que no hayas corrido ya —
-> `supabase/migration_historial.sql` y luego
-> `supabase/migration_roles_notas_documentos.sql`. Cada uno agrega solo lo
-> nuevo sin tocar lo que ya tenías. Si no recuerdas si ya corriste alguno,
-> no pasa nada por intentarlo de nuevo: en el peor caso te marcará un error
-> de "ya existe", que puedes ignorar.
+> `supabase/migration_historial.sql`,
+> `supabase/migration_roles_notas_documentos.sql` y
+> `supabase/migration_eliminar_proyectos_solo_lideres.sql`. Cada uno agrega
+> solo lo nuevo sin tocar lo que ya tenías. Si no recuerdas si ya corriste
+> alguno, no pasa nada por intentarlo de nuevo: en el peor caso te marcará
+> un error de "ya existe", que puedes ignorar.
 
 ## 3. Asignar el primer líder
 
