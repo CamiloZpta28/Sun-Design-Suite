@@ -1928,8 +1928,10 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
   const [historial, setHistorial] = useState(null);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [editingNombre, setEditingNombre] = useState(false);
+  const [nombreDraft, setNombreDraft] = useState(project.nombre);
 
-  const puedeGestionar = isLeader(perfil); // asignar equipo + cambiar estado + eliminar proyecto
+  const puedeGestionar = isLeader(perfil); // asignar equipo + cambiar estado + eliminar/renombrar proyecto
   const puedeEditarContenido = isAssignedToProject(perfil, project); // campos técnicos + archivos + notas
   const puedeComentar = isQA(perfil); // comentarios en Control Documental
 
@@ -1977,6 +1979,17 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
     const anterior = STATUS_CONFIG[project.estado]?.label || project.estado;
     const nuevo = STATUS_CONFIG[nuevoEstado]?.label || nuevoEstado;
     updateProject(project.id, (p) => ({ ...p, estado: nuevoEstado }), `Cambió el estado: ${anterior} → ${nuevo}`);
+    setHistorial(null);
+  }
+  function saveNombre() {
+    const nuevo = nombreDraft.trim();
+    if (!nuevo || nuevo === project.nombre) {
+      setNombreDraft(project.nombre);
+      setEditingNombre(false);
+      return;
+    }
+    updateProject(project.id, (p) => ({ ...p, nombre: nuevo }), `Cambió el nombre del proyecto: "${project.nombre}" → "${nuevo}"`);
+    setEditingNombre(false);
     setHistorial(null);
   }
   function handleEquipoChange(roleKey, nombre) {
@@ -2084,7 +2097,45 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
             </div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-navy-200">
-            <TitleCell label="Proyecto" value={projectDisplayName(project)} span={2} />
+            {puedeGestionar ? (
+              <div className="px-4 py-2.5 col-span-2">
+                <p className="text-xs uppercase tracking-wide text-navy-400 font-semibold">Proyecto</p>
+                {editingNombre ? (
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={nombreDraft}
+                      onChange={(e) => setNombreDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') saveNombre();
+                        if (e.key === 'Escape') { setNombreDraft(project.nombre); setEditingNombre(false); }
+                      }}
+                      className="text-sm font-mono text-navy-700 border border-navy-300 rounded-md px-2 py-1 flex-1 min-w-0 focus:outline-none focus:ring-2 focus:ring-gold-400"
+                    />
+                    <button onClick={saveNombre} title="Guardar" className="text-emerald-600 hover:text-emerald-700 shrink-0">
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => { setNombreDraft(project.nombre); setEditingNombre(false); }} title="Cancelar" className="text-navy-400 hover:text-navy-600 shrink-0">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 mt-0.5 group">
+                    <p className="text-sm font-mono text-navy-700 truncate">{projectDisplayName(project)}</p>
+                    <button
+                      onClick={() => { setNombreDraft(project.nombre); setEditingNombre(true); }}
+                      title="Cambiar nombre del proyecto"
+                      className="text-navy-300 hover:text-gold-600 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity shrink-0"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <TitleCell label="Proyecto" value={projectDisplayName(project)} span={2} />
+            )}
             <TitleCell label="Ubicación" value={`${general.municipio || 'N/A'}, ${general.departamento || 'N/A'}`} />
             <TitleCell label="Estado" custom={<StatusBadge estado={project.estado} />} />
             <TitleCell label="Inversionista" value={general.inversionista} />
