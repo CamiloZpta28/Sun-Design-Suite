@@ -33,8 +33,9 @@ Sigue los pasos en orden. No necesitas experiencia previa con Supabase.
 > En su lugar, corre — en este orden, y solo los que no hayas corrido ya —
 > `supabase/migration_historial.sql`,
 > `supabase/migration_roles_notas_documentos.sql`,
-> `supabase/migration_eliminar_proyectos_solo_lideres.sql` y
-> `supabase/migration_eliminar_usuarios_lider_diseno.sql`. Cada uno agrega
+> `supabase/migration_eliminar_proyectos_solo_lideres.sql`,
+> `supabase/migration_eliminar_usuarios_lider_diseno.sql` y
+> `supabase/migration_solo_lider_diseno_asigna_lideres.sql`. Cada uno agrega
 > solo lo nuevo sin tocar lo que ya tenías. Si no recuerdas si ya corriste
 > alguno, no pasa nada por intentarlo de nuevo: en el peor caso te marcará
 > un error de "ya existe", que puedes ignorar.
