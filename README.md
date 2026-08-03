@@ -32,11 +32,21 @@ Sigue los pasos en orden. No necesitas experiencia previa con Supabase.
 > completo** (las políticas de seguridad fallarían por estar duplicadas).
 > En su lugar, corre — en este orden, y solo los que no hayas corrido ya —
 > `supabase/migration_historial.sql`,
-> `supabase/migration_roles_notas_documentos.sql` y
-> `supabase/migration_eliminar_proyectos_solo_lideres.sql`. Cada uno agrega
+> `supabase/migration_roles_notas_documentos.sql`,
+> `supabase/migration_eliminar_proyectos_solo_lideres.sql` y
+> `supabase/migration_eliminar_usuarios_lider_diseno.sql`. Cada uno agrega
 > solo lo nuevo sin tocar lo que ya tenías. Si no recuerdas si ya corriste
 > alguno, no pasa nada por intentarlo de nuevo: en el peor caso te marcará
 > un error de "ya existe", que puedes ignorar.
+>
+> **Sobre "eliminar usuarios":** el Líder de Diseño puede borrar el perfil
+> y los roles de alguien desde la sección "Equipo" — eso lo saca del
+> equipo y de cualquier proyecto al que pudiera asignarse. Pero su cuenta
+> de acceso (correo + contraseña) sigue existiendo en Supabase Auth, así
+> que si vuelve a entrar, verá la pantalla de "crear tu perfil" otra vez,
+> como si fuera nuevo. Para borrar el acceso por completo, hazlo desde
+> **Authentication → Users** en el panel de Supabase (esto requiere
+> permisos de administrador del proyecto de Supabase, no de la app).
 
 ## 3. Asignar el primer líder
 
