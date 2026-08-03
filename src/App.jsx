@@ -1882,14 +1882,15 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil }) {
   );
 }
 
-function ProjectDetail({ project, updateProject, onBack, directorio, perfil }) {
+function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, perfil }) {
   const [activeTab, setActiveTab] = useState(SCHEMA[0].id);
   const [editMode, setEditMode] = useState(false);
   const [draftData, setDraftData] = useState(null);
   const [historial, setHistorial] = useState(null);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const puedeGestionar = isLeader(perfil); // asignar equipo + cambiar estado
+  const puedeGestionar = isLeader(perfil); // asignar equipo + cambiar estado + eliminar proyecto
   const puedeEditarContenido = isAssignedToProject(perfil, project); // campos técnicos + archivos + notas
   const puedeComentar = isQA(perfil); // comentarios en Control Documental
 
@@ -2019,6 +2020,30 @@ function ProjectDetail({ project, updateProject, onBack, directorio, perfil }) {
               <button onClick={() => window.print()} className="flex items-center gap-1.5 bg-gold-500 hover:bg-gold-600 text-navy-900 text-xs font-bold px-3 py-1.5 rounded-md transition-colors">
                 <Printer className="w-3.5 h-3.5" /> Exportar / Imprimir
               </button>
+              {puedeGestionar && (
+                confirmingDelete ? (
+                  <div className="flex items-center gap-1.5 bg-navy-700 rounded-md px-2 py-1">
+                    <span className="text-xs text-white whitespace-nowrap">¿Eliminar proyecto?</span>
+                    <button
+                      onClick={() => onDelete(project.id)}
+                      className="text-xs font-bold bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-md transition-colors"
+                    >
+                      Sí, eliminar
+                    </button>
+                    <button onClick={() => setConfirmingDelete(false)} className="text-xs text-navy-300 hover:text-white px-1.5">
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmingDelete(true)}
+                    title="Eliminar proyecto"
+                    className="flex items-center gap-1.5 text-navy-300 hover:text-red-400 hover:bg-navy-700 text-xs font-semibold px-2.5 py-1.5 rounded-md transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )
+              )}
             </div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-navy-200">
@@ -2509,6 +2534,24 @@ export default function App() {
     setShowCreate(false);
     openProject(newProject.id);
   }
+  async function handleDeleteProject(id) {
+    if (!isLeader(perfil)) {
+      alert('Solo un líder puede eliminar proyectos.');
+      return;
+    }
+    try {
+      const { error } = await supabase.from('projects').delete().eq('id', id);
+      if (error) throw error;
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+      if (selectedId === id) {
+        setViewState(previousView);
+        setSelectedId(null);
+      }
+    } catch (e) {
+      console.error('Error eliminando proyecto:', e);
+      alert('No se pudo eliminar el proyecto. Esta acción requiere permisos de líder.');
+    }
+  }
   function handleAddLink(link) {
     setLinks((prev) => [...prev, link]);
     supabase.from('links').insert(link).then(({ error }) => {
@@ -2635,7 +2678,7 @@ export default function App() {
         {view === 'equipo' && <TeamRolesView directorio={directorio} perfil={perfil} onToggleRole={handleToggleRole} />}
         {view === 'enlaces' && <LinksView links={links} onAdd={handleAddLink} onUpdate={handleUpdateLink} onRemove={handleRemoveLink} />}
         {view === 'detalle' && selectedProject && (
-          <ProjectDetail key={selectedProject.id} project={selectedProject} updateProject={updateProject} onBack={goBack} directorio={directorio} perfil={perfil} />
+          <ProjectDetail key={selectedProject.id} project={selectedProject} updateProject={updateProject} onBack={goBack} onDelete={handleDeleteProject} directorio={directorio} perfil={perfil} />
         )}
       </main>
 
