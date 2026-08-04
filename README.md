@@ -162,6 +162,19 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Marca "Solé"**: la paleta (`lime`, `navy`, `nashville`) vive en
+  `tailwind.config.js` con los códigos exactos de marca (Lemony `#E2FF65`,
+  Nautical Navy `#152644`, Nashville `#8CC3E1`). El logo de la barra
+  lateral usa `src/assets/logo-s-mark.png` (la "S" recortada del logo
+  principal); si cambian el logo, solo hay que reemplazar ese archivo con
+  el mismo nombre.
+- **Formato en Notas**: la barra de herramientas (negrilla, cursiva,
+  subrayado, viñetas) guarda una mini-sintaxis de texto plano
+  (`**negrilla**`, `*cursiva*`, `__subrayado__`, líneas con `- ` para
+  viñetas) — no HTML. Esto es intencional: evita guardar HTML sin
+  controlar en la base de datos. Si más adelante quieres un editor más
+  completo (encabezados, listas numeradas, etc.), se puede reemplazar por
+  una librería como TipTap, pero implica más dependencias.
 - **Rol de Desarrollador**: tiene todos los permisos habilitados a la vez
   (equivale a Líder de Diseño + Control de Calidad Interno + poder
   gestionar cualquier rol, incluidos los de líder). Pensado para quien
