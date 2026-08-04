@@ -1399,6 +1399,58 @@ function PrintableReport({ project }) {
         </div>
       ))}
 
+      <h2 className="text-sm font-bold uppercase tracking-wide text-navy-600 mb-2 border-b border-navy-300 pb-1">Control Documental</h2>
+      {(() => {
+        const lista = pickDocumentList(general.inversionista);
+        const prefijo = buildProjectCode(general);
+        const estadoActual = project.documentos || {};
+        const grupos = [];
+        const idx = new Map();
+        lista.forEach((doc) => {
+          if (!idx.has(doc.especialidad)) {
+            idx.set(doc.especialidad, grupos.length);
+            grupos.push({ especialidad: doc.especialidad, docs: [] });
+          }
+          grupos[idx.get(doc.especialidad)].docs.push(doc);
+        });
+        return (
+          <div className="mb-8">
+            <p className="text-xs text-navy-400 mb-3">
+              Lista aplicable según inversionista: <span className="font-semibold text-navy-600">{general.inversionista || 'Estándar'}</span>
+            </p>
+            {grupos.map((g) => (
+              <div key={g.especialidad} className="mb-4 break-inside-avoid">
+                <p className="text-xs font-bold text-navy-500 uppercase mb-1">{g.especialidad}</p>
+                <table className="w-full text-xs border border-navy-300">
+                  <thead>
+                    <tr className="bg-navy-50">
+                      <th className="text-left px-2 py-1 border-b border-navy-300">Documento</th>
+                      <th className="text-left px-2 py-1 border-b border-navy-300">Código</th>
+                      <th className="text-left px-2 py-1 border-b border-navy-300">Estado</th>
+                      <th className="text-left px-2 py-1 border-b border-navy-300">Comentarios</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {g.docs.map((doc) => {
+                      const codigoFinal = prefijo ? doc.codigo.replace('COLXXXXXXPX', prefijo) : doc.codigo;
+                      const info = estadoActual[doc.codigo] || {};
+                      return (
+                        <tr key={doc.codigo} className="border-b border-navy-100">
+                          <td className="px-2 py-1">{doc.nombre}</td>
+                          <td className="px-2 py-1 font-mono">{codigoFinal}</td>
+                          <td className="px-2 py-1">{info.estado || 'Pendiente'}</td>
+                          <td className="px-2 py-1">{info.comentarios || '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       <h2 className="text-sm font-bold uppercase tracking-wide text-navy-600 mb-2 border-b border-navy-300 pb-1">Archivos Adjuntos</h2>
       {project.archivos.length === 0 ? (
         <p className="text-sm text-navy-400 italic">Sin documentos adjuntos.</p>
