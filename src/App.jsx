@@ -748,11 +748,19 @@ const DOC_ESTADOS = [
   'Aprobado para construcción (APC)',
 ];
 const DOC_ESTADO_CONFIG = {
-  'Pendiente': { bg: 'bg-navy-100', text: 'text-navy-500' },
-  'En proceso': { bg: 'bg-gold-100', text: 'text-gold-700' },
-  'No aplica': { bg: 'bg-navy-50', text: 'text-navy-400' },
-  'Aprobado para construcción con comentarios (APCC)': { bg: 'bg-lime-100', text: 'text-lime-700' },
-  'Aprobado para construcción (APC)': { bg: 'bg-emerald-100', text: 'text-emerald-700' },
+  'Pendiente': { bg: 'bg-navy-100', text: 'text-navy-500', dot: 'bg-navy-400', border: 'border-navy-400', ring: 'ring-navy-400' },
+  'En proceso': { bg: 'bg-gold-100', text: 'text-gold-700', dot: 'bg-gold-500', border: 'border-gold-500', ring: 'ring-gold-500' },
+  'No aplica': { bg: 'bg-navy-50', text: 'text-navy-400', dot: 'bg-navy-300', border: 'border-navy-300', ring: 'ring-navy-300' },
+  'Aprobado para construcción con comentarios (APCC)': { bg: 'bg-lime-100', text: 'text-lime-700', dot: 'bg-lime-500', border: 'border-lime-500', ring: 'ring-lime-500' },
+  'Aprobado para construcción (APC)': { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500', border: 'border-emerald-500', ring: 'ring-emerald-500' },
+};
+/* Nombre corto para las píldoras de filtro/resumen, sin el paréntesis largo. */
+const DOC_ESTADO_CORTO = {
+  'Pendiente': 'Pendiente',
+  'En proceso': 'En proceso',
+  'No aplica': 'No aplica',
+  'Aprobado para construcción con comentarios (APCC)': 'APCC',
+  'Aprobado para construcción (APC)': 'APC',
 };
 
 /* Según el inversionista del proyecto, se usa una lista de documentos u otra. */
@@ -1118,7 +1126,12 @@ function ComentarioInput({ value, onCommit, disabled, placeholder }) {
 
 function DocEstadoBadge({ estado }) {
   const cfg = DOC_ESTADO_CONFIG[estado] || DOC_ESTADO_CONFIG['Pendiente'];
-  return <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>{estado || 'Pendiente'}</span>;
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+      {estado || 'Pendiente'}
+    </span>
+  );
 }
 
 function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, onDocChange }) {
@@ -1127,6 +1140,11 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
   const prefijo = buildProjectCode(general);
   const estadoActual = project.documentos || {};
   const [filtroEspecialidad, setFiltroEspecialidad] = useState('todas');
+  const [filtroEstado, setFiltroEstado] = useState('todos');
+
+  function estadoDeDoc(doc) {
+    return (estadoActual[doc.codigo] && estadoActual[doc.codigo].estado) || 'Pendiente';
+  }
 
   const grupos = [];
   const idxByEsp = new Map();
@@ -1138,7 +1156,18 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
     grupos[idxByEsp.get(doc.especialidad)].docs.push(doc);
   });
 
-  const gruposFiltrados = filtroEspecialidad === 'todas' ? grupos : grupos.filter((g) => g.especialidad === filtroEspecialidad);
+  // Universo según la especialidad elegida (antes de aplicar el filtro de estado),
+  // para que los conteos del semáforo reflejen la especialidad pero no cambien
+  // solo por hacer clic entre estados.
+  const universo = filtroEspecialidad === 'todas' ? lista : lista.filter((d) => d.especialidad === filtroEspecialidad);
+  const conteoPorEstado = {};
+  DOC_ESTADOS.forEach((e) => { conteoPorEstado[e] = 0; });
+  universo.forEach((doc) => { conteoPorEstado[estadoDeDoc(doc)] += 1; });
+
+  const gruposFiltrados = grupos
+    .filter((g) => filtroEspecialidad === 'todas' || g.especialidad === filtroEspecialidad)
+    .map((g) => ({ ...g, docs: g.docs.filter((doc) => filtroEstado === 'todos' || estadoDeDoc(doc) === filtroEstado) }))
+    .filter((g) => g.docs.length > 0);
 
   return (
     <div>
@@ -1151,7 +1180,7 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
         </p>
       </div>
 
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-3">
         <label className="text-xs font-semibold text-navy-500">Filtrar por especialidad:</label>
         <select
           value={filtroEspecialidad}
@@ -1163,6 +1192,35 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
             <option key={g.especialidad} value={g.especialidad}>{g.especialidad} ({g.docs.length})</option>
           ))}
         </select>
+      </div>
+
+      {/* Semáforo de progreso: resume y a la vez filtra por estado */}
+      <div className="flex flex-wrap gap-1.5 mb-4">
+        <button
+          onClick={() => setFiltroEstado('todos')}
+          className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+            filtroEstado === 'todos' ? 'bg-navy-800 text-white border-navy-800' : 'bg-white text-navy-500 border-navy-300 hover:border-navy-400'
+          }`}
+        >
+          Todos ({universo.length})
+        </button>
+        {DOC_ESTADOS.map((estado) => {
+          const cfg = DOC_ESTADO_CONFIG[estado];
+          const activo = filtroEstado === estado;
+          return (
+            <button
+              key={estado}
+              onClick={() => setFiltroEstado(estado)}
+              title={estado}
+              className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+                activo ? `${cfg.bg} ${cfg.text} border-transparent ring-2 ring-offset-1 ${cfg.ring}` : 'bg-white text-navy-500 border-navy-300 hover:border-navy-400'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+              {DOC_ESTADO_CORTO[estado]} ({conteoPorEstado[estado]})
+            </button>
+          );
+        })}
       </div>
 
       {!puedeComentar && (
@@ -1178,25 +1236,30 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
               {g.docs.map((doc) => {
                 const codigoFinal = prefijo ? doc.codigo.replace('COLXXXXXXPX', prefijo) : doc.codigo;
                 const estadoDoc = estadoActual[doc.codigo] || {};
+                const estadoValor = estadoDoc.estado || 'Pendiente';
+                const cfg = DOC_ESTADO_CONFIG[estadoValor];
                 return (
-                  <div key={doc.codigo} className="border border-navy-200 rounded-lg p-3">
+                  <div key={doc.codigo} className={`bg-white rounded-lg border-l-4 ${cfg.border} border-t border-r border-b border-navy-200 p-3`}>
                     <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-navy-700">{doc.nombre}</p>
                         <p className="text-xs font-mono text-navy-400">{codigoFinal} · {doc.tipo}</p>
                       </div>
                       {puedeEditarContenido ? (
-                        <select
-                          value={estadoDoc.estado || 'Pendiente'}
-                          onChange={(e) => onDocChange(doc, { estado: e.target.value })}
-                          className="text-xs rounded-md border border-navy-300 px-2 py-1 shrink-0"
-                        >
-                          {DOC_ESTADOS.map((op) => (
-                            <option key={op} value={op}>{op}</option>
-                          ))}
-                        </select>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
+                          <select
+                            value={estadoValor}
+                            onChange={(e) => onDocChange(doc, { estado: e.target.value })}
+                            className="text-xs rounded-md border border-navy-300 px-2 py-1"
+                          >
+                            {DOC_ESTADOS.map((op) => (
+                              <option key={op} value={op}>{op}</option>
+                            ))}
+                          </select>
+                        </div>
                       ) : (
-                        <DocEstadoBadge estado={estadoDoc.estado} />
+                        <DocEstadoBadge estado={estadoValor} />
                       )}
                     </div>
                     {puedeComentar ? (
@@ -1215,7 +1278,7 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
           </div>
         ))}
         {gruposFiltrados.length === 0 && (
-          <p className="text-sm text-navy-400 italic text-center py-8">No hay documentos para esta especialidad.</p>
+          <p className="text-sm text-navy-400 italic text-center py-8">No hay documentos que coincidan con estos filtros.</p>
         )}
       </div>
     </div>
@@ -3295,12 +3358,25 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-navy-50 font-sans text-navy-800 antialiased">
+    <div className="app-shell flex h-screen bg-navy-50 font-sans text-navy-800 antialiased">
       <style>{`
         @media print {
           .no-print { display: none !important; }
           .print-only { display: block !important; }
           body { background: white !important; }
+          html, body, #root {
+            height: auto !important;
+            overflow: visible !important;
+          }
+          .app-shell {
+            display: block !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
+          .app-main {
+            height: auto !important;
+            overflow: visible !important;
+          }
         }
         .print-only { display: none; }
       `}</style>
@@ -3315,7 +3391,7 @@ export default function App() {
         onLogout={handleLogout}
       />
 
-      <main className="flex-1 overflow-y-auto">
+      <main className="app-main flex-1 overflow-y-auto">
         {view === 'dashboard' && (
           <Dashboard
             projects={projects}
