@@ -36,7 +36,8 @@ Sigue los pasos en orden. No necesitas experiencia previa con Supabase.
 > `supabase/migration_eliminar_proyectos_solo_lideres.sql`,
 > `supabase/migration_eliminar_usuarios_lider_diseno.sql`,
 > `supabase/migration_solo_lider_diseno_asigna_lideres.sql` y
-> `supabase/migration_instructivos.sql`. Cada uno agrega
+> `supabase/migration_instructivos.sql` y
+> `supabase/migration_rol_desarrollador.sql`. Cada uno agrega
 > solo lo nuevo sin tocar lo que ya tenías. Si no recuerdas si ya corriste
 > alguno, no pasa nada por intentarlo de nuevo: en el peor caso te marcará
 > un error de "ya existe", que puedes ignorar.
@@ -161,6 +162,12 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Rol de Desarrollador**: tiene todos los permisos habilitados a la vez
+  (equivale a Líder de Diseño + Control de Calidad Interno + poder
+  gestionar cualquier rol, incluidos los de líder). Pensado para quien
+  mantiene la plataforma técnicamente, no para el equipo de diseño del día
+  a día. Solo un Líder de Diseño (o otro Desarrollador) puede otorgarlo,
+  desde la sección "Equipo".
 - **Varias personas en un mismo rol**: Ing. Civil, Ing. Eléctrico y
   Delineante admiten más de una persona por proyecto (ej. dos ingenieros
   civiles en el mismo diseño). Las demás especialidades siguen siendo de
