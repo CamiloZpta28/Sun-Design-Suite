@@ -5,7 +5,7 @@ import {
   Paperclip, Trash2, ChevronLeft, Pencil, Save, MapPin, Calendar,
   Users, ExternalLink, Check, FileText, UploadCloud, XCircle, ClipboardList,
   Loader2, RefreshCw, LogOut, ShieldCheck, Lock, History, ClipboardCheck, StickyNote, UserCog,
-  Folder, FolderPlus, ChevronDown, ChevronRight, PlayCircle, Video,
+  Folder, FolderPlus, ChevronDown, ChevronRight, PlayCircle, Video, Code2,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -75,7 +75,14 @@ const LEADER_ROLE_KEYS = LEADER_ROLES.map((r) => r.key);
 /* rol. Es el único que puede escribir comentarios en Control Documental.    */
 const QA_ROLE = { key: 'control_calidad', label: 'Control de Calidad Interno', icon: ClipboardCheck };
 
-const ALL_ROLE_DEFS = [...ROLES, ...LEADER_ROLES, QA_ROLE];
+/* Rol de Desarrollador: tiene TODOS los permisos habilitados (equivale a    */
+/* Líder de Diseño + Control de Calidad + poder gestionar cualquier rol).   */
+/* Pensado para quien mantiene la plataforma, no para el equipo de diseño.  */
+const DEV_ROLE = { key: 'desarrollador', label: 'Desarrollador', icon: Code2 };
+
+const ALL_ROLE_DEFS = [...ROLES, ...LEADER_ROLES, QA_ROLE, DEV_ROLE];
+/* Roles que solo el Líder de Diseño (o un Desarrollador) puede otorgar.     */
+const ROLES_DE_ALTO_NIVEL = [...LEADER_ROLE_KEYS, DEV_ROLE.key];
 
 function roleLabel(key) {
   return ALL_ROLE_DEFS.find((r) => r.key === key)?.label || key;
@@ -84,20 +91,23 @@ function rolesLabel(perfil) {
   if (!perfil || !perfil.roles || perfil.roles.length === 0) return 'Sin rol asignado';
   return perfil.roles.map(roleLabel).join(' · ');
 }
+function isDeveloper(perfil) {
+  return !!perfil && !!perfil.roles && perfil.roles.includes(DEV_ROLE.key);
+}
 function isLeader(perfil) {
-  return !!perfil && !!perfil.roles && perfil.roles.some((k) => LEADER_ROLE_KEYS.includes(k));
+  return isDeveloper(perfil) || (!!perfil && !!perfil.roles && perfil.roles.some((k) => LEADER_ROLE_KEYS.includes(k)));
 }
 function isDesignLeader(perfil) {
-  return !!perfil && !!perfil.roles && perfil.roles.includes('lider_diseno');
+  return isDeveloper(perfil) || (!!perfil && !!perfil.roles && perfil.roles.includes('lider_diseno'));
 }
 function isQA(perfil) {
-  return !!perfil && !!perfil.roles && perfil.roles.includes(QA_ROLE.key);
+  return isDeveloper(perfil) || (!!perfil && !!perfil.roles && perfil.roles.includes(QA_ROLE.key));
 }
-/* Los roles de líder (incluido Líder de Diseño) solo los puede otorgar o    */
-/* quitar el propio Líder de Diseño. Los demás roles los puede gestionar    */
-/* cualquier líder.                                                          */
+/* Los roles de líder y el de Desarrollador solo los puede otorgar o quitar */
+/* el Líder de Diseño (o un Desarrollador). Los demás roles los puede       */
+/* gestionar cualquier líder.                                                */
 function canAssignRole(perfil, roleKey) {
-  if (LEADER_ROLE_KEYS.includes(roleKey)) return isDesignLeader(perfil);
+  if (ROLES_DE_ALTO_NIVEL.includes(roleKey)) return isDesignLeader(perfil);
   return isLeader(perfil);
 }
 function isAssignedToProject(perfil, project) {
@@ -3002,6 +3012,7 @@ function TeamRolesView({ directorio, perfil, onToggleRole, onDeleteUser }) {
   const [pending, setPending] = useState(null); // `${userId}:${roleKey}` mientras se guarda
   const [confirmingUserId, setConfirmingUserId] = useState(null);
   const [deletingUserId, setDeletingUserId] = useState(null);
+  const [expandedUserId, setExpandedUserId] = useState(null);
 
   async function handleToggle(userId, roleKey, tieneRol) {
     const key = `${userId}:${roleKey}`;
@@ -3026,9 +3037,10 @@ function TeamRolesView({ directorio, perfil, onToggleRole, onDeleteUser }) {
         <h1 className="text-2xl font-bold text-navy-800">Equipo</h1>
         <p className="text-navy-500 text-sm mt-1">
           {soyLider
-            ? 'Como líder, puedes otorgar o quitar roles técnicos. Solo el Líder de Diseño puede otorgar o quitar roles de líder.'
+            ? 'Como líder, puedes otorgar o quitar roles técnicos. Solo el Líder de Diseño puede otorgar o quitar roles de líder o de Desarrollador.'
             : 'Solo un líder puede asignar roles. Aquí puedes ver qué rol tiene cada persona del equipo.'}
-          {soyLiderDiseno && ' Como Líder de Diseño, también puedes eliminar cuentas del equipo.'}
+          {soyLiderDiseno && ' También puedes eliminar cuentas del equipo.'}
+          {' '}Haz clic en una persona para ver o cambiar sus roles.
         </p>
       </div>
 
@@ -3050,66 +3062,85 @@ function TeamRolesView({ directorio, perfil, onToggleRole, onDeleteUser }) {
       </div>
 
       <div className="space-y-3">
-        {directorioFiltrado.map((u) => (
-          <div key={u.id} className="bg-white border border-navy-200 rounded-xl p-4">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <Avatar name={u.nombre} foto={u.foto} />
-                <div className="min-w-0">
-                  <p className="font-semibold text-navy-800 truncate">{u.nombre}{u.id === perfil.id ? ' (tú)' : ''}</p>
-                  <p className="text-xs text-navy-400 truncate">{rolesLabel(u)}</p>
+        {directorioFiltrado.map((u) => {
+          const expandido = expandedUserId === u.id;
+          return (
+            <div key={u.id} className="bg-white border border-navy-200 rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between gap-3 p-4">
+                <button
+                  onClick={() => setExpandedUserId(expandido ? null : u.id)}
+                  className="flex items-center gap-3 min-w-0 flex-1 text-left"
+                >
+                  <Avatar name={u.nombre} foto={u.foto} />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-navy-800 truncate">{u.nombre}{u.id === perfil.id ? ' (tú)' : ''}</p>
+                    <p className="text-xs text-navy-400 truncate">{rolesLabel(u)}</p>
+                  </div>
+                </button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {soyLiderDiseno && u.id !== perfil.id && (
+                    confirmingUserId === u.id ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-navy-500 whitespace-nowrap">¿Eliminar a {u.nombre.split(' ')[0]}?</span>
+                        <button
+                          onClick={() => handleDelete(u.id)}
+                          disabled={deletingUserId === u.id}
+                          className="text-xs font-bold bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-2 py-1 rounded-md transition-colors"
+                        >
+                          Sí, eliminar
+                        </button>
+                        <button onClick={() => setConfirmingUserId(null)} className="text-xs text-navy-400 hover:text-navy-600 px-1.5">
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmingUserId(u.id)}
+                        title="Eliminar usuario"
+                        className="text-navy-300 hover:text-red-500 p-1"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )
+                  )}
+                  <button
+                    onClick={() => setExpandedUserId(expandido ? null : u.id)}
+                    title={expandido ? 'Ocultar roles' : 'Ver y asignar roles'}
+                    className="text-navy-400 hover:text-navy-600 p-1"
+                  >
+                    {expandido ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
-              {soyLiderDiseno && u.id !== perfil.id && (
-                confirmingUserId === u.id ? (
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-xs text-navy-500 whitespace-nowrap">¿Eliminar a {u.nombre.split(' ')[0]}?</span>
-                    <button
-                      onClick={() => handleDelete(u.id)}
-                      disabled={deletingUserId === u.id}
-                      className="text-xs font-bold bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-2 py-1 rounded-md transition-colors"
-                    >
-                      Sí, eliminar
-                    </button>
-                    <button onClick={() => setConfirmingUserId(null)} className="text-xs text-navy-400 hover:text-navy-600 px-1.5">
-                      Cancelar
-                    </button>
+              {expandido && (
+                <div className="px-4 pb-4 pt-1 border-t border-navy-100">
+                  <div className="flex flex-wrap gap-1.5">
+                    {ALL_ROLE_DEFS.map((role) => {
+                      const tieneRol = u.roles.includes(role.key);
+                      const cargando = pending === `${u.id}:${role.key}`;
+                      const puedeAsignarEste = canAssignRole(perfil, role.key);
+                      const RoleIcon = role.icon;
+                      return (
+                        <button
+                          key={role.key}
+                          disabled={!puedeAsignarEste || cargando}
+                          title={!puedeAsignarEste ? 'Solo el Líder de Diseño (o un Desarrollador) puede asignar este rol' : undefined}
+                          onClick={() => handleToggle(u.id, role.key, tieneRol)}
+                          className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
+                            tieneRol ? 'bg-gold-100 text-gold-800 border-gold-300' : 'bg-navy-50 text-navy-400 border-navy-200'
+                          } ${puedeAsignarEste ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'} ${cargando ? 'opacity-50' : ''}`}
+                        >
+                          <RoleIcon className="w-3 h-3" />
+                          {role.label}
+                        </button>
+                      );
+                    })}
                   </div>
-                ) : (
-                  <button
-                    onClick={() => setConfirmingUserId(u.id)}
-                    title="Eliminar usuario"
-                    className="text-navy-300 hover:text-red-500 shrink-0 p-1"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )
+                </div>
               )}
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {ALL_ROLE_DEFS.map((role) => {
-                const tieneRol = u.roles.includes(role.key);
-                const cargando = pending === `${u.id}:${role.key}`;
-                const puedeAsignarEste = canAssignRole(perfil, role.key);
-                const RoleIcon = role.icon;
-                return (
-                  <button
-                    key={role.key}
-                    disabled={!puedeAsignarEste || cargando}
-                    title={!puedeAsignarEste ? 'Solo el Líder de Diseño puede asignar roles de líder' : undefined}
-                    onClick={() => handleToggle(u.id, role.key, tieneRol)}
-                    className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
-                      tieneRol ? 'bg-gold-100 text-gold-800 border-gold-300' : 'bg-navy-50 text-navy-400 border-navy-200'
-                    } ${puedeAsignarEste ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'} ${cargando ? 'opacity-50' : ''}`}
-                  >
-                    <RoleIcon className="w-3 h-3" />
-                    {role.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+          );
+        })}
         {directorioFiltrado.length === 0 && <p className="text-sm text-navy-400 italic text-center py-8">Nadie tiene este rol todavía.</p>}
       </div>
     </div>
