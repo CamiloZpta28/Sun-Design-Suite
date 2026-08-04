@@ -74,6 +74,7 @@ create table if not exists activity_log (
   usuario_id uuid references auth.users(id),
   usuario_nombre text not null,
   accion text not null,
+  categoria text default 'general',
   created_at timestamptz default now()
 );
 

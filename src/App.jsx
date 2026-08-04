@@ -288,6 +288,28 @@ function formatDateTime(iso) {
   return d.toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+/* Categorías del historial: coinciden con las pestañas del proyecto, para   */
+/* poder separar los cambios de Civil, Notas, Control Documental, etc.       */
+const HISTORIAL_CATEGORIAS = {
+  general: 'General', civil: 'Civil', mecanica: 'Mecánica', geotecnia: 'Geotecnia',
+  estructural: 'Estructural', hidraulico: 'Hidráulico', electrico: 'Eléctrico',
+  documentos: 'Control Documental', notas: 'Notas', archivos: 'Archivos',
+  estado: 'Estado del proyecto', nombre: 'Nombre del proyecto',
+};
+function categoriaLabel(cat) {
+  return HISTORIAL_CATEGORIAS[cat] || 'General';
+}
+/* Medianoche del lunes de la semana de "fecha" (para separar "esta semana"  */
+/* de cambios anteriores en el historial).                                   */
+function inicioDeSemana(fecha = new Date()) {
+  const d = new Date(fecha);
+  const dia = d.getDay(); // 0 = domingo … 6 = sábado
+  const diff = dia === 0 ? 6 : dia - 1; // días desde el lunes
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - diff);
+  return d;
+}
+
 /* --------------------- FORMATO DE TEXTO EN NOTAS (mini-sintaxis) ----------- */
 /* **negrilla**, *cursiva*, __subrayado__ y líneas que empiezan con "- " para  */
 /* viñetas. Se guarda como texto plano (no HTML) y se interpreta solo al       */
@@ -1792,14 +1814,14 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
   ];
 
   return (
-    <aside className="no-print w-64 shrink-0 bg-navy-900 text-navy-300 flex flex-col h-screen sticky top-0">
+    <aside className="no-print w-64 shrink-0 bg-navy-900 text-navy-200 flex flex-col h-screen sticky top-0">
       <div className="px-5 py-6 border-b border-navy-800 flex items-center gap-2.5">
         <div className="w-9 h-9 rounded-lg bg-lime-300 flex items-center justify-center shrink-0">
           <img src={logoMark} alt="" className="w-5 h-5 object-contain" />
         </div>
         <div>
           <p className="text-white font-bold leading-tight">Sun Design Suite</p>
-          <p className="text-xs text-navy-500 tracking-wide">Minigranjas Fotovoltaicas</p>
+          <p className="text-xs text-navy-300 tracking-wide">Minigranjas Fotovoltaicas</p>
         </div>
       </div>
 
@@ -1812,7 +1834,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
               key={item.key}
               onClick={() => setView(item.key)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border-l-2 ${
-                active ? 'bg-navy-800 text-white border-lime-500' : 'text-navy-400 border-transparent hover:bg-navy-800 hover:text-navy-200'
+                active ? 'bg-navy-800 text-white border-lime-500' : 'text-navy-300 border-transparent hover:bg-navy-800 hover:text-white'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -1824,23 +1846,23 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
 
       <div className="px-6 pb-4">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-navy-600">Resumen</p>
-          <button onClick={onRefresh} title="Actualizar datos compartidos" className="text-navy-500 hover:text-white">
+          <p className="text-xs font-semibold uppercase tracking-wide text-navy-300">Resumen</p>
+          <button onClick={onRefresh} title="Actualizar datos compartidos" className="text-navy-300 hover:text-white">
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>
         <div className="grid grid-cols-3 gap-1.5">
           <div className="bg-navy-800 rounded-md py-1.5 text-center">
             <p className="text-emerald-400 text-sm font-bold">{stats.activo}</p>
-            <p className="text-xs text-navy-500">Activos</p>
+            <p className="text-xs text-navy-300">Activos</p>
           </div>
           <div className="bg-navy-800 rounded-md py-1.5 text-center">
             <p className="text-yellow-400 text-sm font-bold">{stats.pausa}</p>
-            <p className="text-xs text-navy-500">Pausa</p>
+            <p className="text-xs text-navy-300">Pausa</p>
           </div>
           <div className="bg-navy-800 rounded-md py-1.5 text-center">
             <p className="text-red-400 text-sm font-bold">{stats.inactivo}</p>
-            <p className="text-xs text-navy-500">Inact.</p>
+            <p className="text-xs text-navy-300">Inact.</p>
           </div>
         </div>
       </div>
@@ -1849,15 +1871,15 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
         <Avatar name={perfil.nombre} foto={perfil.foto} />
         <div className="min-w-0 flex-1">
           <p className="text-white text-sm font-semibold truncate">{perfil.nombre}</p>
-          <p className="text-navy-500 text-xs truncate flex items-center gap-1">
+          <p className="text-navy-300 text-xs truncate flex items-center gap-1">
             {isLeader(perfil) && <ShieldCheck className="w-3 h-3 text-lime-400 shrink-0" />}
             {rolesLabel(perfil)}
           </p>
         </div>
-        <button onClick={onEditProfile} title="Editar mi perfil" className="text-navy-500 hover:text-white shrink-0">
+        <button onClick={onEditProfile} title="Editar mi perfil" className="text-navy-300 hover:text-white shrink-0">
           <Pencil className="w-3.5 h-3.5" />
         </button>
-        <button onClick={onLogout} title="Cerrar sesión" className="text-navy-500 hover:text-red-400 shrink-0">
+        <button onClick={onLogout} title="Cerrar sesión" className="text-navy-300 hover:text-red-400 shrink-0">
           <LogOut className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -2271,6 +2293,115 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil }) {
   );
 }
 
+function HistorialItem({ h }) {
+  return (
+    <div className="flex gap-3 border-l-2 border-lime-300 pl-3">
+      <div className="min-w-0">
+        <p className="text-sm text-navy-700">
+          <span className="font-semibold">{h.usuario_nombre}</span>
+          <span className="text-navy-400"> · {formatDateTime(h.created_at)}</span>
+        </p>
+        <p className="text-sm text-navy-600 mt-0.5 whitespace-pre-wrap break-words">{h.accion}</p>
+      </div>
+    </div>
+  );
+}
+
+/* Orden preferido de las categorías al listarlas (coincide con el orden de   */
+/* las pestañas del proyecto).                                               */
+const HISTORIAL_ORDEN = ['nombre', 'estado', 'general', 'civil', 'mecanica', 'geotecnia', 'estructural', 'hidraulico', 'electrico', 'documentos', 'notas', 'archivos'];
+
+function HistorialPanel({ historial, loading, onRefresh }) {
+  const [expandedCats, setExpandedCats] = useState({});
+
+  const encabezado = (
+    <div className="flex items-center justify-between mb-4">
+      <p className="text-xs text-navy-400">Separado por especialidad · solo se muestra la semana actual por defecto</p>
+      <button onClick={onRefresh} className="flex items-center gap-1.5 text-xs font-semibold text-lime-600 hover:text-lime-700">
+        <RefreshCw className="w-3.5 h-3.5" /> Actualizar
+      </button>
+    </div>
+  );
+
+  if (loading) {
+    return (
+      <div>
+        {encabezado}
+        <p className="text-sm text-navy-400 text-center py-8">Cargando historial…</p>
+      </div>
+    );
+  }
+  if (!historial || historial.length === 0) {
+    return (
+      <div>
+        {encabezado}
+        <p className="text-sm text-navy-400 italic text-center py-8">Aún no hay cambios registrados para este proyecto.</p>
+      </div>
+    );
+  }
+
+  const inicioSemana = inicioDeSemana();
+  const grupos = [];
+  const idx = new Map();
+  historial.forEach((h) => {
+    const cat = h.categoria || 'general';
+    if (!idx.has(cat)) {
+      idx.set(cat, grupos.length);
+      grupos.push({ categoria: cat, items: [] });
+    }
+    grupos[idx.get(cat)].items.push(h);
+  });
+  grupos.sort((a, b) => {
+    const ia = HISTORIAL_ORDEN.indexOf(a.categoria);
+    const ib = HISTORIAL_ORDEN.indexOf(b.categoria);
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+  });
+
+  return (
+    <div>
+      {encabezado}
+      <div className="space-y-6">
+        {grupos.map((g) => {
+          const estaSemana = g.items.filter((h) => new Date(h.created_at) >= inicioSemana);
+          const anteriores = g.items.filter((h) => new Date(h.created_at) < inicioSemana);
+          const expandido = !!expandedCats[g.categoria];
+          return (
+            <div key={g.categoria}>
+              <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-2">
+                {categoriaLabel(g.categoria)} <span className="font-normal text-navy-400">({g.items.length})</span>
+              </p>
+              {estaSemana.length === 0 && anteriores.length > 0 && (
+                <p className="text-xs text-navy-400 italic mb-2">Sin cambios esta semana.</p>
+              )}
+              {estaSemana.length > 0 && (
+                <div className="space-y-3 mb-2">
+                  {estaSemana.map((h) => <HistorialItem key={h.id} h={h} />)}
+                </div>
+              )}
+              {anteriores.length > 0 && (
+                <div>
+                  <button
+                    onClick={() => setExpandedCats((prev) => ({ ...prev, [g.categoria]: !prev[g.categoria] }))}
+                    className="flex items-center gap-1 text-xs font-semibold text-navy-500 hover:text-navy-700"
+                  >
+                    {expandido ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                    {expandido ? 'Ocultar' : 'Ver'} {anteriores.length} cambio{anteriores.length === 1 ? '' : 's'} anterior{anteriores.length === 1 ? '' : 'es'}
+                  </button>
+                  {expandido && (
+                    <div className="space-y-3 mt-2">
+                      {anteriores.map((h) => <HistorialItem key={h.id} h={h} />)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, perfil }) {
   const [activeTab, setActiveTab] = useState(SCHEMA[0].id);
   const [editMode, setEditMode] = useState(false);
@@ -2317,7 +2448,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
     const accion = cambios.length > 0
       ? `Editó "${activeSection.label}" — ${cambios.join('; ')}`
       : `Abrió "${activeSection.label}" en modo edición sin cambios`;
-    updateProject(project.id, (p) => ({ ...p, data: draftData }), accion);
+    updateProject(project.id, (p) => ({ ...p, data: draftData }), accion, activeSection.id);
     setEditMode(false);
     setDraftData(null);
     setHistorial(null);
@@ -2328,7 +2459,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
   function handleEstadoChange(nuevoEstado) {
     const anterior = STATUS_CONFIG[project.estado]?.label || project.estado;
     const nuevo = STATUS_CONFIG[nuevoEstado]?.label || nuevoEstado;
-    updateProject(project.id, (p) => ({ ...p, estado: nuevoEstado }), `Cambió el estado: ${anterior} → ${nuevo}`);
+    updateProject(project.id, (p) => ({ ...p, estado: nuevoEstado }), `Cambió el estado: ${anterior} → ${nuevo}`, 'estado');
     setHistorial(null);
   }
   function saveNombre() {
@@ -2338,7 +2469,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
       setEditingNombre(false);
       return;
     }
-    updateProject(project.id, (p) => ({ ...p, nombre: nuevo }), `Cambió el nombre del proyecto: "${project.nombre}" → "${nuevo}"`);
+    updateProject(project.id, (p) => ({ ...p, nombre: nuevo }), `Cambió el nombre del proyecto: "${project.nombre}" → "${nuevo}"`, 'nombre');
     setEditingNombre(false);
     setHistorial(null);
   }
@@ -2356,24 +2487,24 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
       fecha: new Date().toISOString().slice(0, 10),
     }));
     const nombres = nuevos.map((f) => f.nombre).join(', ');
-    updateProject(project.id, (p) => ({ ...p, archivos: [...p.archivos, ...nuevos] }), `Adjuntó archivo(s): ${nombres}`);
+    updateProject(project.id, (p) => ({ ...p, archivos: [...p.archivos, ...nuevos] }), `Adjuntó archivo(s): ${nombres}`, 'archivos');
     setHistorial(null);
   }
   function removeFile(fileId) {
     const archivo = project.archivos.find((f) => f.id === fileId);
-    updateProject(project.id, (p) => ({ ...p, archivos: p.archivos.filter((f) => f.id !== fileId) }), archivo ? `Eliminó el archivo: ${archivo.nombre}` : 'Eliminó un archivo');
+    updateProject(project.id, (p) => ({ ...p, archivos: p.archivos.filter((f) => f.id !== fileId) }), archivo ? `Eliminó el archivo: ${archivo.nombre}` : 'Eliminó un archivo', 'archivos');
     setHistorial(null);
   }
   function handleAddNota(texto) {
     const nueva = { id: makeId('nota'), texto, autor: perfil.nombre, fecha: new Date().toISOString() };
     const resumen = texto.length > 80 ? `${texto.slice(0, 80)}…` : texto;
-    updateProject(project.id, (p) => ({ ...p, notas: [...(p.notas || []), nueva] }), `Agregó una nota: "${resumen}"`);
+    updateProject(project.id, (p) => ({ ...p, notas: [...(p.notas || []), nueva] }), `Agregó una nota: "${resumen}"`, 'notas');
     setHistorial(null);
   }
   function handleRemoveNota(notaId) {
     const nota = (project.notas || []).find((n) => n.id === notaId);
     const resumen = nota ? (nota.texto.length > 80 ? `${nota.texto.slice(0, 80)}…` : nota.texto) : null;
-    updateProject(project.id, (p) => ({ ...p, notas: (p.notas || []).filter((n) => n.id !== notaId) }), resumen ? `Eliminó una nota: "${resumen}"` : 'Eliminó una nota');
+    updateProject(project.id, (p) => ({ ...p, notas: (p.notas || []).filter((n) => n.id !== notaId) }), resumen ? `Eliminó una nota: "${resumen}"` : 'Eliminó una nota', 'notas');
     setHistorial(null);
   }
   function handleDocChange(doc, patch) {
@@ -2382,7 +2513,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
     const accion = patch.estado !== undefined
       ? `Actualizó el estado de "${doc.nombre}" a "${patch.estado}"`
       : `Comentó en "${doc.nombre}"`;
-    updateProject(project.id, (p) => ({ ...p, documentos: { ...(p.documentos || {}), [doc.codigo]: nuevo } }), accion);
+    updateProject(project.id, (p) => ({ ...p, documentos: { ...(p.documentos || {}), [doc.codigo]: nuevo } }), accion, 'documentos');
     setHistorial(null);
   }
 
@@ -2628,33 +2759,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
               <NotesPanel notas={project.notas} onAdd={handleAddNota} onRemove={handleRemoveNota} canEdit={puedeEditarContenido} />
             )}
             {activeTab === 'historial' && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-xs text-navy-400">Fecha, hora y responsable de cada cambio hecho a este proyecto</p>
-                  <button onClick={loadHistorial} className="flex items-center gap-1.5 text-xs font-semibold text-lime-600 hover:text-lime-700">
-                    <RefreshCw className="w-3.5 h-3.5" /> Actualizar
-                  </button>
-                </div>
-                {loadingHistorial ? (
-                  <p className="text-sm text-navy-400 text-center py-8">Cargando historial…</p>
-                ) : !historial || historial.length === 0 ? (
-                  <p className="text-sm text-navy-400 italic text-center py-8">Aún no hay cambios registrados para este proyecto.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {historial.map((h) => (
-                      <div key={h.id} className="flex gap-3 border-l-2 border-lime-300 pl-3">
-                        <div className="min-w-0">
-                          <p className="text-sm text-navy-700">
-                            <span className="font-semibold">{h.usuario_nombre}</span>
-                            <span className="text-navy-400"> · {formatDateTime(h.created_at)}</span>
-                          </p>
-                          <p className="text-sm text-navy-600 mt-0.5 whitespace-pre-wrap break-words">{h.accion}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <HistorialPanel historial={historial} loading={loadingHistorial} onRefresh={loadHistorial} />
             )}
           </div>
         </div>
@@ -3285,6 +3390,10 @@ export default function App() {
   }, []);
 
   // Perfil del usuario logueado + datos compartidos (proyectos, enlaces, equipo)
+  // OJO: se dispara solo cuando cambia el ID de usuario (login/logout/cambio de
+  // cuenta), NO cada vez que Supabase refresca el token de sesión (esto pasa
+  // automáticamente, entre otras cosas, al volver a la pestaña del navegador).
+  // Antes esto recargaba toda la app y borraba cualquier formulario abierto.
   useEffect(() => {
     if (!session) {
       setPerfil(null);
@@ -3307,7 +3416,7 @@ export default function App() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session]);
+  }, [session?.user?.id]);
 
   async function loadSharedData(ownUserId) {
     const { data: projRows } = await supabase.from('projects').select('*').order('created_at', { ascending: true });
@@ -3364,7 +3473,7 @@ export default function App() {
     setSelectedId(null);
   }
 
-  async function logActivity(projectId, accion) {
+  async function logActivity(projectId, accion, categoria) {
     if (!accion) return;
     try {
       const { error } = await supabase.from('activity_log').insert({
@@ -3372,6 +3481,7 @@ export default function App() {
         usuario_id: perfil?.id || null,
         usuario_nombre: perfil?.nombre || 'Desconocido',
         accion,
+        categoria: categoria || 'general',
       });
       if (error) console.error('Error registrando historial:', error);
     } catch (e) {
@@ -3379,7 +3489,7 @@ export default function App() {
     }
   }
 
-  function updateProject(id, updater, accion) {
+  function updateProject(id, updater, accion, categoria) {
     setProjects((prev) => {
       const next = prev.map((p) => (p.id === id ? updater(p) : p));
       const updated = next.find((p) => p.id === id);
@@ -3390,14 +3500,14 @@ export default function App() {
       }
       return next;
     });
-    logActivity(id, accion);
+    logActivity(id, accion, categoria);
   }
   function handleCreate(newProject) {
     setProjects((prev) => [...prev, newProject]);
     supabase.from('projects').insert(projectToRow(newProject)).then(({ error }) => {
       if (error) console.error('Error creando proyecto:', error);
     });
-    logActivity(newProject.id, 'Creó el proyecto');
+    logActivity(newProject.id, 'Creó el proyecto', 'general');
     setShowCreate(false);
     openProject(newProject.id);
   }
