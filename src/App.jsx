@@ -36,6 +36,30 @@ const ROLES = [
   { key: 'delineante', label: 'Delineante', icon: PenTool },
 ];
 
+/* Estas especialidades admiten varias personas a la vez en el mismo        */
+/* proyecto (ej. dos ingenieros civiles). Las demás siguen siendo de una    */
+/* sola persona. En equipo, estos roles guardan un arreglo de nombres en    */
+/* vez de un solo nombre.                                                   */
+const MULTI_ROLE_KEYS = ['civil', 'electrico', 'delineante'];
+function esRolMultiple(roleKey) {
+  return MULTI_ROLE_KEYS.includes(roleKey);
+}
+/* Normaliza cualquier valor de equipo[role] (string viejo, array, vacío)   */
+/* a un arreglo de nombres.                                                  */
+function equipoComoArray(valor) {
+  if (Array.isArray(valor)) return valor.filter(Boolean);
+  return valor ? [valor] : [];
+}
+/* Todos los nombres asignados a un proyecto, sin importar el rol.         */
+function equipoNombres(equipo) {
+  return Object.values(equipo || {}).flatMap(equipoComoArray);
+}
+/* Texto legible para un valor de equipo[role] (nombre único, varios       */
+/* nombres separados por coma, o vacío).                                    */
+function equipoTexto(valor) {
+  return equipoComoArray(valor).join(', ');
+}
+
 /* Roles de liderazgo: los únicos que pueden asignar el equipo de un         */
 /* proyecto, cambiar su estado, y otorgar roles a los demás. Un líder puede  */
 /* tener también un rol técnico en paralelo (ej. Líder Civil + Ing. Civil).  */
@@ -77,7 +101,7 @@ function canAssignRole(perfil, roleKey) {
   return isLeader(perfil);
 }
 function isAssignedToProject(perfil, project) {
-  return !!perfil && Object.values(project.equipo).includes(perfil.nombre);
+  return !!perfil && equipoNombres(project.equipo).includes(perfil.nombre);
 }
 
 /* --------------------- 2. ESQUEMA DE CAMPOS POR ESPECIALIDAD ---------------- */
@@ -352,7 +376,7 @@ const INITIAL_PROJECTS = [
     id: 'proj-1',
     nombre: 'Minigranja Solar Guacarí 5MW',
     estado: 'activo',
-    equipo: { civil: '', hidraulico: '', estructural: '', electrico: '', mecanico: '', geotecnico: '', delineante: '' },
+    equipo: { civil: [], hidraulico: '', estructural: '', electrico: [], mecanico: '', geotecnico: '', delineante: [] },
     archivos: [],
     notas: [
       { id: 'nota-1-1', texto: 'Terreno con pendiente suave hacia el costado sur, cercano a canal de riego existente.', autor: 'Sistema', fecha: '2025-03-12T14:30:00.000Z' },
@@ -383,7 +407,7 @@ const INITIAL_PROJECTS = [
     id: 'proj-2',
     nombre: 'Minigranja El Espinal 3MW',
     estado: 'activo',
-    equipo: { civil: '', hidraulico: '', estructural: '', electrico: '', mecanico: '', geotecnico: '', delineante: '' },
+    equipo: { civil: [], hidraulico: '', estructural: '', electrico: [], mecanico: '', geotecnico: '', delineante: [] },
     archivos: [],
     notas: [],
     documentos: {},
@@ -401,7 +425,7 @@ const INITIAL_PROJECTS = [
     id: 'proj-3',
     nombre: 'Solar Montería 8MW',
     estado: 'pausa',
-    equipo: { civil: '', hidraulico: '', estructural: '', electrico: '', mecanico: '', geotecnico: '', delineante: '' },
+    equipo: { civil: [], hidraulico: '', estructural: '', electrico: [], mecanico: '', geotecnico: '', delineante: [] },
     archivos: [],
     notas: [
       { id: 'nota-3-1', texto: 'Proyecto en pausa por ajustes en el cierre financiero.', autor: 'Sistema', fecha: '2025-09-15T09:00:00.000Z' },
@@ -1222,7 +1246,7 @@ function PrintableReport({ project }) {
             <td className="px-3 py-2 font-semibold text-navy-500 bg-navy-50 w-1/4">Estado</td>
             <td className="px-3 py-2">{STATUS_CONFIG[project.estado]?.label}</td>
             <td className="px-3 py-2 font-semibold text-navy-500 bg-navy-50 w-1/4">Elaboró</td>
-            <td className="px-3 py-2">{project.equipo.civil || 'N/A'}</td>
+            <td className="px-3 py-2">{equipoTexto(project.equipo.civil) || 'N/A'}</td>
           </tr>
           <tr>
             <td className="px-3 py-2 font-semibold text-navy-500 bg-navy-50">Fecha de Inicio</td>
@@ -1239,7 +1263,7 @@ function PrintableReport({ project }) {
           {ROLES.map((role) => (
             <tr key={role.key} className="border-b border-navy-100">
               <td className="py-1.5 pr-4 text-navy-500 w-1/3">{role.label}</td>
-              <td className="py-1.5 font-medium text-navy-700">{project.equipo[role.key] || 'Sin asignar'}</td>
+              <td className="py-1.5 font-medium text-navy-700">{equipoTexto(project.equipo[role.key]) || 'Sin asignar'}</td>
             </tr>
           ))}
         </tbody>
@@ -1623,6 +1647,7 @@ function StatCard({ label, value, icon: Icon, accent, textColor = 'text-navy-700
 
 function ProjectCard({ project, onClick, directorio }) {
   const general = project.data.general;
+  const asignados = ROLES.flatMap((r) => equipoComoArray(project.equipo[r.key]).map((nombre) => ({ nombre, role: r })));
   return (
     <button onClick={onClick} className="text-left bg-white rounded-xl border border-navy-200 p-4 hover:border-gold-300 hover:shadow-md transition-all group">
       <div className="flex items-start justify-between mb-3 gap-2">
@@ -1634,13 +1659,12 @@ function ProjectCard({ project, onClick, directorio }) {
       </p>
       <div className="flex items-center justify-between pt-3 border-t border-navy-100">
         <div className="flex -space-x-2">
-          {ROLES.filter((r) => project.equipo[r.key]).slice(0, 4).map((r) => {
-            const u = findUserByName(directorio, project.equipo[r.key]);
-            return <Avatar key={r.key} name={project.equipo[r.key]} foto={u?.foto} title={r.label} size="sm" />;
+          {asignados.slice(0, 4).map(({ nombre, role }, i) => {
+            const u = findUserByName(directorio, nombre);
+            return <Avatar key={`${role.key}-${nombre}-${i}`} name={nombre} foto={u?.foto} title={role.label} size="sm" />;
           })}
-          {ROLES.filter((r) => project.equipo[r.key]).length === 0 && (
-            <span className="text-xs text-navy-300 italic">Sin equipo asignado</span>
-          )}
+          {asignados.length === 0 && <span className="text-xs text-navy-300 italic">Sin equipo asignado</span>}
+          {asignados.length > 4 && <span className="text-xs text-navy-400 ml-1">+{asignados.length - 4}</span>}
         </div>
         <p className="flex items-center gap-1 text-xs text-navy-400">
           <Calendar className="w-3.5 h-3.5" /> {formatDate(general.fecha_entrega) || 'Sin fecha'}
@@ -1785,12 +1809,86 @@ function EquipoSelect({ role, valorActual, directorio, onChange, readOnly }) {
   );
 }
 
+/* Para especialidades que admiten varias personas (civil, eléctrico,       */
+/* delineante): cada asignado se muestra como una "chip" con su X para      */
+/* quitarlo, y un botón "+ Agregar" abre un select con los candidatos que   */
+/* faltan por agregar.                                                      */
+function EquipoMultiSelect({ role, valores, directorio, onChange, readOnly }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const asignados = equipoComoArray(valores);
+  const candidatos = directorio.filter((u) => u.roles && u.roles.includes(role.key) && !asignados.includes(u.nombre));
+
+  if (readOnly) {
+    return asignados.length === 0 ? (
+      <p className="text-sm text-navy-300 italic py-1.5">Sin asignar</p>
+    ) : (
+      <p className="text-sm font-medium text-navy-700 py-1.5">{asignados.join(', ')}</p>
+    );
+  }
+
+  function agregar(nombre) {
+    if (!nombre || asignados.includes(nombre)) {
+      setShowAdd(false);
+      return;
+    }
+    onChange([...asignados, nombre]);
+    setShowAdd(false);
+  }
+  function quitar(nombre) {
+    onChange(asignados.filter((n) => n !== nombre));
+  }
+
+  return (
+    <div className="py-0.5">
+      {asignados.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-1.5">
+          {asignados.map((nombre) => (
+            <span key={nombre} className="inline-flex items-center gap-1 bg-navy-100 text-navy-700 text-xs font-medium pl-2 pr-1 py-0.5 rounded-full">
+              {nombre}
+              <button onClick={() => quitar(nombre)} title={`Quitar a ${nombre}`} className="text-navy-400 hover:text-red-500">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {showAdd ? (
+        <select
+          autoFocus
+          value=""
+          onChange={(e) => agregar(e.target.value)}
+          onBlur={() => setShowAdd(false)}
+          className="w-full text-sm rounded-md border border-navy-300 px-2 py-1"
+        >
+          <option value="">Seleccionar persona…</option>
+          {candidatos.map((u) => (
+            <option key={u.id} value={u.nombre}>{u.nombre}</option>
+          ))}
+        </select>
+      ) : (
+        <button onClick={() => setShowAdd(true)} className="text-xs font-semibold text-gold-600 hover:text-gold-700 flex items-center gap-1">
+          <Plus className="w-3 h-3" /> Agregar
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* Decide si usar el selector de una sola persona o el de varias, según el   */
+/* rol. Se usa en todos los lugares donde se asigna equipo a un proyecto.   */
+function EquipoField({ role, valor, directorio, onChange, readOnly }) {
+  if (esRolMultiple(role.key)) {
+    return <EquipoMultiSelect role={role} valores={valor} directorio={directorio} onChange={onChange} readOnly={readOnly} />;
+  }
+  return <EquipoSelect role={role} valorActual={valor} directorio={directorio} onChange={onChange} readOnly={readOnly} />;
+}
+
 function ProjectFormModal({ onClose, onCreate, directorio, perfil }) {
   const puedeGestionar = isLeader(perfil);
   const [form, setForm] = useState({
     nombre: '',
     estado: 'activo',
-    equipo: Object.fromEntries(ROLES.map((r) => [r.key, ''])),
+    equipo: Object.fromEntries(ROLES.map((r) => [r.key, esRolMultiple(r.key) ? [] : ''])),
     general: {
       municipio: '', departamento: '', pais: 'Colombia', inversionista: '',
       codigo_departamento: '', numero_minigranja: '', numero_predio: '',
@@ -1920,7 +2018,7 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil }) {
                   {ROLES.map((role) => (
                     <div key={role.key}>
                       <label className="block text-xs text-navy-500 mb-1">{role.label}</label>
-                      <EquipoSelect role={role} valorActual={form.equipo[role.key]} directorio={directorio} onChange={(val) => setEquipo(role.key, val)} />
+                      <EquipoField role={role} valor={form.equipo[role.key]} directorio={directorio} onChange={(val) => setEquipo(role.key, val)} />
                     </div>
                   ))}
                 </div>
@@ -2166,7 +2264,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
             <TitleCell label="Inversionista" value={general.inversionista} />
             <TitleCell label="Fecha de Inicio" value={formatDate(general.fecha_inicio)} />
             <TitleCell label="Fecha de Entrega" value={formatDate(general.fecha_entrega)} />
-            <TitleCell label="Elaboró" value={project.equipo.civil} />
+            <TitleCell label="Elaboró" value={equipoTexto(project.equipo.civil)} />
           </div>
         </div>
 
@@ -2185,15 +2283,15 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
             {ROLES.map((role) => {
               const RoleIcon = role.icon;
               return (
-                <div key={role.key} className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-navy-100 flex items-center justify-center shrink-0">
+                <div key={role.key} className="flex items-start gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-navy-100 flex items-center justify-center shrink-0 mt-0.5">
                     <RoleIcon className="w-4 h-4 text-navy-500" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-navy-400 mb-0.5">{role.label}</p>
-                    <EquipoSelect
+                    <EquipoField
                       role={role}
-                      valorActual={project.equipo[role.key]}
+                      valor={project.equipo[role.key]}
                       directorio={directorio}
                       onChange={(val) => handleEquipoChange(role.key, val)}
                       readOnly={!puedeGestionar}
@@ -3193,7 +3291,7 @@ export default function App() {
   if (!perfil) return <ProfileGate userId={session.user.id} onSaved={handleProfileSaved} />;
   if (!dataLoaded) return <LoadingScreen mensaje="Cargando proyectos…" />;
 
-  const misProyectos = projects.filter((p) => Object.values(p.equipo).includes(perfil.nombre));
+  const misProyectos = projects.filter((p) => equipoNombres(p.equipo).includes(perfil.nombre));
   const selectedProject = projects.find((p) => p.id === selectedId);
   const stats = {
     activo: projects.filter((p) => p.estado === 'activo').length,
