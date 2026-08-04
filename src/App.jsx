@@ -1819,57 +1819,52 @@ function EquipoMultiSelect({ role, valores, directorio, onChange, readOnly }) {
   const candidatos = directorio.filter((u) => u.roles && u.roles.includes(role.key) && !asignados.includes(u.nombre));
 
   if (readOnly) {
-    return asignados.length === 0 ? (
-      <p className="text-sm text-navy-300 italic py-1.5">Sin asignar</p>
-    ) : (
-      <p className="text-sm font-medium text-navy-700 py-1.5">{asignados.join(', ')}</p>
+    return (
+      <p className={`text-sm font-medium py-1.5 ${asignados.length ? 'text-navy-700' : 'text-navy-300 italic'}`}>
+        {asignados.length ? asignados.join(', ') : 'Sin asignar'}
+      </p>
     );
   }
 
   function agregar(nombre) {
-    if (!nombre || asignados.includes(nombre)) {
-      setShowAdd(false);
-      return;
-    }
-    onChange([...asignados, nombre]);
     setShowAdd(false);
+    if (!nombre || asignados.includes(nombre)) return;
+    onChange([...asignados, nombre]);
   }
   function quitar(nombre) {
     onChange(asignados.filter((n) => n !== nombre));
   }
 
+  if (showAdd) {
+    return (
+      <select
+        autoFocus
+        value=""
+        onChange={(e) => agregar(e.target.value)}
+        onBlur={() => setShowAdd(false)}
+        className="w-full rounded-lg border border-navy-300 px-2.5 py-1.5 text-sm"
+      >
+        <option value="">Seleccionar persona…</option>
+        {candidatos.map((u) => (
+          <option key={u.id} value={u.nombre}>{u.nombre}</option>
+        ))}
+      </select>
+    );
+  }
+
   return (
-    <div className="py-0.5">
-      {asignados.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-1.5">
-          {asignados.map((nombre) => (
-            <span key={nombre} className="inline-flex items-center gap-1 bg-navy-100 text-navy-700 text-xs font-medium pl-2 pr-1 py-0.5 rounded-full">
-              {nombre}
-              <button onClick={() => quitar(nombre)} title={`Quitar a ${nombre}`} className="text-navy-400 hover:text-red-500">
-                <X className="w-3 h-3" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-      {showAdd ? (
-        <select
-          autoFocus
-          value=""
-          onChange={(e) => agregar(e.target.value)}
-          onBlur={() => setShowAdd(false)}
-          className="w-full text-sm rounded-md border border-navy-300 px-2 py-1"
-        >
-          <option value="">Seleccionar persona…</option>
-          {candidatos.map((u) => (
-            <option key={u.id} value={u.nombre}>{u.nombre}</option>
-          ))}
-        </select>
-      ) : (
-        <button onClick={() => setShowAdd(true)} className="text-xs font-semibold text-gold-600 hover:text-gold-700 flex items-center gap-1">
-          <Plus className="w-3 h-3" /> Agregar
-        </button>
-      )}
+    <div className="w-full rounded-lg border border-navy-300 px-2.5 py-1.5 text-sm flex flex-wrap items-center gap-1.5">
+      {asignados.map((nombre) => (
+        <span key={nombre} className="inline-flex items-center gap-1 bg-navy-100 text-navy-700 text-xs font-medium pl-2 pr-1 py-0.5 rounded-full">
+          {nombre}
+          <button onClick={() => quitar(nombre)} title={`Quitar a ${nombre}`} className="text-navy-400 hover:text-red-500">
+            <X className="w-3 h-3" />
+          </button>
+        </span>
+      ))}
+      <button onClick={() => setShowAdd(true)} className="text-xs font-semibold text-gold-600 hover:text-gold-700 flex items-center gap-1">
+        <Plus className="w-3 h-3" /> Agregar
+      </button>
     </div>
   );
 }
