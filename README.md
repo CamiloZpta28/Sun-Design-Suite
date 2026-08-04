@@ -161,6 +161,14 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Varias personas en un mismo rol**: Ing. Civil, Ing. Eléctrico y
+  Delineante admiten más de una persona por proyecto (ej. dos ingenieros
+  civiles en el mismo diseño). Las demás especialidades siguen siendo de
+  una sola persona. No requiere ninguna migración de base de datos: los
+  proyectos que ya tenías siguen funcionando igual (una sola persona por
+  rol), y simplemente ahora puedes agregar una segunda, tercera, etc. Si
+  quieres que alguna otra especialidad también admita varias personas,
+  edita el arreglo `MULTI_ROLE_KEYS` en `src/App.jsx`.
 - **Instructivos**: cualquier persona con cuenta puede crear, editar y
   eliminar carpetas y videos (no está restringido a líderes, igual que
   "Enlaces de Interés"). Solo acepta links de YouTube (`youtube.com/watch`,
