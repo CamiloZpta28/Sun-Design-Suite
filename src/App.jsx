@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  Sun, LayoutDashboard, FolderKanban, Layers, Link2, HardHat, Droplets,
+  LayoutDashboard, FolderKanban, Layers, Link2, HardHat, Droplets,
   Building2, Zap, Cog, Mountain, PenTool, Plus, Search, X, Printer,
   Paperclip, Trash2, ChevronLeft, Pencil, Save, MapPin, Calendar,
   Users, ExternalLink, Check, FileText, UploadCloud, XCircle, ClipboardList,
   Loader2, RefreshCw, LogOut, ShieldCheck, Lock, History, ClipboardCheck, StickyNote, UserCog,
   Folder, FolderPlus, ChevronDown, ChevronRight, PlayCircle, Video, Code2,
+  Bold, Italic, Underline, List,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
+import logoMark from './assets/logo-s-mark.png';
 
 /* ============================================================================
    SUN DESIGN SUITE (versión autónoma, fuera de Claude)
@@ -284,6 +286,56 @@ function formatDateTime(iso) {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+/* --------------------- FORMATO DE TEXTO EN NOTAS (mini-sintaxis) ----------- */
+/* **negrilla**, *cursiva*, __subrayado__ y líneas que empiezan con "- " para  */
+/* viñetas. Se guarda como texto plano (no HTML) y se interpreta solo al       */
+/* mostrarlo, para no tener que confiar en HTML crudo guardado por el usuario. */
+function renderNoteInline(text, keyPrefix) {
+  const parts = [];
+  const regex = /(\*\*(.+?)\*\*|__(.+?)__|\*(.+?)\*)/g;
+  let lastIndex = 0;
+  let match;
+  let i = 0;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
+    if (match[2] !== undefined) parts.push(<strong key={`${keyPrefix}-b-${i++}`}>{match[2]}</strong>);
+    else if (match[3] !== undefined) parts.push(<u key={`${keyPrefix}-u-${i++}`}>{match[3]}</u>);
+    else if (match[4] !== undefined) parts.push(<em key={`${keyPrefix}-i-${i++}`}>{match[4]}</em>);
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts;
+}
+function renderNoteText(texto) {
+  const lines = (texto || '').split('\n');
+  const blocks = [];
+  let currentList = null;
+  lines.forEach((line) => {
+    if (line.startsWith('- ')) {
+      if (!currentList) currentList = [];
+      currentList.push(line.slice(2));
+    } else {
+      if (currentList) {
+        blocks.push({ type: 'ul', items: currentList });
+        currentList = null;
+      }
+      blocks.push({ type: 'p', text: line });
+    }
+  });
+  if (currentList) blocks.push({ type: 'ul', items: currentList });
+
+  return blocks.map((b, i) => {
+    if (b.type === 'ul') {
+      return (
+        <ul key={i} className="list-disc pl-5">
+          {b.items.map((item, j) => <li key={j}>{renderNoteInline(item, `${i}-${j}`)}</li>)}
+        </ul>
+      );
+    }
+    return <p key={i}>{b.text ? renderNoteInline(b.text, `${i}`) : '\u00A0'}</p>;
+  });
 }
 
 /* Compara los valores "antes" y "después" de una especialidad y devuelve una  */
@@ -759,7 +811,7 @@ const DOC_ESTADOS = [
 ];
 const DOC_ESTADO_CONFIG = {
   'Pendiente': { bg: 'bg-navy-100', text: 'text-navy-500', dot: 'bg-navy-400', border: 'border-navy-400', ring: 'ring-navy-400' },
-  'En proceso': { bg: 'bg-gold-100', text: 'text-gold-700', dot: 'bg-gold-500', border: 'border-gold-500', ring: 'ring-gold-500' },
+  'En proceso': { bg: 'bg-lime-100', text: 'text-lime-700', dot: 'bg-lime-500', border: 'border-lime-500', ring: 'ring-lime-500' },
   'No aplica': { bg: 'bg-navy-50', text: 'text-navy-400', dot: 'bg-navy-300', border: 'border-navy-300', ring: 'ring-navy-300' },
   'Aprobado para construcción con comentarios (APCC)': { bg: 'bg-lime-100', text: 'text-lime-700', dot: 'bg-lime-500', border: 'border-lime-500', ring: 'ring-lime-500' },
   'Aprobado para construcción (APC)': { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500', border: 'border-emerald-500', ring: 'ring-emerald-500' },
@@ -876,7 +928,7 @@ function FieldRenderer({ field, value, editMode, onChange }) {
       const next = rows.map((r, idx) => (idx === i ? { ...r, [key]: val } : r));
       onChange(next);
     }
-    const cellInput = 'w-full rounded-md border border-navy-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400';
+    const cellInput = 'w-full rounded-md border border-navy-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
     return (
       <div className="py-1">
         <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
@@ -922,7 +974,7 @@ function FieldRenderer({ field, value, editMode, onChange }) {
         </div>
       );
     }
-    const baseInput = 'w-full rounded-lg border border-navy-300 px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400';
+    const baseInput = 'w-full rounded-lg border border-navy-300 px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
     return (
       <div className="py-1">
         <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
@@ -952,7 +1004,7 @@ function FieldRenderer({ field, value, editMode, onChange }) {
     return <ReadOnlyValue label={field.label} value={display} mono={field.type !== 'textarea'} />;
   }
 
-  const baseInput = 'w-full rounded-lg border border-navy-300 px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400';
+  const baseInput = 'w-full rounded-lg border border-navy-300 px-3 py-2 text-sm text-navy-800 focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
   return (
     <div className="py-1">
       <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
@@ -1003,10 +1055,10 @@ function AttachmentsPanel({ archivos, onAdd, onRemove, canEdit = true }) {
   return (
     <div>
       {canEdit ? (
-        <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-navy-300 rounded-xl py-8 cursor-pointer hover:border-gold-400 hover:bg-gold-50 transition-colors mb-5">
+        <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-navy-300 rounded-xl py-8 cursor-pointer hover:border-lime-400 hover:bg-lime-50 transition-colors mb-5">
           <UploadCloud className="w-7 h-7 text-navy-400" />
           <p className="text-sm text-navy-500">
-            <span className="font-semibold text-gold-600">Haz clic para adjuntar</span> planos o documentos
+            <span className="font-semibold text-lime-600">Haz clic para adjuntar</span> planos o documentos
           </p>
           <p className="text-xs text-navy-400">Por ahora solo se guarda el nombre del archivo (sin subir el contenido)</p>
           <input
@@ -1053,6 +1105,46 @@ function AttachmentsPanel({ archivos, onAdd, onRemove, canEdit = true }) {
 
 function NotesPanel({ notas, onAdd, onRemove, canEdit }) {
   const [texto, setTexto] = useState('');
+  const textareaRef = useRef(null);
+
+  function aplicarFormato(tipo) {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+
+    if (tipo === 'bullet') {
+      const before = texto.slice(0, start);
+      const after = texto.slice(end);
+      const lineStart = before.lastIndexOf('\n') + 1;
+      const relEnd = after.indexOf('\n');
+      const lineEnd = relEnd === -1 ? texto.length : end + relEnd;
+      const bloque = texto.slice(lineStart, lineEnd);
+      const lineas = bloque.split('\n');
+      const todasConVineta = lineas.every((l) => l.startsWith('- ') || l.trim() === '');
+      const nuevasLineas = lineas.map((l) => {
+        if (l.trim() === '') return l;
+        return todasConVineta ? l.replace(/^- /, '') : (l.startsWith('- ') ? l : `- ${l}`);
+      });
+      const nuevoBloque = nuevasLineas.join('\n');
+      const nuevo = texto.slice(0, lineStart) + nuevoBloque + texto.slice(lineEnd);
+      setTexto(nuevo);
+      requestAnimationFrame(() => {
+        ta.focus();
+        ta.setSelectionRange(lineStart, lineStart + nuevoBloque.length);
+      });
+      return;
+    }
+
+    const marcador = tipo === 'bold' ? '**' : tipo === 'italic' ? '*' : '__';
+    const seleccionado = texto.slice(start, end) || 'texto';
+    const nuevo = texto.slice(0, start) + marcador + seleccionado + marcador + texto.slice(end);
+    setTexto(nuevo);
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(start + marcador.length, start + marcador.length + seleccionado.length);
+    });
+  }
 
   function submit(e) {
     e.preventDefault();
@@ -1067,15 +1159,30 @@ function NotesPanel({ notas, onAdd, onRemove, canEdit }) {
     <div>
       {canEdit ? (
         <form onSubmit={submit} className="mb-5 space-y-2">
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={() => aplicarFormato('bold')} title="Negrilla" className="w-7 h-7 flex items-center justify-center rounded-md border border-navy-300 text-navy-600 hover:bg-navy-50 hover:border-navy-400">
+              <Bold className="w-3.5 h-3.5" />
+            </button>
+            <button type="button" onClick={() => aplicarFormato('italic')} title="Cursiva" className="w-7 h-7 flex items-center justify-center rounded-md border border-navy-300 text-navy-600 hover:bg-navy-50 hover:border-navy-400">
+              <Italic className="w-3.5 h-3.5" />
+            </button>
+            <button type="button" onClick={() => aplicarFormato('underline')} title="Subrayado" className="w-7 h-7 flex items-center justify-center rounded-md border border-navy-300 text-navy-600 hover:bg-navy-50 hover:border-navy-400">
+              <Underline className="w-3.5 h-3.5" />
+            </button>
+            <button type="button" onClick={() => aplicarFormato('bullet')} title="Viñetas" className="w-7 h-7 flex items-center justify-center rounded-md border border-navy-300 text-navy-600 hover:bg-navy-50 hover:border-navy-400">
+              <List className="w-3.5 h-3.5" />
+            </button>
+          </div>
           <textarea
+            ref={textareaRef}
             rows={3}
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             placeholder="Escribe una particularidad o nota que haya surgido durante el diseño…"
-            className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400"
+            className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
           />
           <div className="flex justify-end">
-            <button type="submit" className="flex items-center gap-1.5 text-xs font-semibold bg-gold-500 hover:bg-gold-600 text-navy-900 px-3 py-1.5 rounded-md transition-colors">
+            <button type="submit" className="flex items-center gap-1.5 text-xs font-semibold bg-lime-500 hover:bg-lime-600 text-navy-900 px-3 py-1.5 rounded-md transition-colors">
               <Plus className="w-3.5 h-3.5" /> Agregar nota
             </button>
           </div>
@@ -1102,7 +1209,7 @@ function NotesPanel({ notas, onAdd, onRemove, canEdit }) {
                   </button>
                 )}
               </div>
-              <p className="text-sm text-navy-700 whitespace-pre-wrap break-words">{n.texto}</p>
+              <div className="text-sm text-navy-700 break-words">{renderNoteText(n.texto)}</div>
             </div>
           ))}
         </div>
@@ -1129,7 +1236,7 @@ function ComentarioInput({ value, onCommit, disabled, placeholder }) {
         if (draft !== (value || '')) onCommit(draft);
       }}
       placeholder={placeholder}
-      className="w-full text-sm rounded-md border border-navy-300 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-gold-400 disabled:bg-navy-50 disabled:text-navy-400"
+      className="w-full text-sm rounded-md border border-navy-300 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-lime-400 disabled:bg-navy-50 disabled:text-navy-400"
     />
   );
 }
@@ -1195,7 +1302,7 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
         <select
           value={filtroEspecialidad}
           onChange={(e) => setFiltroEspecialidad(e.target.value)}
-          className="text-sm rounded-lg border border-navy-300 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-gold-400"
+          className="text-sm rounded-lg border border-navy-300 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-lime-400"
         >
           <option value="todas">Todas ({lista.length})</option>
           {grupos.map((g) => (
@@ -1301,7 +1408,7 @@ function PrintableReport({ project }) {
     <div className="print-only p-10">
       <div className="flex items-center justify-between border-b-2 border-navy-800 pb-4 mb-6">
         <div className="flex items-center gap-2">
-          <Sun className="w-6 h-6 text-gold-500" />
+          <img src={logoMark} alt="" className="w-6 h-6 object-contain" />
           <div>
             <p className="font-bold text-lg text-navy-800">Sun Design Suite</p>
             <p className="text-xs text-navy-500">Hoja de Vida de Minigranja Fotovoltaica</p>
@@ -1516,8 +1623,8 @@ function AuthGate() {
     <div className="fixed inset-0 bg-navy-900 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-8">
         <div className="flex items-center gap-2.5 mb-6">
-          <div className="w-10 h-10 rounded-lg bg-gold-500 flex items-center justify-center shrink-0">
-            <Sun className="w-5 h-5 text-navy-900" />
+          <div className="w-10 h-10 rounded-lg bg-lime-300 flex items-center justify-center shrink-0">
+            <img src={logoMark} alt="" className="w-6 h-6 object-contain" />
           </div>
           <div>
             <p className="font-bold text-navy-800 leading-tight">Sun Design Suite</p>
@@ -1538,7 +1645,7 @@ function AuthGate() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 bg-gold-500 hover:bg-gold-600 disabled:opacity-60 text-navy-900 font-semibold text-sm py-2.5 rounded-lg shadow-sm transition-colors"
+            className="w-full flex items-center justify-center gap-2 bg-lime-500 hover:bg-lime-600 disabled:opacity-60 text-navy-900 font-semibold text-sm py-2.5 rounded-lg shadow-sm transition-colors"
           >
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}
@@ -1602,8 +1709,8 @@ function ProfileGate({ userId, initial, onSaved, onCancel }) {
       <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-lg bg-gold-500 flex items-center justify-center shrink-0">
-              <Sun className="w-5 h-5 text-navy-900" />
+            <div className="w-10 h-10 rounded-lg bg-lime-300 flex items-center justify-center shrink-0">
+              <img src={logoMark} alt="" className="w-6 h-6 object-contain" />
             </div>
             <div>
               <p className="font-bold text-navy-800 leading-tight">Sun Design Suite</p>
@@ -1620,7 +1727,7 @@ function ProfileGate({ userId, initial, onSaved, onCancel }) {
         <form onSubmit={submit} className="space-y-4">
           <div className="flex flex-col items-center">
             <label className="cursor-pointer group">
-              <div className="w-20 h-20 rounded-full bg-navy-100 border-2 border-dashed border-navy-300 flex items-center justify-center overflow-hidden group-hover:border-gold-400 transition-colors">
+              <div className="w-20 h-20 rounded-full bg-navy-100 border-2 border-dashed border-navy-300 flex items-center justify-center overflow-hidden group-hover:border-lime-400 transition-colors">
                 {preview ? <img src={preview} alt="Foto de perfil" className="w-full h-full object-cover" /> : <UploadCloud className="w-6 h-6 text-navy-400" />}
               </div>
               <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
@@ -1634,7 +1741,7 @@ function ProfileGate({ userId, initial, onSaved, onCancel }) {
               required
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400"
+              className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400"
               placeholder="Ej. Camilo Zapata"
             />
           </div>
@@ -1651,7 +1758,7 @@ function ProfileGate({ userId, initial, onSaved, onCancel }) {
           <button
             type="submit"
             disabled={saving}
-            className="w-full flex items-center justify-center gap-2 bg-gold-500 hover:bg-gold-600 disabled:opacity-60 text-navy-900 font-semibold text-sm py-2.5 rounded-lg shadow-sm transition-colors"
+            className="w-full flex items-center justify-center gap-2 bg-lime-500 hover:bg-lime-600 disabled:opacity-60 text-navy-900 font-semibold text-sm py-2.5 rounded-lg shadow-sm transition-colors"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {initial ? 'Guardar cambios' : 'Crear mi perfil'}
@@ -1665,7 +1772,7 @@ function ProfileGate({ userId, initial, onSaved, onCancel }) {
 function LoadingScreen({ mensaje = 'Cargando…' }) {
   return (
     <div className="fixed inset-0 bg-navy-50 flex flex-col items-center justify-center gap-3">
-      <Loader2 className="w-8 h-8 text-gold-500 animate-spin" />
+      <Loader2 className="w-8 h-8 text-lime-500 animate-spin" />
       <p className="text-sm text-navy-400">{mensaje}</p>
     </div>
   );
@@ -1687,8 +1794,8 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
   return (
     <aside className="no-print w-64 shrink-0 bg-navy-900 text-navy-300 flex flex-col h-screen sticky top-0">
       <div className="px-5 py-6 border-b border-navy-800 flex items-center gap-2.5">
-        <div className="w-9 h-9 rounded-lg bg-gold-500 flex items-center justify-center shrink-0">
-          <Sun className="w-5 h-5 text-navy-900" />
+        <div className="w-9 h-9 rounded-lg bg-lime-300 flex items-center justify-center shrink-0">
+          <img src={logoMark} alt="" className="w-5 h-5 object-contain" />
         </div>
         <div>
           <p className="text-white font-bold leading-tight">Sun Design Suite</p>
@@ -1705,7 +1812,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
               key={item.key}
               onClick={() => setView(item.key)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border-l-2 ${
-                active ? 'bg-navy-800 text-white border-gold-500' : 'text-navy-400 border-transparent hover:bg-navy-800 hover:text-navy-200'
+                active ? 'bg-navy-800 text-white border-lime-500' : 'text-navy-400 border-transparent hover:bg-navy-800 hover:text-navy-200'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -1743,7 +1850,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
         <div className="min-w-0 flex-1">
           <p className="text-white text-sm font-semibold truncate">{perfil.nombre}</p>
           <p className="text-navy-500 text-xs truncate flex items-center gap-1">
-            {isLeader(perfil) && <ShieldCheck className="w-3 h-3 text-gold-400 shrink-0" />}
+            {isLeader(perfil) && <ShieldCheck className="w-3 h-3 text-lime-400 shrink-0" />}
             {rolesLabel(perfil)}
           </p>
         </div>
@@ -1774,9 +1881,9 @@ function ProjectCard({ project, onClick, directorio }) {
   const general = project.data.general;
   const asignados = ROLES.flatMap((r) => equipoComoArray(project.equipo[r.key]).map((nombre) => ({ nombre, role: r })));
   return (
-    <button onClick={onClick} className="text-left bg-white rounded-xl border border-navy-200 p-4 hover:border-gold-300 hover:shadow-md transition-all group">
+    <button onClick={onClick} className="text-left bg-white rounded-xl border border-navy-200 p-4 hover:border-lime-300 hover:shadow-md transition-all group">
       <div className="flex items-start justify-between mb-3 gap-2">
-        <h3 className="font-bold text-navy-800 leading-snug group-hover:text-gold-600 transition-colors">{projectDisplayName(project)}</h3>
+        <h3 className="font-bold text-navy-800 leading-snug group-hover:text-lime-600 transition-colors">{projectDisplayName(project)}</h3>
         <StatusBadge estado={project.estado} size="sm" />
       </div>
       <p className="flex items-center gap-1.5 text-xs text-navy-500 mb-3">
@@ -1819,7 +1926,7 @@ function Dashboard({ projects, misProyectos, onNewProject, openProject, setView,
             <p className="text-navy-500 text-sm mt-1">{rolesLabel(perfil)} · Panel general de proyectos</p>
           </div>
         </div>
-        <button onClick={onNewProject} className="flex items-center gap-2 bg-gold-500 hover:bg-gold-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition-colors">
+        <button onClick={onNewProject} className="flex items-center gap-2 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition-colors">
           <Plus className="w-4 h-4" /> Nuevo Proyecto
         </button>
       </div>
@@ -1833,7 +1940,7 @@ function Dashboard({ projects, misProyectos, onNewProject, openProject, setView,
 
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold text-navy-800">Mis proyectos</h2>
-        <button onClick={() => setView('mis')} className="text-sm font-medium text-gold-600 hover:text-gold-700">
+        <button onClick={() => setView('mis')} className="text-sm font-medium text-lime-600 hover:text-lime-700">
           Ver todos →
         </button>
       </div>
@@ -1867,7 +1974,7 @@ function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, dire
           <h1 className="text-2xl font-bold text-navy-800">{title}</h1>
           <p className="text-navy-500 text-sm mt-1">{subtitle}</p>
         </div>
-        <button onClick={onNewProject} className="flex items-center gap-2 bg-gold-500 hover:bg-gold-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition-colors">
+        <button onClick={onNewProject} className="flex items-center gap-2 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition-colors">
           <Plus className="w-4 h-4" /> Nuevo Proyecto
         </button>
       </div>
@@ -1881,13 +1988,13 @@ function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, dire
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar por nombre, ubicación o código…"
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-navy-300 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400"
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-navy-300 focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
           />
         </div>
         <select
           value={estadoFiltro}
           onChange={(e) => setEstadoFiltro(e.target.value)}
-          className="text-sm rounded-lg border border-navy-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gold-400"
+          className="text-sm rounded-lg border border-navy-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-lime-400"
         >
           <option value="todos">Todos los estados</option>
           <option value="activo">Activo</option>
@@ -1987,7 +2094,7 @@ function EquipoMultiSelect({ role, valores, directorio, onChange, readOnly }) {
           </button>
         </span>
       ))}
-      <button onClick={() => setShowAdd(true)} className="text-xs font-semibold text-gold-600 hover:text-gold-700 flex items-center gap-1">
+      <button onClick={() => setShowAdd(true)} className="text-xs font-semibold text-lime-600 hover:text-lime-700 flex items-center gap-1">
         <Plus className="w-3 h-3" /> Agregar
       </button>
     </div>
@@ -2059,7 +2166,7 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil }) {
               required
               value={form.nombre}
               onChange={(e) => set('nombre', e.target.value)}
-              className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400"
+              className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400"
               placeholder="Ej. Minigranja Solar El Retiro 5MW"
             />
           </div>
@@ -2154,7 +2261,7 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil }) {
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-navy-600 hover:bg-navy-100 rounded-lg">
               Cancelar
             </button>
-            <button type="submit" className="px-4 py-2 text-sm font-semibold bg-gold-500 hover:bg-gold-600 text-navy-900 rounded-lg shadow-sm">
+            <button type="submit" className="px-4 py-2 text-sm font-semibold bg-lime-500 hover:bg-lime-600 text-navy-900 rounded-lg shadow-sm">
               Crear Proyecto
             </button>
           </div>
@@ -2293,7 +2400,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
         <div className="bg-white border-2 border-navy-800 rounded-lg overflow-hidden mb-6">
           <div className="flex items-center justify-between bg-navy-800 px-5 py-3">
             <div className="flex items-center gap-2">
-              <ClipboardList className="w-4 h-4 text-gold-400" />
+              <ClipboardList className="w-4 h-4 text-lime-400" />
               <p className="text-white font-bold text-sm tracking-wide">HOJA DE VIDA DEL PROYECTO</p>
             </div>
             <div className="flex items-center gap-2">
@@ -2301,7 +2408,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
                 <select
                   value={project.estado}
                   onChange={(e) => handleEstadoChange(e.target.value)}
-                  className="text-xs font-semibold rounded-md border-0 py-1.5 pl-2 pr-6 bg-navy-700 text-white focus:outline-none focus:ring-2 focus:ring-gold-400"
+                  className="text-xs font-semibold rounded-md border-0 py-1.5 pl-2 pr-6 bg-navy-700 text-white focus:outline-none focus:ring-2 focus:ring-lime-400"
                 >
                   <option value="activo">Activo</option>
                   <option value="pausa">En Pausa</option>
@@ -2310,7 +2417,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
               ) : (
                 <StatusBadge estado={project.estado} />
               )}
-              <button onClick={() => window.print()} className="flex items-center gap-1.5 bg-gold-500 hover:bg-gold-600 text-navy-900 text-xs font-bold px-3 py-1.5 rounded-md transition-colors">
+              <button onClick={() => window.print()} className="flex items-center gap-1.5 bg-lime-500 hover:bg-lime-600 text-navy-900 text-xs font-bold px-3 py-1.5 rounded-md transition-colors">
                 <Printer className="w-3.5 h-3.5" /> Exportar / Imprimir
               </button>
               {puedeGestionar && (
@@ -2354,7 +2461,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
                         if (e.key === 'Enter') saveNombre();
                         if (e.key === 'Escape') { setNombreDraft(project.nombre); setEditingNombre(false); }
                       }}
-                      className="text-sm font-mono text-navy-700 border border-navy-300 rounded-md px-2 py-1 flex-1 min-w-0 focus:outline-none focus:ring-2 focus:ring-gold-400"
+                      className="text-sm font-mono text-navy-700 border border-navy-300 rounded-md px-2 py-1 flex-1 min-w-0 focus:outline-none focus:ring-2 focus:ring-lime-400"
                     />
                     <button onClick={saveNombre} title="Guardar" className="text-emerald-600 hover:text-emerald-700 shrink-0">
                       <Check className="w-4 h-4" />
@@ -2369,7 +2476,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
                     <button
                       onClick={() => { setNombreDraft(project.nombre); setEditingNombre(true); }}
                       title="Cambiar nombre del proyecto"
-                      className="text-navy-300 hover:text-gold-600 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity shrink-0"
+                      className="text-navy-300 hover:text-lime-600 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity shrink-0"
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
@@ -2391,7 +2498,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
         <div className="bg-white rounded-xl border border-navy-200 p-5 mb-6">
           <p className="flex items-center justify-between text-sm font-bold text-navy-700 mb-4">
             <span className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-gold-500" /> Equipo Asignado
+              <Users className="w-4 h-4 text-lime-500" /> Equipo Asignado
             </span>
             {!puedeGestionar && (
               <span className="flex items-center gap-1 text-xs font-normal text-navy-400">
@@ -2433,7 +2540,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
                   key={section.id}
                   onClick={() => setActiveTab(section.id)}
                   className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                    active ? 'border-gold-500 text-gold-600 bg-gold-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
+                    active ? 'border-lime-500 text-lime-600 bg-lime-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
                   }`}
                 >
                   <SIcon className="w-4 h-4" /> {section.label}
@@ -2443,7 +2550,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
             <button
               onClick={() => setActiveTab('documentos')}
               className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                activeTab === 'documentos' ? 'border-gold-500 text-gold-600 bg-gold-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
+                activeTab === 'documentos' ? 'border-lime-500 text-lime-600 bg-lime-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
               }`}
             >
               <ClipboardCheck className="w-4 h-4" /> Control Documental
@@ -2451,7 +2558,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
             <button
               onClick={() => setActiveTab('notas')}
               className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                activeTab === 'notas' ? 'border-gold-500 text-gold-600 bg-gold-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
+                activeTab === 'notas' ? 'border-lime-500 text-lime-600 bg-lime-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
               }`}
             >
               <StickyNote className="w-4 h-4" /> Notas {project.notas && project.notas.length > 0 && `(${project.notas.length})`}
@@ -2459,7 +2566,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
             <button
               onClick={() => setActiveTab('archivos')}
               className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                activeTab === 'archivos' ? 'border-gold-500 text-gold-600 bg-gold-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
+                activeTab === 'archivos' ? 'border-lime-500 text-lime-600 bg-lime-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
               }`}
             >
               <Paperclip className="w-4 h-4" /> Archivos {project.archivos.length > 0 && `(${project.archivos.length})`}
@@ -2467,7 +2574,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
             <button
               onClick={() => setActiveTab('historial')}
               className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                activeTab === 'historial' ? 'border-gold-500 text-gold-600 bg-gold-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
+                activeTab === 'historial' ? 'border-lime-500 text-lime-600 bg-lime-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
               }`}
             >
               <History className="w-4 h-4" /> Historial
@@ -2484,7 +2591,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
                       <Lock className="w-3.5 h-3.5" /> Solo el equipo asignado puede editar
                     </span>
                   ) : !editMode ? (
-                    <button onClick={startEdit} className="flex items-center gap-1.5 text-xs font-semibold text-gold-600 hover:text-gold-700">
+                    <button onClick={startEdit} className="flex items-center gap-1.5 text-xs font-semibold text-lime-600 hover:text-lime-700">
                       <Pencil className="w-3.5 h-3.5" /> Editar campos
                     </button>
                   ) : (
@@ -2524,7 +2631,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-xs text-navy-400">Fecha, hora y responsable de cada cambio hecho a este proyecto</p>
-                  <button onClick={loadHistorial} className="flex items-center gap-1.5 text-xs font-semibold text-gold-600 hover:text-gold-700">
+                  <button onClick={loadHistorial} className="flex items-center gap-1.5 text-xs font-semibold text-lime-600 hover:text-lime-700">
                     <RefreshCw className="w-3.5 h-3.5" /> Actualizar
                   </button>
                 </div>
@@ -2535,7 +2642,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
                 ) : (
                   <div className="space-y-4">
                     {historial.map((h) => (
-                      <div key={h.id} className="flex gap-3 border-l-2 border-gold-300 pl-3">
+                      <div key={h.id} className="flex gap-3 border-l-2 border-lime-300 pl-3">
                         <div className="min-w-0">
                           <p className="text-sm text-navy-700">
                             <span className="font-semibold">{h.usuario_nombre}</span>
@@ -2588,7 +2695,7 @@ function LinksView({ links, onAdd, onUpdate, onRemove }) {
           <h1 className="text-2xl font-bold text-navy-800">Enlaces de Interés</h1>
           <p className="text-navy-500 text-sm mt-1">Recursos y herramientas de consulta para el equipo de diseño</p>
         </div>
-        <button onClick={() => setShowForm((s) => !s)} className="flex items-center gap-2 bg-gold-500 hover:bg-gold-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm">
+        <button onClick={() => setShowForm((s) => !s)} className="flex items-center gap-2 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm">
           <Plus className="w-4 h-4" /> Agregar Enlace
         </button>
       </div>
@@ -2619,7 +2726,7 @@ function LinksView({ links, onAdd, onUpdate, onRemove }) {
       <div className="space-y-3">
         {links.map((link) =>
           editingId === link.id ? (
-            <div key={link.id} className="bg-white border border-gold-300 rounded-xl p-4 space-y-2">
+            <div key={link.id} className="bg-white border border-lime-300 rounded-xl p-4 space-y-2">
               <input
                 value={editForm.descripcion}
                 onChange={(e) => setEditForm((f) => ({ ...f, descripcion: e.target.value }))}
@@ -2638,18 +2745,18 @@ function LinksView({ links, onAdd, onUpdate, onRemove }) {
               </div>
             </div>
           ) : (
-            <div key={link.id} className="flex items-start justify-between bg-white border border-navy-200 rounded-xl p-4 hover:border-gold-300 transition-colors">
+            <div key={link.id} className="flex items-start justify-between bg-white border border-navy-200 rounded-xl p-4 hover:border-nashville-300 transition-colors">
               <a href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-3 min-w-0 flex-1 group">
-                <div className="w-8 h-8 rounded-lg bg-gold-50 flex items-center justify-center shrink-0">
-                  <ExternalLink className="w-4 h-4 text-gold-600" />
+                <div className="w-8 h-8 rounded-lg bg-nashville-50 flex items-center justify-center shrink-0">
+                  <ExternalLink className="w-4 h-4 text-nashville-600" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-navy-700 group-hover:text-gold-600">{link.descripcion}</p>
+                  <p className="text-sm font-semibold text-navy-700 group-hover:text-nashville-600">{link.descripcion}</p>
                   <p className="text-xs text-navy-400 truncate">{link.url}</p>
                 </div>
               </a>
               <div className="flex items-center gap-1 shrink-0 ml-2">
-                <button onClick={() => startEdit(link)} className="text-navy-300 hover:text-gold-500 p-1">
+                <button onClick={() => startEdit(link)} className="text-navy-300 hover:text-lime-500 p-1">
                   <Pencil className="w-4 h-4" />
                 </button>
                 <button onClick={() => onRemove(link.id)} className="text-navy-300 hover:text-red-500 p-1">
@@ -2690,7 +2797,7 @@ function VideoCard({ video, abierto, onToggle, onEdit, onDelete }) {
           <p className="text-sm font-semibold text-navy-700 truncate">{video.titulo}</p>
           {video.descripcion && <p className="text-xs text-navy-400 truncate">{video.descripcion}</p>}
         </div>
-        <PlayCircle className="w-5 h-5 text-gold-500 shrink-0" />
+        <PlayCircle className="w-5 h-5 text-lime-500 shrink-0" />
       </button>
       {abierto && (
         <div className="border-t border-navy-200">
@@ -2708,7 +2815,7 @@ function VideoCard({ video, abierto, onToggle, onEdit, onDelete }) {
             <p className="text-sm text-red-500 p-3">No se pudo reconocer el link de YouTube de este video.</p>
           )}
           <div className="flex items-center justify-end gap-3 px-3 py-2 bg-navy-50">
-            <button onClick={onEdit} className="flex items-center gap-1 text-xs font-medium text-navy-500 hover:text-gold-600">
+            <button onClick={onEdit} className="flex items-center gap-1 text-xs font-medium text-navy-500 hover:text-lime-600">
               <Pencil className="w-3.5 h-3.5" /> Editar
             </button>
             {confirmando ? (
@@ -2758,11 +2865,11 @@ function FolderFormModal({ initial, onClose, onSave }) {
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
             placeholder="Ej. Diseño Eléctrico"
-            className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400"
+            className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400"
           />
           <div className="flex justify-end gap-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-navy-500">Cancelar</button>
-            <button type="submit" className="px-4 py-2 text-sm font-semibold bg-gold-500 hover:bg-gold-600 text-navy-900 rounded-lg">Guardar</button>
+            <button type="submit" className="px-4 py-2 text-sm font-semibold bg-lime-500 hover:bg-lime-600 text-navy-900 rounded-lg">Guardar</button>
           </div>
         </form>
       </div>
@@ -2809,7 +2916,7 @@ function VideoFormModal({ initial, carpetas, onClose, onSave }) {
               autoFocus
               value={titulo}
               onChange={(e) => setTitulo(e.target.value)}
-              className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400"
+              className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400"
               placeholder="Ej. Cómo calcular la zona de viento"
             />
           </div>
@@ -2819,7 +2926,7 @@ function VideoFormModal({ initial, carpetas, onClose, onSave }) {
               required
               value={url}
               onChange={(e) => { setUrl(e.target.value); setError(''); }}
-              className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-gold-400"
+              className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400"
               placeholder="https://youtu.be/… o https://www.youtube.com/watch?v=…"
             />
             {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
@@ -2830,7 +2937,7 @@ function VideoFormModal({ initial, carpetas, onClose, onSave }) {
               rows={2}
               value={descripcion}
               onChange={(e) => setDescripcion(e.target.value)}
-              className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400"
+              className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400"
             />
           </div>
           <div>
@@ -2844,7 +2951,7 @@ function VideoFormModal({ initial, carpetas, onClose, onSave }) {
           </div>
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-navy-500">Cancelar</button>
-            <button type="submit" className="px-4 py-2 text-sm font-semibold bg-gold-500 hover:bg-gold-600 text-navy-900 rounded-lg">Guardar</button>
+            <button type="submit" className="px-4 py-2 text-sm font-semibold bg-lime-500 hover:bg-lime-600 text-navy-900 rounded-lg">Guardar</button>
           </div>
         </form>
       </div>
@@ -2879,13 +2986,13 @@ function InstructivosView({ carpetas, videos, onAddCarpeta, onUpdateCarpeta, onD
         <div className="flex items-center gap-2">
           <button
             onClick={() => setFolderModal('new')}
-            className="flex items-center gap-2 bg-white border border-navy-300 hover:border-gold-400 text-navy-700 font-semibold text-sm px-3 py-2 rounded-lg transition-colors"
+            className="flex items-center gap-2 bg-white border border-navy-300 hover:border-lime-400 text-navy-700 font-semibold text-sm px-3 py-2 rounded-lg transition-colors"
           >
             <FolderPlus className="w-4 h-4" /> Nueva carpeta
           </button>
           <button
             onClick={() => setVideoModal('new')}
-            className="flex items-center gap-2 bg-gold-500 hover:bg-gold-600 text-navy-900 font-semibold text-sm px-3 py-2 rounded-lg shadow-sm transition-colors"
+            className="flex items-center gap-2 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-3 py-2 rounded-lg shadow-sm transition-colors"
           >
             <Plus className="w-4 h-4" /> Nuevo video
           </button>
@@ -2898,12 +3005,12 @@ function InstructivosView({ carpetas, videos, onAddCarpeta, onUpdateCarpeta, onD
             <div className="flex items-center justify-between px-4 py-3 bg-navy-50 border-b border-navy-200">
               <button onClick={() => toggleFolder(carpeta.id)} className="flex items-center gap-2 text-sm font-bold text-navy-700 flex-1 text-left min-w-0">
                 {openFolders[carpeta.id] ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
-                <Folder className="w-4 h-4 text-gold-500 shrink-0" />
+                <Folder className="w-4 h-4 text-nashville-500 shrink-0" />
                 <span className="truncate">{carpeta.nombre}</span>
                 <span className="text-xs font-normal text-navy-400 shrink-0">({videosCarpeta.length})</span>
               </button>
               <div className="flex items-center gap-1 shrink-0">
-                <button onClick={() => setFolderModal(carpeta)} title="Renombrar carpeta" className="text-navy-400 hover:text-gold-600 p-1">
+                <button onClick={() => setFolderModal(carpeta)} title="Renombrar carpeta" className="text-navy-400 hover:text-lime-600 p-1">
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
                 {confirmDeleteFolder === carpeta.id ? (
@@ -3049,7 +3156,7 @@ function TeamRolesView({ directorio, perfil, onToggleRole, onDeleteUser }) {
         <select
           value={filtroRol}
           onChange={(e) => setFiltroRol(e.target.value)}
-          className="text-sm rounded-lg border border-navy-300 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-gold-400"
+          className="text-sm rounded-lg border border-navy-300 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-lime-400"
         >
           <option value="todos">Todos ({directorio.length})</option>
           {ALL_ROLE_DEFS.map((role) => {
@@ -3127,7 +3234,7 @@ function TeamRolesView({ directorio, perfil, onToggleRole, onDeleteUser }) {
                           title={!puedeAsignarEste ? 'Solo el Líder de Diseño (o un Desarrollador) puede asignar este rol' : undefined}
                           onClick={() => handleToggle(u.id, role.key, tieneRol)}
                           className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
-                            tieneRol ? 'bg-gold-100 text-gold-800 border-gold-300' : 'bg-navy-50 text-navy-400 border-navy-200'
+                            tieneRol ? 'bg-lime-100 text-lime-800 border-lime-300' : 'bg-navy-50 text-navy-400 border-navy-200'
                           } ${puedeAsignarEste ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'} ${cargando ? 'opacity-50' : ''}`}
                         >
                           <RoleIcon className="w-3 h-3" />
