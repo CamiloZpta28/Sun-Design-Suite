@@ -774,7 +774,7 @@ function StatusBadge({ estado, size = 'md' }) {
 
 function Avatar({ name, foto, title, size = 'md' }) {
   if (!name) return null;
-  const sizeClass = size === 'sm' ? 'w-7 h-7 text-xs' : 'w-9 h-9 text-sm';
+  const sizeClass = size === 'sm' ? 'w-7 h-7 text-xs' : size === 'lg' ? 'w-14 h-14 text-lg' : 'w-9 h-9 text-sm';
   if (foto) {
     return <img src={foto} alt={name} title={title ? `${title}: ${name}` : name} className={`${sizeClass} rounded-full object-cover border-2 border-white shrink-0`} />;
   }
@@ -1663,9 +1663,12 @@ function Dashboard({ projects, misProyectos, onNewProject, openProject, setView,
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-navy-800">Hola, {primerNombre}</h1>
-          <p className="text-navy-500 text-sm mt-1">{rolesLabel(perfil)} · Panel general de proyectos</p>
+        <div className="flex items-center gap-3">
+          <Avatar name={perfil.nombre} foto={perfil.foto} size="lg" />
+          <div>
+            <h1 className="text-2xl font-bold text-navy-800">Hola, {primerNombre}</h1>
+            <p className="text-navy-500 text-sm mt-1">{rolesLabel(perfil)} · Panel general de proyectos</p>
+          </div>
         </div>
         <button onClick={onNewProject} className="flex items-center gap-2 bg-gold-500 hover:bg-gold-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition-colors">
           <Plus className="w-4 h-4" /> Nuevo Proyecto
