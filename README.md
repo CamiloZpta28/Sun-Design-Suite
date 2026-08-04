@@ -34,8 +34,9 @@ Sigue los pasos en orden. No necesitas experiencia previa con Supabase.
 > `supabase/migration_historial.sql`,
 > `supabase/migration_roles_notas_documentos.sql`,
 > `supabase/migration_eliminar_proyectos_solo_lideres.sql`,
-> `supabase/migration_eliminar_usuarios_lider_diseno.sql` y
-> `supabase/migration_solo_lider_diseno_asigna_lideres.sql`. Cada uno agrega
+> `supabase/migration_eliminar_usuarios_lider_diseno.sql`,
+> `supabase/migration_solo_lider_diseno_asigna_lideres.sql` y
+> `supabase/migration_instructivos.sql`. Cada uno agrega
 > solo lo nuevo sin tocar lo que ya tenías. Si no recuerdas si ya corriste
 > alguno, no pasa nada por intentarlo de nuevo: en el peor caso te marcará
 > un error de "ya existe", que puedes ignorar.
@@ -160,6 +161,14 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Instructivos**: cualquier persona con cuenta puede crear, editar y
+  eliminar carpetas y videos (no está restringido a líderes, igual que
+  "Enlaces de Interés"). Solo acepta links de YouTube (`youtube.com/watch`,
+  `youtu.be/`, `/embed/` o `/shorts/`); el video se reproduce embebido en
+  la misma página, sin descargar ni guardar el archivo en ningún lado —
+  sigue viviendo en YouTube. Si más adelante quieres restringir quién
+  puede editarlos, se ajusta en las políticas de `instructivo_carpetas` /
+  `instructivo_videos` en `supabase/schema.sql`.
 - **Código de documentos (Control Documental)**: se genera automáticamente
   a partir de tres campos en la pestaña "General" de cada proyecto
   (departamento abreviado, número de minigranja, número de predio). Si
