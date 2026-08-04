@@ -35,6 +35,24 @@ create table if not exists links (
   created_at timestamptz default now()
 );
 
+-- Instructivos: videos de YouTube (procesos de la etapa de diseño),
+-- organizados en carpetas. Al borrar una carpeta se borran también sus
+-- videos (on delete cascade).
+create table if not exists instructivo_carpetas (
+  id text primary key,
+  nombre text not null,
+  created_at timestamptz default now()
+);
+
+create table if not exists instructivo_videos (
+  id text primary key,
+  carpeta_id text references instructivo_carpetas(id) on delete cascade,
+  titulo text not null,
+  descripcion text,
+  url text not null,
+  created_at timestamptz default now()
+);
+
 -- Roles de cada persona (puede tener varios a la vez, ej. Líder Civil +
 -- Ing. Civil). Solo un líder puede otorgar o quitar roles — ver políticas
 -- más abajo. Es una tabla aparte (no una columna en "profiles") para poder
@@ -75,6 +93,15 @@ create policy "Crear mi propio perfil" on profiles
   for insert with check (auth.uid() = id);
 create policy "Editar mi propio perfil" on profiles
   for update using (auth.uid() = id);
+-- Solo el Líder de Diseño puede eliminar cuentas de otras personas.
+create policy "Solo lider de diseno elimina perfiles" on profiles
+  for delete using (
+    exists (
+      select 1 from user_roles ur
+      where ur.user_id = auth.uid()
+      and ur.role_key in ('lider_diseno','desarrollador')
+    )
+  );
 
 create policy "Lectura de proyectos" on projects
   for select using (auth.role() = 'authenticated');
@@ -82,8 +109,15 @@ create policy "Crear proyectos" on projects
   for insert with check (auth.role() = 'authenticated');
 create policy "Editar proyectos" on projects
   for update using (auth.role() = 'authenticated');
-create policy "Eliminar proyectos" on projects
-  for delete using (auth.role() = 'authenticated');
+-- Solo un líder puede eliminar un proyecto.
+create policy "Eliminar proyectos solo lideres" on projects
+  for delete using (
+    exists (
+      select 1 from user_roles ur
+      where ur.user_id = auth.uid()
+      and ur.role_key in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno','desarrollador')
+    )
+  );
 
 create policy "Lectura de enlaces" on links
   for select using (auth.role() = 'authenticated');
@@ -92,6 +126,26 @@ create policy "Crear enlaces" on links
 create policy "Editar enlaces" on links
   for update using (auth.role() = 'authenticated');
 create policy "Eliminar enlaces" on links
+  for delete using (auth.role() = 'authenticated');
+
+alter table instructivo_carpetas enable row level security;
+create policy "Lectura de carpetas de instructivos" on instructivo_carpetas
+  for select using (auth.role() = 'authenticated');
+create policy "Crear carpetas de instructivos" on instructivo_carpetas
+  for insert with check (auth.role() = 'authenticated');
+create policy "Editar carpetas de instructivos" on instructivo_carpetas
+  for update using (auth.role() = 'authenticated');
+create policy "Eliminar carpetas de instructivos" on instructivo_carpetas
+  for delete using (auth.role() = 'authenticated');
+
+alter table instructivo_videos enable row level security;
+create policy "Lectura de videos de instructivos" on instructivo_videos
+  for select using (auth.role() = 'authenticated');
+create policy "Crear videos de instructivos" on instructivo_videos
+  for insert with check (auth.role() = 'authenticated');
+create policy "Editar videos de instructivos" on instructivo_videos
+  for update using (auth.role() = 'authenticated');
+create policy "Eliminar videos de instructivos" on instructivo_videos
   for delete using (auth.role() = 'authenticated');
 
 alter table activity_log enable row level security;
@@ -107,23 +161,40 @@ alter table user_roles enable row level security;
 create policy "Lectura de roles" on user_roles
   for select using (auth.role() = 'authenticated');
 
--- Solo alguien que YA tiene un rol de líder puede otorgar o quitar roles
--- (a sí mismo o a otra persona). Esto es intencional: nadie puede
--- autoasignarse un rol de liderazgo desde la aplicación.
-create policy "Lideres asignan roles" on user_roles
+-- Cualquier líder puede otorgar/quitar roles técnicos o el de Control de
+-- Calidad. Los roles de líder (incluido Líder de Diseño) solo los puede
+-- otorgar o quitar el propio Líder de Diseño. Nadie puede autoasignarse
+-- un rol de liderazgo desde la aplicación.
+create policy "Asignar roles" on user_roles
   for insert with check (
-    exists (
-      select 1 from user_roles ur
-      where ur.user_id = auth.uid()
-      and ur.role_key in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno')
+    (
+      role_key in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno','desarrollador')
+      and exists (select 1 from user_roles ur where ur.user_id = auth.uid() and ur.role_key in ('lider_diseno','desarrollador'))
+    )
+    or
+    (
+      role_key not in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno','desarrollador')
+      and exists (
+        select 1 from user_roles ur
+        where ur.user_id = auth.uid()
+        and ur.role_key in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno','desarrollador')
+      )
     )
   );
-create policy "Lideres quitan roles" on user_roles
+create policy "Quitar roles" on user_roles
   for delete using (
-    exists (
-      select 1 from user_roles ur
-      where ur.user_id = auth.uid()
-      and ur.role_key in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno')
+    (
+      role_key in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno','desarrollador')
+      and exists (select 1 from user_roles ur where ur.user_id = auth.uid() and ur.role_key in ('lider_diseno','desarrollador'))
+    )
+    or
+    (
+      role_key not in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno','desarrollador')
+      and exists (
+        select 1 from user_roles ur
+        where ur.user_id = auth.uid()
+        and ur.role_key in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno','desarrollador')
+      )
     )
   );
 
