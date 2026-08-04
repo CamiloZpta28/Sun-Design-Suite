@@ -774,7 +774,7 @@ function StatusBadge({ estado, size = 'md' }) {
 
 function Avatar({ name, foto, title, size = 'md' }) {
   if (!name) return null;
-  const sizeClass = size === 'sm' ? 'w-7 h-7 text-xs' : size === 'lg' ? 'w-14 h-14 text-lg' : 'w-9 h-9 text-sm';
+  const sizeClass = size === 'sm' ? 'w-7 h-7 text-xs' : size === 'lg' ? 'w-28 h-28 text-3xl' : 'w-9 h-9 text-sm';
   if (foto) {
     return <img src={foto} alt={name} title={title ? `${title}: ${name}` : name} className={`${sizeClass} rounded-full object-cover border-2 border-white shrink-0`} />;
   }
