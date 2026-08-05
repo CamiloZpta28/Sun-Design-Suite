@@ -125,7 +125,7 @@ const SCHEMA = [
     fields: [
       { key: 'departamento', label: 'Departamento', type: 'departamento' },
       { key: 'municipio', label: 'Municipio', type: 'municipio' },
-      { key: 'pais', label: 'País', type: 'text' },
+      { key: 'pais', label: 'País', type: 'pais' },
       { key: 'inversionista', label: 'Inversionista', type: 'inversionista' },
       { key: 'numero_minigranja', label: 'Número de minigranja (ej. 215)', type: 'text' },
       { key: 'numero_predio', label: 'Número de predio (ej. 1)', type: 'text' },
@@ -990,7 +990,7 @@ function ReadOnlyValue({ label, value, mono = true }) {
   );
 }
 
-function InversionistaPicker({ value, inversionistas, onChange, onAddNew }) {
+function AddableSelect({ value, opciones, onChange, onAddNew, placeholderNuevo, etiquetaAgregar }) {
   const [showAdd, setShowAdd] = useState(false);
   const [nuevo, setNuevo] = useState('');
 
@@ -1022,7 +1022,7 @@ function InversionistaPicker({ value, inversionistas, onChange, onAddNew }) {
             }
             if (e.key === 'Escape') setShowAdd(false);
           }}
-          placeholder="Nombre del nuevo inversionista"
+          placeholder={placeholderNuevo}
           className={baseInput}
         />
         <button type="button" onClick={confirmarNuevo} title="Guardar" className="text-emerald-600 hover:text-emerald-700 shrink-0">
@@ -1035,7 +1035,7 @@ function InversionistaPicker({ value, inversionistas, onChange, onAddNew }) {
     );
   }
 
-  const registrado = !value || inversionistas.includes(value);
+  const registrado = !value || opciones.includes(value);
   return (
     <select
       value={value || ''}
@@ -1049,16 +1049,42 @@ function InversionistaPicker({ value, inversionistas, onChange, onAddNew }) {
       className={baseInput}
     >
       <option value="">Sin definir</option>
-      {inversionistas.map((inv) => (
-        <option key={inv} value={inv}>{inv}</option>
+      {opciones.map((op) => (
+        <option key={op} value={op}>{op}</option>
       ))}
       {!registrado && <option value={value}>{value} (no registrado)</option>}
-      <option value="__nuevo__">+ Agregar nuevo inversionista…</option>
+      <option value="__nuevo__">{etiquetaAgregar}</option>
     </select>
   );
 }
 
-function FieldRenderer({ field, value, editMode, onChange, siblingData, inversionistas, onAddInversionista }) {
+function InversionistaPicker({ value, inversionistas, onChange, onAddNew }) {
+  return (
+    <AddableSelect
+      value={value}
+      opciones={inversionistas}
+      onChange={onChange}
+      onAddNew={onAddNew}
+      placeholderNuevo="Nombre del nuevo inversionista"
+      etiquetaAgregar="+ Agregar nuevo inversionista…"
+    />
+  );
+}
+
+function PaisPicker({ value, paises, onChange, onAddNew }) {
+  return (
+    <AddableSelect
+      value={value}
+      opciones={paises}
+      onChange={onChange}
+      onAddNew={onAddNew}
+      placeholderNuevo="Nombre del nuevo país"
+      etiquetaAgregar="+ Agregar nuevo país…"
+    />
+  );
+}
+
+function FieldRenderer({ field, value, editMode, onChange, siblingData, inversionistas, onAddInversionista, paises, onAddPais }) {
   if (field.type === 'departamento') {
     if (!editMode) return <ReadOnlyValue label={field.label} value={value} mono={false} />;
     return (
@@ -1107,6 +1133,16 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
       <div className="py-1">
         <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
         <InversionistaPicker value={value} inversionistas={inversionistas || []} onChange={onChange} onAddNew={onAddInversionista} />
+      </div>
+    );
+  }
+
+  if (field.type === 'pais') {
+    if (!editMode) return <ReadOnlyValue label={field.label} value={value} mono={false} />;
+    return (
+      <div className="py-1">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
+        <PaisPicker value={value} paises={paises || []} onChange={onChange} onAddNew={onAddPais} />
       </div>
     );
   }
@@ -1240,7 +1276,7 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
   );
 }
 
-function SectionFieldsGrid({ section, data, editMode, onFieldChange, inversionistas, onAddInversionista }) {
+function SectionFieldsGrid({ section, data, editMode, onFieldChange, inversionistas, onAddInversionista, paises, onAddPais }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 divide-y divide-navy-100 md:divide-y-0">
       {section.fields.map((field) => (
@@ -1253,6 +1289,8 @@ function SectionFieldsGrid({ section, data, editMode, onFieldChange, inversionis
             siblingData={data}
             inversionistas={inversionistas}
             onAddInversionista={onAddInversionista}
+            paises={paises}
+            onAddPais={onAddPais}
           />
         </div>
       ))}
@@ -2332,7 +2370,7 @@ function EquipoField({ role, valor, directorio, onChange, readOnly }) {
   return <EquipoSelect role={role} valorActual={valor} directorio={directorio} onChange={onChange} readOnly={readOnly} />;
 }
 
-function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionistas, onAddInversionista }) {
+function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionistas, onAddInversionista, paises, onAddPais }) {
   const puedeGestionar = isLeader(perfil);
   const [form, setForm] = useState({
     nombre: '',
@@ -2421,7 +2459,7 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionista
             </div>
             <div>
               <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">País</label>
-              <input value={form.general.pais} onChange={(e) => setGeneral('pais', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
+              <PaisPicker value={form.general.pais} paises={paises} onChange={(val) => setGeneral('pais', val)} onAddNew={onAddPais} />
             </div>
           </div>
 
@@ -2641,7 +2679,7 @@ function HistorialPanel({ historial, loading, onRefresh }) {
   );
 }
 
-function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, perfil, inversionistas, onAddInversionista }) {
+function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, perfil, inversionistas, onAddInversionista, paises, onAddPais }) {
   const [activeTab, setActiveTab] = useState(SCHEMA[0].id);
   const [editMode, setEditMode] = useState(false);
   const [draftData, setDraftData] = useState(null);
@@ -2982,6 +3020,8 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
                   onFieldChange={handleFieldChange}
                   inversionistas={inversionistas}
                   onAddInversionista={onAddInversionista}
+                  paises={paises}
+                  onAddPais={onAddPais}
                 />
               </>
             )}
@@ -3615,6 +3655,7 @@ export default function App() {
   const [carpetas, setCarpetas] = useState([]);
   const [videos, setVideos] = useState([]);
   const [inversionistas, setInversionistas] = useState([]);
+  const [paises, setPaises] = useState([]);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   const [view, setViewState] = useState('dashboard');
@@ -3707,6 +3748,16 @@ export default function App() {
       setInversionistas(semilla);
     } else {
       setInversionistas(invRows.map((r) => r.nombre));
+    }
+
+    const { data: paisRows } = await supabase.from('paises').select('*').order('created_at', { ascending: true });
+    if (!paisRows || paisRows.length === 0) {
+      await supabase.from('paises').insert({ nombre: 'Colombia' }).then(({ error }) => {
+        if (error) console.error('Error creando país semilla:', error);
+      });
+      setPaises(['Colombia']);
+    } else {
+      setPaises(paisRows.map((r) => r.nombre));
     }
 
     setDataLoaded(true);
@@ -3806,6 +3857,14 @@ export default function App() {
     setInversionistas((prev) => (prev.includes(limpio) ? prev : [...prev, limpio]));
     supabase.from('inversionistas').upsert({ nombre: limpio }).then(({ error }) => {
       if (error) console.error('Error creando inversionista:', error);
+    });
+  }
+  function handleAddPais(nombre) {
+    const limpio = nombre.trim();
+    if (!limpio) return;
+    setPaises((prev) => (prev.includes(limpio) ? prev : [...prev, limpio]));
+    supabase.from('paises').upsert({ nombre: limpio }).then(({ error }) => {
+      if (error) console.error('Error creando país:', error);
     });
   }
   function handleAddCarpeta(nombre) {
@@ -4009,6 +4068,8 @@ export default function App() {
             perfil={perfil}
             inversionistas={inversionistas}
             onAddInversionista={handleAddInversionista}
+            paises={paises}
+            onAddPais={handleAddPais}
           />
         )}
       </main>
@@ -4021,6 +4082,8 @@ export default function App() {
           perfil={perfil}
           inversionistas={inversionistas}
           onAddInversionista={handleAddInversionista}
+          paises={paises}
+          onAddPais={handleAddPais}
         />
       )}
       {showProfileEdit && <ProfileGate initial={perfil} userId={perfil.id} onSaved={handleProfileSaved} onCancel={() => setShowProfileEdit(false)} />}

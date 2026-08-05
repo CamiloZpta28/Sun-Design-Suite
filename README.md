@@ -39,7 +39,8 @@ Sigue los pasos en orden. No necesitas experiencia previa con Supabase.
 > `supabase/migration_instructivos.sql` y
 > `supabase/migration_rol_desarrollador.sql` y
 > `supabase/migration_historial_categoria.sql` y
-> `supabase/migration_inversionistas.sql`. Cada uno agrega
+> `supabase/migration_inversionistas.sql` y
+> `supabase/migration_paises.sql`. Cada uno agrega
 > solo lo nuevo sin tocar lo que ya tenías. Si no recuerdas si ya corriste
 > alguno, no pasa nada por intentarlo de nuevo: en el peor caso te marcará
 > un error de "ya existe", que puedes ignorar.
@@ -176,6 +177,9 @@ ingeniero. Cada persona:
   `src/App.jsx` — no depende de ningún servicio externo ni de internet
   para funcionar. Municipio se habilita después de elegir el
   departamento. Si el DANE actualiza algún nombre, se edita ahí mismo.
+- **Países**: mismo mecanismo que Inversionistas — empieza solo con
+  Colombia (tabla `paises`), y cualquiera puede agregar otro desde el
+  selector el día que haya un proyecto fuera del país.
 - **Inversionistas**: ahora es una lista que vive en la base de datos
   (tabla `inversionistas`), con un botón "+ Agregar nuevo inversionista…"
   directamente en el selector — lo que agregues queda disponible para

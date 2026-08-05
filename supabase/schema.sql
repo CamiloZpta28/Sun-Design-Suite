@@ -61,6 +61,14 @@ create table if not exists inversionistas (
   created_at timestamptz default now()
 );
 
+-- Lista de países disponibles en el selector de "País" (General). Empieza
+-- solo con Colombia; cualquiera puede agregar otro si se necesita para un
+-- proyecto fuera del país.
+create table if not exists paises (
+  nombre text primary key,
+  created_at timestamptz default now()
+);
+
 -- Roles de cada persona (puede tener varios a la vez, ej. Líder Civil +
 -- Ing. Civil). Solo un líder puede otorgar o quitar roles — ver políticas
 -- más abajo. Es una tabla aparte (no una columna en "profiles") para poder
@@ -161,6 +169,12 @@ alter table inversionistas enable row level security;
 create policy "Lectura de inversionistas" on inversionistas
   for select using (auth.role() = 'authenticated');
 create policy "Crear inversionistas" on inversionistas
+  for insert with check (auth.role() = 'authenticated');
+
+alter table paises enable row level security;
+create policy "Lectura de paises" on paises
+  for select using (auth.role() = 'authenticated');
+create policy "Crear paises" on paises
   for insert with check (auth.role() = 'authenticated');
 
 alter table activity_log enable row level security;
