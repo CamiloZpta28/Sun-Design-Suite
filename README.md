@@ -165,19 +165,31 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
-- **Cimentaciones con previsualización** (pestaña Estructural): Shelter,
-  Inversores, Luminarias, CCTV y Postes son pedestales (Ancho × Profundo ×
-  Alto); Cerramiento es un pilote (Diámetro × Alto); Portón es una zapata
-  (mismos 3 campos que un pedestal). Cada uno tiene un "sobresale del
-  terreno" fijo (Shelter 0.50 m, Luminarias 0.10 m, CCTV y Postes 0.05 m,
-  Portón y Cerramiento 0 m; para Inversores no me dieron un valor así que
-  quedó en 0 m — ajústalo en el arreglo `SCHEMA` de `src/App.jsx`, en el
-  campo `desplante` de `dim_ciment_inversores`, si no es el correcto).
-  **Importante:** estos 7 campos cambiaron de texto libre a números
-  estructurados — si algún proyecto ya tenía algo escrito ahí a mano (ej.
-  "3.0 x 6.0 x 0.4 m"), se verá como "Sin definir" y hay que volver a
-  digitarlo con los nuevos campos separados. No fue necesario ningún
-  cambio en Supabase para esto: sigue siendo el mismo campo JSON de
+- **Cimentaciones con previsualización isométrica** (pestaña Estructural):
+  el dibujo ahora es un cubo/cilindro en isométrico (3 caras visibles) para
+  distinguir ancho, profundo y alto de un vistazo. Tres formas:
+  - **Pedestal** (Shelter, Inversores, Luminarias, CCTV, Postes): Ancho ×
+    Profundo.
+  - **Pilote** (Cerramiento): Diámetro.
+  - **Zapata con pedestal** (Portón): Ancho/Profundo de la zapata (A/B) +
+    Ancho/Profundo del pedestal (a/b), como en un plano típico de zapata.
+  En los tres casos, lo que se digita es el **Desplante** (profundidad de
+  fundación bajo el nivel del terreno) y la **Resistencia del concreto**
+  (ya no son campos aparte — se eliminaron `res_conc_*`). Lo que
+  **sobresale** sobre el terreno es fijo por tipo de elemento (Shelter
+  0.50 m, Luminarias 0.10 m, CCTV y Postes 0.05 m, Portón y Cerramiento
+  0 m; Inversores quedó en 0 m porque no me diste ese valor — ajústalo en
+  el campo `sobresale` de `dim_ciment_inversores` en el arreglo `SCHEMA`
+  de `src/App.jsx` si no es el correcto). El "Alto total" ya no se digita:
+  se calcula solo como Desplante + lo que sobresale, y se muestra como
+  dato informativo. También moví `Aa` y `Av` al final de la pestaña, junto
+  con el resto de campos de texto.
+  **Importante:** estos 7 campos (y los 7 `res_conc_*` que se eliminaron)
+  cambiaron de forma — si algún proyecto ya tenía algo escrito ahí a mano
+  (texto libre o los campos viejos de Alto/Resistencia), no se pierde en
+  la base de datos, pero no se va a ver reflejado con la forma nueva y
+  hay que volver a digitarlo con los campos actuales. No fue necesario
+  ningún cambio en Supabase para esto: sigue siendo el mismo campo JSON de
   siempre, solo cambió su forma por dentro.
 - **Código de documentos, formato actualizado**: ahora es
   `COL` + abreviatura de 3 letras del departamento (automática, según el

@@ -187,26 +187,19 @@ const SCHEMA = [
   {
     id: 'estructural', label: 'Estructural', icon: Building2,
     fields: [
-      { key: 'Aa', label: 'Aa', type: 'text' },
-      { key: 'Av', label: 'Av', type: 'text' },
-      { key: 'dim_ciment_shelter', label: 'Dim. cimentación shelter', type: 'cimentacion', forma: 'rectangular', desplante: 0.5 },
-      { key: 'dim_ciment_inversores', label: 'Dim. cimentación inversores', type: 'cimentacion', forma: 'rectangular', desplante: 0 },
-      { key: 'dim_ciment_cerramiento', label: 'Dim. cimentación cerramiento', type: 'cimentacion', forma: 'cilindrica', desplante: 0 },
-      { key: 'dim_ciment_porton', label: 'Dim. cimentación portón', type: 'cimentacion', forma: 'rectangular', desplante: 0 },
-      { key: 'dim_ciment_luminarias', label: 'Dim. cimentación luminarias', type: 'cimentacion', forma: 'rectangular', desplante: 0.1 },
-      { key: 'dim_ciment_cctv', label: 'Dim. cimentación CCTV', type: 'cimentacion', forma: 'rectangular', desplante: 0.05 },
-      { key: 'dim_ciment_postes', label: 'Dim. cimentación postes', type: 'cimentacion', forma: 'rectangular', desplante: 0.05 },
-      { key: 'res_conc_shelter', label: 'Resist. concreto shelter', type: 'text' },
-      { key: 'res_conc_inversores', label: 'Resist. concreto inversores', type: 'text' },
-      { key: 'res_conc_cerramiento', label: 'Resist. concreto cerramiento', type: 'text' },
-      { key: 'res_conc_porton', label: 'Resist. concreto portón', type: 'text' },
-      { key: 'res_conc_luminarias', label: 'Resist. concreto luminarias', type: 'text' },
-      { key: 'res_conc_cctv', label: 'Resist. concreto CCTV', type: 'text' },
-      { key: 'res_conc_postes', label: 'Resist. concreto postes', type: 'text' },
+      { key: 'dim_ciment_shelter', label: 'Dim. cimentación shelter', type: 'cimentacion', forma: 'rectangular', sobresale: 0.5 },
+      { key: 'dim_ciment_inversores', label: 'Dim. cimentación inversores', type: 'cimentacion', forma: 'rectangular', sobresale: 0 },
+      { key: 'dim_ciment_cerramiento', label: 'Dim. cimentación cerramiento', type: 'cimentacion', forma: 'cilindrica', sobresale: 0 },
+      { key: 'dim_ciment_porton', label: 'Dim. cimentación portón', type: 'cimentacion', forma: 'zapata_pedestal', sobresale: 0 },
+      { key: 'dim_ciment_luminarias', label: 'Dim. cimentación luminarias', type: 'cimentacion', forma: 'rectangular', sobresale: 0.1 },
+      { key: 'dim_ciment_cctv', label: 'Dim. cimentación CCTV', type: 'cimentacion', forma: 'rectangular', sobresale: 0.05 },
+      { key: 'dim_ciment_postes', label: 'Dim. cimentación postes', type: 'cimentacion', forma: 'rectangular', sobresale: 0.05 },
       { key: 'tipo_galvanizado', label: 'Tipo de galvanizado', type: 'text' },
       { key: 'esquema_puntado', label: 'Esquema de puntado', type: 'text' },
       { key: 'espec_aceros_pernos', label: 'Especificaciones de aceros y pernos', type: 'text' },
       { key: 'espec_refuerzo', label: 'Especificación de refuerzo', type: 'text' },
+      { key: 'Aa', label: 'Aa', type: 'text' },
+      { key: 'Av', label: 'Av', type: 'text' },
     ],
   },
   {
@@ -323,6 +316,21 @@ function emptyStations() {
   return Array.from({ length: STATION_ROWS }, () => ({ nombre: '', dias: '', peso: '' }));
 }
 
+/* Estructura vacía de una cimentación según su forma:                       */
+/* - rectangular (pedestal simple): ancho, profundo, desplante               */
+/* - cilindrica (pilote): diámetro, desplante                                */
+/* - zapata_pedestal (zapata con pedestal, ej. portón): A/B de la zapata,    */
+/*   a/b del pedestal, y desplante                                           */
+/* "desplante" es lo que digita cada quien (profundidad de fundación); lo    */
+/* que sobresale sobre el terreno es fijo por tipo de elemento (ver SCHEMA). */
+function emptyCimentacion(forma) {
+  if (forma === 'cilindrica') return { diametro: '', desplante: '', resistencia: '' };
+  if (forma === 'zapata_pedestal') {
+    return { ancho_zapata: '', profundo_zapata: '', ancho_pedestal: '', profundo_pedestal: '', desplante: '', resistencia: '' };
+  }
+  return { ancho: '', profundo: '', desplante: '', resistencia: '' };
+}
+
 function emptySchemaData() {
   const obj = {};
   SCHEMA.forEach((section) => {
@@ -330,7 +338,7 @@ function emptySchemaData() {
     section.fields.forEach((f) => {
       if (f.type === 'boolean') obj[section.id][f.key] = { valor: null, nota: '' };
       else if (f.type === 'stations') obj[section.id][f.key] = emptyStations();
-      else if (f.type === 'cimentacion') obj[section.id][f.key] = f.forma === 'cilindrica' ? { diametro: '', alto: '' } : { ancho: '', profundo: '', alto: '' };
+      else if (f.type === 'cimentacion') obj[section.id][f.key] = emptyCimentacion(f.forma);
       else obj[section.id][f.key] = '';
     });
   });
@@ -1089,52 +1097,125 @@ function PaisPicker({ value, paises, onChange, onAddNew }) {
   );
 }
 
-/* Dibujo esquemático de una cimentación (pedestal/zapata rectangular o      */
-/* pilote cilíndrico), con la línea de terreno y la parte que sobresale. No  */
-/* es a escala exacta (tiene límites de tamaño para no deformarse), solo es  */
-/* una previsualización que reacciona a los valores digitados.              */
-function CimentacionPreview({ forma, v, desplante }) {
-  const alto = parseFloat(v.alto) || 0;
-  const anchoODiametro = parseFloat(forma === 'cilindrica' ? v.diametro : v.ancho) || 0;
+/* --- Proyección isométrica simple, para que el ancho/profundo/alto se      */
+/* distingan claramente en la previsualización. x = ancho, y = profundo,    */
+/* z = altura (hacia arriba). Devuelve coordenadas de pantalla [sx, sy].     */
+const ISO_COS = Math.cos(Math.PI / 6); // 30°
+const ISO_SIN = Math.sin(Math.PI / 6);
+function isoPt(x, y, z, ox, oy) {
+  return [ox + (x - y) * ISO_COS, oy + (x + y) * ISO_SIN - z];
+}
+function poly(points) {
+  return points.map((p) => p.join(',')).join(' ');
+}
+/* Dibuja una caja isométrica (3 caras visibles: superior, derecha, frontal) */
+/* entre z0 (abajo) y z1 (arriba), con ancho W y profundo D, centrada en un  */
+/* origen (ox, oy). Colores en 3 tonos para dar sensación de volumen.       */
+function IsoBox({ x0, y0, w, d, z0, z1, ox, oy, colors }) {
+  const top = [
+    isoPt(x0, y0, z1, ox, oy),
+    isoPt(x0 + w, y0, z1, ox, oy),
+    isoPt(x0 + w, y0 + d, z1, ox, oy),
+    isoPt(x0, y0 + d, z1, ox, oy),
+  ];
+  const right = [
+    isoPt(x0 + w, y0, z1, ox, oy),
+    isoPt(x0 + w, y0 + d, z1, ox, oy),
+    isoPt(x0 + w, y0 + d, z0, ox, oy),
+    isoPt(x0 + w, y0, z0, ox, oy),
+  ];
+  const front = [
+    isoPt(x0, y0, z1, ox, oy),
+    isoPt(x0 + w, y0, z1, ox, oy),
+    isoPt(x0 + w, y0, z0, ox, oy),
+    isoPt(x0, y0, z0, ox, oy),
+  ];
+  return (
+    <g>
+      <polygon points={poly(front)} fill={colors[2]} stroke="#59671E" strokeWidth="1" />
+      <polygon points={poly(right)} fill={colors[1]} stroke="#59671E" strokeWidth="1" />
+      <polygon points={poly(top)} fill={colors[0]} stroke="#59671E" strokeWidth="1" />
+    </g>
+  );
+}
 
-  const pxPorMetro = 55;
-  const altoPx = alto > 0 ? Math.max(18, Math.min(120, alto * pxPorMetro)) : 55;
-  const anchoPx = anchoODiametro > 0 ? Math.max(20, Math.min(96, anchoODiametro * pxPorMetro)) : 44;
-  const desplanteReal = Math.min(desplante, alto > 0 ? alto : desplante);
-  const desplantePx = alto > 0 ? (desplanteReal / alto) * altoPx : (desplante > 0 ? 14 : 0);
+/* Dibujo esquemático (isométrico) de una cimentación: pedestal rectangular, */
+/* pilote cilíndrico, o zapata con pedestal (ej. portón). No es a escala     */
+/* exacta (tiene límites para no deformarse), solo es una previsualización  */
+/* que reacciona a los valores digitados. "sobresale" es fijo por tipo de   */
+/* elemento; "desplante" es lo que digita cada quien (profundidad).         */
+function CimentacionPreview({ forma, v, sobresale }) {
+  const m2px = 48;
+  const clampD = (m) => Math.max(16, Math.min(80, m * m2px));
+  const desplanteM = parseFloat(v.desplante) || 0;
+  const totalM = desplanteM + sobresale;
+  const totalPx = totalM > 0 ? clampD(totalM) : 46;
+  const sobresalePx = totalM > 0 ? (sobresale / totalM) * totalPx : (sobresale > 0 ? 12 : 0);
 
-  const svgW = 140;
-  const groundY = 46;
-  const boxTop = groundY - desplantePx;
-  const boxBottom = boxTop + altoPx;
-  const boxLeft = (svgW - anchoPx) / 2;
-  const boxRight = boxLeft + anchoPx;
-  const svgH = boxBottom + 14;
-  const capRy = Math.max(4, anchoPx * 0.16);
+  const svgW = 150;
+  const ox = svgW / 2;
+  const oy = 108; // nivel de terreno en pantalla
+
+  const groundHatch = (
+    <g>
+      <line x1="6" y1={oy} x2={svgW - 6} y2={oy} stroke="#6487C4" strokeWidth="1.2" strokeDasharray="4 3" />
+      {Array.from({ length: 10 }).map((_, i) => (
+        <line key={i} x1={8 + i * ((svgW - 16) / 9)} y1={oy} x2={8 + i * ((svgW - 16) / 9) - 5} y2={oy + 7} stroke="#9BB0D4" strokeWidth="1" />
+      ))}
+    </g>
+  );
+
+  let body = null;
+  let svgH = 150;
+
+  if (forma === 'cilindrica') {
+    const diamPx = clampD(parseFloat(v.diametro) || 0) || 30;
+    const rx = diamPx / 2;
+    const ry = rx * 0.42;
+    const topZ = sobresalePx;
+    const botZ = -(totalPx - sobresalePx);
+    const [cxTop, cyTop] = isoPt(0, 0, topZ, ox, oy);
+    const [, cyBot] = isoPt(0, 0, botZ, ox, oy);
+    body = (
+      <g>
+        <rect x={cxTop - rx} y={cyTop} width={rx * 2} height={Math.max(1, cyBot - cyTop)} fill="#D9FA47" stroke="#59671E" strokeWidth="1" />
+        <ellipse cx={cxTop} cy={cyBot} rx={rx} ry={ry} fill="#9AB620" stroke="#59671E" strokeWidth="1" />
+        <ellipse cx={cxTop} cy={cyTop} rx={rx} ry={ry} fill="#F5FAE1" stroke="#59671E" strokeWidth="1" />
+      </g>
+    );
+    svgH = cyBot + 16;
+  } else if (forma === 'zapata_pedestal') {
+    const A = clampD(parseFloat(v.ancho_zapata) || 0) || 60;
+    const B = clampD(parseFloat(v.profundo_zapata) || 0) || 60;
+    const a = clampD(parseFloat(v.ancho_pedestal) || 0) || 26;
+    const b = clampD(parseFloat(v.profundo_pedestal) || 0) || 26;
+    const zapataH = Math.max(10, totalPx * 0.3);
+    const pedestalH = Math.max(6, totalPx - zapataH);
+    const topZ = sobresalePx;
+    const botZ = topZ - totalPx;
+    const zapataTopZ = botZ + zapataH;
+    body = (
+      <g>
+        <IsoBox x0={-A / 2} y0={-B / 2} w={A} d={B} z0={botZ} z1={zapataTopZ} ox={ox} oy={oy} colors={['#F5FAE1', '#C2E723', '#9AB620']} />
+        <IsoBox x0={-a / 2} y0={-b / 2} w={a} d={b} z0={zapataTopZ} z1={zapataTopZ + pedestalH} ox={ox} oy={oy} colors={['#F5FAE1', '#D9FA47', '#C2E723']} />
+      </g>
+    );
+    const [, yBottomCorner] = isoPt(A / 2, B / 2, botZ, ox, oy);
+    svgH = yBottomCorner + 16;
+  } else {
+    const W = clampD(parseFloat(v.ancho) || 0) || 40;
+    const D = clampD(parseFloat(v.profundo) || 0) || 40;
+    const topZ = sobresalePx;
+    const botZ = topZ - totalPx;
+    body = <IsoBox x0={-W / 2} y0={-D / 2} w={W} d={D} z0={botZ} z1={topZ} ox={ox} oy={oy} colors={['#F5FAE1', '#C2E723', '#9AB620']} />;
+    const [, yBottomCorner] = isoPt(W / 2, D / 2, botZ, ox, oy);
+    svgH = yBottomCorner + 16;
+  }
 
   return (
-    <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-28 h-28">
-      {forma === 'cilindrica' ? (
-        <g>
-          <rect x={boxLeft} y={boxTop + capRy} width={anchoPx} height={Math.max(1, altoPx - capRy)} fill="#EFFAC2" stroke="#758820" strokeWidth="1.5" />
-          <ellipse cx={svgW / 2} cy={boxTop + capRy} rx={anchoPx / 2} ry={capRy} fill="#F5FAE1" stroke="#758820" strokeWidth="1.5" />
-          <path d={`M ${boxLeft} ${boxBottom - capRy} A ${anchoPx / 2} ${capRy} 0 0 0 ${boxRight} ${boxBottom - capRy}`} fill="none" stroke="#758820" strokeWidth="1.2" strokeDasharray="2 2" />
-        </g>
-      ) : (
-        <rect x={boxLeft} y={boxTop} width={anchoPx} height={altoPx} fill="#EFFAC2" stroke="#758820" strokeWidth="1.5" />
-      )}
-      <line x1="2" y1={groundY} x2={svgW - 2} y2={groundY} stroke="#6487C4" strokeWidth="1.3" strokeDasharray="4 3" />
-      {Array.from({ length: 9 }).map((_, i) => (
-        <line
-          key={i}
-          x1={4 + i * ((svgW - 8) / 8)}
-          y1={groundY}
-          x2={4 + i * ((svgW - 8) / 8) - 5}
-          y2={groundY + 8}
-          stroke="#9BB0D4"
-          strokeWidth="1"
-        />
-      ))}
+    <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-32 h-32">
+      {body}
+      {groundHatch}
     </svg>
   );
 }
@@ -1203,23 +1284,30 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
   }
 
   if (field.type === 'cimentacion') {
-    const v = value && typeof value === 'object' && !Array.isArray(value)
-      ? value
-      : (field.forma === 'cilindrica' ? { diametro: '', alto: '' } : { ancho: '', profundo: '', alto: '' });
+    const v = value && typeof value === 'object' && !Array.isArray(value) ? value : emptyCimentacion(field.forma);
+    const totalM = ((parseFloat(v.desplante) || 0) + field.sobresale).toFixed(2);
 
-    const resumen = field.forma === 'cilindrica'
-      ? [v.diametro && `Diámetro: ${v.diametro} m`, v.alto && `Alto: ${v.alto} m`].filter(Boolean).join(' · ')
-      : [v.ancho && `Ancho: ${v.ancho} m`, v.profundo && `Profundo: ${v.profundo} m`, v.alto && `Alto: ${v.alto} m`].filter(Boolean).join(' · ');
+    const resumenPartes = field.forma === 'cilindrica'
+      ? [v.diametro && `Diámetro: ${v.diametro} m`]
+      : field.forma === 'zapata_pedestal'
+        ? [
+            (v.ancho_zapata || v.profundo_zapata) && `Zapata: ${v.ancho_zapata || '—'} × ${v.profundo_zapata || '—'} m`,
+            (v.ancho_pedestal || v.profundo_pedestal) && `Pedestal: ${v.ancho_pedestal || '—'} × ${v.profundo_pedestal || '—'} m`,
+          ]
+        : [(v.ancho || v.profundo) && `${v.ancho || '—'} × ${v.profundo || '—'} m`];
+    if (v.desplante) resumenPartes.push(`Desplante: ${v.desplante} m`);
+    if (v.resistencia) resumenPartes.push(`Concreto: ${v.resistencia}`);
+    const resumen = resumenPartes.filter(Boolean).join(' · ');
 
     if (!editMode) {
       return (
         <div className="py-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-2">{field.label}</p>
           <div className="flex items-center gap-3">
-            <CimentacionPreview forma={field.forma} v={v} desplante={field.desplante} />
+            <CimentacionPreview forma={field.forma} v={v} sobresale={field.sobresale} />
             <div>
               <p className={`text-sm ${resumen ? 'text-navy-700' : 'text-navy-300 italic'}`}>{resumen || 'Sin definir'}</p>
-              <p className="text-xs text-navy-400 mt-1">Sobresale del terreno: {field.desplante} m</p>
+              <p className="text-xs text-navy-400 mt-1">Sobresale del terreno: {field.sobresale} m · Alto total: {totalM} m</p>
             </div>
           </div>
         </div>
@@ -1235,14 +1323,15 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
       <div className="py-1">
         <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-2">{field.label}</label>
         <div className="flex items-start gap-4 flex-wrap">
-          <CimentacionPreview forma={field.forma} v={v} desplante={field.desplante} />
-          <div className="space-y-2 flex-1" style={{ minWidth: 150 }}>
-            {field.forma === 'cilindrica' ? (
+          <CimentacionPreview forma={field.forma} v={v} sobresale={field.sobresale} />
+          <div className="space-y-2 flex-1" style={{ minWidth: 190 }}>
+            {field.forma === 'cilindrica' && (
               <div>
                 <label className="block text-xs text-navy-500 mb-1">Diámetro (m)</label>
                 <input value={v.diametro} onChange={(e) => set('diametro', e.target.value)} placeholder="0.30" className={cellInput} />
               </div>
-            ) : (
+            )}
+            {field.forma === 'rectangular' && (
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs text-navy-500 mb-1">Ancho (m)</label>
@@ -1254,12 +1343,39 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
                 </div>
               </div>
             )}
+            {field.forma === 'zapata_pedestal' && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-navy-500 mb-1">Ancho zapata − A (m)</label>
+                  <input value={v.ancho_zapata} onChange={(e) => set('ancho_zapata', e.target.value)} placeholder="1.00" className={cellInput} />
+                </div>
+                <div>
+                  <label className="block text-xs text-navy-500 mb-1">Profundo zapata − B (m)</label>
+                  <input value={v.profundo_zapata} onChange={(e) => set('profundo_zapata', e.target.value)} placeholder="1.00" className={cellInput} />
+                </div>
+                <div>
+                  <label className="block text-xs text-navy-500 mb-1">Ancho pedestal − a (m)</label>
+                  <input value={v.ancho_pedestal} onChange={(e) => set('ancho_pedestal', e.target.value)} placeholder="0.40" className={cellInput} />
+                </div>
+                <div>
+                  <label className="block text-xs text-navy-500 mb-1">Profundo pedestal − b (m)</label>
+                  <input value={v.profundo_pedestal} onChange={(e) => set('profundo_pedestal', e.target.value)} placeholder="0.40" className={cellInput} />
+                </div>
+              </div>
+            )}
             <div>
-              <label className="block text-xs text-navy-500 mb-1">Alto total (m)</label>
-              <input value={v.alto} onChange={(e) => set('alto', e.target.value)} placeholder="1.00" className={cellInput} />
+              <label className="block text-xs text-navy-500 mb-1">
+                {field.forma === 'zapata_pedestal' ? 'Profundidad de desplante − C (m)' : 'Desplante (m)'}
+              </label>
+              <input value={v.desplante} onChange={(e) => set('desplante', e.target.value)} placeholder="1.00" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Resistencia del concreto</label>
+              <input value={v.resistencia} onChange={(e) => set('resistencia', e.target.value)} placeholder="21 MPa" className={cellInput} />
             </div>
             <p className="text-xs text-navy-400">
-              Sobresale del terreno: <span className="font-mono text-navy-600">{field.desplante} m</span> (fijo para este elemento)
+              Sobresale del terreno: <span className="font-mono text-navy-600">{field.sobresale} m</span> (fijo) · Alto total:{' '}
+              <span className="font-mono text-navy-600">{totalM} m</span>
             </p>
           </div>
         </div>
@@ -1872,15 +1988,24 @@ function PrintableReport({ project }) {
 
                 if (field.type === 'cimentacion') {
                   const v = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
-                  const resumen = field.forma === 'cilindrica'
-                    ? [v.diametro && `Ø ${v.diametro} m`, v.alto && `Alto ${v.alto} m`].filter(Boolean).join(' · ')
-                    : [v.ancho && `Ancho ${v.ancho} m`, v.profundo && `Profundo ${v.profundo} m`, v.alto && `Alto ${v.alto} m`].filter(Boolean).join(' · ');
+                  const totalM = ((parseFloat(v.desplante) || 0) + field.sobresale).toFixed(2);
+                  const partes = field.forma === 'cilindrica'
+                    ? [v.diametro && `Ø ${v.diametro} m`]
+                    : field.forma === 'zapata_pedestal'
+                      ? [
+                          (v.ancho_zapata || v.profundo_zapata) && `Zapata ${v.ancho_zapata || '—'}×${v.profundo_zapata || '—'} m`,
+                          (v.ancho_pedestal || v.profundo_pedestal) && `Pedestal ${v.ancho_pedestal || '—'}×${v.profundo_pedestal || '—'} m`,
+                        ]
+                      : [(v.ancho || v.profundo) && `${v.ancho || '—'}×${v.profundo || '—'} m`];
+                  if (v.desplante) partes.push(`Desplante ${v.desplante} m`);
+                  if (v.resistencia) partes.push(`Concreto ${v.resistencia}`);
+                  const resumen = partes.filter(Boolean).join(' · ');
                   return (
                     <tr key={field.key} className="border-b border-navy-100">
                       <td className="py-1.5 pr-4 text-navy-500 w-1/2 align-top">{field.label}</td>
                       <td className="py-1.5 font-mono text-navy-700 align-top">
                         {resumen || '—'}
-                        <span className="block font-sans text-xs text-navy-500 mt-0.5">Sobresale del terreno: {field.desplante} m</span>
+                        <span className="block font-sans text-xs text-navy-500 mt-0.5">Sobresale del terreno: {field.sobresale} m · Alto total: {totalM} m</span>
                       </td>
                     </tr>
                   );
