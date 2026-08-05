@@ -2312,11 +2312,12 @@ function HistorialItem({ h }) {
 const HISTORIAL_ORDEN = ['nombre', 'estado', 'general', 'civil', 'mecanica', 'geotecnia', 'estructural', 'hidraulico', 'electrico', 'documentos', 'notas', 'archivos'];
 
 function HistorialPanel({ historial, loading, onRefresh }) {
-  const [expandedCats, setExpandedCats] = useState({});
+  const [openCats, setOpenCats] = useState({}); // categoría entera visible o no
+  const [openAnteriores, setOpenAnteriores] = useState({}); // dentro de una categoría abierta, ver también lo viejo
 
   const encabezado = (
     <div className="flex items-center justify-between mb-4">
-      <p className="text-xs text-navy-400">Separado por especialidad · solo se muestra la semana actual por defecto</p>
+      <p className="text-xs text-navy-400">Separado por especialidad · haz clic en una para ver sus cambios</p>
       <button onClick={onRefresh} className="flex items-center gap-1.5 text-xs font-semibold text-lime-600 hover:text-lime-700">
         <RefreshCw className="w-3.5 h-3.5" /> Actualizar
       </button>
@@ -2360,36 +2361,53 @@ function HistorialPanel({ historial, loading, onRefresh }) {
   return (
     <div>
       {encabezado}
-      <div className="space-y-6">
+      <div className="space-y-2">
         {grupos.map((g) => {
           const estaSemana = g.items.filter((h) => new Date(h.created_at) >= inicioSemana);
           const anteriores = g.items.filter((h) => new Date(h.created_at) < inicioSemana);
-          const expandido = !!expandedCats[g.categoria];
+          const abierto = !!openCats[g.categoria];
+          const verAnteriores = !!openAnteriores[g.categoria];
           return (
-            <div key={g.categoria}>
-              <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-2">
-                {categoriaLabel(g.categoria)} <span className="font-normal text-navy-400">({g.items.length})</span>
-              </p>
-              {estaSemana.length === 0 && anteriores.length > 0 && (
-                <p className="text-xs text-navy-400 italic mb-2">Sin cambios esta semana.</p>
-              )}
-              {estaSemana.length > 0 && (
-                <div className="space-y-3 mb-2">
-                  {estaSemana.map((h) => <HistorialItem key={h.id} h={h} />)}
-                </div>
-              )}
-              {anteriores.length > 0 && (
-                <div>
-                  <button
-                    onClick={() => setExpandedCats((prev) => ({ ...prev, [g.categoria]: !prev[g.categoria] }))}
-                    className="flex items-center gap-1 text-xs font-semibold text-navy-500 hover:text-navy-700"
-                  >
-                    {expandido ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-                    {expandido ? 'Ocultar' : 'Ver'} {anteriores.length} cambio{anteriores.length === 1 ? '' : 's'} anterior{anteriores.length === 1 ? '' : 'es'}
-                  </button>
-                  {expandido && (
-                    <div className="space-y-3 mt-2">
-                      {anteriores.map((h) => <HistorialItem key={h.id} h={h} />)}
+            <div key={g.categoria} className="border border-navy-200 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setOpenCats((prev) => ({ ...prev, [g.categoria]: !prev[g.categoria] }))}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2.5 bg-navy-50 hover:bg-navy-100 transition-colors text-left"
+              >
+                <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-navy-600">
+                  {abierto ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
+                  {categoriaLabel(g.categoria)}
+                </span>
+                <span className="text-xs font-medium text-navy-400 shrink-0">
+                  {g.items.length} cambio{g.items.length === 1 ? '' : 's'}
+                </span>
+              </button>
+              {abierto && (
+                <div className="p-3 border-t border-navy-100">
+                  {estaSemana.length === 0 && anteriores.length > 0 && (
+                    <p className="text-xs text-navy-400 italic mb-2">Sin cambios esta semana.</p>
+                  )}
+                  {estaSemana.length === 0 && anteriores.length === 0 && (
+                    <p className="text-xs text-navy-400 italic">Sin cambios.</p>
+                  )}
+                  {estaSemana.length > 0 && (
+                    <div className="space-y-3 mb-2">
+                      {estaSemana.map((h) => <HistorialItem key={h.id} h={h} />)}
+                    </div>
+                  )}
+                  {anteriores.length > 0 && (
+                    <div>
+                      <button
+                        onClick={() => setOpenAnteriores((prev) => ({ ...prev, [g.categoria]: !prev[g.categoria] }))}
+                        className="flex items-center gap-1 text-xs font-semibold text-navy-500 hover:text-navy-700"
+                      >
+                        {verAnteriores ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                        {verAnteriores ? 'Ocultar' : 'Ver'} {anteriores.length} cambio{anteriores.length === 1 ? '' : 's'} anterior{anteriores.length === 1 ? '' : 'es'}
+                      </button>
+                      {verAnteriores && (
+                        <div className="space-y-3 mt-2">
+                          {anteriores.map((h) => <HistorialItem key={h.id} h={h} />)}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
