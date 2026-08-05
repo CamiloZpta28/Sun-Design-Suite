@@ -330,6 +330,13 @@ function emptyCimentacion(forma) {
   }
   return { ancho: '', profundo: '', desplante: '', resistencia: '' };
 }
+/* Altura del pedestal en una zapata con pedestal: lo que queda del total    */
+/* (desplante + lo que sobresale) después de restar el alto de la zapata.   */
+function altoPedestal(v, sobresale) {
+  const totalM = (parseFloat(v.desplante) || 0) + sobresale;
+  const altoZapataM = parseFloat(v.alto_zapata) || 0;
+  return Math.max(0, totalM - altoZapataM);
+}
 
 function emptySchemaData() {
   const obj = {};
@@ -1360,9 +1367,10 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
       ? [v.diametro && `Diámetro: ${v.diametro} m`]
       : field.forma === 'zapata_pedestal'
         ? [
-            (v.ancho_zapata || v.profundo_zapata) && `Zapata: ${v.ancho_zapata || '—'} × ${v.profundo_zapata || '—'} m`,
-            v.alto_zapata && `Alto zapata: ${v.alto_zapata} m`,
-            (v.ancho_pedestal || v.profundo_pedestal) && `Pedestal: ${v.ancho_pedestal || '—'} × ${v.profundo_pedestal || '—'} m`,
+            (v.ancho_zapata || v.profundo_zapata || v.alto_zapata) &&
+              `Zapata ${v.ancho_zapata || '—'} × ${v.profundo_zapata || '—'} × ${v.alto_zapata || '—'} m`,
+            (v.ancho_pedestal || v.profundo_pedestal) &&
+              `Pedestal ${v.ancho_pedestal || '—'} × ${v.profundo_pedestal || '—'} × ${altoPedestal(v, field.sobresale).toFixed(2)} m`,
           ]
         : [(v.ancho || v.profundo) && `${v.ancho || '—'} × ${v.profundo || '—'} m`];
     if (v.desplante) resumenPartes.push(`Desplante: ${v.desplante} m`);
@@ -1416,11 +1424,11 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
             {field.forma === 'zapata_pedestal' && (
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs text-navy-500 mb-1">Ancho zapata − A (m)</label>
+                  <label className="block text-xs text-navy-500 mb-1">Ancho zapata (m)</label>
                   <input value={v.ancho_zapata} onChange={(e) => set('ancho_zapata', e.target.value)} placeholder="1.00" className={cellInput} />
                 </div>
                 <div>
-                  <label className="block text-xs text-navy-500 mb-1">Profundo zapata − B (m)</label>
+                  <label className="block text-xs text-navy-500 mb-1">Profundo zapata (m)</label>
                   <input value={v.profundo_zapata} onChange={(e) => set('profundo_zapata', e.target.value)} placeholder="1.00" className={cellInput} />
                 </div>
                 <div className="col-span-2">
@@ -1428,18 +1436,18 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
                   <input value={v.alto_zapata} onChange={(e) => set('alto_zapata', e.target.value)} placeholder="0.30" className={cellInput} />
                 </div>
                 <div>
-                  <label className="block text-xs text-navy-500 mb-1">Ancho pedestal − a (m)</label>
+                  <label className="block text-xs text-navy-500 mb-1">Ancho pedestal (m)</label>
                   <input value={v.ancho_pedestal} onChange={(e) => set('ancho_pedestal', e.target.value)} placeholder="0.40" className={cellInput} />
                 </div>
                 <div>
-                  <label className="block text-xs text-navy-500 mb-1">Profundo pedestal − b (m)</label>
+                  <label className="block text-xs text-navy-500 mb-1">Profundo pedestal (m)</label>
                   <input value={v.profundo_pedestal} onChange={(e) => set('profundo_pedestal', e.target.value)} placeholder="0.40" className={cellInput} />
                 </div>
               </div>
             )}
             <div>
               <label className="block text-xs text-navy-500 mb-1">
-                {field.forma === 'zapata_pedestal' ? 'Profundidad de desplante − C (m)' : 'Desplante (m)'}
+                {field.forma === 'zapata_pedestal' ? 'Profundidad de desplante (m)' : 'Desplante (m)'}
               </label>
               <input value={v.desplante} onChange={(e) => set('desplante', e.target.value)} placeholder="1.00" className={cellInput} />
             </div>
@@ -2067,9 +2075,10 @@ function PrintableReport({ project }) {
                     ? [v.diametro && `Ø ${v.diametro} m`]
                     : field.forma === 'zapata_pedestal'
                       ? [
-                          (v.ancho_zapata || v.profundo_zapata) && `Zapata ${v.ancho_zapata || '—'}×${v.profundo_zapata || '—'} m`,
-                          v.alto_zapata && `Alto zapata ${v.alto_zapata} m`,
-                          (v.ancho_pedestal || v.profundo_pedestal) && `Pedestal ${v.ancho_pedestal || '—'}×${v.profundo_pedestal || '—'} m`,
+                          (v.ancho_zapata || v.profundo_zapata || v.alto_zapata) &&
+                            `Zapata ${v.ancho_zapata || '—'}×${v.profundo_zapata || '—'}×${v.alto_zapata || '—'} m`,
+                          (v.ancho_pedestal || v.profundo_pedestal) &&
+                            `Pedestal ${v.ancho_pedestal || '—'}×${v.profundo_pedestal || '—'}×${altoPedestal(v, field.sobresale).toFixed(2)} m`,
                         ]
                       : [(v.ancho || v.profundo) && `${v.ancho || '—'}×${v.profundo || '—'} m`];
                   if (v.desplante) partes.push(`Desplante ${v.desplante} m`);
