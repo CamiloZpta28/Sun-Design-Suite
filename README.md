@@ -165,6 +165,20 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Cimentaciones con previsualización** (pestaña Estructural): Shelter,
+  Inversores, Luminarias, CCTV y Postes son pedestales (Ancho × Profundo ×
+  Alto); Cerramiento es un pilote (Diámetro × Alto); Portón es una zapata
+  (mismos 3 campos que un pedestal). Cada uno tiene un "sobresale del
+  terreno" fijo (Shelter 0.50 m, Luminarias 0.10 m, CCTV y Postes 0.05 m,
+  Portón y Cerramiento 0 m; para Inversores no me dieron un valor así que
+  quedó en 0 m — ajústalo en el arreglo `SCHEMA` de `src/App.jsx`, en el
+  campo `desplante` de `dim_ciment_inversores`, si no es el correcto).
+  **Importante:** estos 7 campos cambiaron de texto libre a números
+  estructurados — si algún proyecto ya tenía algo escrito ahí a mano (ej.
+  "3.0 x 6.0 x 0.4 m"), se verá como "Sin definir" y hay que volver a
+  digitarlo con los nuevos campos separados. No fue necesario ningún
+  cambio en Supabase para esto: sigue siendo el mismo campo JSON de
+  siempre, solo cambió su forma por dentro.
 - **Código de documentos, formato actualizado**: ahora es
   `COL` + abreviatura de 3 letras del departamento (automática, según el
   departamento elegido en el selector) + `T` (terreno, fija) + número de

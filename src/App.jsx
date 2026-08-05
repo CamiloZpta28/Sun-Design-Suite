@@ -189,13 +189,13 @@ const SCHEMA = [
     fields: [
       { key: 'Aa', label: 'Aa', type: 'text' },
       { key: 'Av', label: 'Av', type: 'text' },
-      { key: 'dim_ciment_shelter', label: 'Dim. cimentación shelter', type: 'text' },
-      { key: 'dim_ciment_inversores', label: 'Dim. cimentación inversores', type: 'text' },
-      { key: 'dim_ciment_cerramiento', label: 'Dim. cimentación cerramiento', type: 'text' },
-      { key: 'dim_ciment_porton', label: 'Dim. cimentación portón', type: 'text' },
-      { key: 'dim_ciment_luminarias', label: 'Dim. cimentación luminarias', type: 'text' },
-      { key: 'dim_ciment_cctv', label: 'Dim. cimentación CCTV', type: 'text' },
-      { key: 'dim_ciment_postes', label: 'Dim. cimentación postes', type: 'text' },
+      { key: 'dim_ciment_shelter', label: 'Dim. cimentación shelter', type: 'cimentacion', forma: 'rectangular', desplante: 0.5 },
+      { key: 'dim_ciment_inversores', label: 'Dim. cimentación inversores', type: 'cimentacion', forma: 'rectangular', desplante: 0 },
+      { key: 'dim_ciment_cerramiento', label: 'Dim. cimentación cerramiento', type: 'cimentacion', forma: 'cilindrica', desplante: 0 },
+      { key: 'dim_ciment_porton', label: 'Dim. cimentación portón', type: 'cimentacion', forma: 'rectangular', desplante: 0 },
+      { key: 'dim_ciment_luminarias', label: 'Dim. cimentación luminarias', type: 'cimentacion', forma: 'rectangular', desplante: 0.1 },
+      { key: 'dim_ciment_cctv', label: 'Dim. cimentación CCTV', type: 'cimentacion', forma: 'rectangular', desplante: 0.05 },
+      { key: 'dim_ciment_postes', label: 'Dim. cimentación postes', type: 'cimentacion', forma: 'rectangular', desplante: 0.05 },
       { key: 'res_conc_shelter', label: 'Resist. concreto shelter', type: 'text' },
       { key: 'res_conc_inversores', label: 'Resist. concreto inversores', type: 'text' },
       { key: 'res_conc_cerramiento', label: 'Resist. concreto cerramiento', type: 'text' },
@@ -330,6 +330,7 @@ function emptySchemaData() {
     section.fields.forEach((f) => {
       if (f.type === 'boolean') obj[section.id][f.key] = { valor: null, nota: '' };
       else if (f.type === 'stations') obj[section.id][f.key] = emptyStations();
+      else if (f.type === 'cimentacion') obj[section.id][f.key] = f.forma === 'cilindrica' ? { diametro: '', alto: '' } : { ancho: '', profundo: '', alto: '' };
       else obj[section.id][f.key] = '';
     });
   });
@@ -451,6 +452,10 @@ function diffSectionData(section, before, after) {
     } else if (field.type === 'stations') {
       if (JSON.stringify(b || []) !== JSON.stringify(a || [])) {
         cambios.push(`${field.label}: se actualizó la tabla de estaciones`);
+      }
+    } else if (field.type === 'cimentacion') {
+      if (JSON.stringify(b || {}) !== JSON.stringify(a || {})) {
+        cambios.push(`${field.label}: se actualizaron las dimensiones`);
       }
     } else if ((b || '') !== (a || '')) {
       cambios.push(`${field.label}: "${b || '—'}" → "${a || '—'}"`);
@@ -1084,6 +1089,56 @@ function PaisPicker({ value, paises, onChange, onAddNew }) {
   );
 }
 
+/* Dibujo esquemático de una cimentación (pedestal/zapata rectangular o      */
+/* pilote cilíndrico), con la línea de terreno y la parte que sobresale. No  */
+/* es a escala exacta (tiene límites de tamaño para no deformarse), solo es  */
+/* una previsualización que reacciona a los valores digitados.              */
+function CimentacionPreview({ forma, v, desplante }) {
+  const alto = parseFloat(v.alto) || 0;
+  const anchoODiametro = parseFloat(forma === 'cilindrica' ? v.diametro : v.ancho) || 0;
+
+  const pxPorMetro = 55;
+  const altoPx = alto > 0 ? Math.max(18, Math.min(120, alto * pxPorMetro)) : 55;
+  const anchoPx = anchoODiametro > 0 ? Math.max(20, Math.min(96, anchoODiametro * pxPorMetro)) : 44;
+  const desplanteReal = Math.min(desplante, alto > 0 ? alto : desplante);
+  const desplantePx = alto > 0 ? (desplanteReal / alto) * altoPx : (desplante > 0 ? 14 : 0);
+
+  const svgW = 140;
+  const groundY = 46;
+  const boxTop = groundY - desplantePx;
+  const boxBottom = boxTop + altoPx;
+  const boxLeft = (svgW - anchoPx) / 2;
+  const boxRight = boxLeft + anchoPx;
+  const svgH = boxBottom + 14;
+  const capRy = Math.max(4, anchoPx * 0.16);
+
+  return (
+    <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-28 h-28">
+      {forma === 'cilindrica' ? (
+        <g>
+          <rect x={boxLeft} y={boxTop + capRy} width={anchoPx} height={Math.max(1, altoPx - capRy)} fill="#EFFAC2" stroke="#758820" strokeWidth="1.5" />
+          <ellipse cx={svgW / 2} cy={boxTop + capRy} rx={anchoPx / 2} ry={capRy} fill="#F5FAE1" stroke="#758820" strokeWidth="1.5" />
+          <path d={`M ${boxLeft} ${boxBottom - capRy} A ${anchoPx / 2} ${capRy} 0 0 0 ${boxRight} ${boxBottom - capRy}`} fill="none" stroke="#758820" strokeWidth="1.2" strokeDasharray="2 2" />
+        </g>
+      ) : (
+        <rect x={boxLeft} y={boxTop} width={anchoPx} height={altoPx} fill="#EFFAC2" stroke="#758820" strokeWidth="1.5" />
+      )}
+      <line x1="2" y1={groundY} x2={svgW - 2} y2={groundY} stroke="#6487C4" strokeWidth="1.3" strokeDasharray="4 3" />
+      {Array.from({ length: 9 }).map((_, i) => (
+        <line
+          key={i}
+          x1={4 + i * ((svgW - 8) / 8)}
+          y1={groundY}
+          x2={4 + i * ((svgW - 8) / 8) - 5}
+          y2={groundY + 8}
+          stroke="#9BB0D4"
+          strokeWidth="1"
+        />
+      ))}
+    </svg>
+  );
+}
+
 function FieldRenderer({ field, value, editMode, onChange, siblingData, inversionistas, onAddInversionista, paises, onAddPais }) {
   if (field.type === 'departamento') {
     if (!editMode) return <ReadOnlyValue label={field.label} value={value} mono={false} />;
@@ -1143,6 +1198,71 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
       <div className="py-1">
         <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
         <PaisPicker value={value} paises={paises || []} onChange={onChange} onAddNew={onAddPais} />
+      </div>
+    );
+  }
+
+  if (field.type === 'cimentacion') {
+    const v = value && typeof value === 'object' && !Array.isArray(value)
+      ? value
+      : (field.forma === 'cilindrica' ? { diametro: '', alto: '' } : { ancho: '', profundo: '', alto: '' });
+
+    const resumen = field.forma === 'cilindrica'
+      ? [v.diametro && `Diámetro: ${v.diametro} m`, v.alto && `Alto: ${v.alto} m`].filter(Boolean).join(' · ')
+      : [v.ancho && `Ancho: ${v.ancho} m`, v.profundo && `Profundo: ${v.profundo} m`, v.alto && `Alto: ${v.alto} m`].filter(Boolean).join(' · ');
+
+    if (!editMode) {
+      return (
+        <div className="py-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-2">{field.label}</p>
+          <div className="flex items-center gap-3">
+            <CimentacionPreview forma={field.forma} v={v} desplante={field.desplante} />
+            <div>
+              <p className={`text-sm ${resumen ? 'text-navy-700' : 'text-navy-300 italic'}`}>{resumen || 'Sin definir'}</p>
+              <p className="text-xs text-navy-400 mt-1">Sobresale del terreno: {field.desplante} m</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function set(key, val) {
+      onChange({ ...v, [key]: val });
+    }
+    const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+
+    return (
+      <div className="py-1">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-2">{field.label}</label>
+        <div className="flex items-start gap-4 flex-wrap">
+          <CimentacionPreview forma={field.forma} v={v} desplante={field.desplante} />
+          <div className="space-y-2 flex-1" style={{ minWidth: 150 }}>
+            {field.forma === 'cilindrica' ? (
+              <div>
+                <label className="block text-xs text-navy-500 mb-1">Diámetro (m)</label>
+                <input value={v.diametro} onChange={(e) => set('diametro', e.target.value)} placeholder="0.30" className={cellInput} />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-navy-500 mb-1">Ancho (m)</label>
+                  <input value={v.ancho} onChange={(e) => set('ancho', e.target.value)} placeholder="0.40" className={cellInput} />
+                </div>
+                <div>
+                  <label className="block text-xs text-navy-500 mb-1">Profundo (m)</label>
+                  <input value={v.profundo} onChange={(e) => set('profundo', e.target.value)} placeholder="0.40" className={cellInput} />
+                </div>
+              </div>
+            )}
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Alto total (m)</label>
+              <input value={v.alto} onChange={(e) => set('alto', e.target.value)} placeholder="1.00" className={cellInput} />
+            </div>
+            <p className="text-xs text-navy-400">
+              Sobresale del terreno: <span className="font-mono text-navy-600">{field.desplante} m</span> (fijo para este elemento)
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -1280,7 +1400,7 @@ function SectionFieldsGrid({ section, data, editMode, onFieldChange, inversionis
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 divide-y divide-navy-100 md:divide-y-0">
       {section.fields.map((field) => (
-        <div key={field.key} className={field.type === 'stations' ? 'col-span-full' : ''}>
+        <div key={field.key} className={field.type === 'stations' || field.type === 'cimentacion' ? 'col-span-full' : ''}>
           <FieldRenderer
             field={field}
             value={data ? data[field.key] : undefined}
@@ -1745,6 +1865,22 @@ function PrintableReport({ project }) {
                             </tbody>
                           </table>
                         )}
+                      </td>
+                    </tr>
+                  );
+                }
+
+                if (field.type === 'cimentacion') {
+                  const v = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+                  const resumen = field.forma === 'cilindrica'
+                    ? [v.diametro && `Ø ${v.diametro} m`, v.alto && `Alto ${v.alto} m`].filter(Boolean).join(' · ')
+                    : [v.ancho && `Ancho ${v.ancho} m`, v.profundo && `Profundo ${v.profundo} m`, v.alto && `Alto ${v.alto} m`].filter(Boolean).join(' · ');
+                  return (
+                    <tr key={field.key} className="border-b border-navy-100">
+                      <td className="py-1.5 pr-4 text-navy-500 w-1/2 align-top">{field.label}</td>
+                      <td className="py-1.5 font-mono text-navy-700 align-top">
+                        {resumen || '—'}
+                        <span className="block font-sans text-xs text-navy-500 mt-0.5">Sobresale del terreno: {field.desplante} m</span>
                       </td>
                     </tr>
                   );
