@@ -326,7 +326,7 @@ function emptyStations() {
 function emptyCimentacion(forma) {
   if (forma === 'cilindrica') return { diametro: '', desplante: '', resistencia: '' };
   if (forma === 'zapata_pedestal') {
-    return { ancho_zapata: '', profundo_zapata: '', ancho_pedestal: '', profundo_pedestal: '', desplante: '', resistencia: '' };
+    return { ancho_zapata: '', profundo_zapata: '', alto_zapata: '', ancho_pedestal: '', profundo_pedestal: '', desplante: '', resistencia: '' };
   }
   return { ancho: '', profundo: '', desplante: '', resistencia: '' };
 }
@@ -1199,7 +1199,6 @@ function NtnMarker({ x, y, z, ox, oy }) {
   return (
     <g>
       <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#3C64AA" strokeWidth="1.2" />
-      <line x1={x1} y1={y1} x2={x1 - 10} y2={y1 + 10} stroke="#3C64AA" strokeWidth="1.2" />
       <text x={x2 - 3} y={y2 - 3} fontSize="9" fill="#3C64AA" textAnchor="end" fontFamily="monospace">N.T.N</text>
     </g>
   );
@@ -1252,8 +1251,11 @@ function CimentacionPreview({ forma, v, sobresale }) {
     const B = dim(v.profundo_zapata, 1.2);
     const a = dim(v.ancho_pedestal, 0.5);
     const b = dim(v.profundo_pedestal, 0.5);
-    const zapataH = Math.max(10, totalPx * 0.3);
-    const pedestalH = Math.max(6, totalPx - zapataH);
+    const altoZapataM = parseFloat(v.alto_zapata) || 0.3;
+    const pedestalAltoM = Math.max(0.05, totalM - altoZapataM);
+    const effScale = totalM > 0 ? totalPx / totalM : m2px;
+    const zapataH = Math.max(6, altoZapataM * effScale);
+    const pedestalH = Math.max(6, pedestalAltoM * effScale);
     const topZ = sobresalePx;
     const botZ = topZ - totalPx;
     const zapataTopZ = botZ + zapataH;
@@ -1359,6 +1361,7 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
       : field.forma === 'zapata_pedestal'
         ? [
             (v.ancho_zapata || v.profundo_zapata) && `Zapata: ${v.ancho_zapata || '—'} × ${v.profundo_zapata || '—'} m`,
+            v.alto_zapata && `Alto zapata: ${v.alto_zapata} m`,
             (v.ancho_pedestal || v.profundo_pedestal) && `Pedestal: ${v.ancho_pedestal || '—'} × ${v.profundo_pedestal || '—'} m`,
           ]
         : [(v.ancho || v.profundo) && `${v.ancho || '—'} × ${v.profundo || '—'} m`];
@@ -1419,6 +1422,10 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
                 <div>
                   <label className="block text-xs text-navy-500 mb-1">Profundo zapata − B (m)</label>
                   <input value={v.profundo_zapata} onChange={(e) => set('profundo_zapata', e.target.value)} placeholder="1.00" className={cellInput} />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs text-navy-500 mb-1">Alto de zapata (m)</label>
+                  <input value={v.alto_zapata} onChange={(e) => set('alto_zapata', e.target.value)} placeholder="0.30" className={cellInput} />
                 </div>
                 <div>
                   <label className="block text-xs text-navy-500 mb-1">Ancho pedestal − a (m)</label>
@@ -2061,6 +2068,7 @@ function PrintableReport({ project }) {
                     : field.forma === 'zapata_pedestal'
                       ? [
                           (v.ancho_zapata || v.profundo_zapata) && `Zapata ${v.ancho_zapata || '—'}×${v.profundo_zapata || '—'} m`,
+                          v.alto_zapata && `Alto zapata ${v.alto_zapata} m`,
                           (v.ancho_pedestal || v.profundo_pedestal) && `Pedestal ${v.ancho_pedestal || '—'}×${v.profundo_pedestal || '—'} m`,
                         ]
                       : [(v.ancho || v.profundo) && `${v.ancho || '—'}×${v.profundo || '—'} m`];
