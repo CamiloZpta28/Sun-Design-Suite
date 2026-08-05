@@ -123,11 +123,10 @@ const SCHEMA = [
   {
     id: 'general', label: 'General', icon: MapPin,
     fields: [
-      { key: 'municipio', label: 'Municipio', type: 'text' },
-      { key: 'departamento', label: 'Departamento', type: 'text' },
+      { key: 'departamento', label: 'Departamento', type: 'departamento' },
+      { key: 'municipio', label: 'Municipio', type: 'municipio' },
       { key: 'pais', label: 'País', type: 'text' },
-      { key: 'inversionista', label: 'Inversionista', type: 'text' },
-      { key: 'codigo_departamento', label: 'Departamento (abrev. p/código, ej. SANT)', type: 'text' },
+      { key: 'inversionista', label: 'Inversionista', type: 'inversionista' },
       { key: 'numero_minigranja', label: 'Número de minigranja (ej. 215)', type: 'text' },
       { key: 'numero_predio', label: 'Número de predio (ej. 1)', type: 'text' },
       { key: 'magna_sirgas', label: 'Coord. MAGNA-SIRGAS (Bogotá)', type: 'text' },
@@ -236,6 +235,81 @@ const SCHEMA = [
     ],
   },
 ];
+
+/* Departamentos y municipios de Colombia (fuente: DIVIPOLA/DANE), para los
+   selectores de Municipio/Departamento y para derivar la abreviatura de 3
+   letras usada en el código documental (ej. Boyacá -> BOY).             */
+const COLOMBIA = [
+  { nombre: "Amazonas", municipios: ["El Encanto","La Chorrera","La Pedrera","La Victoria","Leticia","Mirití-Paraná","Puerto Alegría","Puerto Arica","Puerto Nariño","Puerto Santander","Tarapacá"] },
+  { nombre: "Antioquia", municipios: ["Abejorral","Abriaquí","Alejandría","Amagá","Amalfi","Andes","Angelópolis","Angostura","Anorí","Anzá","Apartadó","Arboletes","Argelia","Armenia","Barbosa","Bello","Belmira","Betania","Betulia","Briceño","Buriticá","Cáceres","Caicedo","Caldas","Campamento","Cañasgordas","Caracolí","Caramanta","Carepa","Carmen de Viboral","Carolina del Príncipe","Caucasia","Chigorodó","Cisneros","Ciudad Bolívar","Cocorná","Concepción","Concordia","Copacabana","Dabeiba","Donmatías","Ebéjico","El Bagre","El Peñol","El Retiro","Entrerríos","Envigado","Fredonia","Frontino","Giraldo","Girardota","Gómez Plata","Granada","Guadalupe","Guarne","Guatapé","Heliconia","Hispania","Itagüí","Ituango","Jardín","Jericó","La Ceja","La Estrella","La Pintada","La Unión","Liborina","Maceo","Marinilla","Medellín","Montebello","Murindó","Mutatá","Nariño","Nechí","Necoclí","Olaya","Peque","Pueblorrico","Puerto Berrío","Puerto Nare","Puerto Triunfo","Remedios","Rionegro","Sabanalarga","Sabaneta","Salgar","San Andrés de Cuerquia","San Carlos","San Francisco","San Jerónimo","San José de la Montaña","San Juan de Urabá","San Luis","San Pedro de los Milagros","San Pedro de Urabá","San Rafael","San Roque","San Vicente Ferrer","Santa Bárbara","Santa Fe de Antioquia","Santa Rosa de Osos","Santo Domingo","Santuario","Segovia","Sonsón","Sopetrán","Támesis","Tarazá","Tarso","Titiribí","Toledo","Turbo","Uramita","Urrao","Valdivia","Valparaíso","Vegachí","Venecia","Yalí","Yarumal","Yolombó","Yondó","Zaragoza"] },
+  { nombre: "Arauca", municipios: ["Arauca","Arauquita","Cravo Norte","Fortul","Puerto Rondón","Saravena","Tame"] },
+  { nombre: "Atlántico", municipios: ["Baranoa","Barranquilla","Campo de la Cruz","Candelaria","Galapa","Juan de Acosta","Luruaco","Malambo","Manatí","Palmar de Varela","Piojó","Polonuevo","Ponedera","Puerto Colombia","Repelón","Sabanagrande","Sabanalarga","Santa Lucía","Santo Tomás","Soledad","Suan","Tubará","Usiacurí"] },
+  { nombre: "Bogotá D.C.", municipios: ["Bogotá"] },
+  { nombre: "Bolívar", municipios: ["Achí","Altos del Rosario","Arenal","Arjona","Arroyohondo","Barranco de Loba","Calamar","Cantagallo","Cartagena de Indias","Cicuco","Clemencia","Córdoba","El Carmen de Bolívar","El Guamo","El Peñón","Hatillo de Loba","Magangué","Mahates","Margarita","María La Baja","Mompox","Montecristo","Morales","Norosí","Pinillos","Regidor","Río Viejo","San Cristóbal","San Estanislao","San Fernando","San Jacinto","San Jacinto del Cauca","San Juan Nepomuceno","San Martín de Loba","San Pablo","Santa Catalina","Santa Rosa","Santa Rosa del Sur","Simití","Soplaviento","Talaigua Nuevo","Tiquisio","Turbaco","Turbana","Villanueva","Zambrano"] },
+  { nombre: "Boyacá", municipios: ["Almeida","Aquitania","Arcabuco","Belén","Berbeo","Betéitiva","Boavita","Boyacá","Briceño","Buenavista","Caldas","Campohermoso","Cerinza","Chinavita","Chiquinquirá","Chíquiza","Chiscas","Chita","Chitaraque","Chivatá","Chivor","Ciénega","Cómbita","Coper","Corrales","Covarachía","Cubará","Cucaita","Cuítiva","Duitama","El Cocuy","El Espino","Firavitoba","Floresta","Gachantivá","Gámeza","Garagoa","Guacamayas","Guateque","Guayatá","Güicán","Iza","Jenesano","Jericó","La Capilla","La Uvita","La Victoria","Labranzagrande","Macanal","Maripí","Miraflores","Mongua","Monguí","Moniquirá","Motavita","Muzo","Nobsa","Nuevo Colón","Oicatá","Otanche","Pachavita","Páez","Paipa","Pajarito","Panqueba","Pauna","Paya","Paz de Río","Pesca","Pisba","Puerto Boyacá","Quípama","Ramiriquí","Ráquira","Rondón","Saboyá","Sáchica","Samacá","San Eduardo","San José de Pare","San Luis de Gaceno","San Mateo","San Miguel de Sema","San Pablo de Borbur","Santa María","Santa Rosa de Viterbo","Santa Sofía","Santana","Sativanorte","Sativasur","Siachoque","Soatá","Socha","Socotá","Sogamoso","Somondoco","Sora","Soracá","Sotaquirá","Susacón","Sutamarchán","Sutatenza","Tasco","Tenza","Tibaná","Tibasosa","Tinjacá","Tipacoque","Toca","Togüí","Tópaga","Tota","Tunja","Tununguá","Turmequé","Tuta","Tutazá","Úmbita","Ventaquemada","Villa de Leyva","Viracachá","Zetaquirá"] },
+  { nombre: "Caldas", municipios: ["Aguadas","Anserma","Aranzazu","Belalcázar","Chinchiná","Filadelfia","La Dorada","La Merced","Manizales","Manzanares","Marmato","Marquetalia","Marulanda","Neira","Norcasia","Pácora","Palestina","Pensilvania","Riosucio","Risaralda","Salamina","Samaná","San José","Supía","Victoria","Villamaría","Viterbo"] },
+  { nombre: "Caquetá", municipios: ["Albania","Belén de los Andaquíes","Cartagena del Chairá","Curillo","El Doncello","El Paujil","Florencia","La Montañita","Milán","Morelia","Puerto Rico","San José del Fragua","San Vicente del Caguán","Solano","Solita","Valparaíso"] },
+  { nombre: "Casanare", municipios: ["Aguazul","Chámeza","Hato Corozal","La Salina","Maní","Monterrey","Nunchía","Orocué","Paz de Ariporo","Pore","Recetor","Sabanalarga","Sácama","San Luis de Palenque","Támara","Tauramena","Trinidad","Villanueva","Yopal"] },
+  { nombre: "Cauca", municipios: ["Almaguer","Argelia","Balboa","Bolívar","Buenos Aires","Cajibío","Caldono","Caloto","Corinto","El Tambo","Florencia","Guachené","Guapí","Inzá","Jambaló","La Sierra","La Vega","López de Micay","Mercaderes","Miranda","Morales","Padilla","Páez","Patía","Piamonte","Piendamó","Popayán","Puerto Tejada","Puracé","Rosas","San Sebastián","Santa Rosa","Santander de Quilichao","Silvia","Sotará","Suárez","Sucre","Timbío","Timbiquí","Toribío","Totoró","Villa Rica"] },
+  { nombre: "Cesar", municipios: ["Aguachica","Agustín Codazzi","Astrea","Becerril","Bosconia","Chimichagua","Chiriguaná","Curumaní","El Copey","El Paso","Gamarra","González","La Gloria","La Jagua de Ibirico","La Paz","Manaure","Pailitas","Pelaya","Pueblo Bello","Río de Oro","San Alberto","San Diego","San Martín","Tamalameque","Valledupar"] },
+  { nombre: "Chocó", municipios: ["Acandí","Alto Baudó","Atrato","Bagadó","Bahía Solano","Bajo Baudó","Bojayá","Cantón de San Pablo","Carmen del Darién","Cértegui","Condoto","El Cantón del San Pablo","El Carmen de Atrato","El Litoral del San Juan","Istmina","Juradó","Lloró","Medio Atrato","Medio Baudó","Medio San Juan","Nóvita","Nuquí","Quibdó","Río Iró","Río Quito","Riosucio","San José del Palmar","San Juan","Sipí","Tadó","Unguía","Unión Panamericana"] },
+  { nombre: "Córdoba", municipios: ["Ayapel","Buenavista","Canalete","Cereté","Chimá","Chinú","Ciénaga de Oro","Cotorra","La Apartada","Lorica","Los Córdobas","Momil","Montelíbano","Montería","Moñitos","Morales","Planeta Rica","Pueblo Nuevo","Puerto Escondido","Puerto Libertador","Purísima","Sahagún","San Andrés de Sotavento","San Antero","San Bernardo del Viento","San Carlos","San José de Uré","San Pelayo","Tierralta","Tuchín","Valencia"] },
+  { nombre: "Cundinamarca", municipios: ["Agua de Dios","Albán","Almeidas","Anapoima","Apulo","Arbeláez","Arbeláez","Beltrán","Bituima","Bojacá","Cabrera","Cachipay","Cajicá","Caparrapí","Cáqueza","Carmen de Carupa","Chaguaní","Chía","Chipaque","Choachí","Chocontá","Cogua","Cota","Cucunubá","El Colegio","El Peñón","El Rosal","Facatativá","Fómeque","Fosca","Funza","Fúquene","Fusagasugá","Gachancipá","Girardot","Granada","Guaduas","Guasca","Guataquí","Guatavita","Guayabal de Síquima","Gutiérrez","Jerusalén","La Calera","La Mesa","La Palma","La Peña","La Vega","Lenguazaque","Machetá","Madrid","Manta","Medina","Mosquera","Nariño","Nemocón","Nilo","Nocaíma","Paime","Pandi","Paratebueno","Pasca","Puerto Salgar","Pulí","Quetame","Quipile","San Antonio del Tequendama","San Bernardo","San Cayetano","San Francisco","San Juan de Rioseco","Sasaima","Sesquilé","Sibaté","Silvania","Simijaca","Soacha","Sopó","Subachoque","Suesca","Supatá","Susa","Sutatausa","Tabio","Tausa","Tena","Tenjo","Tibirita","Tocaima","Tocancipá","Ubaque","Ubaté","Une","Útica","Venecia","Vergara","Vianí","Villa de San Diego de Ubaté","Villapinzón","Villeta","Villeta","Yacopí","Zipacón","Zipaquirá"] },
+  { nombre: "Guainía", municipios: ["Barranco Minas","Cacahual","Inírida","La Guadalupe","Morichal Nuevo","Pana Pana","Puerto Colombia","San Felipe"] },
+  { nombre: "Guaviare", municipios: ["Calamar","El Retorno","Miraflores","San José del Guaviare"] },
+  { nombre: "Huila", municipios: ["Acevedo","Agrado","Aipe","Algeciras","Altamira","Baraya","Campoalegre","Colombia","Elías","Garzón","Gigante","Guadalupe","Hobo","Íquira","Isnos","La Argentina","La Plata","Nátaga","Neiva","Oporapa","Paicol","Palermo","Palestina","Pital","Pitalito","Rivera","Saladoblanco","San Agustín","Santa María","Suaza","Tarqui","Tello","Teruel","Tesalia","Timaná","Villavieja","Yaguará"] },
+  { nombre: "La Guajira", municipios: ["Albania","Barrancas","Dibulla","Distracción","El Molino","Fonseca","Hatonuevo","La Jagua del Pilar","Maicao","Manaure","Riohacha","San Juan del Cesar","Uribia","Urumita","Villanueva"] },
+  { nombre: "Magdalena", municipios: ["Algarrobo","Aracataca","Ariguaní","Cerro de San Antonio","Chivolo","Ciénaga","Concordia","El Banco","El Piñón","El Retén","Fundación","Guamal","Nueva Granada","Pedraza","Pijiño del Carmen","Pivijay","Plato","Puebloviejo","Remolino","Sabanas de San Ángel","Salamina","San Sebastián de Buenavista","San Zenón","Santa Ana","Santa Bárbara de Pinto","Santa Marta","Sitionuevo","Tenerife","Zapayán","Zona Bananera"] },
+  { nombre: "Meta", municipios: ["Acacías","Barranca de Upía","Cabuyaro","Castilla la Nueva","Cubarral","Cumaral","El Calvario","El Castillo","El Dorado","Fuente de Oro","Granada","Guamal","La Macarena","La Uribe","Lejanías","Mapiripán","Mesetas","Puerto Concordia","Puerto Gaitán","Puerto Lleras","Puerto López","Puerto Rico","Restrepo","San Carlos de Guaroa","San Juan de Arama","San Juanito","San Martín","Villavicencio","Vista Hermosa"] },
+  { nombre: "Nariño", municipios: ["Albán","Aldana","Ancuya","Arboleda","Barbacoas","Belén","Buesaco","Chachagüí","Colón","Consacá","Contadero","Córdoba","Cuaspud","Cumbal","Cumbitara","El Charco","El Peñol","El Rosario","El Tablón de Gómez","El Tambo","Francisco Pizarro","Funes","Guachucal","Guaitarilla","Gualmatán","Iles","Imués","Ipiales","La Cruz","La Florida","La Llanada","La Tola","La Unión","Leiva","Linares","Los Andes","Magüí Payán","Mallama","Mosquera","Nariño","Olaya Herrera","Ospina","Pasto","Policarpa","Potosí","Providencia","Puerres","Pupiales","Ricaurte","Roberto Payán","Samaniego","San Bernardo","San Juan de Pasto","San Lorenzo","San Pablo","San Pedro de Cartago","Sandona","Santa Bárbara","Santacruz","Sapuyes","Taminango","Tangua","Tumaco","Túquerres","Yacuanquer"] },
+  { nombre: "Norte de Santander", municipios: ["Ábrego","Arboledas","Bochalema","Bucarasica","Cáchira","Cácota","Chinácota","Chitagá","Convención","Cúcuta","Cucutilla","Durania","El Carmen","El Tarra","El Zulia","Gramalote","Hacarí","Herrán","La Esperanza","La Playa de Belén","Labateca","Lourdes","Mutiscua","Ocaña","Pamplona","Pamplonita","Puerto Santander","Ragonvalia","Salazar de Las Palmas","San Calixto","San Cayetano","Santiago","Sardinata","Silos","Teorama","Tibú","Toledo","Villa Caro","Villa del Rosario"] },
+  { nombre: "Putumayo", municipios: ["Colón","Mocoa","Mocoa","Orito","Puerto Asís","Puerto Caicedo","Puerto Guzmán","Puerto Leguízamo","San Francisco","San Miguel","Santiago","Sibundoy","Valle del Guamuez","Villagarzón"] },
+  { nombre: "Quindío", municipios: ["Armenia","Buenavista","Calarcá","Circasia","Córdoba","Filandia","Génova","La Tebaida","Montenegro","Pijao","Quimbaya","Salento"] },
+  { nombre: "Risaralda", municipios: ["Apía","Balboa","Belén de Umbría","Dosquebradas","Guática","La Celia","La Virginia","Marsella","Mistrató","Pereira","Pueblo Rico","Quinchía","Santa Rosa de Cabal","Santuario"] },
+  { nombre: "San Andrés y Providencia", municipios: ["Providencia y Santa Catalina Islas","San Andrés"] },
+  { nombre: "Santander", municipios: ["Aguada","Albania","Aratoca","Barbosa","Barichara","Barrancabermeja","Betulia","Bolívar","Bucaramanga","Cabrera","California","Capitanejo","Carcasí","Cepitá","Cerrito","Charalá","Charta","Chima","Chipatá","Cimitarra","Concepción","Confines","Contratación","Coromoro","Curití","El Carmen de Chucurí","El Guacamayo","El Peñón","El Playón","Encino","Enciso","Florián","Floridablanca","Galán","Gámbita","Girón","Guaca","Guadalupe","Guapotá","Guavatá","Güepsa","Hato","Jesús María","Jordán","La Belleza","La Paz","Landázuri","Lebrija","Los Santos","Macaravita","Málaga","Matanza","Mogotes","Molagavita","Ocamonte","Oiba","Onzaga","Palmar","Palmas del Socorro","Páramo","Piedecuesta","Pinchote","Puente Nacional","Puerto Parra","Puerto Wilches","Rionegro","Sabana de Torres","San Andrés","San Benito","San Gil","San Joaquín","San José de Miranda","San Miguel","San Vicente de Chucurí","Santa Bárbara","Santa Helena del Opón","Simacota","Socorro","Suaita","Sucre","Suratá","Tona","Valle de San José","Vélez","Vetas","Villanueva","Zapatoca"] },
+  { nombre: "Sucre", municipios: ["Buenavista","Caimito","Chalán","Colosó","Corozal","Coveñas","El Roble","Galeras","Guaranda","La Unión","Los Palmitos","Majagual","Morroa","Ovejas","Palmito","Sampués","San Benito Abad","San Juan de Betulia","San Marcos","San Onofre","San Pedro","Santiago de Tolú","Sincelejo","Sucre","Tolú Viejo"] },
+  { nombre: "Tolima", municipios: ["Alpujarra","Alvarado","Ambalema","Anzoátegui","Armero","Ataco","Cajamarca","Carmen de Apicalá","Casabianca","Chaparral","Coello","Coyaima","Cunday","Dolores","El Espinal","Falan","Flandes","Fresno","Guamo","Herveo","Honda","Ibagué","Icononzo","Lérida","Líbano","Mariquita","Melgar","Murillo","Natagaima","Ortega","Palocabildo","Piedras","Planadas","Prado","Purificación","Rioblanco","Roncesvalles","Rovira","Saldaña","San Antonio","San Luis","Santa Isabel","Suárez","Valle de San Juan","Venadillo","Villahermosa","Villarrica"] },
+  { nombre: "Valle del Cauca", municipios: ["Alcalá","Andalucía","Ansermanuevo","Argelia","Bolívar","Buenaventura","Buga","Bugalagrande","Caicedonia","Cali","Calima","Candelaria","Cartago","Dagua","El Águila","El Cairo","El Cerrito","El Dovio","Florida","Ginebra","Guacarí","Jamundí","La Cumbre","La Unión","La Victoria","Obando","Palmira","Pradera","Restrepo","Riofrío","Roldanillo","San Pedro","Sevilla","Toro","Trujillo","Tuluá","Ulloa","Versalles","Vijes","Yotoco","Yumbo","Zarzal"] },
+  { nombre: "Vaupés", municipios: ["Carurú","Mitú","Pacoa","Papunaua","Taraira","Yavaraté"] },
+  { nombre: "Vichada", municipios: ["Cumaribo","La Primavera","Puerto Carreño","Santa Rosalía"] },
+];
+
+const DEPARTAMENTO_ABREVIATURA = {
+  'Amazonas': 'AMA',
+  'Antioquia': 'ANT',
+  'Arauca': 'ARA',
+  'Atlántico': 'ATL',
+  'Bogotá D.C.': 'BOG',
+  'Bolívar': 'BOL',
+  'Boyacá': 'BOY',
+  'Caldas': 'CAL',
+  'Caquetá': 'CAQ',
+  'Casanare': 'CAS',
+  'Cauca': 'CAU',
+  'Cesar': 'CES',
+  'Chocó': 'CHO',
+  'Córdoba': 'COR',
+  'Cundinamarca': 'CUN',
+  'Guainía': 'GUA',
+  'Guaviare': 'GUV',
+  'Huila': 'HUI',
+  'La Guajira': 'LAG',
+  'Magdalena': 'MAG',
+  'Meta': 'MET',
+  'Nariño': 'NAR',
+  'Norte de Santander': 'NSA',
+  'Putumayo': 'PUT',
+  'Quindío': 'QUI',
+  'Risaralda': 'RIS',
+  'San Andrés y Providencia': 'SAP',
+  'Santander': 'SAN',
+  'Sucre': 'SUC',
+  'Tolima': 'TOL',
+  'Valle del Cauca': 'VAL',
+  'Vaupés': 'VAU',
+  'Vichada': 'VIC'
+};
 
 const STATUS_CONFIG = {
   activo: { label: 'Activo', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
@@ -470,7 +544,7 @@ const INITIAL_PROJECTS = [
       general: {
         municipio: 'Guacarí', departamento: 'Valle del Cauca', pais: 'Colombia',
         inversionista: 'Fondo Energético Andino S.A.S.',
-        codigo_departamento: 'VALLE', numero_minigranja: '087', numero_predio: '1',
+        numero_minigranja: '087', numero_predio: '1',
         magna_sirgas: 'N 923450.12 / E 1056220.44', lat_long: '3.7644 N / -76.3311 W',
         altitud: '1020',
         fecha_inicio: '2025-03-10', fecha_entrega: '2026-02-28',
@@ -498,7 +572,7 @@ const INITIAL_PROJECTS = [
     data: buildData({
       general: {
         municipio: 'El Espinal', departamento: 'Tolima', pais: 'Colombia', inversionista: 'CFM',
-        codigo_departamento: 'TOL', numero_minigranja: '203', numero_predio: '1',
+        numero_minigranja: '203', numero_predio: '1',
         lat_long: '4.1517 N / -74.8834 W', altitud: '323',
         fecha_inicio: '2026-05-05', fecha_entrega: '2026-11-30',
       },
@@ -518,7 +592,7 @@ const INITIAL_PROJECTS = [
     data: buildData({
       general: {
         municipio: 'Montería', departamento: 'Córdoba', pais: 'Colombia', inversionista: 'FENOGE',
-        codigo_departamento: 'CORD', numero_minigranja: '142', numero_predio: '1',
+        numero_minigranja: '142', numero_predio: '1',
         fecha_inicio: '2025-08-01', fecha_entrega: '2026-06-15',
       },
       hidraulico: {
@@ -855,15 +929,18 @@ function pickDocumentList(inversionista) {
   return DOCS_ESTANDAR;
 }
 
-/* Arma el prefijo de código del proyecto (ej. COLSANT215P1) a partir de los  */
-/* campos de General. Si falta algún dato, devuelve '' y el código de cada   */
-/* documento se muestra con el placeholder original (COLXXXXXXPX).          */
+/* Arma el prefijo de código del proyecto (ej. COLBOYT147P1) a partir de los  */
+/* campos de General. El departamento ya no se escribe a mano: se busca su   */
+/* abreviatura oficial de 3 letras en DEPARTAMENTO_ABREVIATURA según el      */
+/* nombre elegido en el selector de Departamento, y siempre se le agrega una */
+/* "T" (terreno) después. Si falta algún dato, devuelve '' y el código de     */
+/* cada documento se muestra con el placeholder original (COLXXXXXXPX).      */
 function buildProjectCode(general) {
-  const dep = (general.codigo_departamento || '').trim().toUpperCase();
+  const abrev = DEPARTAMENTO_ABREVIATURA[general.departamento || ''];
   const num = (general.numero_minigranja || '').trim();
   const predio = (general.numero_predio || '').trim();
-  if (!dep || !num || !predio) return '';
-  return `COL${dep}${num}P${predio}`;
+  if (!abrev || !num || !predio) return '';
+  return `COL${abrev}T${num}P${predio}`;
 }
 
 /* Nombre del proyecto con el código documental al frente, ej.             */
@@ -913,7 +990,127 @@ function ReadOnlyValue({ label, value, mono = true }) {
   );
 }
 
-function FieldRenderer({ field, value, editMode, onChange }) {
+function InversionistaPicker({ value, inversionistas, onChange, onAddNew }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [nuevo, setNuevo] = useState('');
+
+  function confirmarNuevo() {
+    const nombre = nuevo.trim();
+    if (!nombre) {
+      setShowAdd(false);
+      return;
+    }
+    onAddNew(nombre);
+    onChange(nombre);
+    setNuevo('');
+    setShowAdd(false);
+  }
+
+  const baseInput = 'w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+
+  if (showAdd) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <input
+          autoFocus
+          value={nuevo}
+          onChange={(e) => setNuevo(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              confirmarNuevo();
+            }
+            if (e.key === 'Escape') setShowAdd(false);
+          }}
+          placeholder="Nombre del nuevo inversionista"
+          className={baseInput}
+        />
+        <button type="button" onClick={confirmarNuevo} title="Guardar" className="text-emerald-600 hover:text-emerald-700 shrink-0">
+          <Check className="w-4 h-4" />
+        </button>
+        <button type="button" onClick={() => setShowAdd(false)} title="Cancelar" className="text-navy-400 hover:text-navy-600 shrink-0">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  }
+
+  const registrado = !value || inversionistas.includes(value);
+  return (
+    <select
+      value={value || ''}
+      onChange={(e) => {
+        if (e.target.value === '__nuevo__') {
+          setShowAdd(true);
+          return;
+        }
+        onChange(e.target.value);
+      }}
+      className={baseInput}
+    >
+      <option value="">Sin definir</option>
+      {inversionistas.map((inv) => (
+        <option key={inv} value={inv}>{inv}</option>
+      ))}
+      {!registrado && <option value={value}>{value} (no registrado)</option>}
+      <option value="__nuevo__">+ Agregar nuevo inversionista…</option>
+    </select>
+  );
+}
+
+function FieldRenderer({ field, value, editMode, onChange, siblingData, inversionistas, onAddInversionista }) {
+  if (field.type === 'departamento') {
+    if (!editMode) return <ReadOnlyValue label={field.label} value={value} mono={false} />;
+    return (
+      <div className="py-1">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
+        <select
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+        >
+          <option value="">Seleccionar…</option>
+          {COLOMBIA.map((d) => (
+            <option key={d.nombre} value={d.nombre}>{d.nombre}</option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
+  if (field.type === 'municipio') {
+    if (!editMode) return <ReadOnlyValue label={field.label} value={value} mono={false} />;
+    const depto = siblingData?.departamento;
+    const opciones = COLOMBIA.find((d) => d.nombre === depto)?.municipios || [];
+    return (
+      <div className="py-1">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
+        <select
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={!depto}
+          className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400 disabled:bg-navy-50 disabled:text-navy-400"
+        >
+          <option value="">{depto ? 'Seleccionar…' : 'Elige primero el departamento'}</option>
+          {opciones.map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+          {value && !opciones.includes(value) && <option value={value}>{value} (no está en la lista)</option>}
+        </select>
+      </div>
+    );
+  }
+
+  if (field.type === 'inversionista') {
+    if (!editMode) return <ReadOnlyValue label={field.label} value={value} mono={false} />;
+    return (
+      <div className="py-1">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
+        <InversionistaPicker value={value} inversionistas={inversionistas || []} onChange={onChange} onAddNew={onAddInversionista} />
+      </div>
+    );
+  }
+
   if (field.type === 'stations') {
     const rows = Array.isArray(value) && value.length > 0 ? value : emptyStations();
     if (!editMode) {
@@ -1043,7 +1240,7 @@ function FieldRenderer({ field, value, editMode, onChange }) {
   );
 }
 
-function SectionFieldsGrid({ section, data, editMode, onFieldChange }) {
+function SectionFieldsGrid({ section, data, editMode, onFieldChange, inversionistas, onAddInversionista }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 divide-y divide-navy-100 md:divide-y-0">
       {section.fields.map((field) => (
@@ -1053,6 +1250,9 @@ function SectionFieldsGrid({ section, data, editMode, onFieldChange }) {
             value={data ? data[field.key] : undefined}
             editMode={editMode}
             onChange={(val) => onFieldChange(section.id, field.key, val)}
+            siblingData={data}
+            inversionistas={inversionistas}
+            onAddInversionista={onAddInversionista}
           />
         </div>
       ))}
@@ -2132,7 +2332,7 @@ function EquipoField({ role, valor, directorio, onChange, readOnly }) {
   return <EquipoSelect role={role} valorActual={valor} directorio={directorio} onChange={onChange} readOnly={readOnly} />;
 }
 
-function ProjectFormModal({ onClose, onCreate, directorio, perfil }) {
+function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionistas, onAddInversionista }) {
   const puedeGestionar = isLeader(perfil);
   const [form, setForm] = useState({
     nombre: '',
@@ -2140,7 +2340,7 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil }) {
     equipo: Object.fromEntries(ROLES.map((r) => [r.key, esRolMultiple(r.key) ? [] : ''])),
     general: {
       municipio: '', departamento: '', pais: 'Colombia', inversionista: '',
-      codigo_departamento: '', numero_minigranja: '', numero_predio: '',
+      numero_minigranja: '', numero_predio: '',
       fecha_inicio: '', fecha_entrega: '',
     },
   });
@@ -2195,12 +2395,29 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil }) {
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Municipio</label>
-              <input value={form.general.municipio} onChange={(e) => setGeneral('municipio', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
+              <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Departamento</label>
+              <select
+                value={form.general.departamento}
+                onChange={(e) => { setGeneral('departamento', e.target.value); setGeneral('municipio', ''); }}
+                className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm"
+              >
+                <option value="">Seleccionar…</option>
+                {COLOMBIA.map((d) => <option key={d.nombre} value={d.nombre}>{d.nombre}</option>)}
+              </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Departamento</label>
-              <input value={form.general.departamento} onChange={(e) => setGeneral('departamento', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
+              <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Municipio</label>
+              <select
+                value={form.general.municipio}
+                onChange={(e) => setGeneral('municipio', e.target.value)}
+                disabled={!form.general.departamento}
+                className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm disabled:bg-navy-50 disabled:text-navy-400"
+              >
+                <option value="">{form.general.departamento ? 'Seleccionar…' : 'Elige antes el departamento'}</option>
+                {(COLOMBIA.find((d) => d.nombre === form.general.departamento)?.municipios || []).map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">País</label>
@@ -2211,7 +2428,12 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil }) {
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Inversionista</label>
-              <input value={form.general.inversionista} onChange={(e) => setGeneral('inversionista', e.target.value)} placeholder="CFM, FENOGE u otro" className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
+              <InversionistaPicker
+                value={form.general.inversionista}
+                inversionistas={inversionistas}
+                onChange={(val) => setGeneral('inversionista', val)}
+                onAddNew={onAddInversionista}
+              />
             </div>
             <div>
               <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Fecha de Inicio</label>
@@ -2225,11 +2447,10 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil }) {
 
           <div>
             <p className="text-xs font-semibold uppercase text-navy-500 mb-2">Código del proyecto (para Control Documental)</p>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs text-navy-500 mb-1">Depto. (abrev, ej. SANT)</label>
-                <input value={form.general.codigo_departamento} onChange={(e) => setGeneral('codigo_departamento', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm font-mono" />
-              </div>
+            <p className="text-xs text-navy-400 mb-2">
+              La abreviatura del departamento (3 letras + "T" de terreno) se calcula sola a partir del departamento elegido arriba.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-navy-500 mb-1">N.° de minigranja</label>
                 <input value={form.general.numero_minigranja} onChange={(e) => setGeneral('numero_minigranja', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm font-mono" />
@@ -2420,7 +2641,7 @@ function HistorialPanel({ historial, loading, onRefresh }) {
   );
 }
 
-function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, perfil }) {
+function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, perfil, inversionistas, onAddInversionista }) {
   const [activeTab, setActiveTab] = useState(SCHEMA[0].id);
   const [editMode, setEditMode] = useState(false);
   const [draftData, setDraftData] = useState(null);
@@ -2759,6 +2980,8 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
                   data={dataForRender[activeSection.id]}
                   editMode={editMode}
                   onFieldChange={handleFieldChange}
+                  inversionistas={inversionistas}
+                  onAddInversionista={onAddInversionista}
                 />
               </>
             )}
@@ -3391,6 +3614,7 @@ export default function App() {
   const [directorio, setDirectorio] = useState([]);
   const [carpetas, setCarpetas] = useState([]);
   const [videos, setVideos] = useState([]);
+  const [inversionistas, setInversionistas] = useState([]);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   const [view, setViewState] = useState('dashboard');
@@ -3473,6 +3697,17 @@ export default function App() {
     setCarpetas(carpetaRows || []);
     const { data: videoRows } = await supabase.from('instructivo_videos').select('*').order('created_at', { ascending: true });
     setVideos(videoRows || []);
+
+    const { data: invRows } = await supabase.from('inversionistas').select('*').order('created_at', { ascending: true });
+    if (!invRows || invRows.length === 0) {
+      const semilla = ['FENOGE', 'CFM', 'FMO', 'Bancolombia'];
+      await supabase.from('inversionistas').insert(semilla.map((nombre) => ({ nombre }))).then(({ error }) => {
+        if (error) console.error('Error creando inversionistas semilla:', error);
+      });
+      setInversionistas(semilla);
+    } else {
+      setInversionistas(invRows.map((r) => r.nombre));
+    }
 
     setDataLoaded(true);
   }
@@ -3563,6 +3798,14 @@ export default function App() {
     setLinks((prev) => prev.filter((l) => l.id !== id));
     supabase.from('links').delete().eq('id', id).then(({ error }) => {
       if (error) console.error('Error eliminando enlace:', error);
+    });
+  }
+  function handleAddInversionista(nombre) {
+    const limpio = nombre.trim();
+    if (!limpio) return;
+    setInversionistas((prev) => (prev.includes(limpio) ? prev : [...prev, limpio]));
+    supabase.from('inversionistas').upsert({ nombre: limpio }).then(({ error }) => {
+      if (error) console.error('Error creando inversionista:', error);
     });
   }
   function handleAddCarpeta(nombre) {
@@ -3756,11 +3999,30 @@ export default function App() {
         )}
         {view === 'enlaces' && <LinksView links={links} onAdd={handleAddLink} onUpdate={handleUpdateLink} onRemove={handleRemoveLink} />}
         {view === 'detalle' && selectedProject && (
-          <ProjectDetail key={selectedProject.id} project={selectedProject} updateProject={updateProject} onBack={goBack} onDelete={handleDeleteProject} directorio={directorio} perfil={perfil} />
+          <ProjectDetail
+            key={selectedProject.id}
+            project={selectedProject}
+            updateProject={updateProject}
+            onBack={goBack}
+            onDelete={handleDeleteProject}
+            directorio={directorio}
+            perfil={perfil}
+            inversionistas={inversionistas}
+            onAddInversionista={handleAddInversionista}
+          />
         )}
       </main>
 
-      {showCreate && <ProjectFormModal onClose={() => setShowCreate(false)} onCreate={handleCreate} directorio={directorio} perfil={perfil} />}
+      {showCreate && (
+        <ProjectFormModal
+          onClose={() => setShowCreate(false)}
+          onCreate={handleCreate}
+          directorio={directorio}
+          perfil={perfil}
+          inversionistas={inversionistas}
+          onAddInversionista={handleAddInversionista}
+        />
+      )}
       {showProfileEdit && <ProfileGate initial={perfil} userId={perfil.id} onSaved={handleProfileSaved} onCancel={() => setShowProfileEdit(false)} />}
     </div>
   );

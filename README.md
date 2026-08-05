@@ -38,7 +38,8 @@ Sigue los pasos en orden. No necesitas experiencia previa con Supabase.
 > `supabase/migration_solo_lider_diseno_asigna_lideres.sql` y
 > `supabase/migration_instructivos.sql` y
 > `supabase/migration_rol_desarrollador.sql` y
-> `supabase/migration_historial_categoria.sql`. Cada uno agrega
+> `supabase/migration_historial_categoria.sql` y
+> `supabase/migration_inversionistas.sql`. Cada uno agrega
 > solo lo nuevo sin tocar lo que ya tenías. Si no recuerdas si ya corriste
 > alguno, no pasa nada por intentarlo de nuevo: en el peor caso te marcará
 > un error de "ya existe", que puedes ignorar.
@@ -163,6 +164,23 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Código de documentos, formato actualizado**: ahora es
+  `COL` + abreviatura de 3 letras del departamento (automática, según el
+  departamento elegido en el selector) + `T` (terreno, fija) + número de
+  minigranja + `P` + número de predio — ej. `COLBOYT147P1`. Ya no se
+  escribe la abreviatura a mano; si necesitas ajustar alguna, está en el
+  objeto `DEPARTAMENTO_ABREVIATURA` en `src/App.jsx`.
+- **Municipios y departamentos**: la lista completa (33 departamentos,
+  ~1110 municipios) viene del paquete `colombia-territorial` (datos
+  DIVIPOLA/DANE), convertida a una constante `COLOMBIA` dentro de
+  `src/App.jsx` — no depende de ningún servicio externo ni de internet
+  para funcionar. Municipio se habilita después de elegir el
+  departamento. Si el DANE actualiza algún nombre, se edita ahí mismo.
+- **Inversionistas**: ahora es una lista que vive en la base de datos
+  (tabla `inversionistas`), con un botón "+ Agregar nuevo inversionista…"
+  directamente en el selector — lo que agregues queda disponible para
+  todo el equipo de inmediato, sin tocar código. Viene con FENOGE, CFM,
+  FMO y Bancolombia por defecto.
 - **Marca "Solé"**: la paleta (`lime`, `navy`, `nashville`) vive en
   `tailwind.config.js` con los códigos exactos de marca (Lemony `#E2FF65`,
   Nautical Navy `#152644`, Nashville `#8CC3E1`). El logo de la barra
