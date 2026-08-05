@@ -1097,9 +1097,62 @@ function PaisPicker({ value, paises, onChange, onAddNew }) {
   );
 }
 
+/* Resistencias de concreto más usadas + opción de escribir otra. No se     */
+/* guarda en ninguna tabla compartida (a diferencia de Inversionistas/       */
+/* País): es solo una lista corta fija para agilizar la digitación.         */
+const RESISTENCIA_OPCIONES = ['21 MPa', '24 MPa', '31 MPa'];
+function ResistenciaSelect({ value, onChange, className }) {
+  const [showOtro, setShowOtro] = useState(false);
+  const esConocida = !value || RESISTENCIA_OPCIONES.includes(value);
+
+  if (showOtro || (!esConocida && value)) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <input
+          autoFocus={showOtro}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Ej. 28 MPa"
+          className={className}
+        />
+        <button
+          type="button"
+          onClick={() => { setShowOtro(false); onChange(''); }}
+          title="Volver a la lista"
+          className="text-navy-400 hover:text-navy-600 shrink-0"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <select
+      value={value || ''}
+      onChange={(e) => {
+        if (e.target.value === '__otro__') {
+          setShowOtro(true);
+          return;
+        }
+        onChange(e.target.value);
+      }}
+      className={className}
+    >
+      <option value="">Sin definir</option>
+      {RESISTENCIA_OPCIONES.map((op) => (
+        <option key={op} value={op}>{op}</option>
+      ))}
+      <option value="__otro__">Otro…</option>
+    </select>
+  );
+}
+
 /* --- Proyección isométrica simple, para que el ancho/profundo/alto se      */
 /* distingan claramente en la previsualización. x = ancho, y = profundo,    */
 /* z = altura (hacia arriba). Devuelve coordenadas de pantalla [sx, sy].     */
+/* Con esta fórmula, la esquina "más cercana" al espectador es siempre la   */
+/* de x máximo y y máximo — las dos caras visibles deben tocar esa esquina. */
 const ISO_COS = Math.cos(Math.PI / 6); // 30°
 const ISO_SIN = Math.sin(Math.PI / 6);
 function isoPt(x, y, z, ox, oy) {
@@ -1108,9 +1161,9 @@ function isoPt(x, y, z, ox, oy) {
 function poly(points) {
   return points.map((p) => p.join(',')).join(' ');
 }
-/* Dibuja una caja isométrica (3 caras visibles: superior, derecha, frontal) */
-/* entre z0 (abajo) y z1 (arriba), con ancho W y profundo D, centrada en un  */
-/* origen (ox, oy). Colores en 3 tonos para dar sensación de volumen.       */
+/* Dibuja una caja isométrica (3 caras visibles: superior, derecha e         */
+/* izquierda) entre z0 (abajo) y z1 (arriba), con ancho W y profundo D,      */
+/* dentro de un origen (ox, oy). Colores en 3 tonos para dar volumen.       */
 function IsoBox({ x0, y0, w, d, z0, z1, ox, oy, colors }) {
   const top = [
     isoPt(x0, y0, z1, ox, oy),
@@ -1124,17 +1177,30 @@ function IsoBox({ x0, y0, w, d, z0, z1, ox, oy, colors }) {
     isoPt(x0 + w, y0 + d, z0, ox, oy),
     isoPt(x0 + w, y0, z0, ox, oy),
   ];
-  const front = [
-    isoPt(x0, y0, z1, ox, oy),
-    isoPt(x0 + w, y0, z1, ox, oy),
-    isoPt(x0 + w, y0, z0, ox, oy),
-    isoPt(x0, y0, z0, ox, oy),
+  const left = [
+    isoPt(x0, y0 + d, z1, ox, oy),
+    isoPt(x0 + w, y0 + d, z1, ox, oy),
+    isoPt(x0 + w, y0 + d, z0, ox, oy),
+    isoPt(x0, y0 + d, z0, ox, oy),
   ];
   return (
     <g>
-      <polygon points={poly(front)} fill={colors[2]} stroke="#59671E" strokeWidth="1" />
+      <polygon points={poly(left)} fill={colors[2]} stroke="#59671E" strokeWidth="1" />
       <polygon points={poly(right)} fill={colors[1]} stroke="#59671E" strokeWidth="1" />
       <polygon points={poly(top)} fill={colors[0]} stroke="#59671E" strokeWidth="1" />
+    </g>
+  );
+}
+/* Línea de Nivel de Terreno Natural (N.T.N), dibujada con el mismo ángulo   */
+/* isométrico, tocando el modelo justo a la altura donde cruza el terreno.  */
+function NtnMarker({ x, y, z, ox, oy }) {
+  const [x1, y1] = isoPt(x, y, z, ox, oy);
+  const [x2, y2] = isoPt(x - 22, y, z, ox, oy);
+  return (
+    <g>
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#3C64AA" strokeWidth="1.2" />
+      <line x1={x1} y1={y1} x2={x1 - 10} y2={y1 + 10} stroke="#3C64AA" strokeWidth="1.2" />
+      <text x={x2 - 3} y={y2 - 3} fontSize="9" fill="#3C64AA" textAnchor="end" fontFamily="monospace">N.T.N</text>
     </g>
   );
 }
@@ -1147,33 +1213,29 @@ function IsoBox({ x0, y0, w, d, z0, z1, ox, oy, colors }) {
 function CimentacionPreview({ forma, v, sobresale }) {
   const m2px = 48;
   const clampD = (m) => Math.max(16, Math.min(80, m * m2px));
+  const dim = (strVal, defaultMeters) => {
+    const n = parseFloat(strVal);
+    return clampD(n > 0 ? n : defaultMeters);
+  };
   const desplanteM = parseFloat(v.desplante) || 0;
   const totalM = desplanteM + sobresale;
   const totalPx = totalM > 0 ? clampD(totalM) : 46;
   const sobresalePx = totalM > 0 ? (sobresale / totalM) * totalPx : (sobresale > 0 ? 12 : 0);
 
-  const svgW = 150;
+  const svgW = 160;
   const ox = svgW / 2;
-  const oy = 108; // nivel de terreno en pantalla
-
-  const groundHatch = (
-    <g>
-      <line x1="6" y1={oy} x2={svgW - 6} y2={oy} stroke="#6487C4" strokeWidth="1.2" strokeDasharray="4 3" />
-      {Array.from({ length: 10 }).map((_, i) => (
-        <line key={i} x1={8 + i * ((svgW - 16) / 9)} y1={oy} x2={8 + i * ((svgW - 16) / 9) - 5} y2={oy + 7} stroke="#9BB0D4" strokeWidth="1" />
-      ))}
-    </g>
-  );
+  const oy = 60;
 
   let body = null;
+  let ntn = null;
   let svgH = 150;
 
   if (forma === 'cilindrica') {
-    const diamPx = clampD(parseFloat(v.diametro) || 0) || 30;
+    const diamPx = dim(v.diametro, 0.3);
     const rx = diamPx / 2;
     const ry = rx * 0.42;
     const topZ = sobresalePx;
-    const botZ = -(totalPx - sobresalePx);
+    const botZ = topZ - totalPx;
     const [cxTop, cyTop] = isoPt(0, 0, topZ, ox, oy);
     const [, cyBot] = isoPt(0, 0, botZ, ox, oy);
     body = (
@@ -1183,12 +1245,13 @@ function CimentacionPreview({ forma, v, sobresale }) {
         <ellipse cx={cxTop} cy={cyTop} rx={rx} ry={ry} fill="#F5FAE1" stroke="#59671E" strokeWidth="1" />
       </g>
     );
-    svgH = cyBot + 16;
+    ntn = <NtnMarker x={rx} y={0} z={0} ox={ox} oy={oy} />;
+    svgH = cyBot + 20;
   } else if (forma === 'zapata_pedestal') {
-    const A = clampD(parseFloat(v.ancho_zapata) || 0) || 60;
-    const B = clampD(parseFloat(v.profundo_zapata) || 0) || 60;
-    const a = clampD(parseFloat(v.ancho_pedestal) || 0) || 26;
-    const b = clampD(parseFloat(v.profundo_pedestal) || 0) || 26;
+    const A = dim(v.ancho_zapata, 1.2);
+    const B = dim(v.profundo_zapata, 1.2);
+    const a = dim(v.ancho_pedestal, 0.5);
+    const b = dim(v.profundo_pedestal, 0.5);
     const zapataH = Math.max(10, totalPx * 0.3);
     const pedestalH = Math.max(6, totalPx - zapataH);
     const topZ = sobresalePx;
@@ -1200,22 +1263,26 @@ function CimentacionPreview({ forma, v, sobresale }) {
         <IsoBox x0={-a / 2} y0={-b / 2} w={a} d={b} z0={zapataTopZ} z1={zapataTopZ + pedestalH} ox={ox} oy={oy} colors={['#F5FAE1', '#D9FA47', '#C2E723']} />
       </g>
     );
+    // El N.T.N. se ancla donde z=0 cruza el modelo: el pedestal si llega hasta ahí, si no la zapata.
+    const zRef = 0 >= zapataTopZ ? { x: a / 2, y: b / 2 } : { x: A / 2, y: B / 2 };
+    ntn = <NtnMarker x={zRef.x} y={zRef.y} z={0} ox={ox} oy={oy} />;
     const [, yBottomCorner] = isoPt(A / 2, B / 2, botZ, ox, oy);
-    svgH = yBottomCorner + 16;
+    svgH = yBottomCorner + 20;
   } else {
-    const W = clampD(parseFloat(v.ancho) || 0) || 40;
-    const D = clampD(parseFloat(v.profundo) || 0) || 40;
+    const W = dim(v.ancho, 0.8);
+    const D = dim(v.profundo, 0.8);
     const topZ = sobresalePx;
     const botZ = topZ - totalPx;
     body = <IsoBox x0={-W / 2} y0={-D / 2} w={W} d={D} z0={botZ} z1={topZ} ox={ox} oy={oy} colors={['#F5FAE1', '#C2E723', '#9AB620']} />;
+    ntn = <NtnMarker x={W / 2} y={D / 2} z={0} ox={ox} oy={oy} />;
     const [, yBottomCorner] = isoPt(W / 2, D / 2, botZ, ox, oy);
-    svgH = yBottomCorner + 16;
+    svgH = yBottomCorner + 20;
   }
 
   return (
-    <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-32 h-32">
+    <svg viewBox={`-10 0 ${svgW} ${svgH}`} className="w-32 h-32">
       {body}
-      {groundHatch}
+      {ntn}
     </svg>
   );
 }
@@ -1371,7 +1438,7 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
             </div>
             <div>
               <label className="block text-xs text-navy-500 mb-1">Resistencia del concreto</label>
-              <input value={v.resistencia} onChange={(e) => set('resistencia', e.target.value)} placeholder="21 MPa" className={cellInput} />
+              <ResistenciaSelect value={v.resistencia} onChange={(val) => set('resistencia', val)} className={cellInput} />
             </div>
             <p className="text-xs text-navy-400">
               Sobresale del terreno: <span className="font-mono text-navy-600">{field.sobresale} m</span> (fijo) · Alto total:{' '}
