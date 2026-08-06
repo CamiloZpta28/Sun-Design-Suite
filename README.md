@@ -165,6 +165,23 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Estado "Finalizado"**: nuevo estado de proyecto (violeta), disponible en
+  todos los selectores de estado. Al cambiarlo a "Finalizado" se dispara
+  una animación de confeti + 🎉 (CSS puro, sin librerías externas), que se
+  oculta sola a los pocos segundos. No aparece en la hoja de vida
+  imprimible (es puramente celebratorio en pantalla). No requiere ninguna
+  migración en Supabase — es el mismo campo `estado` de siempre, con un
+  valor nuevo (`finalizado`).
+- **Nuevos estados de documentos**: la lista de Control Documental ahora
+  es No aplica, Pendiente (por defecto), En proceso, Revisión interna,
+  Entregado, APCC y APC — con colores distintos para cada uno (incluida
+  la torta de progreso). Los documentos que ya tenían un estado de la
+  lista anterior lo conservan sin problema, ya que "Pendiente", "En
+  proceso", "No aplica", "APCC" y "APC" siguen existiendo igual.
+- **Rol de Desarrollador con acceso total a contenido**: ya podía asignar
+  equipo/estado/eliminar cualquier proyecto; ahora también puede editar
+  los campos técnicos, notas y archivos de cualquier proyecto sin
+  necesidad de estar en su equipo.
 - **Lista Estándar actualizada**: reemplacé por completo `DOCS_ESTANDAR` con
   el nuevo dosier (72 documentos, especialidades Civil/Mecánica/
   Comunicaciones/Eléctrica — ya sin "General"). Los códigos se tomaron

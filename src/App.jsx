@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   LayoutDashboard, FolderKanban, Layers, Link2, HardHat, Droplets,
   Building2, Zap, Cog, Mountain, PenTool, Plus, Search, X, Printer,
@@ -6,7 +6,7 @@ import {
   Users, ExternalLink, Check, FileText, UploadCloud, XCircle, ClipboardList,
   Loader2, RefreshCw, LogOut, ShieldCheck, Lock, History, ClipboardCheck, StickyNote, UserCog,
   Folder, FolderPlus, ChevronDown, ChevronRight, PlayCircle, Video, Code2,
-  Bold, Italic, Underline, List,
+  Bold, Italic, Underline, List, PartyPopper,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import logoMark from './assets/logo-s-mark.png';
@@ -310,6 +310,7 @@ const STATUS_CONFIG = {
   activo: { label: 'Activo', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
   pausa: { label: 'En Pausa', bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', dot: 'bg-yellow-500' },
   inactivo: { label: 'Inactivo', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', dot: 'bg-red-500' },
+  finalizado: { label: 'Finalizado', bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200', dot: 'bg-violet-500' },
 };
 
 /* ------------------------------ 3. HELPERS ---------------------------------- */
@@ -909,32 +910,40 @@ const DOCS_FENOGE = [
 
 /* Estados posibles de un documento en Control Documental. */
 const DOC_ESTADOS = [
+  'No aplica',
   'Pendiente',
   'En proceso',
-  'No aplica',
+  'Revisión interna',
+  'Entregado',
   'Aprobado para construcción con comentarios (APCC)',
   'Aprobado para construcción (APC)',
 ];
 const DOC_ESTADO_CONFIG = {
+  'No aplica': { bg: 'bg-navy-50', text: 'text-navy-400', dot: 'bg-navy-300', border: 'border-navy-300', ring: 'ring-navy-300' },
   'Pendiente': { bg: 'bg-navy-100', text: 'text-navy-500', dot: 'bg-navy-400', border: 'border-navy-400', ring: 'ring-navy-400' },
   'En proceso': { bg: 'bg-lime-100', text: 'text-lime-700', dot: 'bg-lime-500', border: 'border-lime-500', ring: 'ring-lime-500' },
-  'No aplica': { bg: 'bg-navy-50', text: 'text-navy-400', dot: 'bg-navy-300', border: 'border-navy-300', ring: 'ring-navy-300' },
+  'Revisión interna': { bg: 'bg-orange-100', text: 'text-orange-700', dot: 'bg-orange-500', border: 'border-orange-500', ring: 'ring-orange-500' },
+  'Entregado': { bg: 'bg-violet-100', text: 'text-violet-700', dot: 'bg-violet-500', border: 'border-violet-500', ring: 'ring-violet-500' },
   'Aprobado para construcción con comentarios (APCC)': { bg: 'bg-nashville-100', text: 'text-nashville-700', dot: 'bg-nashville-500', border: 'border-nashville-500', ring: 'ring-nashville-500' },
   'Aprobado para construcción (APC)': { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500', border: 'border-emerald-500', ring: 'ring-emerald-500' },
 };
 /* Mismos colores que arriba, en hexadecimal, para el diagrama de torta (SVG). */
 const DOC_ESTADO_HEX = {
+  'No aplica': '#9BB0D4',
   'Pendiente': '#6487C4',
   'En proceso': '#C2E723',
-  'No aplica': '#9BB0D4',
+  'Revisión interna': '#F97316',
+  'Entregado': '#8B5CF6',
   'Aprobado para construcción con comentarios (APCC)': '#61A9D1',
   'Aprobado para construcción (APC)': '#10B981',
 };
 /* Nombre corto para las píldoras de filtro/resumen, sin el paréntesis largo. */
 const DOC_ESTADO_CORTO = {
+  'No aplica': 'No aplica',
   'Pendiente': 'Pendiente',
   'En proceso': 'En proceso',
-  'No aplica': 'No aplica',
+  'Revisión interna': 'Rev. interna',
+  'Entregado': 'Entregado',
   'Aprobado para construcción con comentarios (APCC)': 'APCC',
   'Aprobado para construcción (APC)': 'APC',
 };
@@ -980,6 +989,49 @@ function StatusBadge({ estado, size = 'md' }) {
       <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`}></span>
       {cfg.label}
     </span>
+  );
+}
+
+/* Animación de celebración (confeti + 🎉) cuando un proyecto pasa a         */
+/* "Finalizado". Puramente visual y pasajera — no aparece en la hoja de vida */
+/* imprimible (usa .no-print).                                              */
+const CONFETTI_COLORES = ['#E2FF65', '#8CC3E1', '#152644', '#10B981', '#C2E723', '#61A9D1', '#F59E0B'];
+function Confetti() {
+  const piezas = useMemo(
+    () =>
+      Array.from({ length: 70 }, (_, i) => ({
+        id: i,
+        left: Math.random() * 100,
+        color: CONFETTI_COLORES[i % CONFETTI_COLORES.length],
+        delay: Math.random() * 0.6,
+        duration: 1.8 + Math.random() * 1.4,
+        size: 6 + Math.random() * 6,
+        redondo: Math.random() > 0.5,
+      })),
+    []
+  );
+
+  return (
+    <div className="no-print fixed inset-0 z-50 pointer-events-none overflow-hidden">
+      {piezas.map((p) => (
+        <span
+          key={p.id}
+          className="absolute top-0 animate-confetti-fall"
+          style={{
+            left: `${p.left}%`,
+            width: p.size,
+            height: p.size * (p.redondo ? 1 : 0.4),
+            backgroundColor: p.color,
+            borderRadius: p.redondo ? '50%' : '2px',
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.duration}s`,
+          }}
+        />
+      ))}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-7xl animate-pop-in">🎉</span>
+      </div>
+    </div>
   );
 }
 
@@ -2497,7 +2549,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5">
           <div className="bg-navy-800 rounded-md py-1.5 text-center">
             <p className="text-emerald-400 text-sm font-bold">{stats.activo}</p>
             <p className="text-xs text-navy-300">Activos</p>
@@ -2509,6 +2561,10 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
           <div className="bg-navy-800 rounded-md py-1.5 text-center">
             <p className="text-red-400 text-sm font-bold">{stats.inactivo}</p>
             <p className="text-xs text-navy-300">Inact.</p>
+          </div>
+          <div className="bg-navy-800 rounded-md py-1.5 text-center">
+            <p className="text-violet-400 text-sm font-bold">{stats.finalizado}</p>
+            <p className="text-xs text-navy-300">Final.</p>
           </div>
         </div>
       </div>
@@ -2582,6 +2638,7 @@ function Dashboard({ projects, misProyectos, onNewProject, openProject, setView,
   const activos = projects.filter((p) => p.estado === 'activo').length;
   const pausa = projects.filter((p) => p.estado === 'pausa').length;
   const inactivos = projects.filter((p) => p.estado === 'inactivo').length;
+  const finalizados = projects.filter((p) => p.estado === 'finalizado').length;
   const primerNombre = (perfil.nombre || '').split(' ')[0];
 
   return (
@@ -2599,11 +2656,12 @@ function Dashboard({ projects, misProyectos, onNewProject, openProject, setView,
         </button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
         <StatCard label="Total Proyectos" value={total} icon={Layers} accent="border-navy-300" />
         <StatCard label="Activos" value={activos} icon={Check} accent="border-emerald-400" textColor="text-emerald-600" />
         <StatCard label="En Pausa" value={pausa} icon={Cog} accent="border-yellow-400" textColor="text-yellow-600" />
         <StatCard label="Inactivos" value={inactivos} icon={XCircle} accent="border-red-400" textColor="text-red-600" />
+        <StatCard label="Finalizados" value={finalizados} icon={PartyPopper} accent="border-violet-400" textColor="text-violet-600" />
       </div>
 
       <div className="flex items-center justify-between mb-4">
@@ -2668,6 +2726,7 @@ function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, dire
           <option value="activo">Activo</option>
           <option value="pausa">En Pausa</option>
           <option value="inactivo">Inactivo</option>
+        <option value="finalizado">Finalizado</option>
         </select>
       </div>
 
@@ -2915,6 +2974,7 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionista
                 <option value="activo">Activo</option>
                 <option value="pausa">En Pausa</option>
                 <option value="inactivo">Inactivo</option>
+              <option value="finalizado">Finalizado</option>
               </select>
             </div>
           ) : (
@@ -3096,9 +3156,10 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [editingNombre, setEditingNombre] = useState(false);
   const [nombreDraft, setNombreDraft] = useState(project.nombre);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const puedeGestionar = isLeader(perfil); // asignar equipo + cambiar estado + eliminar/renombrar proyecto
-  const puedeEditarContenido = isAssignedToProject(perfil, project); // campos técnicos + archivos + notas
+  const puedeEditarContenido = isDeveloper(perfil) || isAssignedToProject(perfil, project); // campos técnicos + archivos + notas
   const puedeComentar = isQA(perfil); // comentarios en Control Documental
 
   async function loadHistorial() {
@@ -3146,6 +3207,10 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
     const nuevo = STATUS_CONFIG[nuevoEstado]?.label || nuevoEstado;
     updateProject(project.id, (p) => ({ ...p, estado: nuevoEstado }), `Cambió el estado: ${anterior} → ${nuevo}`, 'estado');
     setHistorial(null);
+    if (nuevoEstado === 'finalizado') {
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 2600);
+    }
   }
   function saveNombre() {
     const nuevo = nombreDraft.trim();
@@ -3208,6 +3273,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
 
   return (
     <div className="max-w-6xl mx-auto">
+      {showConfetti && <Confetti />}
       <div className="no-print p-8">
         <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-navy-500 hover:text-navy-700 mb-6">
           <ChevronLeft className="w-4 h-4" /> Volver al listado
@@ -3229,6 +3295,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
                   <option value="activo">Activo</option>
                   <option value="pausa">En Pausa</option>
                   <option value="inactivo">Inactivo</option>
+                <option value="finalizado">Finalizado</option>
                 </select>
               ) : (
                 <StatusBadge estado={project.estado} />
@@ -4383,6 +4450,7 @@ export default function App() {
     activo: projects.filter((p) => p.estado === 'activo').length,
     pausa: projects.filter((p) => p.estado === 'pausa').length,
     inactivo: projects.filter((p) => p.estado === 'inactivo').length,
+    finalizado: projects.filter((p) => p.estado === 'finalizado').length,
   };
 
   return (

@@ -45,6 +45,21 @@ export default {
       fontFamily: {
         sans: ['Montserrat', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
+      keyframes: {
+        'confetti-fall': {
+          '0%': { transform: 'translateY(-10vh) rotate(0deg)', opacity: '1' },
+          '100%': { transform: 'translateY(110vh) rotate(720deg)', opacity: '0.9' },
+        },
+        'pop-in': {
+          '0%': { transform: 'scale(0.3)', opacity: '0' },
+          '60%': { transform: 'scale(1.15)', opacity: '1' },
+          '100%': { transform: 'scale(1)', opacity: '1' },
+        },
+      },
+      animation: {
+        'confetti-fall': 'confetti-fall 2.2s ease-in forwards',
+        'pop-in': 'pop-in 0.5s ease-out forwards',
+      },
     },
   },
   plugins: [],
