@@ -207,9 +207,11 @@ const SCHEMA = [
     fields: [
       { key: 'obras_hidraulicas', label: 'Obras hidráulicas requeridas', type: 'boolean' },
       { key: 'tipo_obras', label: 'Tipo de obras', type: 'text' },
-      { key: 'inundabilidad', label: 'Inundabilidad', type: 'boolean' },
-      { key: 'velocidades', label: 'Velocidades de flujo evaluadas', type: 'boolean' },
+      { key: 'inundabilidad', label: '¿Manchas mayores a 20cm Tr 25 años?', type: 'boolean' },
+      { key: 'velocidades', label: '¿Velocidades de flujo mayores a 1m/s?', type: 'boolean' },
       { key: 'cuerpos_agua', label: 'Cuerpos de agua cercanos', type: 'boolean' },
+      { key: 'medidas_erosion', label: '¿Requiere implementación de medidas para la erosión?', type: 'boolean' },
+      { key: 'manejo_vegetacion', label: '¿Requiere manejo especial de vegetación?', type: 'boolean' },
       { key: 'estaciones_pluviometricas', label: 'Estaciones pluviométricas', type: 'stations' },
     ],
   },
