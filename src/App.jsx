@@ -1939,6 +1939,43 @@ function ProgresoDonut({ conteoPorEstado, total }) {
   );
 }
 
+/* Barra de progreso por especialidad, "pintada" por segmentos según el     */
+/* estado de cada documento (no solo APC). Al pasar el cursor sobre un      */
+/* segmento se ve el % y la cantidad de documentos en ese estado.          */
+function EspecialidadBarra({ especialidad, docs, conteo }) {
+  const total = docs.length;
+  const segmentos = DOC_ESTADOS.filter((estado) => conteo[estado] > 0);
+  return (
+    <div>
+      <div className="flex items-center justify-between text-xs mb-1">
+        <span className="font-semibold text-navy-600">{especialidad}</span>
+        <span className="text-navy-400">{total} docs</span>
+      </div>
+      <div className="relative">
+        {/* Barra visual (con esquinas redondeadas, por eso overflow-hidden) */}
+        <div className="w-full h-2.5 bg-navy-200 rounded-full overflow-hidden flex">
+          {segmentos.map((estado) => (
+            <div key={estado} className="h-full" style={{ width: `${(conteo[estado] / total) * 100}%`, backgroundColor: DOC_ESTADO_HEX[estado] }} />
+          ))}
+        </div>
+        {/* Capa invisible encima, solo para el hover — sin overflow-hidden, así el tooltip no se recorta */}
+        <div className="absolute inset-0 flex">
+          {segmentos.map((estado) => {
+            const pct = (conteo[estado] / total) * 100;
+            return (
+              <div key={estado} className="relative group h-full" style={{ width: `${pct}%` }}>
+                <div className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 bg-navy-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                  {DOC_ESTADO_CORTO[estado]}: {Math.round(pct)}% ({conteo[estado]})
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, onDocChange }) {
   const general = project.data.general;
   const lista = pickDocumentList(general.inversionista);
@@ -1995,21 +2032,12 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
           </div>
           <div className="flex-1 min-w-[180px] border-l border-navy-200 pl-6">
             <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-3">Progreso por especialidad</p>
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {grupos.map((g) => {
-                const apc = g.docs.filter((d) => estadoDeDoc(d) === 'Aprobado para construcción (APC)').length;
-                const pct = g.docs.length > 0 ? Math.round((apc / g.docs.length) * 100) : 0;
-                return (
-                  <div key={g.especialidad}>
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="font-semibold text-navy-600">{g.especialidad}</span>
-                      <span className="text-navy-400">{pct}% · {g.docs.length} docs</span>
-                    </div>
-                    <div className="w-full h-2 bg-navy-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
+                const conteo = {};
+                DOC_ESTADOS.forEach((e) => { conteo[e] = 0; });
+                g.docs.forEach((d) => { conteo[estadoDeDoc(d)] += 1; });
+                return <EspecialidadBarra key={g.especialidad} especialidad={g.especialidad} docs={g.docs} conteo={conteo} />;
               })}
             </div>
           </div>
