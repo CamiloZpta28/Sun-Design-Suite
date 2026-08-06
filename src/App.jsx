@@ -4542,11 +4542,29 @@ export default function App() {
       updatedProject = next.find((p) => p.id === id);
       return next;
     });
+    // OJO: supabase.rpc(...) y supabase.from(...).update(...) NO rechazan la
+    // promesa cuando hay un error de base de datos (ej. función inexistente
+    // o RLS que lo bloquea) — resuelven con { error }. Por eso revisamos
+    // "res.error" explícitamente y avisamos, en vez de confiar solo en
+    // .catch() (que solo agarra fallas de red/conexión). Sin esto, un
+    // guardado podía fallar en completo silencio y solo se notaba al
+    // refrescar la página y ver que el cambio no quedó.
+    function avisarErrorGuardado(error) {
+      console.error('Error guardando proyecto:', error);
+      alert(
+        'No se pudo guardar este cambio en el servidor (tu vista en pantalla sí lo muestra, pero no quedó guardado).\n\n' +
+        'Vuelve a intentarlo. Si el problema sigue, dile al desarrollador que revise que las funciones de guardado parcial ' +
+        '(supabase/migration_guardado_parcial.sql) estén creadas en Supabase.\n\n' +
+        'Detalle técnico: ' + (error?.message || String(error))
+      );
+    }
     if (persist) {
-      persist().catch((e) => console.error('Error guardando proyecto:', e));
+      persist().then((res) => {
+        if (res && res.error) avisarErrorGuardado(res.error);
+      }).catch(avisarErrorGuardado);
     } else if (updatedProject) {
       supabase.from('projects').update(projectToRow(updatedProject)).eq('id', id).then(({ error }) => {
-        if (error) console.error('Error guardando proyecto:', error);
+        if (error) avisarErrorGuardado(error);
       });
     }
     logActivity(id, accion, categoria);
