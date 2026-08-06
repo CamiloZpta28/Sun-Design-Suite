@@ -40,7 +40,8 @@ Sigue los pasos en orden. No necesitas experiencia previa con Supabase.
 > `supabase/migration_rol_desarrollador.sql` y
 > `supabase/migration_historial_categoria.sql` y
 > `supabase/migration_inversionistas.sql` y
-> `supabase/migration_paises.sql`. Cada uno agrega
+> `supabase/migration_paises.sql` y
+> `supabase/migration_guardado_parcial.sql`. Cada uno agrega
 > solo lo nuevo sin tocar lo que ya tenías. Si no recuerdas si ya corriste
 > alguno, no pasa nada por intentarlo de nuevo: en el peor caso te marcará
 > un error de "ya existe", que puedes ignorar.
@@ -165,6 +166,41 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Edición simultánea (importante, léelo antes de desplegar)**: antes,
+  cada guardado reescribía la fila COMPLETA del proyecto con lo que el
+  navegador tenía cargado, así que si dos personas guardaban casi al
+  mismo tiempo, la segunda borraba en silencio lo que la primera acababa
+  de guardar — aunque fueran cosas totalmente distintas (una pestaña
+  distinta, un documento distinto, etc.). Ahora cada guardado (editar una
+  pestaña técnica, cambiar el estado de un documento, agregar/quitar una
+  nota o un archivo, asignar un rol del equipo) usa una función de
+  Postgres que modifica **solo esa pieza puntual** directamente en la
+  base de datos, sin tocar el resto. Dos personas editando cosas
+  distintas del mismo proyecto — o incluso agregando notas/archivos casi
+  al mismo tiempo — ya no se pisan los cambios.
+  **Límite real que sigue existiendo**: si dos personas editan el
+  **mismo campo de la misma pestaña** (ej. ambos escribiendo en "Tipo de
+  suelo" de Geotecnia al mismo tiempo), todavía gana quien guarde de
+  último — eso ya es un problema de "quién escribe qué carácter, cuándo"
+  que requeriría edición colaborativa en tiempo real (como Google Docs),
+  una reescritura mucho más grande que no incluí aquí. Para el 99% de los
+  casos reales (gente trabajando en pestañas, documentos o notas
+  distintas al mismo tiempo) esto ya está resuelto.
+  **Para que funcione**, tienes que correr
+  `supabase/migration_guardado_parcial.sql` en tu Supabase ya desplegado
+  (o usar el `schema.sql` nuevo si vas a crear el proyecto desde cero).
+- **Progreso por especialidad**: al lado de la torta general en Control
+  Documental, ahora hay una barra de progreso por cada especialidad de la
+  lista de documentos activa (4 en Estándar, 5 en CFM, etc.).
+- **Observaciones por documento**: cada documento ahora tiene dos campos
+  de texto independientes: "Observaciones" (para cualquiera que pueda
+  editar el proyecto, ej. por qué sigue en proceso) y "Comentarios de
+  Control de Calidad" (como antes, solo para ese rol). No requiere
+  migración — es una llave más (`observaciones`) dentro del mismo JSON de
+  cada documento.
+- **Nuevos campos**: "Postes en (o cerca) del predio" (Sí/No +
+  observaciones) en Civil, y "Temperatura del suelo" (texto) en
+  Geotecnia.
 - **Estado "Finalizado"**: nuevo estado de proyecto (violeta), disponible en
   todos los selectores de estado. Al cambiarlo a "Finalizado" se dispara
   una animación de confeti + 🎉 (CSS puro, sin librerías externas), que se

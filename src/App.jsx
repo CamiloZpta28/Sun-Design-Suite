@@ -147,6 +147,7 @@ const SCHEMA = [
       { key: 'topografia_insumo', label: 'Topografía (insumo disponible)', type: 'boolean' },
       { key: 'es_insumo', label: 'Estudio de Suelos (insumo disponible)', type: 'boolean' },
       { key: 'zona_viento', label: 'Zona de viento', type: 'text' },
+      { key: 'postes_cerca_predio', label: 'Postes en (o cerca) del predio', type: 'boolean' },
     ],
   },
   {
@@ -182,6 +183,7 @@ const SCHEMA = [
       { key: 'modulo_elasticidad', label: 'Módulo de elasticidad (Es)', type: 'text' },
       { key: 'modulo_poisson', label: 'Módulo de Poisson (μ)', type: 'text' },
       { key: 'peso_unitario', label: 'Peso unitario', type: 'text' },
+      { key: 'temperatura_suelo', label: 'Temperatura del suelo', type: 'text' },
     ],
   },
   {
@@ -1984,10 +1986,34 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
       </div>
 
       <div className="bg-navy-50 border border-navy-200 rounded-xl p-4 mb-4">
-        <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-3">
-          Progreso {filtroEspecialidad !== 'todas' ? `· ${filtroEspecialidad}` : ''}
-        </p>
-        <ProgresoDonut conteoPorEstado={conteoPorEstado} total={universo.length} />
+        <div className="flex flex-wrap gap-6">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-3">
+              Progreso {filtroEspecialidad !== 'todas' ? `· ${filtroEspecialidad}` : ''}
+            </p>
+            <ProgresoDonut conteoPorEstado={conteoPorEstado} total={universo.length} />
+          </div>
+          <div className="flex-1 min-w-[180px] border-l border-navy-200 pl-6">
+            <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-3">Progreso por especialidad</p>
+            <div className="space-y-2.5">
+              {grupos.map((g) => {
+                const apc = g.docs.filter((d) => estadoDeDoc(d) === 'Aprobado para construcción (APC)').length;
+                const pct = g.docs.length > 0 ? Math.round((apc / g.docs.length) * 100) : 0;
+                return (
+                  <div key={g.especialidad}>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="font-semibold text-navy-600">{g.especialidad}</span>
+                      <span className="text-navy-400">{pct}% · {g.docs.length} docs</span>
+                    </div>
+                    <div className="w-full h-2 bg-navy-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 mb-3">
@@ -2072,15 +2098,34 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
                         <DocEstadoBadge estado={estadoValor} />
                       )}
                     </div>
-                    {puedeComentar ? (
-                      <ComentarioInput
-                        value={estadoDoc.comentarios}
-                        onCommit={(val) => onDocChange(doc, { comentarios: val })}
-                        placeholder="Comentarios de control de calidad…"
-                      />
-                    ) : estadoDoc.comentarios ? (
-                      <p className="text-sm text-navy-500 italic">{estadoDoc.comentarios}</p>
-                    ) : null}
+                    <div className="mb-2">
+                      <p className="text-xs font-semibold text-navy-400 mb-1">Observaciones</p>
+                      {puedeEditarContenido ? (
+                        <ComentarioInput
+                          value={estadoDoc.observaciones}
+                          onCommit={(val) => onDocChange(doc, { observaciones: val })}
+                          placeholder="Ej. por qué sigue en proceso, qué falta, a quién se le pidió…"
+                        />
+                      ) : estadoDoc.observaciones ? (
+                        <p className="text-sm text-navy-600">{estadoDoc.observaciones}</p>
+                      ) : (
+                        <p className="text-sm text-navy-300 italic">Sin observaciones</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-navy-400 mb-1">Comentarios de Control de Calidad</p>
+                      {puedeComentar ? (
+                        <ComentarioInput
+                          value={estadoDoc.comentarios}
+                          onCommit={(val) => onDocChange(doc, { comentarios: val })}
+                          placeholder="Comentarios de control de calidad…"
+                        />
+                      ) : estadoDoc.comentarios ? (
+                        <p className="text-sm text-navy-500 italic">{estadoDoc.comentarios}</p>
+                      ) : (
+                        <p className="text-sm text-navy-300 italic">Sin comentarios</p>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -3194,7 +3239,15 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
     const accion = cambios.length > 0
       ? `Editó "${activeSection.label}" — ${cambios.join('; ')}`
       : `Abrió "${activeSection.label}" en modo edición sin cambios`;
-    updateProject(project.id, (p) => ({ ...p, data: draftData }), accion, activeSection.id);
+    const seccionId = activeSection.id;
+    const nuevaSeccion = draftData[seccionId];
+    updateProject(
+      project.id,
+      (p) => ({ ...p, data: { ...p.data, [seccionId]: nuevaSeccion } }),
+      accion,
+      seccionId,
+      () => supabase.rpc('merge_project_data_section', { p_id: project.id, p_section: seccionId, p_value: nuevaSeccion })
+    );
     setEditMode(false);
     setDraftData(null);
     setHistorial(null);
@@ -3205,7 +3258,13 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
   function handleEstadoChange(nuevoEstado) {
     const anterior = STATUS_CONFIG[project.estado]?.label || project.estado;
     const nuevo = STATUS_CONFIG[nuevoEstado]?.label || nuevoEstado;
-    updateProject(project.id, (p) => ({ ...p, estado: nuevoEstado }), `Cambió el estado: ${anterior} → ${nuevo}`, 'estado');
+    updateProject(
+      project.id,
+      (p) => ({ ...p, estado: nuevoEstado }),
+      `Cambió el estado: ${anterior} → ${nuevo}`,
+      'estado',
+      () => supabase.from('projects').update({ estado: nuevoEstado }).eq('id', project.id)
+    );
     setHistorial(null);
     if (nuevoEstado === 'finalizado') {
       setShowConfetti(true);
@@ -3219,14 +3278,26 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
       setEditingNombre(false);
       return;
     }
-    updateProject(project.id, (p) => ({ ...p, nombre: nuevo }), `Cambió el nombre del proyecto: "${project.nombre}" → "${nuevo}"`, 'nombre');
+    updateProject(
+      project.id,
+      (p) => ({ ...p, nombre: nuevo }),
+      `Cambió el nombre del proyecto: "${project.nombre}" → "${nuevo}"`,
+      'nombre',
+      () => supabase.from('projects').update({ nombre: nuevo }).eq('id', project.id)
+    );
     setEditingNombre(false);
     setHistorial(null);
   }
   function handleEquipoChange(roleKey, nombre) {
     // No se registra en el historial: las asignaciones de equipo/rol
     // generaban demasiado ruido en la trazabilidad de cambios técnicos.
-    updateProject(project.id, (p) => ({ ...p, equipo: { ...p.equipo, [roleKey]: nombre } }));
+    updateProject(
+      project.id,
+      (p) => ({ ...p, equipo: { ...p.equipo, [roleKey]: nombre } }),
+      undefined,
+      undefined,
+      () => supabase.rpc('merge_project_equipo_role', { p_id: project.id, p_role: roleKey, p_value: nombre })
+    );
   }
   function handleAddFiles(fileList) {
     const nuevos = Array.from(fileList).map((f) => ({
@@ -3237,24 +3308,48 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
       fecha: new Date().toISOString().slice(0, 10),
     }));
     const nombres = nuevos.map((f) => f.nombre).join(', ');
-    updateProject(project.id, (p) => ({ ...p, archivos: [...p.archivos, ...nuevos] }), `Adjuntó archivo(s): ${nombres}`, 'archivos');
+    updateProject(
+      project.id,
+      (p) => ({ ...p, archivos: [...p.archivos, ...nuevos] }),
+      `Adjuntó archivo(s): ${nombres}`,
+      'archivos',
+      () => supabase.rpc('append_project_archivos', { p_id: project.id, p_nuevos: nuevos })
+    );
     setHistorial(null);
   }
   function removeFile(fileId) {
     const archivo = project.archivos.find((f) => f.id === fileId);
-    updateProject(project.id, (p) => ({ ...p, archivos: p.archivos.filter((f) => f.id !== fileId) }), archivo ? `Eliminó el archivo: ${archivo.nombre}` : 'Eliminó un archivo', 'archivos');
+    updateProject(
+      project.id,
+      (p) => ({ ...p, archivos: p.archivos.filter((f) => f.id !== fileId) }),
+      archivo ? `Eliminó el archivo: ${archivo.nombre}` : 'Eliminó un archivo',
+      'archivos',
+      () => supabase.rpc('remove_project_archivo', { p_id: project.id, p_archivo_id: fileId })
+    );
     setHistorial(null);
   }
   function handleAddNota(texto) {
     const nueva = { id: makeId('nota'), texto, autor: perfil.nombre, fecha: new Date().toISOString() };
     const resumen = texto.length > 80 ? `${texto.slice(0, 80)}…` : texto;
-    updateProject(project.id, (p) => ({ ...p, notas: [...(p.notas || []), nueva] }), `Agregó una nota: "${resumen}"`, 'notas');
+    updateProject(
+      project.id,
+      (p) => ({ ...p, notas: [...(p.notas || []), nueva] }),
+      `Agregó una nota: "${resumen}"`,
+      'notas',
+      () => supabase.rpc('append_project_nota', { p_id: project.id, p_nota: nueva })
+    );
     setHistorial(null);
   }
   function handleRemoveNota(notaId) {
     const nota = (project.notas || []).find((n) => n.id === notaId);
     const resumen = nota ? (nota.texto.length > 80 ? `${nota.texto.slice(0, 80)}…` : nota.texto) : null;
-    updateProject(project.id, (p) => ({ ...p, notas: (p.notas || []).filter((n) => n.id !== notaId) }), resumen ? `Eliminó una nota: "${resumen}"` : 'Eliminó una nota', 'notas');
+    updateProject(
+      project.id,
+      (p) => ({ ...p, notas: (p.notas || []).filter((n) => n.id !== notaId) }),
+      resumen ? `Eliminó una nota: "${resumen}"` : 'Eliminó una nota',
+      'notas',
+      () => supabase.rpc('remove_project_nota', { p_id: project.id, p_nota_id: notaId })
+    );
     setHistorial(null);
   }
   function handleDocChange(doc, patch) {
@@ -3262,8 +3357,16 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
     const nuevo = { ...anterior, ...patch };
     const accion = patch.estado !== undefined
       ? `Actualizó el estado de "${doc.nombre}" a "${patch.estado}"`
-      : `Comentó en "${doc.nombre}"`;
-    updateProject(project.id, (p) => ({ ...p, documentos: { ...(p.documentos || {}), [doc.codigo]: nuevo } }), accion, 'documentos');
+      : patch.comentarios !== undefined
+        ? `Comentó (control de calidad) en "${doc.nombre}"`
+        : `Agregó una observación en "${doc.nombre}"`;
+    updateProject(
+      project.id,
+      (p) => ({ ...p, documentos: { ...(p.documentos || {}), [doc.codigo]: nuevo } }),
+      accion,
+      'documentos',
+      () => supabase.rpc('merge_project_documento', { p_id: project.id, p_codigo: doc.codigo, p_patch: patch })
+    );
     setHistorial(null);
   }
 
@@ -4268,17 +4371,26 @@ export default function App() {
     }
   }
 
-  function updateProject(id, updater, accion, categoria) {
+  // "persist" es opcional: si se da, se usa para guardar SOLO lo que cambió
+  // (una columna puntual, o un merge parcial vía función de Postgres) en vez
+  // de sobrescribir la fila completa — así dos personas editando cosas
+  // distintas del mismo proyecto al mismo tiempo no se borran los cambios.
+  // Si no se da (casos que ya son de una sola columna simple), se usa el
+  // guardado de fila completa de siempre.
+  function updateProject(id, updater, accion, categoria, persist) {
+    let updatedProject = null;
     setProjects((prev) => {
       const next = prev.map((p) => (p.id === id ? updater(p) : p));
-      const updated = next.find((p) => p.id === id);
-      if (updated) {
-        supabase.from('projects').update(projectToRow(updated)).eq('id', id).then(({ error }) => {
-          if (error) console.error('Error guardando proyecto:', error);
-        });
-      }
+      updatedProject = next.find((p) => p.id === id);
       return next;
     });
+    if (persist) {
+      persist().catch((e) => console.error('Error guardando proyecto:', e));
+    } else if (updatedProject) {
+      supabase.from('projects').update(projectToRow(updatedProject)).eq('id', id).then(({ error }) => {
+        if (error) console.error('Error guardando proyecto:', error);
+      });
+    }
     logActivity(id, accion, categoria);
   }
   function handleCreate(newProject) {

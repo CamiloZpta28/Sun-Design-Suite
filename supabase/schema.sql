@@ -28,6 +28,118 @@ create table if not exists projects (
   updated_at timestamptz default now()
 );
 
+-- ---------- Funciones de guardado parcial (evitan que dos personas       ----------
+-- ---------- editando el mismo proyecto a la vez se borren los cambios).  ----------
+-- En vez de que la app lea todo el proyecto, lo modifique en el navegador
+-- y reescriba la fila COMPLETA (lo que borraría cualquier cambio que otra
+-- persona hubiera guardado mientras tanto), estas funciones hacen el
+-- cambio directamente en la base de datos, tocando solo la pestaña,
+-- documento, nota, archivo o rol que en verdad cambió. Así, si dos
+-- personas editan cosas distintas (o incluso el mismo documento) casi al
+-- mismo tiempo, ambos cambios quedan guardados.
+
+-- Combina solo UNA pestaña/especialidad dentro de la columna "data" (ej. 'civil'),
+-- sin tocar las demás pestañas que pudieran tener cambios de otra persona.
+create or replace function merge_project_data_section(p_id text, p_section text, p_value jsonb)
+returns void
+language sql
+as $$
+  update projects
+  set data = jsonb_set(coalesce(data, '{}'::jsonb), array[p_section], p_value, true),
+      updated_at = now()
+  where id = p_id;
+$$;
+
+-- Combina solo UN rol dentro de "equipo" (ej. 'civil' o 'lider_diseno'),
+-- sin tocar las asignaciones de otros roles hechas por otro líder a la vez.
+create or replace function merge_project_equipo_role(p_id text, p_role text, p_value jsonb)
+returns void
+language sql
+as $$
+  update projects
+  set equipo = jsonb_set(coalesce(equipo, '{}'::jsonb), array[p_role], p_value, true),
+      updated_at = now()
+  where id = p_id;
+$$;
+
+-- Combina solo el estado/comentarios/observaciones de UN documento dentro
+-- de "documentos" (ej. el código de un documento específico), sin tocar
+-- los demás documentos que pudieran haber cambiado mientras tanto.
+create or replace function merge_project_documento(p_id text, p_codigo text, p_patch jsonb)
+returns void
+language sql
+as $$
+  update projects
+  set documentos = jsonb_set(
+        coalesce(documentos, '{}'::jsonb),
+        array[p_codigo],
+        coalesce(documentos->p_codigo, '{}'::jsonb) || p_patch,
+        true
+      ),
+      updated_at = now()
+  where id = p_id;
+$$;
+
+-- Agrega una o varias notas nuevas al final del arreglo "notas", sin
+-- reemplazar el arreglo completo (así no se pierde una nota que alguien
+-- más haya agregado justo antes).
+create or replace function append_project_nota(p_id text, p_nota jsonb)
+returns void
+language sql
+as $$
+  update projects
+  set notas = coalesce(notas, '[]'::jsonb) || jsonb_build_array(p_nota),
+      updated_at = now()
+  where id = p_id;
+$$;
+
+-- Quita una nota por su id, sin tocar el resto del arreglo.
+create or replace function remove_project_nota(p_id text, p_nota_id text)
+returns void
+language sql
+as $$
+  update projects
+  set notas = coalesce((
+        select jsonb_agg(elem) from jsonb_array_elements(coalesce(notas, '[]'::jsonb)) elem
+        where elem->>'id' <> p_nota_id
+      ), '[]'::jsonb),
+      updated_at = now()
+  where id = p_id;
+$$;
+
+-- Agrega uno o varios archivos nuevos al final del arreglo "archivos".
+create or replace function append_project_archivos(p_id text, p_nuevos jsonb)
+returns void
+language sql
+as $$
+  update projects
+  set archivos = coalesce(archivos, '[]'::jsonb) || p_nuevos,
+      updated_at = now()
+  where id = p_id;
+$$;
+
+-- Quita un archivo por su id, sin tocar el resto del arreglo.
+create or replace function remove_project_archivo(p_id text, p_archivo_id text)
+returns void
+language sql
+as $$
+  update projects
+  set archivos = coalesce((
+        select jsonb_agg(elem) from jsonb_array_elements(coalesce(archivos, '[]'::jsonb)) elem
+        where elem->>'id' <> p_archivo_id
+      ), '[]'::jsonb),
+      updated_at = now()
+  where id = p_id;
+$$;
+
+grant execute on function merge_project_data_section(text, text, jsonb) to authenticated;
+grant execute on function merge_project_equipo_role(text, text, jsonb) to authenticated;
+grant execute on function merge_project_documento(text, text, jsonb) to authenticated;
+grant execute on function append_project_nota(text, jsonb) to authenticated;
+grant execute on function remove_project_nota(text, text) to authenticated;
+grant execute on function append_project_archivos(text, jsonb) to authenticated;
+grant execute on function remove_project_archivo(text, text) to authenticated;
+
 create table if not exists links (
   id text primary key,
   descripcion text not null,
