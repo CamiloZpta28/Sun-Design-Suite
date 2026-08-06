@@ -1973,6 +1973,11 @@ function ProgresoDonut({ conteoPorEstado, total }) {
   const cx = radius;
   const cy = radius;
 
+  // "No aplica" no se cuenta en el seguimiento: no entra al dibujo de la
+  // torta (para que las demás porciones sí completen el círculo), pero
+  // sigue apareciendo en la lista de al lado con su cantidad.
+  const totalSeguido = total - (conteoPorEstado['No aplica'] || 0);
+
   if (total === 0) {
     return (
       <div className="flex items-center justify-center" style={{ width: size, height: size }}>
@@ -1982,16 +1987,16 @@ function ProgresoDonut({ conteoPorEstado, total }) {
   }
 
   let angleStart = -Math.PI / 2;
-  const slices = DOC_ESTADOS.filter((estado) => conteoPorEstado[estado] > 0).map((estado) => {
+  const slices = totalSeguido === 0 ? [] : DOC_ESTADOS.filter((estado) => estado !== 'No aplica' && conteoPorEstado[estado] > 0).map((estado) => {
     const valor = conteoPorEstado[estado];
-    const angle = (valor / total) * Math.PI * 2;
+    const angle = (valor / totalSeguido) * Math.PI * 2;
     const angleEnd = angleStart + angle;
     const largeArc = angle > Math.PI ? 1 : 0;
     const x1 = cx + radius * Math.cos(angleStart), y1 = cy + radius * Math.sin(angleStart);
     const x2 = cx + radius * Math.cos(angleEnd), y2 = cy + radius * Math.sin(angleEnd);
     const ix1 = cx + innerRadius * Math.cos(angleStart), iy1 = cy + innerRadius * Math.sin(angleStart);
     const ix2 = cx + innerRadius * Math.cos(angleEnd), iy2 = cy + innerRadius * Math.sin(angleEnd);
-    const d = valor === total
+    const d = valor === totalSeguido
       ? `M ${cx} ${cy - radius} A ${radius} ${radius} 0 1 1 ${cx - 0.01} ${cy - radius} L ${cx - 0.01} ${cy - innerRadius} A ${innerRadius} ${innerRadius} 0 1 0 ${cx} ${cy - innerRadius} Z`
       : `M ${ix1} ${iy1} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${ix1} ${iy1} Z`;
     angleStart = angleEnd;
@@ -1999,14 +2004,18 @@ function ProgresoDonut({ conteoPorEstado, total }) {
   });
 
   const aprobados = conteoPorEstado['Aprobado para construcción (APC)'] || 0;
-  const pct = Math.round((aprobados / total) * 100);
+  const pct = totalSeguido === 0 ? 0 : Math.round((aprobados / totalSeguido) * 100);
 
   return (
     <div className="flex items-center gap-4 flex-wrap">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
-        {slices.map((s) => (
-          <path key={s.estado} d={s.d} fill={s.color} stroke="white" strokeWidth="1.5" />
-        ))}
+        {slices.length === 0 ? (
+          <circle cx={cx} cy={cy} r={(radius + innerRadius) / 2} fill="none" stroke="#CBD5E6" strokeWidth={radius - innerRadius} />
+        ) : (
+          slices.map((s) => (
+            <path key={s.estado} d={s.d} fill={s.color} stroke="white" strokeWidth="1.5" />
+          ))
+        )}
         <text x={cx} y={cy - 3} textAnchor="middle" fontSize="17" fontWeight="700" fill="#152644">{pct}%</text>
         <text x={cx} y={cy + 12} textAnchor="middle" fontSize="8" fill="#6487C4" fontFamily="monospace">APC</text>
       </svg>
