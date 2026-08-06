@@ -2078,6 +2078,7 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
   const prefijo = buildProjectCode(general);
   const estadoActual = project.documentos || {};
   const [filtroEspecialidad, setFiltroEspecialidad] = useState('todas');
+  const [filtroTipo, setFiltroTipo] = useState('todos');
   const [filtroEstado, setFiltroEstado] = useState('todos');
 
   function estadoDeDoc(doc) {
@@ -2093,18 +2094,26 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
     }
     grupos[idxByEsp.get(doc.especialidad)].docs.push(doc);
   });
+  const tiposDisponibles = [...new Set(lista.map((d) => d.tipo))].sort((a, b) => a.localeCompare(b, 'es'));
 
-  // Universo según la especialidad elegida (antes de aplicar el filtro de estado),
-  // para que los conteos del semáforo reflejen la especialidad pero no cambien
-  // solo por hacer clic entre estados.
-  const universo = filtroEspecialidad === 'todas' ? lista : lista.filter((d) => d.especialidad === filtroEspecialidad);
+  // Universo según especialidad + tipo elegidos (antes de aplicar el filtro de
+  // estado), para que los conteos del semáforo reflejen esos dos filtros pero
+  // no cambien solo por hacer clic entre estados.
+  const universo = lista.filter(
+    (d) => (filtroEspecialidad === 'todas' || d.especialidad === filtroEspecialidad) && (filtroTipo === 'todos' || d.tipo === filtroTipo)
+  );
   const conteoPorEstado = {};
   DOC_ESTADOS.forEach((e) => { conteoPorEstado[e] = 0; });
   universo.forEach((doc) => { conteoPorEstado[estadoDeDoc(doc)] += 1; });
 
   const gruposFiltrados = grupos
     .filter((g) => filtroEspecialidad === 'todas' || g.especialidad === filtroEspecialidad)
-    .map((g) => ({ ...g, docs: g.docs.filter((doc) => filtroEstado === 'todos' || estadoDeDoc(doc) === filtroEstado) }))
+    .map((g) => ({
+      ...g,
+      docs: g.docs.filter(
+        (doc) => (filtroTipo === 'todos' || doc.tipo === filtroTipo) && (filtroEstado === 'todos' || estadoDeDoc(doc) === filtroEstado)
+      ),
+    }))
     .filter((g) => g.docs.length > 0);
 
   return (
@@ -2122,7 +2131,9 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
         <div className="flex flex-wrap gap-6 items-stretch">
           <div className="flex flex-col">
             <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-3">
-              Progreso {filtroEspecialidad !== 'todas' ? `· ${filtroEspecialidad}` : ''}
+              Progreso
+              {filtroEspecialidad !== 'todas' ? ` · ${filtroEspecialidad}` : ''}
+              {filtroTipo !== 'todos' ? ` · ${filtroTipo}` : ''}
             </p>
             <div className="flex-1 flex items-center">
               <ProgresoDonut conteoPorEstado={conteoPorEstado} total={universo.length} />
@@ -2133,7 +2144,7 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
             <p className="text-xs text-navy-400 mb-3">No incluye documentos en "No aplica" — esos no se cuentan en el seguimiento.</p>
             <div className="space-y-3">
               {grupos.map((g) => {
-                const docsSeguidos = g.docs.filter((d) => estadoDeDoc(d) !== 'No aplica');
+                const docsSeguidos = g.docs.filter((d) => estadoDeDoc(d) !== 'No aplica' && (filtroTipo === 'todos' || d.tipo === filtroTipo));
                 const conteo = {};
                 DOC_ESTADOS.forEach((e) => { conteo[e] = 0; });
                 docsSeguidos.forEach((d) => { conteo[estadoDeDoc(d)] += 1; });
@@ -2144,18 +2155,33 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mb-3">
-        <label className="text-xs font-semibold text-navy-500">Filtrar por especialidad:</label>
-        <select
-          value={filtroEspecialidad}
-          onChange={(e) => setFiltroEspecialidad(e.target.value)}
-          className="text-sm rounded-lg border border-navy-300 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-lime-400"
-        >
-          <option value="todas">Todas ({lista.length})</option>
-          {grupos.map((g) => (
-            <option key={g.especialidad} value={g.especialidad}>{g.especialidad} ({g.docs.length})</option>
-          ))}
-        </select>
+      <div className="flex items-center gap-4 flex-wrap mb-3">
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-navy-500">Filtrar por especialidad:</label>
+          <select
+            value={filtroEspecialidad}
+            onChange={(e) => setFiltroEspecialidad(e.target.value)}
+            className="text-sm rounded-lg border border-navy-300 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-lime-400"
+          >
+            <option value="todas">Todas ({lista.length})</option>
+            {grupos.map((g) => (
+              <option key={g.especialidad} value={g.especialidad}>{g.especialidad} ({g.docs.length})</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-navy-500">Filtrar por tipo:</label>
+          <select
+            value={filtroTipo}
+            onChange={(e) => setFiltroTipo(e.target.value)}
+            className="text-sm rounded-lg border border-navy-300 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-lime-400"
+          >
+            <option value="todos">Todos ({lista.length})</option>
+            {tiposDisponibles.map((tipo) => (
+              <option key={tipo} value={tipo}>{tipo} ({lista.filter((d) => d.tipo === tipo).length})</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Semáforo de progreso: resume y a la vez filtra por estado */}
