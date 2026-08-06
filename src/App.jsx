@@ -1951,27 +1951,31 @@ function EspecialidadBarra({ especialidad, docs, conteo }) {
         <span className="font-semibold text-navy-600">{especialidad}</span>
         <span className="text-navy-400">{total} docs</span>
       </div>
-      <div className="relative">
-        {/* Barra visual (con esquinas redondeadas, por eso overflow-hidden) */}
-        <div className="w-full h-2.5 bg-navy-200 rounded-full overflow-hidden flex">
-          {segmentos.map((estado) => (
-            <div key={estado} className="h-full" style={{ width: `${(conteo[estado] / total) * 100}%`, backgroundColor: DOC_ESTADO_HEX[estado] }} />
-          ))}
-        </div>
-        {/* Capa invisible encima, solo para el hover — sin overflow-hidden, así el tooltip no se recorta */}
-        <div className="absolute inset-0 flex">
-          {segmentos.map((estado) => {
-            const pct = (conteo[estado] / total) * 100;
-            return (
-              <div key={estado} className="relative group h-full" style={{ width: `${pct}%` }}>
-                <div className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 bg-navy-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                  {DOC_ESTADO_CORTO[estado]}: {Math.round(pct)}% ({conteo[estado]})
+      {total === 0 ? (
+        <p className="text-xs text-navy-300 italic">Todos los documentos de esta especialidad son "No aplica".</p>
+      ) : (
+        <div className="relative">
+          {/* Barra visual (con esquinas redondeadas, por eso overflow-hidden) */}
+          <div className="w-full h-2.5 bg-navy-200 rounded-full overflow-hidden flex">
+            {segmentos.map((estado) => (
+              <div key={estado} className="h-full" style={{ width: `${(conteo[estado] / total) * 100}%`, backgroundColor: DOC_ESTADO_HEX[estado] }} />
+            ))}
+          </div>
+          {/* Capa invisible encima, solo para el hover — sin overflow-hidden, así el tooltip no se recorta */}
+          <div className="absolute inset-0 flex">
+            {segmentos.map((estado) => {
+              const pct = (conteo[estado] / total) * 100;
+              return (
+                <div key={estado} className="relative group h-full" style={{ width: `${pct}%` }}>
+                  <div className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 bg-navy-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                    {DOC_ESTADO_CORTO[estado]}: {Math.round(pct)}% ({conteo[estado]})
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -2032,12 +2036,14 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
           </div>
           <div className="flex-1 min-w-[180px] border-l border-navy-200 pl-6">
             <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-3">Progreso por especialidad</p>
+            <p className="text-xs text-navy-400 mb-3">No incluye documentos en "No aplica" — esos no se cuentan en el seguimiento.</p>
             <div className="space-y-3">
               {grupos.map((g) => {
+                const docsSeguidos = g.docs.filter((d) => estadoDeDoc(d) !== 'No aplica');
                 const conteo = {};
                 DOC_ESTADOS.forEach((e) => { conteo[e] = 0; });
-                g.docs.forEach((d) => { conteo[estadoDeDoc(d)] += 1; });
-                return <EspecialidadBarra key={g.especialidad} especialidad={g.especialidad} docs={g.docs} conteo={conteo} />;
+                docsSeguidos.forEach((d) => { conteo[estadoDeDoc(d)] += 1; });
+                return <EspecialidadBarra key={g.especialidad} especialidad={g.especialidad} docs={docsSeguidos} conteo={conteo} />;
               })}
             </div>
           </div>
@@ -2103,7 +2109,7 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
                 const estadoValor = estadoDoc.estado || 'Pendiente';
                 const cfg = DOC_ESTADO_CONFIG[estadoValor];
                 return (
-                  <div key={doc.codigo} className={`bg-white rounded-lg border-l-4 ${cfg.border} border-t border-r border-b border-navy-200 p-3`}>
+                  <div key={doc.codigo} className={`bg-white rounded-lg border-l-4 ${cfg.border} border-t border-r border-b border-t-navy-200 border-r-navy-200 border-b-navy-200 p-3`}>
                     <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-navy-700">{doc.nombre}</p>
@@ -2664,7 +2670,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
 
 function StatCard({ label, value, icon: Icon, accent, textColor = 'text-navy-700' }) {
   return (
-    <div className={`bg-white rounded-xl border-l-4 ${accent} border-t border-r border-b border-navy-200 p-4 shadow-sm`}>
+    <div className={`bg-white rounded-xl border-l-4 ${accent} border-t border-r border-b border-t-navy-200 border-r-navy-200 border-b-navy-200 p-4 shadow-sm`}>
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">{label}</p>
         <Icon className={`w-4 h-4 ${textColor}`} />
