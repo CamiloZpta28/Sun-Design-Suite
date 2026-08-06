@@ -165,6 +165,23 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Lista Estándar actualizada**: reemplacé por completo `DOCS_ESTANDAR` con
+  el nuevo dosier (72 documentos, especialidades Civil/Mecánica/
+  Comunicaciones/Eléctrica — ya sin "General"). Los códigos se tomaron
+  directamente del archivo que subiste (columna "Código"), reemplazando el
+  prefijo de ese proyecto de ejemplo por el placeholder genérico
+  `COLXXXXXXPX` que la app sustituye por el código real de cada proyecto.
+  CFM y FENOGE no se tocaron.
+- **Progreso visual (Control Documental)**: nueva "torta" (dona) arriba de
+  la lista de documentos, con el % de documentos en estado "Aprobado para
+  construcción (APC)" en el centro y un detalle por estado al lado. Se
+  actualiza sola según el filtro de especialidad que tengas activo. Es
+  puramente visual — a propósito no aparece en la hoja de vida imprimible,
+  tal como pediste.
+- **Corrección de color**: de paso noté que "En proceso" y "APCC" habían
+  quedado con el mismo tono de lima después del rebranding a Solé (antes
+  eran distintos). Le puse a "APCC" el celeste "Nashville" para que se
+  distingan bien tanto en las píldoras de estado como en la torta nueva.
 - **Cimentaciones con previsualización isométrica** (pestaña Estructural):
   el dibujo ahora es un cubo/cilindro en isométrico (3 caras visibles) para
   distinguir ancho, profundo y alto de un vistazo. Tres formas:
