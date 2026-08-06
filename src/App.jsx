@@ -1850,24 +1850,69 @@ function NotesPanel({ notas, onAdd, onRemove, canEdit }) {
 
 /* Input de comentarios que solo confirma (y dispara la persistencia) al     */
 /* perder el foco, para no escribir en la base de datos en cada tecla.       */
-function ComentarioInput({ value, onCommit, disabled, placeholder }) {
+/* Campo de texto con flujo explícito "Editar → Guardar": se muestra como     */
+/* texto de solo lectura con un botón "Editar"; al editar aparece el         */
+/* textarea + "Guardar"/"Cancelar". No crea entradas nuevas — siempre edita  */
+/* el mismo valor. Usado en Observaciones y Comentarios de Control de       */
+/* Calidad de cada documento.                                                */
+function ComentarioEditable({ value, onCommit, disabled, placeholder }) {
+  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || '');
+
   useEffect(() => {
-    setDraft(value || '');
-  }, [value]);
+    if (!editing) setDraft(value || '');
+  }, [value, editing]);
+
+  if (disabled) {
+    return value ? <p className="text-sm text-navy-600 whitespace-pre-wrap">{value}</p> : <p className="text-sm text-navy-300 italic">Sin definir</p>;
+  }
+
+  if (!editing) {
+    return (
+      <div className="flex items-start justify-between gap-2">
+        {value ? (
+          <p className="text-sm text-navy-600 whitespace-pre-wrap flex-1 min-w-0">{value}</p>
+        ) : (
+          <p className="text-sm text-navy-300 italic flex-1 min-w-0">Sin definir</p>
+        )}
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="flex items-center gap-1 text-xs font-semibold text-lime-600 hover:text-lime-700 shrink-0"
+        >
+          <Pencil className="w-3 h-3" /> {value ? 'Editar' : 'Agregar'}
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <textarea
-      rows={2}
-      disabled={disabled}
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => {
-        if (draft !== (value || '')) onCommit(draft);
-      }}
-      placeholder={placeholder}
-      className="w-full text-sm rounded-md border border-navy-300 px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-lime-400 disabled:bg-navy-50 disabled:text-navy-400"
-    />
+    <div>
+      <textarea
+        rows={2}
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder={placeholder}
+        className="w-full text-sm rounded-md border border-navy-300 px-2.5 py-1.5 mb-1.5 focus:outline-none focus:ring-2 focus:ring-lime-400"
+      />
+      <div className="flex justify-end gap-1.5">
+        <button
+          type="button"
+          onClick={() => { setDraft(value || ''); setEditing(false); }}
+          className="text-xs text-navy-400 hover:text-navy-600 px-2 py-1"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={() => { onCommit(draft); setEditing(false); }}
+          className="text-xs font-semibold bg-lime-500 hover:bg-lime-600 text-navy-900 px-3 py-1 rounded-md transition-colors"
+        >
+          Guardar
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -2027,12 +2072,14 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
       </div>
 
       <div className="bg-navy-50 border border-navy-200 rounded-xl p-4 mb-4">
-        <div className="flex flex-wrap gap-6">
-          <div>
+        <div className="flex flex-wrap gap-6 items-stretch">
+          <div className="flex flex-col">
             <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-3">
               Progreso {filtroEspecialidad !== 'todas' ? `· ${filtroEspecialidad}` : ''}
             </p>
-            <ProgresoDonut conteoPorEstado={conteoPorEstado} total={universo.length} />
+            <div className="flex-1 flex items-center">
+              <ProgresoDonut conteoPorEstado={conteoPorEstado} total={universo.length} />
+            </div>
           </div>
           <div className="flex-1 min-w-[180px] border-l border-navy-200 pl-6">
             <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-3">Progreso por especialidad</p>
@@ -2134,31 +2181,21 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
                     </div>
                     <div className="mb-2">
                       <p className="text-xs font-semibold text-navy-400 mb-1">Observaciones</p>
-                      {puedeEditarContenido ? (
-                        <ComentarioInput
-                          value={estadoDoc.observaciones}
-                          onCommit={(val) => onDocChange(doc, { observaciones: val })}
-                          placeholder="Ej. por qué sigue en proceso, qué falta, a quién se le pidió…"
-                        />
-                      ) : estadoDoc.observaciones ? (
-                        <p className="text-sm text-navy-600">{estadoDoc.observaciones}</p>
-                      ) : (
-                        <p className="text-sm text-navy-300 italic">Sin observaciones</p>
-                      )}
+                      <ComentarioEditable
+                        value={estadoDoc.observaciones}
+                        onCommit={(val) => onDocChange(doc, { observaciones: val })}
+                        disabled={!puedeEditarContenido}
+                        placeholder="Ej. por qué sigue en proceso, qué falta, a quién se le pidió…"
+                      />
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-navy-400 mb-1">Comentarios de Control de Calidad</p>
-                      {puedeComentar ? (
-                        <ComentarioInput
-                          value={estadoDoc.comentarios}
-                          onCommit={(val) => onDocChange(doc, { comentarios: val })}
-                          placeholder="Comentarios de control de calidad…"
-                        />
-                      ) : estadoDoc.comentarios ? (
-                        <p className="text-sm text-navy-500 italic">{estadoDoc.comentarios}</p>
-                      ) : (
-                        <p className="text-sm text-navy-300 italic">Sin comentarios</p>
-                      )}
+                      <ComentarioEditable
+                        value={estadoDoc.comentarios}
+                        onCommit={(val) => onDocChange(doc, { comentarios: val })}
+                        disabled={!puedeComentar}
+                        placeholder="Comentarios de control de calidad…"
+                      />
                     </div>
                   </div>
                 );
@@ -3270,9 +3307,13 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
   }
   function saveEdit() {
     const cambios = diffSectionData(activeSection, project.data[activeSection.id], draftData[activeSection.id]);
-    const accion = cambios.length > 0
-      ? `Editó "${activeSection.label}" — ${cambios.join('; ')}`
-      : `Abrió "${activeSection.label}" en modo edición sin cambios`;
+    if (cambios.length === 0) {
+      // No se tocó nada: ni se guarda, ni se registra en el historial.
+      setEditMode(false);
+      setDraftData(null);
+      return;
+    }
+    const accion = `Editó "${activeSection.label}" — ${cambios.join('; ')}`;
     const seccionId = activeSection.id;
     const nuevaSeccion = draftData[seccionId];
     updateProject(
