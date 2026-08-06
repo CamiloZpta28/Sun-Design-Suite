@@ -147,20 +147,27 @@ const SCHEMA = [
       { key: 'topografia_insumo', label: 'Topografía (insumo disponible)', type: 'boolean' },
       { key: 'es_insumo', label: 'Estudio de Suelos (insumo disponible)', type: 'boolean' },
       { key: 'zona_viento', label: 'Zona de viento', type: 'text' },
-      { key: 'postes_cerca_predio', label: 'Postes en (o cerca) del predio', type: 'boolean' },
+      { key: 'postes_cerca_predio', label: 'Postes en el predio (o cerca)', type: 'boolean' },
     ],
   },
   {
     id: 'mecanica', label: 'Mecánica', icon: Cog,
     fields: [
       { key: 'numero_mesas', label: 'Número de mesas', type: 'text' },
-      { key: 'tipo_mesas', label: 'Tipo de mesas', type: 'text' },
+      { key: 'tipo_mesas', label: 'Tipo de mesas', type: 'select', opciones: ['Tracker', 'Mesa fija'] },
       { key: 'config_mesas', label: 'Configuración de las mesas', type: 'text' },
-      { key: 'numero_hincas', label: 'Número de hincas', type: 'text' },
+      { key: 'hincas_por_mesa', label: 'Hincas por mesa', type: 'text' },
+      {
+        key: 'numero_hincas', label: 'Número de hincas', type: 'computed',
+        formula: (d) => String((parseFloat(d?.numero_mesas) || 0) * (parseFloat(d?.hincas_por_mesa) || 0)),
+        ayuda: 'Se calcula solo: N.° de mesas × Hincas por mesa',
+      },
       { key: 'numero_modulos', label: 'Número de módulos', type: 'text' },
       { key: 'especificacion_modulos', label: 'Especificación de módulos', type: 'text' },
-      { key: 'inclinacion_modulos', label: 'Inclinación de módulos', type: 'text' },
-      { key: 'altura_min_terreno', label: 'Altura mínima con terreno', type: 'text' },
+      { key: 'inclinacion_modulos', label: 'Inclinación máxima de módulos (°)', type: 'text' },
+      { key: 'altura_min_terreno', label: 'Altura mínima con terreno (m)', type: 'text' },
+      { key: 'tolerancia_superior', label: 'Tolerancia superior (m)', type: 'text' },
+      { key: 'tolerancia_inferior', label: 'Tolerancia inferior (m)', type: 'text' },
       { key: 'numero_inversores', label: 'Número de inversores', type: 'text' },
       { key: 'especificacion_inversores', label: 'Especificación de inversores', type: 'text' },
       { key: 'modulos_por_inversor', label: 'Módulos por inversor', type: 'text' },
@@ -184,6 +191,7 @@ const SCHEMA = [
       { key: 'modulo_poisson', label: 'Módulo de Poisson (μ)', type: 'text' },
       { key: 'peso_unitario', label: 'Peso unitario', type: 'text' },
       { key: 'temperatura_suelo', label: 'Temperatura del suelo', type: 'text' },
+      { key: 'clasificacion_suelo', label: 'Clasificación de suelo (NSR-10)', type: 'select', opciones: ['A', 'B', 'C', 'D', 'E', 'F'] },
     ],
   },
   {
@@ -1411,6 +1419,36 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
     );
   }
 
+  if (field.type === 'select') {
+    if (!editMode) return <ReadOnlyValue label={field.label} value={value} mono={false} />;
+    return (
+      <div className="py-1">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
+        <select
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+        >
+          <option value="">Seleccionar…</option>
+          {field.opciones.map((op) => (
+            <option key={op} value={op}>{op}</option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
+  if (field.type === 'computed') {
+    const calculado = field.formula(siblingData);
+    return (
+      <div className="py-1">
+        <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-1">{field.label}</p>
+        <p className="text-sm text-navy-700 font-mono">{calculado}</p>
+        {field.ayuda && <p className="text-xs text-navy-300 italic mt-0.5">{field.ayuda}</p>}
+      </div>
+    );
+  }
+
   if (field.type === 'cimentacion') {
     const v = value && typeof value === 'object' && !Array.isArray(value) ? value : emptyCimentacion(field.forma);
     const totalM = ((parseFloat(v.desplante) || 0) + field.sobresale).toFixed(2);
@@ -2322,6 +2360,16 @@ function PrintableReport({ project }) {
                         {resumen || '—'}
                         <span className="block font-sans text-xs text-navy-500 mt-0.5">Sobresale del terreno: {field.sobresale} m · Alto total: {totalM} m</span>
                       </td>
+                    </tr>
+                  );
+                }
+
+                if (field.type === 'computed') {
+                  const calculado = field.formula(project.data[section.id] || {});
+                  return (
+                    <tr key={field.key} className="border-b border-navy-100">
+                      <td className="py-1.5 pr-4 text-navy-500 w-1/2 align-top">{field.label}</td>
+                      <td className="py-1.5 font-mono text-navy-700 align-top">{calculado}</td>
                     </tr>
                   );
                 }
