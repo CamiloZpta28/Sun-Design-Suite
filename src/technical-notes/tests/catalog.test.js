@@ -112,8 +112,9 @@ describe('aislamiento entre estructuras (repositorio con scope)', () => {
   });
 
   it('la tubería galvanizada del cerramiento no se ofrece al portón', () => {
-    expect(optionsFor('TUBERIA_GALVANIZADA', 'PORTON_METALICO')).toEqual([]);
-    expect(optionsFor('TUBERIA_GALVANIZADA', 'CERRAMIENTO_PERIMETRAL')).toContain('Ø 2 in');
+    expect(optionsFor('TUBERIA_GALVANIZADA_DIAMETRO', 'PORTON_METALICO')).toEqual([]);
+    expect(optionsFor('TUBERIA_GALVANIZADA_ESPESOR', 'PORTON_METALICO')).toEqual([]);
+    expect(optionsFor('TUBERIA_GALVANIZADA_DIAMETRO', 'CERRAMIENTO_PERIMETRAL')).toContain('Ø 2 in');
   });
 });
 

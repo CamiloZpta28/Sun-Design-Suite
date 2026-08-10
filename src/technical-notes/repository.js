@@ -37,6 +37,13 @@ export const TECHNICAL_VALUE_REPOSITORY = {
   ACERO_REFUERZO: [
     { value: CONCRETO.inputs.ACERO_FY.default, scope: SCOPE_GLOBAL },
   ],
+  /* Grupo propio, separado de ACERO_REFUERZO (que contiene esfuerzos de
+     fluencia): norma y fy son datos independientes y no deben forzarse
+     mutuamente, así que tampoco deben aparecer mezclados en el mismo
+     desplegable. Ver STANDALONE_TECHNICAL_VALUES. */
+  ACERO_REFUERZO_NORMA: [
+    { value: 'ASTM A706', scope: SCOPE_GLOBAL },
+  ],
   AGREGADOS: [
     { value: CONCRETO.inputs.AGREGADO_MAX.default, scope: SCOPE_GLOBAL },
   ],
@@ -51,10 +58,24 @@ export const TECHNICAL_VALUE_REPOSITORY = {
   PERFILES: [
     { value: PORTON_METALICO.inputs.PERFIL.default, scope: 'PORTON_METALICO' },
   ],
-  TUBERIA_GALVANIZADA: [
+  /* El paquete fuente agrupa toda la tubería del cerramiento bajo un único
+     "TUBERIA_GALVANIZADA", lo que mezclaría magnitudes distintas en el mismo
+     desplegable (un campo de diámetro ofrecería espesores y viceversa). Se
+     separa por magnitud — ver INPUT_GROUP_OVERRIDES, que es donde se decide
+     qué grupo consume cada input sin alterar la transcripción del catálogo.
+
+     Diámetros y espesores NO se sub-dividen además por elemento (poste vs.
+     diagonal): un poste Ø 1 1/2" o una diagonal Ø 2" son combinaciones
+     técnicamente válidas, solo distintas del valor típico de la memoria.
+     Separar más obligaría a escribir "Otro" para usar un valor que ya está
+     en el catálogo. Lo que sí es incompatible —un diámetro en milímetros de
+     pared— queda impedido. */
+  TUBERIA_GALVANIZADA_DIAMETRO: [
     { value: CERRAMIENTO_PERIMETRAL.inputs.POSTE_DIAMETRO.default, scope: 'CERRAMIENTO_PERIMETRAL' },
-    { value: CERRAMIENTO_PERIMETRAL.inputs.POSTE_ESPESOR.default, scope: 'CERRAMIENTO_PERIMETRAL' },
     { value: CERRAMIENTO_PERIMETRAL.inputs.DIAGONAL_DIAMETRO.default, scope: 'CERRAMIENTO_PERIMETRAL' },
+  ],
+  TUBERIA_GALVANIZADA_ESPESOR: [
+    { value: CERRAMIENTO_PERIMETRAL.inputs.POSTE_ESPESOR.default, scope: 'CERRAMIENTO_PERIMETRAL' },
     { value: CERRAMIENTO_PERIMETRAL.inputs.DIAGONAL_ESPESOR.default, scope: 'CERRAMIENTO_PERIMETRAL' },
   ],
   MALLA: [
@@ -70,6 +91,56 @@ export const TECHNICAL_VALUE_REPOSITORY = {
     { value: IMPERMEABILIZACION_JUNTAS.inputs.PUENTE_ADHERENCIA.default, scope: SCOPE_GLOBAL },
     { value: IMPERMEABILIZACION_JUNTAS.inputs.SELLO_HIDROEXPANSIVO.default, scope: SCOPE_GLOBAL },
   ],
+};
+
+/* ----------------------------------------------------------------------------
+   ESPECIALIZACIÓN DE GRUPOS POR INPUT
+   ----------------------------------------------------------------------------
+   Los archivos de catalog/categories/* son transcripción literal de los .txt
+   entregados, así que el `group` que declaran no se modifica. Cuando ese
+   grupo es demasiado amplio y mezclaría magnitudes incompatibles en un mismo
+   desplegable, se declara aquí qué grupo consume realmente cada input.
+
+   Clave: "<CATEGORY_ID>.<INPUT_KEY>". Si no hay entrada, se usa el grupo tal
+   como lo declara el catálogo.
+   -------------------------------------------------------------------------- */
+export const INPUT_GROUP_OVERRIDES = {
+  'CERRAMIENTO_PERIMETRAL.POSTE_DIAMETRO': 'TUBERIA_GALVANIZADA_DIAMETRO',
+  'CERRAMIENTO_PERIMETRAL.DIAGONAL_DIAMETRO': 'TUBERIA_GALVANIZADA_DIAMETRO',
+  'CERRAMIENTO_PERIMETRAL.POSTE_ESPESOR': 'TUBERIA_GALVANIZADA_ESPESOR',
+  'CERRAMIENTO_PERIMETRAL.DIAGONAL_ESPESOR': 'TUBERIA_GALVANIZADA_ESPESOR',
+};
+
+/** Grupo efectivo del que un input toma sus opciones. */
+export function groupForInput(categoryId, inputKey, declaredGroup) {
+  return INPUT_GROUP_OVERRIDES[`${categoryId}.${inputKey}`] || declaredGroup;
+}
+
+/* ----------------------------------------------------------------------------
+   VALORES TÉCNICOS SIN NOTA ASOCIADA
+   ----------------------------------------------------------------------------
+   Datos reutilizables que hoy NO tienen placeholder en ninguna categoría del
+   paquete fuente, pero que el proyecto sí captura y que deben comportarse
+   como cualquier otro valor de repositorio (desplegable + "Otro" + default
+   sugerido, sin sobrescribir lo guardado).
+
+   Viven aquí y no dentro de catalog/categories/* porque esos módulos son
+   transcripción literal de los .txt entregados: agregarles un input que el
+   archivo fuente no declara rompería esa correspondencia. Si una memoria
+   futura introduce el placeholder correspondiente, el valor se mueve a la
+   categoría y este registro desaparece sin tocar la UI.
+   -------------------------------------------------------------------------- */
+export const STANDALONE_TECHNICAL_VALUES = {
+  /* Norma del acero de refuerzo. La nota CON-003 del catálogo actual solo
+     interpola fy ({{ACERO_FY}}), así que este dato todavía no alimenta
+     ninguna nota — pero es un parámetro técnico reutilizable que los
+     proyectos ya venían capturando con el motor anterior. Valor inicial
+     tomado de las memorias: ASTM A706. */
+  ACERO_REFUERZO_NORMA: {
+    fieldKey: 'acero_refuerzo_norma',
+    group: 'ACERO_REFUERZO_NORMA',
+    defaultValue: 'ASTM A706',
+  },
 };
 
 /**

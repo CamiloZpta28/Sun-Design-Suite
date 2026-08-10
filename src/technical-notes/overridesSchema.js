@@ -10,16 +10,17 @@
 
 import { CATEGORIES } from './catalog/categories/index.js';
 import { bundleFor } from './catalog/manifest.js';
-import { optionsFor } from './repository.js';
+import { optionsFor, groupForInput } from './repository.js';
 
-/** categoryId -> [inputKey] que se editan como override. */
+/* categoryId -> [inputKey] que se editan como override.
+   UNIDAD_PLANOS quedó FUERA a propósito: la unidad de los planos es siempre
+   metros en este sistema, se resuelve con un valor fijo (ver
+   catalog/resolvers/general.js) y ya no es un dato capturable. */
 const OVERRIDE_INPUTS = {
-  GENERAL: ['UNIDAD_PLANOS'],
   IMPERMEABILIZACION_JUNTAS: ['IMPERMEABILIZANTE', 'PUENTE_ADHERENCIA', 'SELLO_HIDROEXPANSIVO'],
 };
 
 const LABELS = {
-  UNIDAD_PLANOS: 'Unidad de los planos',
   IMPERMEABILIZANTE: 'Impermeabilizante de fundaciones',
   PUENTE_ADHERENCIA: 'Puente de adherencia',
   SELLO_HIDROEXPANSIVO: 'Sello hidroexpansivo',
@@ -40,7 +41,7 @@ export function overrideFieldsFor(structureType) {
         categoryId,
         inputKey,
         label: LABELS[inputKey] || inputKey,
-        opciones: input.options || optionsFor(input.group, structureType),
+        opciones: input.options || optionsFor(groupForInput(categoryId, inputKey, input.group), structureType),
         defaultValue: input.default,
         allowOther: input.type !== 'select',
       });

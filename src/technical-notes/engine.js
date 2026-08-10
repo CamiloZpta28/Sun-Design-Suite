@@ -142,11 +142,16 @@ export function resolveTechnicalNotes(project, spec, context) {
   // 3) Notas resueltas, agrupadas por categoría en el orden en que vinieron
   //    ensambladas (bundler.js ya las entrega en orden de despliegue:
   //    Generalidades -> Concreto -> Metal/Impermeabilización -> específica).
-  const notas = spec.notes.map((nota) => {
+  /* `numero` es la numeración CONTINUA de presentación (1, 2, 3… a lo largo
+     de todas las secciones, sin reiniciar por categoría). `noteId` sigue
+     siendo el identificador estable interno (dedupe, trazabilidad, tests,
+     exportaciones) y no se muestra al usuario. */
+  const notas = spec.notes.map((nota, i) => {
     const idsEnNota = extractPlaceholderIds(nota.text);
     const parametros = idsEnNota.map((id) => resolvedById.get(id));
     const completa = parametros.every((p) => isResolvedStatus(p.status));
     return {
+      numero: i + 1,
       noteId: nota.note_id,
       categoryId: nota.categoryId,
       categoryLabel: nota.categoryLabel,
@@ -176,6 +181,10 @@ export function resolveTechnicalNotes(project, spec, context) {
   const consideradas = parametros.length - parametros.filter((p) => p.status === STATUS.EXCLUDED).length;
   const porcentaje = consideradas === 0 ? 100 : Math.round((completos / consideradas) * 100);
 
+  /* El texto plano consolidado NO se arma aquí: es presentación (títulos
+     legibles, mayúsculas, separaciones) y vive en notesText.js, que lo
+     compone la capa pública (index.js). Así el motor queda libre de
+     decisiones de formato y existe un único formato de salida. */
   return {
     specId: spec.id,
     specLabel: spec.label,
@@ -183,8 +192,5 @@ export function resolveTechnicalNotes(project, spec, context) {
     parametros,
     pendientes,
     completitud: { requeridos: consideradas, completos, porcentaje },
-    textoCompleto: secciones
-      .map((s) => `${s.titulo}\n\n${s.notas.map((n) => `${n.noteId}. ${n.textoResuelto}`).join('\n\n')}`)
-      .join('\n\n'),
   };
 }

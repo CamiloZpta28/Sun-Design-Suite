@@ -1,0 +1,65 @@
+/* ============================================================================
+   TEXTO PLANO DE LAS NOTAS TÉCNICAS
+   ----------------------------------------------------------------------------
+   Construye la salida consolidada lista para copiar y pegar en AutoCAD, Word,
+   Excel o correo. Es una vista DERIVADA: se recalcula siempre a partir de las
+   notas ya resueltas y nunca se persiste en projects.data (ver regla "el
+   textarea no es fuente de verdad").
+
+   Formato:
+
+       GENERALIDADES
+
+       1. Las dimensiones están dadas en m…
+
+       2. Todas las dimensiones…
+
+       CONCRETO
+
+       4. El concreto estructural…
+
+   - Numeración continua (1…N), la misma que se ve en pantalla.
+   - Títulos de sección legibles en mayúsculas; NUNCA los note_id internos
+     (GEN-001, CER-004…), que se conservan solo dentro del motor.
+   - Sin badges, HTML, iconos ni metadatos: texto plano puro.
+   - Los parámetros pendientes se mantienen visibles tal como se muestran en
+     pantalla ("⚠ Pendiente: <etiqueta>") — no se inventa el valor sugerido.
+   ============================================================================ */
+
+/* Títulos de presentación por categoría. Viven aquí y no en
+   catalog/categories/*, que son transcripción literal de los archivos
+   fuente: el `label` de esos módulos es descriptivo y largo (ej. "Concreto:
+   materiales, control, colocación y curado"), poco práctico como encabezado
+   al pegar las notas en un plano. */
+const SECTION_TITLES = {
+  GENERAL: 'Generalidades',
+  CONCRETO: 'Concreto',
+  METAL: 'Metal',
+  IMPERMEABILIZACION_JUNTAS: 'Impermeabilización y juntas',
+  CERRAMIENTO_PERIMETRAL: 'Cerramiento perimetral',
+  PORTON_METALICO: 'Portón metálico',
+  SHELTER_CIMENTACION: 'Cimentación de shelter',
+  SOPORTE_INVERSORES: 'Soporte de inversores',
+};
+
+/** Título legible de una sección, en mayúsculas para destacarlo al pegar. */
+export function sectionTitle(categoryId, fallback) {
+  return (SECTION_TITLES[categoryId] || fallback || categoryId).toUpperCase();
+}
+
+/**
+ * Texto plano consolidado de unas notas ya resueltas.
+ *
+ * @param {object} resolved - resultado de resolveTechnicalNotes
+ * @returns {string}
+ */
+export function buildPlainTextNotes(resolved) {
+  if (!resolved || !resolved.secciones) return '';
+  return resolved.secciones
+    .map((seccion) => {
+      const titulo = sectionTitle(seccion.categoryId, seccion.titulo);
+      const notas = seccion.notas.map((n) => `${n.numero}. ${n.textoResuelto}`).join('\n\n');
+      return `${titulo}\n\n${notas}`;
+    })
+    .join('\n\n\n');
+}

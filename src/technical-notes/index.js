@@ -16,8 +16,11 @@ import { MANIFEST, STRUCTURE_LABELS } from './catalog/manifest.js';
 import { optionsFor } from './repository.js';
 import { validateCatalog } from './validation.js';
 import { TRACEABILITY, sourcesForCategory } from './catalog/traceability.js';
+import { buildPlainTextNotes, sectionTitle } from './notesText.js';
 
 export {
+  buildPlainTextNotes,
+  sectionTitle,
   STATUS,
   isResolvedStatus,
   extractPlaceholderIds,
@@ -46,7 +49,11 @@ export const STRUCTURE_OPTIONS = MANIFEST.structure_options.map((id) => ({
 export function getResolvedTechnicalNotes(project, structureType) {
   const spec = buildSpec(structureType);
   if (!spec) return null;
-  return resolveTechnicalNotes(project, spec, { structureType });
+  const resolved = resolveTechnicalNotes(project, spec, { structureType });
+  /* Vista derivada para copiar/pegar y para futuras exportaciones. Se
+     recalcula en cada llamada a partir de las notas resueltas: nunca se
+     guarda en projects.data. */
+  return { ...resolved, textoCompleto: buildPlainTextNotes(resolved) };
 }
 
 /** Tipo de estructura guardado en el proyecto (regla 22: namespaced dentro

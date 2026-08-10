@@ -12,7 +12,9 @@ import { supabase } from './supabaseClient';
 import logoMark from './assets/logo-s-mark.png';
 import { isBlank, sumMetersFormatted } from './technical-notes/formatters.js';
 import { CATEGORIES } from './technical-notes/catalog/categories/index.js';
-import { optionsFor } from './technical-notes/repository.js';
+import { optionsFor, groupForInput, STANDALONE_TECHNICAL_VALUES } from './technical-notes/repository.js';
+import { groupsForStructure, allGroupedFieldKeys, requiresAccordion, groupToOpenFor } from './technical-notes/fieldGroups.js';
+import { STRUCTURE_LABELS, getStructureType } from './technical-notes/index.js';
 import SelectOrOtro from './technical-notes/SelectOrOtro.jsx';
 import TechnicalNotesPanel from './technical-notes/TechnicalNotesPanel.jsx';
 
@@ -140,7 +142,7 @@ function catalogField(categoryId, inputKey, label, { structureScope } = {}) {
   if (input.type === 'project_value') {
     return { key: undefined, label, type: 'text', sugerido: input.default };
   }
-  const opciones = input.options || optionsFor(input.group, structureScope || categoryId);
+  const opciones = input.options || optionsFor(groupForInput(categoryId, inputKey, input.group), structureScope || categoryId);
   return {
     label,
     type: 'select',
@@ -154,6 +156,29 @@ function catalogField(categoryId, inputKey, label, { structureScope } = {}) {
    fuente de verdad"). */
 function catalogSchemaField(key, categoryId, inputKey, label, opts) {
   return { ...catalogField(categoryId, inputKey, label, opts), key };
+}
+/* Los campos que solo existen para alimentar el motor de Notas Técnicas se
+   marcan con este grupo para poder plegarlos en la pestaña Estructural, que
+   de otro modo quedaría dominada por ellos. Es únicamente presentación: el
+   campo, su clave en projects.data y su comportamiento no cambian. */
+const GRUPO_NOTAS_TECNICAS = { id: 'notas_tecnicas', label: 'Información para Notas Técnicas' };
+function camposNotasTecnicas(fields) {
+  return fields.map((f) => ({ ...f, grupo: GRUPO_NOTAS_TECNICAS.id }));
+}
+
+/* Campo alimentado por un valor técnico del repositorio que todavía no tiene
+   placeholder en ninguna nota (ver STANDALONE_TECHNICAL_VALUES). Se comporta
+   igual que cualquier otro desplegable de catálogo: opciones + "Otro" +
+   default sugerido que nunca sobrescribe lo ya guardado. */
+function repositoryField({ fieldKey, group, defaultValue }, label) {
+  return {
+    key: fieldKey,
+    label,
+    type: 'select',
+    allowOther: true,
+    opciones: optionsFor(group, null),
+    defaultValue,
+  };
 }
 /* Los campos de tipo 'boolean' guardan { valor: true|false|null, nota: '' }   */
 /* para poder anexar una descripción a la respuesta Sí/No.                     */
@@ -252,17 +277,20 @@ const SCHEMA = [
       { key: 'Aa', label: 'Aa', type: 'text' },
       { key: 'Av', label: 'Av', type: 'text' },
 
+      /* Todo lo que sigue alimenta el motor de Notas Técnicas y se agrupa    */
+      /* en una sección colapsable para no saturar la pestaña (ver           */
+      /* GRUPO_NOTAS_TECNICAS y SectionFieldsGrid).                           */
+      ...camposNotasTecnicas([
       /* ---- Concreto y metal (globales de Notas Técnicas: alimentan las    */
       /* notas CON-* y MET-* de TODAS las estructuras) ------------------- */
       catalogSchemaField('concreto_solado_fc', 'CONCRETO', 'FC_SOLADO', "Concreto de solado — f'c"),
       catalogSchemaField('concreto_solado_espesor', 'CONCRETO', 'ESPESOR_SOLADO', 'Concreto de solado — espesor'),
       catalogSchemaField('acero_refuerzo_fy', 'CONCRETO', 'ACERO_FY', 'Acero de refuerzo — fy'),
-      /* Campo del motor de notas ANTERIOR: el catálogo actual no tiene un
-         input para la norma del acero de refuerzo (CON-003 solo menciona fy),
-         así que ya no alimenta ninguna nota. Se conserva como texto libre
-         para que el dato que los proyectos existentes ya tienen guardado siga
-         siendo visible y editable, en vez de quedar oculto en projects.data. */
-      { key: 'acero_refuerzo_norma', label: 'Acero de refuerzo — norma (no usado por las notas actuales)', type: 'text' },
+      /* La norma del acero de refuerzo todavía no tiene placeholder en el
+         catálogo (CON-003 solo interpola fy), pero sí es un dato técnico
+         reutilizable que los proyectos ya capturan: se maneja con el mismo
+         patrón de desplegable + "Otro" que el resto de materiales. */
+      repositoryField(STANDALONE_TECHNICAL_VALUES.ACERO_REFUERZO_NORMA, 'Acero de refuerzo — norma'),
       catalogSchemaField('agregado_tamano_max', 'CONCRETO', 'AGREGADO_MAX', 'Agregados — tamaño máximo nominal'),
       catalogSchemaField('relacion_agua_cemento_max', 'CONCRETO', 'RELACION_AC_MAX', 'Relación agua/cemento máxima'),
       catalogSchemaField('recubrimiento_tierra', 'CONCRETO', 'REC_TIERRA', 'Recubrimiento — en contacto con tierra'),
@@ -327,6 +355,7 @@ const SCHEMA = [
       /* ---- Soporte de inversores -------------------------------------- */
       catalogSchemaField('inversores_manual_cargas', 'SOPORTE_INVERSORES', 'MANUAL_CARGAS', 'Inversores — manual de cargas de referencia'),
       catalogSchemaField('inversores_fc_ciclopeo', 'SOPORTE_INVERSORES', 'FC_CICLOPEO', "Inversores — f'c del concreto ciclópeo"),
+      ]),
     ],
   },
   {
@@ -1812,25 +1841,176 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
   );
 }
 
-function SectionFieldsGrid({ section, data, editMode, onFieldChange, inversionistas, onAddInversionista, paises, onAddPais }) {
+function SectionFieldsGrid({
+  section, data, editMode, onFieldChange, inversionistas, onAddInversionista, paises, onAddPais,
+  structureType, focusFieldKey, onFocusHandled,
+}) {
+  const [grupoAbierto, setGrupoAbierto] = useState(false);
+  /* Subapartados desplegados dentro del acordeón. "General" abierto de
+     entrada (es el que casi siempre se consulta); los específicos, cerrados.
+     Estado de UI puro: nunca se persiste en projects.data. */
+  const [subAbiertos, setSubAbiertos] = useState({ GENERAL: true });
+
+  const propios = section.fields.filter((f) => !f.grupo);
+  const agrupados = section.fields.filter((f) => f.grupo === GRUPO_NOTAS_TECNICAS.id);
+  const porClave = new Map(agrupados.map((f) => [f.key, f]));
+
+  /* Grupos visibles según el tipo de estructura elegido en Notas Técnicas.
+     Filtrar es solo presentación: los campos ocultos conservan su valor. */
+  const gruposVisibles = groupsForStructure(structureType)
+    .map((g) => ({
+      ...g,
+      subgroups: g.subgroups
+        .map((s) => ({ ...s, fields: s.fieldKeys.map((k) => porClave.get(k)).filter(Boolean) }))
+        .filter((s) => s.fields.length > 0),
+    }))
+    .filter((g) => g.subgroups.length > 0);
+
+  /* Red de seguridad: si algún campo del acordeón no está declarado en
+     fieldGroups.js, se muestra igual al final en vez de desaparecer. */
+  const clavesAgrupadas = new Set(gruposVisibles.flatMap((g) => g.subgroups.flatMap((s) => s.fields.map((f) => f.key))));
+  const clavesDeOtraEstructura = new Set(allGroupedFieldKeys());
+  const sinGrupo = agrupados.filter((f) => !clavesAgrupadas.has(f.key) && !clavesDeOtraEstructura.has(f.key));
+
+  const visibles = [...clavesAgrupadas, ...sinGrupo.map((f) => f.key)];
+  const conDato = visibles.filter((k) => data && !isBlank(data[k])).length;
+
+  /* Llegada desde un "pendiente" de Notas Técnicas: abrir el acordeón y el
+     subapartado que contiene el campo, desplazarse hasta él y enfocarlo.
+     Estado puramente de UI. */
+  useEffect(() => {
+    if (!focusFieldKey) return;
+    if (requiresAccordion(focusFieldKey)) {
+      setGrupoAbierto(true);
+      const grupoDestino = groupToOpenFor(focusFieldKey);
+      if (grupoDestino) setSubAbiertos((prev) => ({ ...prev, [grupoDestino]: true }));
+    }
+    const t = setTimeout(() => {
+      const nodo = document.querySelector(`[data-field-key="${focusFieldKey}"]`);
+      if (nodo) {
+        nodo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const control = nodo.querySelector('select, input, textarea');
+        if (control) control.focus({ preventScroll: true });
+      }
+      onFocusHandled && onFocusHandled();
+    }, 60);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusFieldKey]);
+
+  function renderCampos(fields) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 divide-y divide-navy-100 md:divide-y-0">
+        {fields.map((field) => (
+          <div
+            key={field.key}
+            data-field-key={field.key}
+            className={`${field.type === 'stations' || field.type === 'cimentacion' ? 'col-span-full' : ''} ${
+              focusFieldKey === field.key ? 'ring-2 ring-lime-400 rounded-lg' : ''
+            }`}
+          >
+            <FieldRenderer
+              field={field}
+              value={data ? data[field.key] : undefined}
+              editMode={editMode}
+              onChange={(val) => onFieldChange(section.id, field.key, val)}
+              siblingData={data}
+              inversionistas={inversionistas}
+              onAddInversionista={onAddInversionista}
+              paises={paises}
+              onAddPais={onAddPais}
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 divide-y divide-navy-100 md:divide-y-0">
-      {section.fields.map((field) => (
-        <div key={field.key} className={field.type === 'stations' || field.type === 'cimentacion' ? 'col-span-full' : ''}>
-          <FieldRenderer
-            field={field}
-            value={data ? data[field.key] : undefined}
-            editMode={editMode}
-            onChange={(val) => onFieldChange(section.id, field.key, val)}
-            siblingData={data}
-            inversionistas={inversionistas}
-            onAddInversionista={onAddInversionista}
-            paises={paises}
-            onAddPais={onAddPais}
-          />
+    <>
+      {renderCampos(propios)}
+
+      {agrupados.length > 0 && (
+        <div className="mt-6 border-t border-navy-200 pt-4">
+          <button
+            type="button"
+            onClick={() => setGrupoAbierto((v) => !v)}
+            className="flex items-center gap-2 w-full text-left group"
+          >
+            {grupoAbierto
+              ? <ChevronDown className="w-4 h-4 text-navy-400 shrink-0" />
+              : <ChevronRight className="w-4 h-4 text-navy-400 shrink-0" />}
+            <span className="text-sm font-semibold text-navy-700 group-hover:text-navy-900">
+              {GRUPO_NOTAS_TECNICAS.label}
+            </span>
+            <span className="text-xs text-navy-400">
+              {conDato} de {visibles.length} con dato
+            </span>
+          </button>
+
+          {grupoAbierto && (
+            <div className="mt-4">
+              {!structureType ? (
+                <p className="text-xs text-navy-500 bg-navy-50 border border-navy-200 rounded-lg px-3 py-2 mb-4">
+                  Mostrando solo los parámetros comunes a todas las estructuras. Selecciona el tipo de estructura en{' '}
+                  <span className="font-semibold">Notas Técnicas</span> para ver también los específicos.
+                </p>
+              ) : (
+                <p className="text-xs text-navy-400 mb-4">
+                  Parámetros que alimentan las notas técnicas de{' '}
+                  <span className="font-semibold text-navy-600">{STRUCTURE_LABELS[structureType] || structureType}</span>.
+                  Los vacíos usan el valor sugerido del catálogo; nada se guarda hasta que edites y guardes esta pestaña.
+                </p>
+              )}
+
+              <div className="space-y-3">
+                {gruposVisibles.map((grupo) => {
+                  const abierto = !!subAbiertos[grupo.id];
+                  const clavesGrupo = grupo.subgroups.flatMap((s) => s.fields.map((f) => f.key));
+                  const conDatoGrupo = clavesGrupo.filter((k) => data && !isBlank(data[k])).length;
+                  return (
+                    <div key={grupo.id} className="border border-navy-200 rounded-lg overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setSubAbiertos((prev) => ({ ...prev, [grupo.id]: !prev[grupo.id] }))}
+                        className="flex items-center gap-2 w-full text-left px-3 py-2 bg-navy-50 hover:bg-navy-100 transition-colors"
+                      >
+                        {abierto
+                          ? <ChevronDown className="w-4 h-4 text-navy-400 shrink-0" />
+                          : <ChevronRight className="w-4 h-4 text-navy-400 shrink-0" />}
+                        <span className="text-xs font-bold uppercase tracking-wide text-navy-600">{grupo.label}</span>
+                        <span className="text-xs text-navy-400 font-normal normal-case">
+                          {conDatoGrupo} de {clavesGrupo.length}
+                        </span>
+                      </button>
+                      {abierto && (
+                        <div className="px-3 py-3 space-y-4">
+                          {grupo.subgroups.map((sub) => (
+                            <div key={sub.label}>
+                              <p className="text-xs font-semibold text-navy-400 mb-1">{sub.label}</p>
+                              {renderCampos(sub.fields)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {sinGrupo.length > 0 && (
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-navy-600 border-b border-navy-200 pb-1 mb-3">
+                      Otros parámetros
+                    </p>
+                    {renderCampos(sinGrupo)}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-      ))}
-    </div>
+      )}
+    </>
   );
 }
 
@@ -3484,6 +3664,9 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
   const [editingNombre, setEditingNombre] = useState(false);
   const [nombreDraft, setNombreDraft] = useState(project.nombre);
   const [showConfetti, setShowConfetti] = useState(false);
+  /* Campo al que saltar tras pulsar un pendiente en Notas Técnicas. Estado de
+     UI únicamente: no se persiste en projects.data. */
+  const [focusFieldKey, setFocusFieldKey] = useState(null);
 
   const puedeGestionar = isLeader(perfil); // asignar equipo + cambiar estado + eliminar/renombrar proyecto
   const puedeEditarContenido = isDeveloper(perfil) || isAssignedToProject(perfil, project); // campos técnicos + archivos + notas
@@ -3932,6 +4115,9 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
                   onAddInversionista={onAddInversionista}
                   paises={paises}
                   onAddPais={onAddPais}
+                  structureType={getStructureType(project)}
+                  focusFieldKey={focusFieldKey}
+                  onFocusHandled={() => setFocusFieldKey(null)}
                 />
               </>
             )}
@@ -3950,7 +4136,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
               <TechnicalNotesPanel
                 project={project}
                 puedeEditar={puedeEditarContenido}
-                onNavigateToField={(tab) => setActiveTab(tab)}
+                onNavigateToField={(tab, fieldKey) => { setActiveTab(tab); setFocusFieldKey(fieldKey || null); }}
                 onStructureTypeChange={handleStructureTypeChange}
                 onOverrideChange={handleOverrideChange}
               />

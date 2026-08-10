@@ -77,19 +77,19 @@ describe('jerarquía de valores: proyecto > usuario > default', () => {
 
   it('un override de Notas Técnicas (sin campo de dominio) se marca RESOLVED_USER', () => {
     const resolved = getResolvedTechnicalNotes(
-      buildProject({ technicalNotes: { overrides: { GENERAL: { UNIDAD_PLANOS: 'cm' } } } }),
-      'CERRAMIENTO_PERIMETRAL'
+      buildProject({ technicalNotes: { overrides: { IMPERMEABILIZACION_JUNTAS: { IMPERMEABILIZANTE: 'Producto X o equivalente' } } } }),
+      'SHELTER_CIMENTACION'
     );
-    const p = paramOf(resolved, 'UNIDAD_PLANOS');
+    const p = paramOf(resolved, 'IMPERMEABILIZANTE');
     expect(p.status).toBe(STATUS.RESOLVED_USER);
-    expect(p.value).toBe('cm');
+    expect(p.value).toBe('Producto X o equivalente');
   });
 
   it('override vacío cae al default del catálogo', () => {
-    const resolved = getResolvedTechnicalNotes(buildProject(), 'CERRAMIENTO_PERIMETRAL');
-    const p = paramOf(resolved, 'UNIDAD_PLANOS');
+    const resolved = getResolvedTechnicalNotes(buildProject(), 'SHELTER_CIMENTACION');
+    const p = paramOf(resolved, 'IMPERMEABILIZANTE');
     expect(p.status).toBe(STATUS.RESOLVED_DEFAULT);
-    expect(p.value).toBe('m');
+    expect(p.value).toBe('SikaTop-107 Seal CO o equivalente');
   });
 });
 
@@ -353,5 +353,36 @@ describe('presentación', () => {
     expect(resolved.secciones.map((s) => s.categoryId)).toEqual([
       'GENERAL', 'CONCRETO', 'METAL', 'CERRAMIENTO_PERIMETRAL',
     ]);
+  });
+});
+
+describe('numeración de presentación', () => {
+  it('es continua a lo largo de todas las secciones, sin reiniciar por categoría', () => {
+    ['CERRAMIENTO_PERIMETRAL', 'PORTON_METALICO', 'SHELTER_CIMENTACION', 'SOPORTE_INVERSORES'].forEach((s) => {
+      const notas = getResolvedTechnicalNotes(buildProject(), s).secciones.flatMap((sec) => sec.notas);
+      expect(notas.map((n) => n.numero), s).toEqual(notas.map((_, i) => i + 1));
+    });
+  });
+
+  it('empieza en 1 y la primera nota de la segunda sección continúa la cuenta', () => {
+    const secciones = getResolvedTechnicalNotes(buildProject(), 'CERRAMIENTO_PERIMETRAL').secciones;
+    expect(secciones[0].notas[0].numero).toBe(1);
+    // GENERAL trae 3 notas -> CONCRETO debe empezar en 4, no en 1.
+    expect(secciones[0].notas).toHaveLength(3);
+    expect(secciones[1].notas[0].numero).toBe(4);
+  });
+
+  it('los note_id internos se conservan intactos junto al número', () => {
+    const notas = getResolvedTechnicalNotes(buildProject(), 'CERRAMIENTO_PERIMETRAL').secciones.flatMap((s) => s.notas);
+    expect(notas[0].noteId).toBe('GEN-001');
+    expect(notas.find((n) => n.numero === 4).noteId).toBe('CON-001');
+    expect(notas.every((n) => /^[A-Z]{3}-\d{3}$/.test(n.noteId))).toBe(true);
+  });
+
+  it('el texto exportable usa la numeración continua, no los códigos internos', () => {
+    const { textoCompleto } = getResolvedTechnicalNotes(buildProject(), 'CERRAMIENTO_PERIMETRAL');
+    expect(textoCompleto).toContain('1. Las dimensiones están dadas en');
+    expect(textoCompleto).not.toContain('GEN-001');
+    expect(textoCompleto).not.toContain('CER-004');
   });
 });

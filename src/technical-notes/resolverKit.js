@@ -88,6 +88,21 @@ export function overrideField({ id, label, categoryId, overrideKey, formatter = 
   };
 }
 
+/** Valor fijo del sistema: no lo aporta el proyecto ni el usuario y no es
+ *  editable desde ninguna pantalla. Se resuelve siempre igual, así que nunca
+ *  queda pendiente ni resta completitud. `fieldRef: null` evita que la UI
+ *  ofrezca un "ir al campo" que no existe. */
+export function fixedValue({ id, label, value }) {
+  return {
+    id,
+    label,
+    fieldRef: null,
+    resolve() {
+      return { status: STATUS.RESOLVED_DEFAULT, value, suggested: value };
+    },
+  };
+}
+
 /** Input marcado excluded:true en el catálogo (ej. parámetros sísmicos de
  *  shelter): status EXCLUDED siempre, nunca bloquea completitud ni aparece
  *  como pendiente. No se elimina el input del catálogo — solo no se resuelve. */

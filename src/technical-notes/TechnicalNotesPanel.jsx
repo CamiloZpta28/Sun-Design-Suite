@@ -1,5 +1,5 @@
-import React from 'react';
-import { AlertTriangle, ArrowRight } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { AlertTriangle, ArrowRight, Check, ClipboardList } from 'lucide-react';
 import { getResolvedTechnicalNotes, getStructureType, STRUCTURE_OPTIONS, STATUS, isResolvedStatus } from './index.js';
 import { overrideFieldsFor } from './overridesSchema.js';
 import SelectOrOtro from './SelectOrOtro.jsx';
@@ -24,6 +24,68 @@ const ORIGEN_BADGE = {
   [STATUS.INVALID]: { texto: 'Inválido', clase: 'bg-red-50 text-red-700 border-red-200' },
   [STATUS.UNKNOWN]: { texto: 'Sin resolver', clase: 'bg-red-50 text-red-700 border-red-200' },
 };
+
+/* Salida consolidada en texto plano, lista para copiar y pegar (AutoCAD,
+   Word, Excel, correo). Es una vista DERIVADA y de solo lectura: se
+   recalcula desde las notas resueltas en cada render y nunca se guarda en
+   projects.data, así que editarla no puede crear una segunda versión de las
+   notas. */
+function NotasCopiables({ texto }) {
+  const [copiado, setCopiado] = useState(false);
+  const areaRef = useRef(null);
+
+  async function copiar() {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(texto);
+      } else {
+        // Fallback para contextos sin Clipboard API (http, navegadores viejos).
+        const area = areaRef.current;
+        area.focus();
+        area.select();
+        document.execCommand('copy');
+        area.setSelectionRange(0, 0);
+        area.blur();
+      }
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      // Si el navegador bloquea el portapapeles, el usuario siempre puede
+      // seleccionar el texto a mano: por eso el textarea es visible.
+      areaRef.current?.select();
+    }
+  }
+
+  return (
+    <div className="mb-6">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <p className="text-xs font-bold uppercase tracking-wide text-navy-500">Notas generadas</p>
+        <button
+          type="button"
+          onClick={copiar}
+          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+            copiado
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-white text-navy-600 border-navy-300 hover:border-navy-400'
+          }`}
+        >
+          {copiado ? <><Check className="w-3.5 h-3.5" /> Copiado</> : <><ClipboardList className="w-3.5 h-3.5" /> Copiar notas</>}
+        </button>
+      </div>
+      <textarea
+        ref={areaRef}
+        readOnly
+        value={texto}
+        rows={14}
+        onFocus={(e) => e.target.select()}
+        className="w-full rounded-lg border border-navy-300 bg-navy-50 px-3 py-2 text-xs font-mono text-navy-700 leading-relaxed focus:outline-none focus:ring-2 focus:ring-lime-400"
+      />
+      <p className="text-xs text-navy-400 mt-1">
+        Texto generado automáticamente a partir de los parámetros del proyecto. No es editable: para cambiarlo, edita el parámetro correspondiente.
+      </p>
+    </div>
+  );
+}
 
 function OrigenBadge({ status }) {
   const badge = ORIGEN_BADGE[status];
@@ -99,7 +161,7 @@ export default function TechnicalNotesPanel({ project, onNavigateToField, onStru
                     {p.fieldRef?.tab && (
                       <button
                         type="button"
-                        onClick={() => onNavigateToField(p.fieldRef.tab)}
+                        onClick={() => onNavigateToField(p.fieldRef.tab, p.fieldRef.fieldKey)}
                         className="flex items-center gap-1 text-xs font-semibold text-amber-700 hover:text-amber-900 shrink-0"
                       >
                         Ir al campo <ArrowRight className="w-3 h-3" />
@@ -110,6 +172,8 @@ export default function TechnicalNotesPanel({ project, onNavigateToField, onStru
               </ul>
             </div>
           )}
+
+          <NotasCopiables texto={resolved.textoCompleto} />
 
           {overrideFields.length > 0 && (
             <div className="mb-6">
@@ -162,13 +226,16 @@ export default function TechnicalNotesPanel({ project, onNavigateToField, onStru
                 <div className="space-y-2">
                   {seccion.notas.map((nota) => (
                     <div
-                      key={nota.noteId}
+                      key={nota.noteId} /* key estable por ID interno, no por posición */
                       className={`rounded-lg border-l-4 p-3 text-sm border-t border-r border-b ${
                         nota.completa ? 'border-l-emerald-400 bg-white border-t-navy-200 border-r-navy-200 border-b-navy-200' : 'border-l-amber-400 bg-amber-50 border-t-amber-200 border-r-amber-200 border-b-amber-200'
                       }`}
                     >
+                      {/* Se muestra la numeración continua; el note_id
+                          (CER-004, CON-003…) es identificador interno y no
+                          se expone en la interfaz. */}
                       <p className="text-navy-700 leading-relaxed whitespace-pre-wrap break-words">
-                        <span className="font-semibold text-navy-500 mr-1">{nota.noteId}</span>
+                        <span className="font-semibold text-navy-500 mr-1">{nota.numero}.</span>
                         {nota.textoResuelto}
                       </p>
                       {!nota.completa && (
@@ -180,7 +247,7 @@ export default function TechnicalNotesPanel({ project, onNavigateToField, onStru
                                 key={p.id}
                                 type="button"
                                 disabled={!p.fieldRef?.tab}
-                                onClick={() => p.fieldRef?.tab && onNavigateToField(p.fieldRef.tab)}
+                                onClick={() => p.fieldRef?.tab && onNavigateToField(p.fieldRef.tab, p.fieldRef.fieldKey)}
                                 className="flex items-center gap-1 text-xs font-medium bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full hover:bg-amber-200 disabled:opacity-60 disabled:cursor-default transition-colors"
                               >
                                 <AlertTriangle className="w-3 h-3" /> {p.label}

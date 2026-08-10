@@ -148,13 +148,13 @@ describe('TEST 5 — reconstrucción como "Otro" en la UI', () => {
   it('valores legacy fuera del catálogo se presentan como "Otro" + su valor', () => {
     expect(esOtro('ASTM A615', 'ACERO_ESTRUCTURAL', 'CERRAMIENTO_PERIMETRAL')).toBe(true);
     expect(esOtro('ASTM A1011', 'ACERO_ESTRUCTURAL', 'CERRAMIENTO_PERIMETRAL')).toBe(true);
-    expect(esOtro('Ø 2”', 'TUBERIA_GALVANIZADA', 'CERRAMIENTO_PERIMETRAL')).toBe(true);
+    expect(esOtro('Ø 2”', 'TUBERIA_GALVANIZADA_DIAMETRO', 'CERRAMIENTO_PERIMETRAL')).toBe(true);
     expect(esOtro('calibre 1/2”', 'ACCESORIOS', 'CERRAMIENTO_PERIMETRAL')).toBe(true);
   });
 
   it('valores que sí están en el catálogo se presentan como opción normal', () => {
     expect(esOtro('NTC 1560 / ASTM A1011', 'ACERO_ESTRUCTURAL', 'CERRAMIENTO_PERIMETRAL')).toBe(false);
-    expect(esOtro('Ø 2 in', 'TUBERIA_GALVANIZADA', 'CERRAMIENTO_PERIMETRAL')).toBe(false);
+    expect(esOtro('Ø 2 in', 'TUBERIA_GALVANIZADA_DIAMETRO', 'CERRAMIENTO_PERIMETRAL')).toBe(false);
     expect(esOtro('1/2 in', 'ACCESORIOS', 'CERRAMIENTO_PERIMETRAL')).toBe(false);
   });
 
