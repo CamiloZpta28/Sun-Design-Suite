@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import logoMark from './assets/logo-s-mark.png';
+import { sumMetersFormatted } from './technical-notes/formatters.js';
+import TechnicalNotesPanel from './technical-notes/TechnicalNotesPanel.jsx';
 
 /* ============================================================================
    SUN DESIGN SUITE (versión autónoma, fuera de Claude)
@@ -192,6 +194,7 @@ const SCHEMA = [
       { key: 'peso_unitario', label: 'Peso unitario', type: 'text' },
       { key: 'temperatura_suelo', label: 'Temperatura del suelo', type: 'text' },
       { key: 'clasificacion_suelo', label: 'Clasificación de suelo (NSR-10)', type: 'select', opciones: ['A', 'B', 'C', 'D', 'E', 'F'] },
+      { key: 'capacidad_admisible_cerramiento', label: 'Capacidad admisible del suelo (cimentación cerramiento)', type: 'text' },
     ],
   },
   {
@@ -210,6 +213,33 @@ const SCHEMA = [
       { key: 'espec_refuerzo', label: 'Especificación de refuerzo', type: 'text' },
       { key: 'Aa', label: 'Aa', type: 'text' },
       { key: 'Av', label: 'Av', type: 'text' },
+      /* Campos usados por las Notas Técnicas del cerramiento perimetral      */
+      /* (ver src/technical-notes/). "concreto_solado_*" y                   */
+      /* "acero_refuerzo_norma" también son insumo potencial de otras notas  */
+      /* técnicas (ej. portón metálico) cuando se habiliten más adelante.    */
+      { key: 'concreto_solado_fc', label: "Concreto de solado — f'c", type: 'text' },
+      { key: 'concreto_solado_espesor', label: 'Concreto de solado — espesor mínimo', type: 'text' },
+      { key: 'acero_refuerzo_norma', label: 'Acero de refuerzo — norma', type: 'text' },
+      { key: 'cerramiento_poste_diametro', label: 'Cerramiento — poste típico: diámetro nominal', type: 'text' },
+      { key: 'cerramiento_poste_espesor', label: 'Cerramiento — poste típico: espesor', type: 'text' },
+      { key: 'cerramiento_poste_anclaje', label: 'Cerramiento — poste típico: anclaje (m)', type: 'text' },
+      { key: 'cerramiento_poste_afloramiento', label: 'Cerramiento — poste típico: afloramiento (m)', type: 'text' },
+      {
+        key: 'cerramiento_poste_longitud_total', label: 'Cerramiento — poste típico: longitud total', type: 'computed',
+        formula: (d) => sumMetersFormatted(d?.cerramiento_poste_anclaje, d?.cerramiento_poste_afloramiento) || '— (completa anclaje y afloramiento)',
+        ayuda: 'Se calcula solo: anclaje + afloramiento del poste',
+      },
+      { key: 'cerramiento_poste_separacion', label: 'Cerramiento — poste típico: separación entre postes', type: 'text' },
+      { key: 'cerramiento_tubo_secundario_diametro', label: 'Cerramiento — diagonales y vientos: diámetro nominal', type: 'text' },
+      { key: 'cerramiento_tubo_secundario_espesor', label: 'Cerramiento — diagonales y vientos: espesor', type: 'text' },
+      { key: 'cerramiento_diagonales_separacion', label: 'Cerramiento — separación entre diagonales', type: 'text' },
+      { key: 'cerramiento_vientos_separacion', label: 'Cerramiento — separación entre vientos', type: 'text' },
+      { key: 'cerramiento_bandit_calibre', label: 'Cerramiento — calibre de cinta bandit', type: 'text' },
+      { key: 'cerramiento_acero_norma', label: 'Cerramiento — perfilería: norma del acero', type: 'text' },
+      { key: 'cerramiento_acero_fy', label: 'Cerramiento — perfilería: esfuerzo de fluencia (Fy)', type: 'text' },
+      { key: 'cerramiento_acero_fu', label: 'Cerramiento — perfilería: esfuerzo último (Fu)', type: 'text' },
+      { key: 'ambiente_corrosion_clase', label: 'Cerramiento — clase de ambiente de corrosión (ISO 9223)', type: 'select', opciones: ['C1', 'C2', 'C3', 'C4', 'C5'] },
+      { key: 'galvanizado_perdida_zinc_proyectada', label: 'Cerramiento — pérdida de zinc proyectada (vida útil)', type: 'text' },
     ],
   },
   {
@@ -3700,6 +3730,14 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
               <ClipboardCheck className="w-4 h-4" /> Control Documental
             </button>
             <button
+              onClick={() => setActiveTab('notas_tecnicas')}
+              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                activeTab === 'notas_tecnicas' ? 'border-lime-500 text-lime-600 bg-lime-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
+              }`}
+            >
+              <FileText className="w-4 h-4" /> Notas Técnicas
+            </button>
+            <button
               onClick={() => setActiveTab('notas')}
               className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
                 activeTab === 'notas' ? 'border-lime-500 text-lime-600 bg-lime-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
@@ -3726,7 +3764,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
           </div>
 
           <div className="p-6">
-            {activeTab !== 'archivos' && activeTab !== 'historial' && activeTab !== 'documentos' && activeTab !== 'notas' && activeSection && (
+            {activeTab !== 'archivos' && activeTab !== 'historial' && activeTab !== 'documentos' && activeTab !== 'notas' && activeTab !== 'notas_tecnicas' && activeSection && (
               <>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs text-navy-400">Campos de la especialidad · {activeSection.label}</p>
@@ -3771,6 +3809,9 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
                 puedeComentar={puedeComentar}
                 onDocChange={handleDocChange}
               />
+            )}
+            {activeTab === 'notas_tecnicas' && (
+              <TechnicalNotesPanel project={project} onNavigateToField={(tab) => setActiveTab(tab)} />
             )}
             {activeTab === 'notas' && (
               <NotesPanel notas={project.notas} onAdd={handleAddNota} onRemove={handleRemoveNota} canEdit={puedeEditarContenido} />
