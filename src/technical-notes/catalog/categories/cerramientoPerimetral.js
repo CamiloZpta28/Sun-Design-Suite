@@ -1,0 +1,50 @@
+/* Transcripción verbatim de 06_CERRAMIENTO_PERIMETRAL(1).txt. No reescribir
+   textos. Reemplaza la plantilla de 29 notas de la implementación anterior
+   (basada en notas_tecnicas_repositorio_global.txt) — ver NOTES en
+   resolvers/cerramientoPerimetral.js para el detalle de reutilización de
+   campos y las discrepancias de valores/formato reportadas al usuario. */
+export const CERRAMIENTO_PERIMETRAL = {
+  category_id: 'CERRAMIENTO_PERIMETRAL',
+  category_type: 'ESTRUCTURA',
+  label: 'Cerramiento perimetral',
+  dependencies: ['GENERAL', 'CONCRETO', 'METAL'],
+  detect_by: ['cerramiento', 'cerramiento perimetral', 'malla eslabonada'],
+  inputs: {
+    CAPACIDAD_SUELO: { default: '23.05 kN (2.35 ton)', type: 'project_value' },
+    PEDESTAL_DIAMETRO: { default: '30 cm', type: 'project_value' },
+    PEDESTAL_DESPLANTE: { default: '80 cm', type: 'project_value' },
+    POSTE_EMBEBIDO: { default: '50 cm', type: 'project_value' },
+    POSTE_DIAMETRO: { default: 'Ø 2 in', type: 'repository_select', group: 'TUBERIA_GALVANIZADA' },
+    POSTE_ESPESOR: { default: '1.50 mm', type: 'repository_select', group: 'TUBERIA_GALVANIZADA' },
+    POSTE_LONGITUD: { default: '3.00 m', type: 'project_value' },
+    POSTE_AFLORAMIENTO: { default: '2.50 m', type: 'project_value' },
+    POSTE_SEPARACION: { default: '2.50 m', type: 'project_value' },
+    DIAGONAL_DIAMETRO: { default: 'Ø 1 1/2 in', type: 'repository_select', group: 'TUBERIA_GALVANIZADA' },
+    DIAGONAL_ESPESOR: { default: '1.90 mm', type: 'repository_select', group: 'TUBERIA_GALVANIZADA' },
+    DIAGONAL_LONGITUD: { default: '3.40 m', type: 'project_value' },
+    DIAGONAL_SEPARACION: { default: '12.50 m', type: 'project_value' },
+    VIENTO_LONGITUD: { default: '3.62 m', type: 'project_value' },
+    VIENTO_SEPARACION: { default: '25 m', type: 'project_value' },
+    MALLA: { default: 'ojo 6 cm x 6 cm, calibre 10.5, altura 2.00 m', type: 'repository_select', group: 'MALLA' },
+    BANDIT: { default: '1/2 in', type: 'repository_select', group: 'ACCESORIOS' },
+    FIJACION: { default: '50 cm', type: 'project_value' },
+    ACERO: { default: 'NTC 1560 / ASTM A1011', type: 'repository_select', group: 'ACERO_ESTRUCTURAL' },
+    FY: { default: '172 MPa', type: 'repository_value' },
+    FU: { default: '303 MPa', type: 'repository_value' },
+    AMBIENTE: { default: 'C3', type: 'project_value' },
+    SOLDADURA: { default: '3 mm', type: 'project_value' },
+  },
+  notes: [
+    { note_id: 'CER-001', text: 'La cimentación del cerramiento deberá apoyarse sobre el estrato competente del estudio geotécnico.' },
+    { note_id: 'CER-002', text: 'La capacidad admisible mínima considerada será {{CAPACIDAD_SUELO}}.' },
+    { note_id: 'CER-003', text: 'Los pedestales serán circulares de {{PEDESTAL_DIAMETRO}} de diámetro, con {{PEDESTAL_DESPLANTE}} de desplante más solado. El poste quedará embebido {{POSTE_EMBEBIDO}}.' },
+    { note_id: 'CER-004', text: 'El poste típico será tubería {{POSTE_DIAMETRO}}, espesor {{POSTE_ESPESOR}}, longitud {{POSTE_LONGITUD}}, con {{POSTE_AFLORAMIENTO}} de afloramiento y separación {{POSTE_SEPARACION}}.' },
+    { note_id: 'CER-005', text: 'Las diagonales serán tubería {{DIAGONAL_DIAMETRO}}, espesor {{DIAGONAL_ESPESOR}}, longitud {{DIAGONAL_LONGITUD}}, dispuestas cada {{DIAGONAL_SEPARACION}} al poste central del par.' },
+    { note_id: 'CER-006', text: 'Los vientos tendrán longitud {{VIENTO_LONGITUD}} y se ubicarán cada {{VIENTO_SEPARACION}} y en cambios de dirección.' },
+    { note_id: 'CER-007', text: 'La malla será eslabonada galvanizada: {{MALLA}}.' },
+    { note_id: 'CER-008', text: 'La malla se amarrará con cinta bandit calibre {{BANDIT}}, con separación máxima {{FIJACION}}.' },
+    { note_id: 'CER-009', text: 'La perfilería será {{ACERO}}, con fy = {{FY}} y fu = {{FU}} o superior, y galvanizado adecuado para ambiente {{AMBIENTE}}.' },
+    { note_id: 'CER-010', text: 'Las soldaduras se ejecutarán mediante SMAW con electrodo E6011 y espesor mínimo {{SOLDADURA}}.' },
+    { note_id: 'CER-011', text: 'La malla deberá tensionarse mecánicamente, distribuir la tensión con barra vertical y quedar alineada, sin pandeos, zonas flojas ni concentraciones de tensión.' },
+  ],
+};

@@ -10,7 +10,10 @@ import {
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import logoMark from './assets/logo-s-mark.png';
-import { sumMetersFormatted } from './technical-notes/formatters.js';
+import { isBlank, sumMetersFormatted } from './technical-notes/formatters.js';
+import { CATEGORIES } from './technical-notes/catalog/categories/index.js';
+import { optionsFor } from './technical-notes/repository.js';
+import SelectOrOtro from './technical-notes/SelectOrOtro.jsx';
 import TechnicalNotesPanel from './technical-notes/TechnicalNotesPanel.jsx';
 
 /* ============================================================================
@@ -119,6 +122,39 @@ function isAssignedToProject(perfil, project) {
 }
 
 /* --------------------- 2. ESQUEMA DE CAMPOS POR ESPECIALIDAD ---------------- */
+/* Campo alimentado por un input del catálogo de Notas Técnicas
+   (src/technical-notes/catalog/). Una sola fuente de verdad: el `default`,
+   el `type` y las opciones del repositorio salen del catálogo, así que el
+   select de esta pantalla y la nota técnica nunca pueden discrepar.
+
+   - repository_select / repository_value / select -> desplegable. Los dos
+     primeros admiten "Otro" (escribir cualquier especificación); un `select`
+     cerrado (ej. unidad de planos) no lo admite, por definición del paquete.
+   - project_value -> input libre. Su `default` es una REFERENCIA de la
+     memoria fuente, no un valor universal: se muestra como sugerencia y
+     jamás se guarda solo (regla F del encargo).
+   Las opciones se piden con el scope de la estructura dueña del campo, para
+   que el acero del portón nunca aparezca como opción del cerramiento. */
+function catalogField(categoryId, inputKey, label, { structureScope } = {}) {
+  const input = CATEGORIES[categoryId].inputs[inputKey];
+  if (input.type === 'project_value') {
+    return { key: undefined, label, type: 'text', sugerido: input.default };
+  }
+  const opciones = input.options || optionsFor(input.group, structureScope || categoryId);
+  return {
+    label,
+    type: 'select',
+    opciones,
+    defaultValue: input.default,
+    allowOther: input.type !== 'select',
+  };
+}
+/* Campo de SCHEMA a partir del catálogo: `key` es la ruta real en
+   projects.data (puede ser un campo que ya existía; ver regla "una sola
+   fuente de verdad"). */
+function catalogSchemaField(key, categoryId, inputKey, label, opts) {
+  return { ...catalogField(categoryId, inputKey, label, opts), key };
+}
 /* Los campos de tipo 'boolean' guardan { valor: true|false|null, nota: '' }   */
 /* para poder anexar una descripción a la respuesta Sí/No.                     */
 const SCHEMA = [
@@ -194,7 +230,9 @@ const SCHEMA = [
       { key: 'peso_unitario', label: 'Peso unitario', type: 'text' },
       { key: 'temperatura_suelo', label: 'Temperatura del suelo', type: 'text' },
       { key: 'clasificacion_suelo', label: 'Clasificación de suelo (NSR-10)', type: 'select', opciones: ['A', 'B', 'C', 'D', 'E', 'F'] },
-      { key: 'capacidad_admisible_cerramiento', label: 'Capacidad admisible del suelo (cimentación cerramiento)', type: 'text' },
+      catalogSchemaField('capacidad_admisible_cerramiento', 'CERRAMIENTO_PERIMETRAL', 'CAPACIDAD_SUELO', 'Capacidad admisible del suelo (cimentación cerramiento)'),
+      catalogSchemaField('capacidad_admisible_porton', 'PORTON_METALICO', 'CAPACIDAD_SUELO', 'Capacidad admisible del suelo (cimentación portón)'),
+      catalogSchemaField('capacidad_portante_shelter', 'SHELTER_CIMENTACION', 'CAP_PORTANTE', 'Capacidad portante considerada (shelter)'),
     ],
   },
   {
@@ -207,39 +245,88 @@ const SCHEMA = [
       { key: 'dim_ciment_luminarias', label: 'Dim. cimentación luminarias', type: 'cimentacion', forma: 'rectangular', sobresale: 0.1 },
       { key: 'dim_ciment_cctv', label: 'Dim. cimentación CCTV', type: 'cimentacion', forma: 'rectangular', sobresale: 0.05 },
       { key: 'dim_ciment_postes', label: 'Dim. cimentación postes', type: 'cimentacion', forma: 'rectangular', sobresale: 0.05 },
-      { key: 'tipo_galvanizado', label: 'Tipo de galvanizado', type: 'text' },
+      catalogSchemaField('tipo_galvanizado', 'METAL', 'GALVANIZADO', 'Tipo de galvanizado'),
       { key: 'esquema_puntado', label: 'Esquema de puntado', type: 'text' },
       { key: 'espec_aceros_pernos', label: 'Especificaciones de aceros y pernos', type: 'text' },
       { key: 'espec_refuerzo', label: 'Especificación de refuerzo', type: 'text' },
       { key: 'Aa', label: 'Aa', type: 'text' },
       { key: 'Av', label: 'Av', type: 'text' },
-      /* Campos usados por las Notas Técnicas del cerramiento perimetral      */
-      /* (ver src/technical-notes/). "concreto_solado_*" y                   */
-      /* "acero_refuerzo_norma" también son insumo potencial de otras notas  */
-      /* técnicas (ej. portón metálico) cuando se habiliten más adelante.    */
-      { key: 'concreto_solado_fc', label: "Concreto de solado — f'c", type: 'text' },
-      { key: 'concreto_solado_espesor', label: 'Concreto de solado — espesor mínimo', type: 'text' },
-      { key: 'acero_refuerzo_norma', label: 'Acero de refuerzo — norma', type: 'text' },
-      { key: 'cerramiento_poste_diametro', label: 'Cerramiento — poste típico: diámetro nominal', type: 'text' },
-      { key: 'cerramiento_poste_espesor', label: 'Cerramiento — poste típico: espesor', type: 'text' },
-      { key: 'cerramiento_poste_anclaje', label: 'Cerramiento — poste típico: anclaje (m)', type: 'text' },
-      { key: 'cerramiento_poste_afloramiento', label: 'Cerramiento — poste típico: afloramiento (m)', type: 'text' },
+
+      /* ---- Concreto y metal (globales de Notas Técnicas: alimentan las    */
+      /* notas CON-* y MET-* de TODAS las estructuras) ------------------- */
+      catalogSchemaField('concreto_solado_fc', 'CONCRETO', 'FC_SOLADO', "Concreto de solado — f'c"),
+      catalogSchemaField('concreto_solado_espesor', 'CONCRETO', 'ESPESOR_SOLADO', 'Concreto de solado — espesor'),
+      catalogSchemaField('acero_refuerzo_fy', 'CONCRETO', 'ACERO_FY', 'Acero de refuerzo — fy'),
+      /* Campo del motor de notas ANTERIOR: el catálogo actual no tiene un
+         input para la norma del acero de refuerzo (CON-003 solo menciona fy),
+         así que ya no alimenta ninguna nota. Se conserva como texto libre
+         para que el dato que los proyectos existentes ya tienen guardado siga
+         siendo visible y editable, en vez de quedar oculto en projects.data. */
+      { key: 'acero_refuerzo_norma', label: 'Acero de refuerzo — norma (no usado por las notas actuales)', type: 'text' },
+      catalogSchemaField('agregado_tamano_max', 'CONCRETO', 'AGREGADO_MAX', 'Agregados — tamaño máximo nominal'),
+      catalogSchemaField('relacion_agua_cemento_max', 'CONCRETO', 'RELACION_AC_MAX', 'Relación agua/cemento máxima'),
+      catalogSchemaField('recubrimiento_tierra', 'CONCRETO', 'REC_TIERRA', 'Recubrimiento — en contacto con tierra'),
+      catalogSchemaField('recubrimiento_no_tierra', 'CONCRETO', 'REC_NO_TIERRA', 'Recubrimiento — sin contacto con tierra'),
+      catalogSchemaField('galvanizado_frio_zinc', 'METAL', 'ZINC_FRIO', 'Galvanizado en frío — zinc mínimo'),
+      catalogSchemaField('galvanizado_frio_capas', 'METAL', 'CAPAS_REPARACION', 'Galvanizado en frío — capas de reparación'),
+
+      /* ---- Cerramiento perimetral ------------------------------------- */
+      catalogSchemaField('cerramiento_poste_diametro', 'CERRAMIENTO_PERIMETRAL', 'POSTE_DIAMETRO', 'Cerramiento — poste típico: diámetro nominal'),
+      catalogSchemaField('cerramiento_poste_espesor', 'CERRAMIENTO_PERIMETRAL', 'POSTE_ESPESOR', 'Cerramiento — poste típico: espesor'),
+      catalogSchemaField('cerramiento_poste_anclaje', 'CERRAMIENTO_PERIMETRAL', 'POSTE_EMBEBIDO', 'Cerramiento — poste típico: anclaje/embebido (m)'),
+      catalogSchemaField('cerramiento_poste_afloramiento', 'CERRAMIENTO_PERIMETRAL', 'POSTE_AFLORAMIENTO', 'Cerramiento — poste típico: afloramiento (m)'),
       {
         key: 'cerramiento_poste_longitud_total', label: 'Cerramiento — poste típico: longitud total', type: 'computed',
         formula: (d) => sumMetersFormatted(d?.cerramiento_poste_anclaje, d?.cerramiento_poste_afloramiento) || '— (completa anclaje y afloramiento)',
         ayuda: 'Se calcula solo: anclaje + afloramiento del poste',
       },
-      { key: 'cerramiento_poste_separacion', label: 'Cerramiento — poste típico: separación entre postes', type: 'text' },
-      { key: 'cerramiento_tubo_secundario_diametro', label: 'Cerramiento — diagonales y vientos: diámetro nominal', type: 'text' },
-      { key: 'cerramiento_tubo_secundario_espesor', label: 'Cerramiento — diagonales y vientos: espesor', type: 'text' },
-      { key: 'cerramiento_diagonales_separacion', label: 'Cerramiento — separación entre diagonales', type: 'text' },
-      { key: 'cerramiento_vientos_separacion', label: 'Cerramiento — separación entre vientos', type: 'text' },
-      { key: 'cerramiento_bandit_calibre', label: 'Cerramiento — calibre de cinta bandit', type: 'text' },
-      { key: 'cerramiento_acero_norma', label: 'Cerramiento — perfilería: norma del acero', type: 'text' },
-      { key: 'cerramiento_acero_fy', label: 'Cerramiento — perfilería: esfuerzo de fluencia (Fy)', type: 'text' },
-      { key: 'cerramiento_acero_fu', label: 'Cerramiento — perfilería: esfuerzo último (Fu)', type: 'text' },
+      catalogSchemaField('cerramiento_poste_separacion', 'CERRAMIENTO_PERIMETRAL', 'POSTE_SEPARACION', 'Cerramiento — poste típico: separación'),
+      catalogSchemaField('cerramiento_tubo_secundario_diametro', 'CERRAMIENTO_PERIMETRAL', 'DIAGONAL_DIAMETRO', 'Cerramiento — diagonales y vientos: diámetro nominal'),
+      catalogSchemaField('cerramiento_tubo_secundario_espesor', 'CERRAMIENTO_PERIMETRAL', 'DIAGONAL_ESPESOR', 'Cerramiento — diagonales y vientos: espesor'),
+      catalogSchemaField('cerramiento_diagonales_longitud', 'CERRAMIENTO_PERIMETRAL', 'DIAGONAL_LONGITUD', 'Cerramiento — diagonales: longitud'),
+      catalogSchemaField('cerramiento_diagonales_separacion', 'CERRAMIENTO_PERIMETRAL', 'DIAGONAL_SEPARACION', 'Cerramiento — diagonales: separación'),
+      catalogSchemaField('cerramiento_vientos_longitud', 'CERRAMIENTO_PERIMETRAL', 'VIENTO_LONGITUD', 'Cerramiento — vientos: longitud'),
+      catalogSchemaField('cerramiento_vientos_separacion', 'CERRAMIENTO_PERIMETRAL', 'VIENTO_SEPARACION', 'Cerramiento — vientos: separación'),
+      catalogSchemaField('cerramiento_malla_especificacion', 'CERRAMIENTO_PERIMETRAL', 'MALLA', 'Cerramiento — malla eslabonada'),
+      catalogSchemaField('cerramiento_bandit_calibre', 'CERRAMIENTO_PERIMETRAL', 'BANDIT', 'Cerramiento — cinta bandit: calibre'),
+      catalogSchemaField('cerramiento_fijacion_separacion', 'CERRAMIENTO_PERIMETRAL', 'FIJACION', 'Cerramiento — separación máxima entre fijaciones'),
+      catalogSchemaField('cerramiento_acero_norma', 'CERRAMIENTO_PERIMETRAL', 'ACERO', 'Cerramiento — perfilería: norma del acero'),
+      catalogSchemaField('cerramiento_acero_fy', 'CERRAMIENTO_PERIMETRAL', 'FY', 'Cerramiento — perfilería: fy'),
+      catalogSchemaField('cerramiento_acero_fu', 'CERRAMIENTO_PERIMETRAL', 'FU', 'Cerramiento — perfilería: fu'),
+      catalogSchemaField('cerramiento_soldadura_espesor', 'CERRAMIENTO_PERIMETRAL', 'SOLDADURA', 'Cerramiento — soldadura: espesor mínimo'),
       { key: 'ambiente_corrosion_clase', label: 'Cerramiento — clase de ambiente de corrosión (ISO 9223)', type: 'select', opciones: ['C1', 'C2', 'C3', 'C4', 'C5'] },
       { key: 'galvanizado_perdida_zinc_proyectada', label: 'Cerramiento — pérdida de zinc proyectada (vida útil)', type: 'text' },
+
+      /* ---- Portón metálico -------------------------------------------- */
+      catalogSchemaField('porton_viga_amarre_seccion', 'PORTON_METALICO', 'VIGA_AMARRE', 'Portón — viga de amarre: sección'),
+      catalogSchemaField('porton_reemplazo_granular', 'PORTON_METALICO', 'REEMPLAZO_GRANULAR', 'Portón — reemplazo de material granular'),
+      catalogSchemaField('porton_perfil_embebido', 'PORTON_METALICO', 'PERFIL', 'Portón — perfil metálico embebido'),
+      catalogSchemaField('porton_acero_norma', 'PORTON_METALICO', 'ACERO', 'Portón — norma del acero'),
+      catalogSchemaField('porton_acero_fy', 'PORTON_METALICO', 'FY', 'Portón — fy'),
+      catalogSchemaField('porton_acero_fu', 'PORTON_METALICO', 'FU', 'Portón — fu'),
+      catalogSchemaField('porton_soldadura_espesor', 'PORTON_METALICO', 'SOLDADURA', 'Portón — soldadura: espesor mínimo'),
+
+      /* ---- Cimentación de shelter (los sísmicos quedan EXCLUIDOS en esta */
+      /* fase: no se crea campo para ellos — ver catálogo) --------------- */
+      catalogSchemaField('shelter_cota_minima', 'SHELTER_CIMENTACION', 'COTA_MINIMA', 'Shelter — cota mínima'),
+      catalogSchemaField('shelter_calado_estudio', 'SHELTER_CIMENTACION', 'CALADO_ESTUDIO', 'Shelter — calado que exige estudio hidráulico'),
+      catalogSchemaField('shelter_borde_libre', 'SHELTER_CIMENTACION', 'BORDE_LIBRE', 'Shelter — borde libre adicional'),
+      catalogSchemaField('shelter_micropilote_profundidad', 'SHELTER_CIMENTACION', 'MICROPILOTE_PROF', 'Shelter — micropilote: profundidad (m)'),
+      catalogSchemaField('shelter_micropilote_sobresaliente', 'SHELTER_CIMENTACION', 'MICROPILOTE_SOBRE', 'Shelter — micropilote: sobresaliente (m)'),
+      {
+        key: 'shelter_micropilote_longitud_total', label: 'Shelter — micropilote: longitud total', type: 'computed',
+        formula: (d) => sumMetersFormatted(d?.shelter_micropilote_profundidad, d?.shelter_micropilote_sobresaliente) || '— (completa profundidad y sobresaliente)',
+        ayuda: 'Se calcula solo: profundidad + sobresaliente del micropilote',
+      },
+      catalogSchemaField('shelter_compactacion_minima', 'SHELTER_CIMENTACION', 'COMPACTACION', 'Shelter — compactación mínima'),
+      catalogSchemaField('shelter_carga_mantenimiento', 'SHELTER_CIMENTACION', 'CV_MANT', 'Shelter — carga viva de mantenimiento'),
+      catalogSchemaField('shelter_carga_sobrecarga', 'SHELTER_CIMENTACION', 'CV_SOBRE', 'Shelter — sobrecarga'),
+      catalogSchemaField('shelter_carga_muerta_total', 'SHELTER_CIMENTACION', 'CM_TOTAL', 'Shelter — carga muerta total'),
+      catalogSchemaField('shelter_carga_viento', 'SHELTER_CIMENTACION', 'VIENTO', 'Shelter — carga de viento'),
+
+      /* ---- Soporte de inversores -------------------------------------- */
+      catalogSchemaField('inversores_manual_cargas', 'SOPORTE_INVERSORES', 'MANUAL_CARGAS', 'Inversores — manual de cargas de referencia'),
+      catalogSchemaField('inversores_fc_ciclopeo', 'SOPORTE_INVERSORES', 'FC_CICLOPEO', "Inversores — f'c del concreto ciclópeo"),
     ],
   },
   {
@@ -427,6 +514,7 @@ const HISTORIAL_CATEGORIAS = {
   general: 'General', civil: 'Civil', mecanica: 'Mecánica', geotecnia: 'Geotecnia',
   estructural: 'Estructural', hidraulico: 'Hidráulico', electrico: 'Eléctrico',
   documentos: 'Control Documental', notas: 'Notas', archivos: 'Archivos',
+  notas_tecnicas: 'Notas Técnicas',
   estado: 'Estado del proyecto', nombre: 'Nombre del proyecto',
 };
 function categoriaLabel(cat) {
@@ -1194,54 +1282,20 @@ function PaisPicker({ value, paises, onChange, onAddNew }) {
   );
 }
 
-/* Resistencias de concreto más usadas + opción de escribir otra. No se     */
-/* guarda en ninguna tabla compartida (a diferencia de Inversionistas/       */
-/* País): es solo una lista corta fija para agilizar la digitación.         */
+/* Resistencias de concreto más usadas + opción de escribir otra, compartida  */
+/* por TODAS las cimentaciones (shelter, inversores, cerramiento, portón,     */
+/* luminarias, CCTV, postes) — sin valor por defecto a propósito, para no     */
+/* afectar especialidades fuera del alcance de esta funcionalidad.            */
 const RESISTENCIA_OPCIONES = ['21 MPa', '24 MPa', '31 MPa'];
 function ResistenciaSelect({ value, onChange, className }) {
-  const [showOtro, setShowOtro] = useState(false);
-  const esConocida = !value || RESISTENCIA_OPCIONES.includes(value);
-
-  if (showOtro || (!esConocida && value)) {
-    return (
-      <div className="flex items-center gap-1.5">
-        <input
-          autoFocus={showOtro}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Ej. 28 MPa"
-          className={className}
-        />
-        <button
-          type="button"
-          onClick={() => { setShowOtro(false); onChange(''); }}
-          title="Volver a la lista"
-          className="text-navy-400 hover:text-navy-600 shrink-0"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <select
-      value={value || ''}
-      onChange={(e) => {
-        if (e.target.value === '__otro__') {
-          setShowOtro(true);
-          return;
-        }
-        onChange(e.target.value);
-      }}
+    <SelectOrOtro
+      value={value}
+      opciones={RESISTENCIA_OPCIONES}
+      onChange={onChange}
       className={className}
-    >
-      <option value="">Sin definir</option>
-      {RESISTENCIA_OPCIONES.map((op) => (
-        <option key={op} value={op}>{op}</option>
-      ))}
-      <option value="__otro__">Otro…</option>
-    </select>
+      placeholder="Ej. 28 MPa"
+    />
   );
 }
 
@@ -1450,7 +1504,36 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
   }
 
   if (field.type === 'select') {
-    if (!editMode) return <ReadOnlyValue label={field.label} value={value} mono={false} />;
+    const esSugerido = field.allowOther && isBlank(value) && !isBlank(field.defaultValue);
+    const valorMostrado = esSugerido ? field.defaultValue : value;
+
+    if (!editMode) {
+      return (
+        <div>
+          <ReadOnlyValue label={field.label} value={valorMostrado} mono={false} />
+          {esSugerido && (
+            <p className="text-xs text-navy-400 italic -mt-2 mb-1">Valor sugerido (sin confirmar) — el ingeniero puede definir otro.</p>
+          )}
+        </div>
+      );
+    }
+
+    if (field.allowOther) {
+      return (
+        <div className="py-1">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
+          <SelectOrOtro
+            value={value}
+            opciones={field.opciones}
+            defaultValue={field.defaultValue}
+            onChange={onChange}
+            placeholder={field.placeholder}
+            className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+          />
+        </div>
+      );
+    }
+
     return (
       <div className="py-1">
         <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
@@ -1709,6 +1792,21 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
       )}
       {field.type === 'text' && (
         <input type="text" className={`${baseInput} font-mono`} value={value || ''} onChange={(e) => onChange(e.target.value)} />
+      )}
+      {/* Dato propio del proyecto (project_value del catálogo de Notas
+          Técnicas): el valor de la memoria fuente se ofrece como referencia,
+          pero solo se guarda si el ingeniero lo acepta explícitamente. */}
+      {field.sugerido && isBlank(value) && (
+        <p className="text-xs text-navy-400 mt-1">
+          Sugerido por memoria: <span className="font-mono text-navy-500">{field.sugerido}</span>
+          <button
+            type="button"
+            onClick={() => onChange(field.sugerido)}
+            className="ml-2 font-semibold text-lime-600 hover:text-lime-700"
+          >
+            Usar sugerido
+          </button>
+        </p>
       )}
     </div>
   );
@@ -3443,6 +3541,44 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
   function handleFieldChange(sectionId, fieldKey, value) {
     setDraftData((prev) => ({ ...prev, [sectionId]: { ...prev[sectionId], [fieldKey]: value } }));
   }
+  /* Tipo de estructura de las Notas Técnicas. Vive namespaced dentro de
+     project.data (regla 22) y se guarda con la misma función de guardado
+     parcial que las pestañas, así que no pisa cambios de otra persona. */
+  function saveTechnicalNotes(nuevaSeccion, accion) {
+    updateProject(
+      project.id,
+      (p) => ({ ...p, data: { ...p.data, technicalNotes: nuevaSeccion } }),
+      accion,
+      'notas_tecnicas',
+      () => supabase.rpc('merge_project_data_section', { p_id: project.id, p_section: 'technicalNotes', p_value: nuevaSeccion })
+    );
+    setHistorial(null);
+  }
+  function handleStructureTypeChange(structureType) {
+    const anterior = project.data?.technicalNotes?.structureType || '—';
+    saveTechnicalNotes(
+      { ...(project.data?.technicalNotes || {}), structureType },
+      `Notas técnicas — tipo de estructura: "${anterior}" → "${structureType || '—'}"`
+    );
+  }
+  /* Override de un parámetro que no tiene campo en ninguna especialidad
+     (ej. unidad de planos, productos de impermeabilización). Se registra el
+     cambio del DATO en el historial; las notas no se registran porque se
+     regeneran solas a partir de él. */
+  function handleOverrideChange(categoryId, inputKey, valor) {
+    const tn = project.data?.technicalNotes || {};
+    const anterior = tn.overrides?.[categoryId]?.[inputKey] || '—';
+    saveTechnicalNotes(
+      {
+        ...tn,
+        overrides: {
+          ...(tn.overrides || {}),
+          [categoryId]: { ...(tn.overrides?.[categoryId] || {}), [inputKey]: valor },
+        },
+      },
+      `Notas técnicas — ${inputKey}: "${anterior}" → "${valor || '—'}"`
+    );
+  }
   function handleEstadoChange(nuevoEstado) {
     const anterior = STATUS_CONFIG[project.estado]?.label || project.estado;
     const nuevo = STATUS_CONFIG[nuevoEstado]?.label || nuevoEstado;
@@ -3811,7 +3947,13 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
               />
             )}
             {activeTab === 'notas_tecnicas' && (
-              <TechnicalNotesPanel project={project} onNavigateToField={(tab) => setActiveTab(tab)} />
+              <TechnicalNotesPanel
+                project={project}
+                puedeEditar={puedeEditarContenido}
+                onNavigateToField={(tab) => setActiveTab(tab)}
+                onStructureTypeChange={handleStructureTypeChange}
+                onOverrideChange={handleOverrideChange}
+              />
             )}
             {activeTab === 'notas' && (
               <NotesPanel notas={project.notas} onAdd={handleAddNota} onRemove={handleRemoveNota} canEdit={puedeEditarContenido} />

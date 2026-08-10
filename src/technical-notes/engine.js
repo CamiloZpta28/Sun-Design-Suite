@@ -2,22 +2,55 @@
    MOTOR DE NOTAS TÉCNICAS
    ----------------------------------------------------------------------------
    Framework-agnóstico a propósito (no importa React ni nada de src/App.jsx):
-   recibe un proyecto y una "spec" (plantilla + resolvers) y devuelve texto
-   resuelto + metadatos de completitud. Pensado para poder reutilizarse desde
-   la UI, y más adelante desde generación de planos/PDF/DOCX/exportaciones
-   sin cambiar nada aquí (ver README.md de este módulo).
+   recibe un proyecto, una "spec" (notas + resolvers) y un contexto opcional
+   ({ structureType }, para resolvers que dependen de qué estructura está
+   activa, ej. FC_ESTRUCTURAL) y devuelve texto resuelto + metadatos de
+   completitud. Pensado para reutilizarse desde la UI, y más adelante desde
+   generación de planos/PDF/DOCX/exportaciones sin cambiar nada aquí.
 
-   Determinístico: mismo project + misma spec => mismo resultado, siempre.
-   No hay IA ni nada no determinístico involucrado.
+   Determinístico: mismo project + misma spec + mismo contexto => mismo
+   resultado, siempre. No hay IA ni nada no determinístico involucrado
+   (regla explícita del encargo: cero llamadas a modelos en runtime).
    ============================================================================ */
 
-export const RESOLUTION_STATUS = Object.freeze({
-  RESUELTO: 'RESUELTO',
-  FALTANTE: 'FALTANTE',
-  INVALIDO: 'INVALIDO',
-  NO_APLICA: 'NO_APLICA',
-  DESCONOCIDO: 'DESCONOCIDO', // placeholder en la plantilla sin resolver declarado — error de configuración, no de datos
+/* Estados de resolución de un parámetro. Cada uno responde "de dónde salió
+   el valor" y no solo "si hay valor":
+     RESOLVED_PROJECT  -> viene de un campo de dominio existente en SCHEMA
+                          (projects.data), sea porque ya lo traía el proyecto
+                          o porque el ingeniero lo acaba de editar (en esta
+                          arquitectura ambos casos son el mismo campo/estado:
+                          no hay una capa "usuario" separada de "proyecto"
+                          para campos de dominio).
+     RESOLVED_USER     -> viene de un override de Notas Técnicas que NO tiene
+                          campo de dominio propio (projects.data.technicalNotes
+                          .overrides), explícitamente elegido/escrito por el
+                          ingeniero.
+     RESOLVED_DEFAULT  -> el campo está vacío y se usó el "valor típico" del
+                          catálogo (solo permitido si el input NO es
+                          project_value — ver isDefaultAllowed en resolvers).
+     PENDING           -> no hay valor y no aplica (o no está permitido)
+                          usar el default; requiere acción del ingeniero.
+     INVALID           -> hay un valor pero el formatter no pudo interpretarlo.
+     EXCLUDED          -> el input/nota está marcado excluded:true en el
+                          catálogo (ver categorías de shelter) — no bloquea
+                          completitud ni aparece como pendiente.
+     UNKNOWN           -> el placeholder no tiene resolver declarado: error
+                          de configuración del catálogo, no de datos del
+                          proyecto. */
+export const STATUS = Object.freeze({
+  RESOLVED_PROJECT: 'RESOLVED_PROJECT',
+  RESOLVED_USER: 'RESOLVED_USER',
+  RESOLVED_DEFAULT: 'RESOLVED_DEFAULT',
+  PENDING: 'PENDING',
+  INVALID: 'INVALID',
+  EXCLUDED: 'EXCLUDED',
+  UNKNOWN: 'UNKNOWN',
 });
+
+const RESOLVED_STATUSES = new Set([STATUS.RESOLVED_PROJECT, STATUS.RESOLVED_USER, STATUS.RESOLVED_DEFAULT]);
+export function isResolvedStatus(status) {
+  return RESOLVED_STATUSES.has(status);
+}
 
 const PLACEHOLDER_PATTERN = /\{\{([A-Z0-9_]+)\}\}/g;
 
@@ -40,56 +73,61 @@ export function extractPlaceholderIds(text) {
 }
 
 /** Resuelve un único ID contra los resolvers de una spec y los datos de un
- *  proyecto. Un ID sin resolver declarado se reporta como DESCONOCIDO (no
- *  como FALTANTE): es un problema de la plantilla/catálogo, no de que al
+ *  proyecto. Un ID sin resolver declarado se reporta como UNKNOWN (no como
+ *  PENDING): es un problema de la plantilla/catálogo, no de que al
  *  ingeniero le falte llenar un dato. */
-export function resolveParameter(resolvers, id, projectData) {
+export function resolveParameter(resolvers, id, projectData, context) {
   const resolver = resolvers ? resolvers[id] : null;
   if (!resolver) {
-    return { id, label: id, status: RESOLUTION_STATUS.DESCONOCIDO, value: null, fieldRef: null };
+    return { id, label: id, status: STATUS.UNKNOWN, value: null, fieldRef: null, suggested: null };
   }
-  const outcome = resolver.resolve(projectData) || {};
+  const outcome = resolver.resolve(projectData, context) || {};
+  const status = outcome.status || STATUS.PENDING;
   return {
     id,
     label: resolver.label || id,
-    status: outcome.status || RESOLUTION_STATUS.FALTANTE,
-    value: outcome.status === RESOLUTION_STATUS.RESUELTO ? outcome.value : null,
+    status,
+    value: isResolvedStatus(status) ? outcome.value : null,
     fieldRef: resolver.fieldRef || null,
+    // Para PENDING de un `project_value`: el valor de referencia de la memoria,
+    // a mostrar como sugerencia en la UI — nunca se usa para resolver la nota.
+    suggested: outcome.suggested ?? null,
   };
 }
 
 /** Reemplaza cada {{ID}} de `text` por su valor resuelto. Si un parámetro no
- *  está RESUELTO, NUNCA deja el token {{ID}} crudo visible — lo reemplaza
+ *  está resuelto, NUNCA deja el token {{ID}} crudo visible — lo reemplaza
  *  por una marca legible con la etiqueta humana del parámetro, para que el
  *  llamador (UI, exportación) decida cómo destacarla. */
 function renderText(text, resolvedById) {
   return text.replace(PLACEHOLDER_PATTERN, (fullMatch, id) => {
     const resolved = resolvedById.get(id);
-    if (resolved && resolved.status === RESOLUTION_STATUS.RESUELTO) return resolved.value;
+    if (resolved && isResolvedStatus(resolved.status)) return resolved.value;
     const label = resolved ? resolved.label : id;
-    return `⚠ Falta definir: ${label}`;
+    return `⚠ Pendiente: ${label}`;
   });
 }
 
 /**
- * Resuelve todas las notas técnicas de una spec para un proyecto.
+ * Resuelve todas las notas técnicas de una spec ya ensamblada (ver
+ * catalog/bundler.js) para un proyecto.
  *
  * @param {object} project - proyecto completo (usa project.data).
- * @param {object} spec - { id, label, template, resolvers }.
+ * @param {object} spec - { id, label, notes: [{note_id, text, categoryId, categoryLabel}], resolvers }.
+ * @param {object} [context] - ej. { structureType }.
  * @returns {ResolvedTechnicalNotes}
  */
-export function resolveTechnicalNotes(project, spec) {
-  if (!spec || !spec.template || !spec.resolvers) {
-    throw new Error('resolveTechnicalNotes: spec inválida o no habilitada (falta template/resolvers).');
+export function resolveTechnicalNotes(project, spec, context) {
+  if (!spec || !spec.notes || !spec.resolvers) {
+    throw new Error('resolveTechnicalNotes: spec inválida (falta notes/resolvers).');
   }
   const projectData = (project && project.data) || {};
 
-  // 1) IDs realmente requeridos por la plantilla (únicos, en orden de aparición).
-  const allNotesFlat = spec.template.secciones.flatMap((s) => s.notas);
+  // 1) IDs realmente requeridos por las notas (únicos, en orden de aparición).
   const requiredIds = [];
   const seenIds = new Set();
-  allNotesFlat.forEach((nota) => {
-    extractPlaceholderIds(nota.texto).forEach((id) => {
+  spec.notes.forEach((nota) => {
+    extractPlaceholderIds(nota.text).forEach((id) => {
       if (!seenIds.has(id)) {
         seenIds.add(id);
         requiredIds.push(id);
@@ -99,30 +137,44 @@ export function resolveTechnicalNotes(project, spec) {
 
   // 2) Se resuelve cada ID único UNA sola vez (si se repite en varias notas,
   //    todas las apariciones usan exactamente el mismo valor resuelto).
-  const resolvedById = new Map(requiredIds.map((id) => [id, resolveParameter(spec.resolvers, id, projectData)]));
+  const resolvedById = new Map(requiredIds.map((id) => [id, resolveParameter(spec.resolvers, id, projectData, context)]));
 
-  // 3) Notas, agrupadas igual que la plantilla original.
-  const secciones = spec.template.secciones.map((seccion) => ({
-    titulo: seccion.titulo,
-    notas: seccion.notas.map((nota) => {
-      const idsEnNota = extractPlaceholderIds(nota.texto);
-      const parametros = idsEnNota.map((id) => resolvedById.get(id));
-      const completa = parametros.every((p) => p.status === RESOLUTION_STATUS.RESUELTO);
-      return {
-        numero: nota.numero,
-        textoOriginal: nota.texto,
-        textoResuelto: renderText(nota.texto, resolvedById),
-        completa,
-        parametros,
-      };
-    }),
-  }));
+  // 3) Notas resueltas, agrupadas por categoría en el orden en que vinieron
+  //    ensambladas (bundler.js ya las entrega en orden de despliegue:
+  //    Generalidades -> Concreto -> Metal/Impermeabilización -> específica).
+  const notas = spec.notes.map((nota) => {
+    const idsEnNota = extractPlaceholderIds(nota.text);
+    const parametros = idsEnNota.map((id) => resolvedById.get(id));
+    const completa = parametros.every((p) => isResolvedStatus(p.status));
+    return {
+      noteId: nota.note_id,
+      categoryId: nota.categoryId,
+      categoryLabel: nota.categoryLabel,
+      textoOriginal: nota.text,
+      textoResuelto: renderText(nota.text, resolvedById),
+      completa,
+      parametros,
+    };
+  });
 
-  // 4) Completitud sobre placeholders únicos requeridos por la plantilla.
+  const secciones = [];
+  const seccionByCategoria = new Map();
+  notas.forEach((nota) => {
+    let seccion = seccionByCategoria.get(nota.categoryId);
+    if (!seccion) {
+      seccion = { categoryId: nota.categoryId, titulo: nota.categoryLabel, notas: [] };
+      seccionByCategoria.set(nota.categoryId, seccion);
+      secciones.push(seccion);
+    }
+    seccion.notas.push(nota);
+  });
+
+  // 4) Completitud sobre placeholders únicos requeridos por las notas.
   const parametros = requiredIds.map((id) => resolvedById.get(id));
-  const pendientes = parametros.filter((p) => p.status !== RESOLUTION_STATUS.RESUELTO);
-  const completos = parametros.length - pendientes.length;
-  const porcentaje = parametros.length === 0 ? 100 : Math.round((completos / parametros.length) * 100);
+  const pendientes = parametros.filter((p) => !isResolvedStatus(p.status) && p.status !== STATUS.EXCLUDED);
+  const completos = parametros.length - pendientes.length - parametros.filter((p) => p.status === STATUS.EXCLUDED).length;
+  const consideradas = parametros.length - parametros.filter((p) => p.status === STATUS.EXCLUDED).length;
+  const porcentaje = consideradas === 0 ? 100 : Math.round((completos / consideradas) * 100);
 
   return {
     specId: spec.id,
@@ -130,13 +182,9 @@ export function resolveTechnicalNotes(project, spec) {
     secciones,
     parametros,
     pendientes,
-    completitud: {
-      requeridos: parametros.length,
-      completos,
-      porcentaje,
-    },
+    completitud: { requeridos: consideradas, completos, porcentaje },
     textoCompleto: secciones
-      .map((s) => `${s.titulo}\n\n${s.notas.map((n) => `${n.numero}. ${n.textoResuelto}`).join('\n\n')}`)
+      .map((s) => `${s.titulo}\n\n${s.notas.map((n) => `${n.noteId}. ${n.textoResuelto}`).join('\n\n')}`)
       .join('\n\n'),
   };
 }

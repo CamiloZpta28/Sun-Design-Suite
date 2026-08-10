@@ -1,26 +1,56 @@
 /* ============================================================================
    API pública del módulo de Notas Técnicas.
    ----------------------------------------------------------------------------
-   getResolvedTechnicalNotes(project, specId) es la función pensada para
-   reutilizarse fuera de la UI (planos, PDF, DOCX, otros reportes) sin
+   getResolvedTechnicalNotes(project, structureType) es la función pensada
+   para reutilizarse fuera de la UI (planos, PDF, DOCX, otros reportes) sin
    depender de React ni de components de src/App.jsx.
+
+   El catálogo se sirve a través de un provider (catalogProvider.js) para
+   que más adelante pueda existir un SupabaseCatalogProvider sin cambiar el
+   motor ni esta API.
    ============================================================================ */
 
-import { resolveTechnicalNotes, RESOLUTION_STATUS } from './engine.js';
-import { TECHNICAL_NOTE_SPECS, getTechnicalNoteSpec } from './specs.js';
+import { resolveTechnicalNotes, STATUS, isResolvedStatus, extractPlaceholderIds } from './engine.js';
+import { buildSpec } from './catalog/bundler.js';
+import { MANIFEST, STRUCTURE_LABELS } from './catalog/manifest.js';
+import { optionsFor } from './repository.js';
+import { validateCatalog } from './validation.js';
+import { TRACEABILITY, sourcesForCategory } from './catalog/traceability.js';
 
-export { RESOLUTION_STATUS, TECHNICAL_NOTE_SPECS, getTechnicalNoteSpec };
+export {
+  STATUS,
+  isResolvedStatus,
+  extractPlaceholderIds,
+  MANIFEST,
+  STRUCTURE_LABELS,
+  optionsFor,
+  validateCatalog,
+  TRACEABILITY,
+  sourcesForCategory,
+  buildSpec,
+};
+
+/** Tipos de estructura disponibles para el selector principal. */
+export const STRUCTURE_OPTIONS = MANIFEST.structure_options.map((id) => ({
+  id,
+  label: STRUCTURE_LABELS[id] || id,
+}));
 
 /**
- * Resuelve las notas técnicas de un proyecto para una especificación dada.
- * Devuelve null si la spec no existe o todavía no está habilitada
- * (ej. "PORTON_METALICO" en esta primera versión).
+ * Resuelve las notas técnicas de un proyecto para un tipo de estructura.
+ * Devuelve null si el tipo no existe en el manifest.
  *
  * @param {object} project
- * @param {string} specId - ej. "CERRAMIENTO_PERIMETRAL"
+ * @param {string} structureType - ej. "CERRAMIENTO_PERIMETRAL"
  */
-export function getResolvedTechnicalNotes(project, specId) {
-  const spec = getTechnicalNoteSpec(specId);
-  if (!spec || !spec.enabled) return null;
-  return resolveTechnicalNotes(project, spec);
+export function getResolvedTechnicalNotes(project, structureType) {
+  const spec = buildSpec(structureType);
+  if (!spec) return null;
+  return resolveTechnicalNotes(project, spec, { structureType });
+}
+
+/** Tipo de estructura guardado en el proyecto (regla 22: namespaced dentro
+ *  de projects.data, sin duplicar un campo que ya exista). */
+export function getStructureType(project) {
+  return project?.data?.technicalNotes?.structureType || null;
 }

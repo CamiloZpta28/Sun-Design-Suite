@@ -1,0 +1,31 @@
+/* Transcripción verbatim de 03_CONCRETO(1).txt. No reescribir textos. */
+export const CONCRETO = {
+  category_id: 'CONCRETO',
+  category_type: 'GLOBAL',
+  label: 'Concreto: materiales, control, colocación y curado',
+  inputs: {
+    FC_ESTRUCTURAL: { default: '21 MPa', type: 'repository_select', group: 'CONCRETO' },
+    FC_SOLADO: { default: '14 MPa', type: 'repository_select', group: 'CONCRETO' },
+    ESPESOR_SOLADO: { default: '5 cm', type: 'number_unit' },
+    ACERO_FY: { default: '420 MPa', type: 'repository_select', group: 'ACERO_REFUERZO' },
+    AGREGADO_MAX: { default: '1 in', type: 'repository_select', group: 'AGREGADOS' },
+    RELACION_AC_MAX: { default: '0.50', type: 'number' },
+    REC_TIERRA: { default: '7.5 cm', type: 'number_unit' },
+    REC_NO_TIERRA: { default: '5 cm', type: 'number_unit' },
+  },
+  notes: [
+    { note_id: 'CON-001', text: "El concreto estructural tendrá resistencia mínima f'c = {{FC_ESTRUCTURAL}}, salvo indicación específica de la categoría de estructura." },
+    { note_id: 'CON-002', text: "Bajo los elementos de cimentación se dispondrá solado de {{ESPESOR_SOLADO}} con f'c = {{FC_SOLADO}}, cuando aplique." },
+    { note_id: 'CON-003', text: 'El acero corrugado tendrá fy = {{ACERO_FY}}. Las longitudes de traslapo y desarrollo no indicadas deberán ajustarse a la NSR-10, Capítulo C.12.' },
+    { note_id: 'CON-004', text: 'Los recubrimientos mínimos serán {{REC_TIERRA}} en elementos en contacto con tierra y {{REC_NO_TIERRA}} en elementos sin contacto con tierra.' },
+    { note_id: 'CON-005', text: 'Todo el refuerzo deberá ser amarrado. Se prohíbe el uso de soldadura en el acero de refuerzo.' },
+    { note_id: 'CON-006', text: 'No se realizarán traslapos de varilla en una misma línea en más del 50% de las varillas a traslapar.' },
+    { note_id: 'CON-007', text: 'Los agregados deberán cumplir NTC 174; el concreto premezclado NTC 3318; los especímenes NTC 550; y el ensayo de compresión NTC 673.' },
+    { note_id: 'CON-008', text: 'Para control de resistencia se tomará como mínimo una muestra por día de vaciado, una por cada 40 m³, una por cada 200 m² de losa y una por cada 50 tandas. Cada muestra tendrá cuatro cilindros: dos a 7 días y dos a 28 días.' },
+    { note_id: 'CON-009', text: 'El concreto deberá colocarse en capas horizontales aproximadas de 30 cm a 60 cm. No se permitirá caída libre desde alturas superiores al rango 0.90 m a 1.20 m sin medios que eviten segregación.' },
+    { note_id: 'CON-010', text: 'La compactación se realizará mediante vibrado interno adecuado, penetrando parcialmente en la capa inferior y evitando falta de vibrado o sobrevibrado.' },
+    { note_id: 'CON-011', text: 'Por debajo de 4 °C deberán adoptarse medidas de protección; el concreto se colocará por encima de 13 °C y se mantendrá húmedo y aproximadamente a 10 °C durante al menos 7 días.' },
+    { note_id: 'CON-012', text: 'A 32 °C o más se tomarán precauciones especiales durante pesaje, mezclado, transporte, colocación, compactación y curado.' },
+    { note_id: 'CON-013', text: 'El curado se ejecutará de forma continua y oportuna y deberá quedar registro de los vaciados, muestras y resultados de laboratorio.' },
+  ],
+};
