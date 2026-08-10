@@ -112,6 +112,107 @@ export const FIELD_GROUPS = [
   },
 ];
 
+/* ----------------------------------------------------------------------------
+   ETIQUETAS DE PRESENTACIÓN
+   ----------------------------------------------------------------------------
+   Dentro del acordeón, la jerarquía (grupo → subgrupo) ya aporta el contexto,
+   así que el campo no debe repetirlo: bajo "Cerramiento perimetral › Poste
+   típico" sobra el prefijo "Cerramiento — poste típico:".
+
+   Esto es EXCLUSIVAMENTE visual. No cambia fieldKey, ni el id del resolver,
+   ni el label canónico del SCHEMA — que se sigue usando tal cual en los
+   pendientes de Notas Técnicas y en la navegación, donde el campo aparece
+   fuera de su jerarquía y necesita identificarse por completo.
+
+   Se declara por clave (no se recorta el prefijo con un replace genérico,
+   que sería frágil y rompería en cuanto un label no siguiera el patrón).
+   -------------------------------------------------------------------------- */
+export const FIELD_DISPLAY_LABELS = {
+  // General › Concreto — solado
+  concreto_solado_fc: "f'c",
+  concreto_solado_espesor: 'Espesor',
+  // General › Acero de refuerzo
+  acero_refuerzo_norma: 'Norma',
+  acero_refuerzo_fy: 'fy',
+  // General › Mezcla
+  agregado_tamano_max: 'Agregado: tamaño máximo nominal',
+  relacion_agua_cemento_max: 'Relación agua/cemento máxima',
+  // General › Recubrimientos
+  recubrimiento_tierra: 'En contacto con tierra',
+  recubrimiento_no_tierra: 'Sin contacto con tierra',
+  // General › Galvanizado en frío
+  galvanizado_frio_zinc: 'Zinc mínimo',
+  galvanizado_frio_capas: 'Capas de reparación',
+
+  // Cerramiento › Poste típico
+  cerramiento_poste_diametro: 'Diámetro nominal',
+  cerramiento_poste_espesor: 'Espesor',
+  cerramiento_poste_anclaje: 'Anclaje/embebido (m)',
+  cerramiento_poste_afloramiento: 'Afloramiento (m)',
+  cerramiento_poste_longitud_total: 'Longitud total',
+  cerramiento_poste_separacion: 'Separación',
+  // Cerramiento › Tubería de diagonales y vientos
+  cerramiento_tubo_secundario_diametro: 'Diámetro nominal',
+  cerramiento_tubo_secundario_espesor: 'Espesor',
+  // Cerramiento › Diagonales
+  cerramiento_diagonales_longitud: 'Longitud',
+  cerramiento_diagonales_separacion: 'Separación',
+  // Cerramiento › Vientos
+  cerramiento_vientos_longitud: 'Longitud',
+  cerramiento_vientos_separacion: 'Separación',
+  // Cerramiento › Malla y fijaciones
+  cerramiento_malla_especificacion: 'Malla eslabonada',
+  cerramiento_bandit_calibre: 'Cinta bandit: calibre',
+  cerramiento_fijacion_separacion: 'Separación máxima entre fijaciones',
+  // Cerramiento › Perfilería y soldadura
+  cerramiento_acero_norma: 'Norma del acero',
+  cerramiento_acero_fy: 'fy',
+  cerramiento_acero_fu: 'fu',
+  cerramiento_soldadura_espesor: 'Soldadura: espesor mínimo',
+  // Cerramiento › Protección anticorrosiva
+  ambiente_corrosion_clase: 'Clase de ambiente de corrosión (ISO 9223)',
+  galvanizado_perdida_zinc_proyectada: 'Pérdida de zinc proyectada (vida útil)',
+
+  // Portón › Cimentación
+  porton_viga_amarre_seccion: 'Viga de amarre: sección',
+  porton_reemplazo_granular: 'Reemplazo de material granular',
+  // Portón › Perfilería y soldadura
+  porton_perfil_embebido: 'Perfil metálico embebido',
+  porton_acero_norma: 'Norma del acero',
+  porton_acero_fy: 'fy',
+  porton_acero_fu: 'fu',
+  porton_soldadura_espesor: 'Soldadura: espesor mínimo',
+
+  // Shelter › Implantación y drenaje
+  shelter_cota_minima: 'Cota mínima',
+  shelter_calado_estudio: 'Calado que exige estudio hidráulico',
+  shelter_borde_libre: 'Borde libre adicional',
+  // Shelter › Micropilotes
+  shelter_micropilote_profundidad: 'Profundidad (m)',
+  shelter_micropilote_sobresaliente: 'Sobresaliente (m)',
+  shelter_micropilote_longitud_total: 'Longitud total',
+  // Shelter › Terreno
+  shelter_compactacion_minima: 'Compactación mínima',
+  // Shelter › Cargas
+  shelter_carga_mantenimiento: 'Carga viva de mantenimiento',
+  shelter_carga_sobrecarga: 'Sobrecarga',
+  shelter_carga_muerta_total: 'Carga muerta total',
+  shelter_carga_viento: 'Carga de viento',
+
+  // Inversores › Materiales y cargas
+  inversores_manual_cargas: 'Manual de cargas de referencia',
+  inversores_fc_ciclopeo: "f'c del concreto ciclópeo",
+};
+
+/**
+ * Etiqueta que se muestra dentro del acordeón. Si la clave no tiene una
+ * declarada, se devuelve el label canónico recibido: nunca desaparece un
+ * campo por faltar su traducción visual.
+ */
+export function displayLabelFor(fieldKey, labelCanonico) {
+  return FIELD_DISPLAY_LABELS[fieldKey] || labelCanonico;
+}
+
 /** Todas las claves gestionadas por esta agrupación, en orden. */
 export function allGroupedFieldKeys() {
   return FIELD_GROUPS.flatMap((g) => g.subgroups.flatMap((s) => s.fieldKeys));

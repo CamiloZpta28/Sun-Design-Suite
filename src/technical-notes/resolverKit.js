@@ -10,6 +10,7 @@
 import { STATUS } from './engine.js';
 import { isBlank, passthrough } from './formatters.js';
 import { normalizeLegacyTechnicalValue } from './compatibility.js';
+import { hasConfirmedDefault, effectiveDefaultFor } from './confirmedDefaults.js';
 
 function getPath(data, path) {
   return path.reduce((acc, key) => (acc == null ? undefined : acc[key]), data);
@@ -26,11 +27,18 @@ function presentValue(raw, { categoryId, inputId, formatter }) {
   return formatter(normalized);
 }
 
-/** Un input `project_value` NUNCA se autocompleta en la nota (regla F del
- *  encargo); cualquier otro type (repository_select, repository_value,
- *  select, number, number_unit) sí puede caer al default cuando el campo
- *  está vacío. Una sola función para no mantener esta regla en dos sitios. */
-export function allowDefaultFor(catalogInput) {
+/** ¿Puede el motor resolver este input con su default cuando está vacío?
+ *
+ *  Regla base: todo type EXCEPTO `project_value`, que es dato propio del
+ *  proyecto y debe quedar PENDIENTE.
+ *
+ *  Excepción declarada: los inputs listados en CONFIRMED_TECHNICAL_DEFAULTS,
+ *  que el paquete fuente modela como project_value pero el equipo decidió
+ *  tratar como valores típicos estándar (ver confirmedDefaults.js).
+ *
+ *  Una sola función para no mantener esta regla en dos sitios. */
+export function allowDefaultFor(catalogInput, categoryId, inputKey) {
+  if (categoryId && inputKey && hasConfirmedDefault(categoryId, inputKey)) return true;
   return catalogInput.type !== 'project_value';
 }
 
@@ -134,8 +142,8 @@ export function fromCatalog(category, inputKey, { label, tab, fieldKey, path, fo
     fieldKey,
     path,
     formatter,
-    defaultValue: input.default,
-    allowDefault: allowDefaultFor(input),
+    defaultValue: effectiveDefaultFor(category.category_id, inputKey, input.default),
+    allowDefault: allowDefaultFor(input, category.category_id, inputKey),
     categoryId: category.category_id,
   });
 }
@@ -152,8 +160,8 @@ export function fromCatalogOverride(category, inputKey, { label, overrideKey, fo
     categoryId: category.category_id,
     overrideKey: overrideKey || inputKey,
     formatter,
-    defaultValue: input.default,
-    allowDefault: allowDefaultFor(input),
+    defaultValue: effectiveDefaultFor(category.category_id, inputKey, input.default),
+    allowDefault: allowDefaultFor(input, category.category_id, inputKey),
   });
 }
 

@@ -13,7 +13,8 @@ import logoMark from './assets/logo-s-mark.png';
 import { isBlank, sumMetersFormatted } from './technical-notes/formatters.js';
 import { CATEGORIES } from './technical-notes/catalog/categories/index.js';
 import { optionsFor, groupForInput, STANDALONE_TECHNICAL_VALUES } from './technical-notes/repository.js';
-import { allFieldGroups, allGroupedFieldKeys, requiresAccordion, groupToOpenFor } from './technical-notes/fieldGroups.js';
+import { allFieldGroups, allGroupedFieldKeys, requiresAccordion, groupToOpenFor, displayLabelFor } from './technical-notes/fieldGroups.js';
+import { hasConfirmedDefault, effectiveDefaultFor } from './technical-notes/confirmedDefaults.js';
 import { STRUCTURE_LABELS, getStructureType } from './technical-notes/index.js';
 import SelectOrOtro from './technical-notes/SelectOrOtro.jsx';
 import TechnicalNotesPanel from './technical-notes/TechnicalNotesPanel.jsx';
@@ -139,6 +140,16 @@ function isAssignedToProject(perfil, project) {
    que el acero del portón nunca aparezca como opción del cerramiento. */
 function catalogField(categoryId, inputKey, label, { structureScope } = {}) {
   const input = CATEGORIES[categoryId].inputs[inputKey];
+
+  /* Inputs que el paquete fuente modela como project_value pero cuyo valor
+     típico el equipo ya confirmó (ver confirmedDefaults.js): se comportan
+     como cualquier otro desplegable de catálogo, con su default
+     preseleccionado y "Otro" para apartarse de él. */
+  if (hasConfirmedDefault(categoryId, inputKey)) {
+    const valor = effectiveDefaultFor(categoryId, inputKey, input.default);
+    return { label, type: 'select', opciones: [valor], defaultValue: valor, allowOther: true };
+  }
+
   /* project_value = dato propio del proyecto. Se captura como texto libre y
      SIN sugerencias en la interfaz: el `default` del catálogo es una simple
      referencia documental de la memoria fuente, no un valor a proponer. */
@@ -1887,10 +1898,17 @@ function SectionFieldsGrid({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusFieldKey]);
 
-  function renderCampos(fields) {
+  /* `contextual`: dentro del acordeón, la jerarquía grupo › subgrupo ya da el
+     contexto, así que se usa la etiqueta corta. Fuera de él (campos propios
+     de la pestaña) se conserva el label canónico completo. */
+  function renderCampos(fields, { contextual = false } = {}) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 divide-y divide-navy-100 md:divide-y-0">
-        {fields.map((field) => (
+        {fields.map((original) => {
+          const field = contextual
+            ? { ...original, label: displayLabelFor(original.key, original.label) }
+            : original;
+          return (
           <div
             key={field.key}
             data-field-key={field.key}
@@ -1910,7 +1928,8 @@ function SectionFieldsGrid({
               onAddPais={onAddPais}
             />
           </div>
-        ))}
+          );
+        })}
       </div>
     );
   }
@@ -1988,7 +2007,7 @@ function SectionFieldsGrid({
                           {grupo.subgroups.map((sub) => (
                             <div key={sub.label}>
                               <p className="text-xs font-semibold text-navy-400 mb-1">{sub.label}</p>
-                              {renderCampos(sub.fields)}
+                              {renderCampos(sub.fields, { contextual: true })}
                             </div>
                           ))}
                         </div>

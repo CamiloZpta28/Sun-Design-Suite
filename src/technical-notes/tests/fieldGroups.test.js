@@ -146,10 +146,11 @@ describe('subgrupos', () => {
 describe('navegación desde un pendiente', () => {
   it('cada pendiente identifica pestaña y campo destino', () => {
     const resolved = getResolvedTechnicalNotes({ id: 'x', data: {} }, 'CERRAMIENTO_PERIMETRAL');
-    const pendiente = resolved.pendientes.find((p) => p.id === 'DIAGONAL_LONGITUD');
+    // CAPACIDAD_SUELO es un project_value real: sigue pendiente al estar vacío.
+    const pendiente = resolved.pendientes.find((p) => p.id === 'CAPACIDAD_SUELO');
     expect(pendiente.status).toBe(STATUS.PENDING);
-    expect(pendiente.fieldRef.tab).toBe('estructural');
-    expect(pendiente.fieldRef.fieldKey).toBe('cerramiento_diagonales_longitud');
+    expect(pendiente.fieldRef.tab).toBe('geotecnia');
+    expect(pendiente.fieldRef.fieldKey).toBe('capacidad_admisible_cerramiento');
   });
 
   it('todos los pendientes con campo editable traen tab + fieldKey', () => {
