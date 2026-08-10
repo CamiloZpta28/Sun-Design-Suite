@@ -151,9 +151,6 @@ export default function TechnicalNotesPanel({ project, onNavigateToField, onStru
                   <li key={p.id} className="flex items-center justify-between gap-3 text-sm text-amber-800">
                     <span className="min-w-0">
                       {p.label}
-                      {p.suggested && (
-                        <span className="text-amber-600"> — sugerido por memoria: <span className="font-mono">{p.suggested}</span></span>
-                      )}
                       {p.status === STATUS.UNKNOWN && (
                         <span className="text-amber-500"> — parámetro sin resolver declarado (revisar catálogo)</span>
                       )}
@@ -219,48 +216,8 @@ export default function TechnicalNotesPanel({ project, onNavigateToField, onStru
             </div>
           </div>
 
-          <div className="space-y-6">
-            {resolved.secciones.map((seccion) => (
-              <div key={seccion.categoryId}>
-                <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-2">{seccion.titulo}</p>
-                <div className="space-y-2">
-                  {seccion.notas.map((nota) => (
-                    <div
-                      key={nota.noteId} /* key estable por ID interno, no por posición */
-                      className={`rounded-lg border-l-4 p-3 text-sm border-t border-r border-b ${
-                        nota.completa ? 'border-l-emerald-400 bg-white border-t-navy-200 border-r-navy-200 border-b-navy-200' : 'border-l-amber-400 bg-amber-50 border-t-amber-200 border-r-amber-200 border-b-amber-200'
-                      }`}
-                    >
-                      {/* Se muestra la numeración continua; el note_id
-                          (CER-004, CON-003…) es identificador interno y no
-                          se expone en la interfaz. */}
-                      <p className="text-navy-700 leading-relaxed whitespace-pre-wrap break-words">
-                        <span className="font-semibold text-navy-500 mr-1">{nota.numero}.</span>
-                        {nota.textoResuelto}
-                      </p>
-                      {!nota.completa && (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {nota.parametros
-                            .filter((p) => !isResolvedStatus(p.status))
-                            .map((p) => (
-                              <button
-                                key={p.id}
-                                type="button"
-                                disabled={!p.fieldRef?.tab}
-                                onClick={() => p.fieldRef?.tab && onNavigateToField(p.fieldRef.tab, p.fieldRef.fieldKey)}
-                                className="flex items-center gap-1 text-xs font-medium bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full hover:bg-amber-200 disabled:opacity-60 disabled:cursor-default transition-colors"
-                              >
-                                <AlertTriangle className="w-3 h-3" /> {p.label}
-                              </button>
-                            ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+          {/* Las notas se muestran UNA sola vez, en el cuadro copiable de
+              arriba. Aquí no se repiten como tarjetas individuales. */}
         </>
       )}
     </div>

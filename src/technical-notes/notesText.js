@@ -6,16 +6,16 @@
    notas ya resueltas y nunca se persiste en projects.data (ver regla "el
    textarea no es fuente de verdad").
 
-   Formato:
+   Formato compacto — una nota por línea, sin líneas vacías entre notas
+   consecutivas, y una sola línea en blanco entre el final de una sección y
+   el título de la siguiente:
 
        GENERALIDADES
-
-       1. Las dimensiones están dadas en m…
-
+       1. Las dimensiones están dadas en metros…
        2. Todas las dimensiones…
+       3. Cualquier modificación…
 
        CONCRETO
-
        4. El concreto estructural…
 
    - Numeración continua (1…N), la misma que se ve en pantalla.
@@ -58,8 +58,10 @@ export function buildPlainTextNotes(resolved) {
   return resolved.secciones
     .map((seccion) => {
       const titulo = sectionTitle(seccion.categoryId, seccion.titulo);
-      const notas = seccion.notas.map((n) => `${n.numero}. ${n.textoResuelto}`).join('\n\n');
-      return `${titulo}\n\n${notas}`;
+      // Una nota por línea: sin línea vacía entre numerales consecutivos.
+      const notas = seccion.notas.map((n) => `${n.numero}. ${n.textoResuelto}`).join('\n');
+      return `${titulo}\n${notas}`;
     })
-    .join('\n\n\n');
+    // Una única línea en blanco entre secciones.
+    .join('\n\n');
 }

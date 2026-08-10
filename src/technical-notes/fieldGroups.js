@@ -1,31 +1,29 @@
 /* ============================================================================
-   AGRUPACIÓN Y FILTRADO DE LOS CAMPOS DE NOTAS TÉCNICAS
+   AGRUPACIÓN DE LOS CAMPOS DE NOTAS TÉCNICAS
    ----------------------------------------------------------------------------
-   Decide cómo se organizan visualmente —y cuáles se muestran— los campos que
-   viven dentro del acordeón "Información para Notas Técnicas" de la pestaña
-   Estructural.
+   Decide cómo se organizan visualmente los campos que viven dentro del
+   acordeón "Información para Notas Técnicas" de la pestaña Estructural.
 
-   Es SOLO presentación: no toca projects.data, no cambia claves ni valores, y
-   filtrar por estructura nunca borra nada — los datos de las estructuras que
-   no se muestran siguen guardados exactamente igual.
+   Es SOLO presentación: no toca projects.data ni cambia claves o valores.
 
-   La visibilidad de cada grupo se deriva del bundle del manifest
-   (bundleFor(structureType)), que ya define qué categorías aplican a cada
-   estructura: así no hay una segunda lista que mantener en sincronía.
+   El acordeón muestra SIEMPRE todos los subapartados (General, Cerramiento,
+   Portón, Shelter, Inversores), sin importar el tipo de estructura elegido en
+   Notas Técnicas: es una pantalla de captura y el ingeniero debe poder llenar
+   cualquier estructura cuando lo necesite. El filtrado por estructura vive en
+   el otro extremo — el bundle del manifest decide qué NOTAS se generan (ver
+   catalog/bundler.js).
    ============================================================================ */
 
-import { bundleFor } from './catalog/manifest.js';
-
-/* Grupos en orden de despliegue. `categoryId` los ata al manifest; los
-   subgrupos son solo subtítulos visuales (no acordeones anidados).
+/* Grupos en orden de despliegue. `categoryId` documenta a qué categoría del
+   catálogo pertenece cada familia; los subgrupos son solo subtítulos
+   visuales (no acordeones anidados).
    Los campos que pertenecen al dominio normal del proyecto y ya existían
    fuera del acordeón (dim_ciment_*, tipo_galvanizado, capacidades del suelo
    en Geotecnia…) NO aparecen aquí: se editan en su lugar de siempre y las
    notas leen ese mismo valor. */
 export const FIELD_GROUPS = [
   {
-    /* Parámetros transversales: aparecen sea cual sea la estructura activa
-       (siempre que su categoría esté en el bundle correspondiente). */
+    /* Parámetros transversales, comunes a todas las estructuras. */
     id: 'GENERAL',
     label: 'General',
     subgroups: [
@@ -140,43 +138,28 @@ export function isTechnicalNotesField(fieldKey) {
   return groupIdOfField(fieldKey) !== null;
 }
 
-/** Categorías presentes en todos los bundles del manifest (verdaderamente
- *  compartidas, no específicas de una estructura). */
-function categoriasComunes() {
-  const bundles = ['PORTON_METALICO', 'CERRAMIENTO_PERIMETRAL', 'SHELTER_CIMENTACION', 'SOPORTE_INVERSORES']
-    .map((s) => bundleFor(s))
-    .filter(Boolean);
-  return bundles.length === 0 ? [] : bundles[0].filter((c) => bundles.every((b) => b.includes(c)));
-}
-
 /**
- * Grupos (y subgrupos) visibles para una estructura.
+ * TODOS los grupos y subgrupos del acordeón de edición.
  *
- * Un subgrupo se muestra si su categoría pertenece al bundle de esa
- * estructura, de modo que "General" aparece siempre pero solo con las
- * familias aplicables (ej. el galvanizado en frío, que es de METAL, no se
- * muestra en Shelter ni en Inversores porque METAL no está en sus bundles).
+ * El panel de Estructural los muestra siempre completos, con independencia
+ * del tipo de estructura elegido en Notas Técnicas: es una pantalla de
+ * captura de datos, y el ingeniero debe poder llenar la información de
+ * cualquier estructura cuando lo necesite.
  *
- * Sin structureType se muestran únicamente las categorías comunes a TODOS
- * los bundles, para no adelantar parámetros de una estructura no elegida.
+ * El filtrado por estructura SÍ existe, pero en el otro extremo: el bundle
+ * del manifest decide qué NOTAS se generan (ver catalog/bundler.js). Editar
+ * un campo de otra estructura simplemente no afecta a las notas activas.
  *
- * @param {string|null} structureType
  * @returns {Array<{id, label, subgroups}>}
  */
-export function groupsForStructure(structureType) {
-  const categoriasVisibles = structureType ? bundleFor(structureType) : categoriasComunes();
-  if (!categoriasVisibles) return [];
-  return FIELD_GROUPS
-    .map((grupo) => ({
-      ...grupo,
-      subgroups: grupo.subgroups.filter((s) => categoriasVisibles.includes(s.categoryId || grupo.categoryId)),
-    }))
-    .filter((grupo) => grupo.subgroups.length > 0);
+export function allFieldGroups() {
+  return FIELD_GROUPS;
 }
 
-/** Claves visibles para una estructura (útil para tests y para el filtrado). */
-export function visibleFieldKeys(structureType) {
-  return groupsForStructure(structureType).flatMap((g) => g.subgroups.flatMap((s) => s.fieldKeys));
+/** Claves de todos los grupos (equivale a allGroupedFieldKeys; se mantiene
+ *  por legibilidad en los sitios que hablan de "lo visible"). */
+export function visibleFieldKeys() {
+  return allGroupedFieldKeys();
 }
 
 /**

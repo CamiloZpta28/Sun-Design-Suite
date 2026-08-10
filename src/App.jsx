@@ -13,7 +13,7 @@ import logoMark from './assets/logo-s-mark.png';
 import { isBlank, sumMetersFormatted } from './technical-notes/formatters.js';
 import { CATEGORIES } from './technical-notes/catalog/categories/index.js';
 import { optionsFor, groupForInput, STANDALONE_TECHNICAL_VALUES } from './technical-notes/repository.js';
-import { groupsForStructure, allGroupedFieldKeys, requiresAccordion, groupToOpenFor } from './technical-notes/fieldGroups.js';
+import { allFieldGroups, allGroupedFieldKeys, requiresAccordion, groupToOpenFor } from './technical-notes/fieldGroups.js';
 import { STRUCTURE_LABELS, getStructureType } from './technical-notes/index.js';
 import SelectOrOtro from './technical-notes/SelectOrOtro.jsx';
 import TechnicalNotesPanel from './technical-notes/TechnicalNotesPanel.jsx';
@@ -139,8 +139,11 @@ function isAssignedToProject(perfil, project) {
    que el acero del portón nunca aparezca como opción del cerramiento. */
 function catalogField(categoryId, inputKey, label, { structureScope } = {}) {
   const input = CATEGORIES[categoryId].inputs[inputKey];
+  /* project_value = dato propio del proyecto. Se captura como texto libre y
+     SIN sugerencias en la interfaz: el `default` del catálogo es una simple
+     referencia documental de la memoria fuente, no un valor a proponer. */
   if (input.type === 'project_value') {
-    return { key: undefined, label, type: 'text', sugerido: input.default };
+    return { key: undefined, label, type: 'text' };
   }
   const opciones = input.options || optionsFor(groupForInput(categoryId, inputKey, input.group), structureScope || categoryId);
   return {
@@ -1533,18 +1536,15 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
   }
 
   if (field.type === 'select') {
-    const esSugerido = field.allowOther && isBlank(value) && !isBlank(field.defaultValue);
-    const valorMostrado = esSugerido ? field.defaultValue : value;
+    /* En lectura se muestra el valor EFECTIVO y nada más: si el campo está
+       vacío y el catálogo declara un default, ese es el valor que usan las
+       notas, así que es el que se enseña. Sin texto auxiliar que explique de
+       dónde sale. */
+    const usaDefault = field.allowOther && isBlank(value) && !isBlank(field.defaultValue);
+    const valorMostrado = usaDefault ? field.defaultValue : value;
 
     if (!editMode) {
-      return (
-        <div>
-          <ReadOnlyValue label={field.label} value={valorMostrado} mono={false} />
-          {esSugerido && (
-            <p className="text-xs text-navy-400 italic -mt-2 mb-1">Valor sugerido (sin confirmar) — el ingeniero puede definir otro.</p>
-          )}
-        </div>
-      );
+      return <ReadOnlyValue label={field.label} value={valorMostrado} mono={false} />;
     }
 
     if (field.allowOther) {
@@ -1822,21 +1822,6 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
       {field.type === 'text' && (
         <input type="text" className={`${baseInput} font-mono`} value={value || ''} onChange={(e) => onChange(e.target.value)} />
       )}
-      {/* Dato propio del proyecto (project_value del catálogo de Notas
-          Técnicas): el valor de la memoria fuente se ofrece como referencia,
-          pero solo se guarda si el ingeniero lo acepta explícitamente. */}
-      {field.sugerido && isBlank(value) && (
-        <p className="text-xs text-navy-400 mt-1">
-          Sugerido por memoria: <span className="font-mono text-navy-500">{field.sugerido}</span>
-          <button
-            type="button"
-            onClick={() => onChange(field.sugerido)}
-            className="ml-2 font-semibold text-lime-600 hover:text-lime-700"
-          >
-            Usar sugerido
-          </button>
-        </p>
-      )}
     </div>
   );
 }
@@ -1846,18 +1831,22 @@ function SectionFieldsGrid({
   structureType, focusFieldKey, onFocusHandled,
 }) {
   const [grupoAbierto, setGrupoAbierto] = useState(false);
-  /* Subapartados desplegados dentro del acordeón. "General" abierto de
-     entrada (es el que casi siempre se consulta); los específicos, cerrados.
-     Estado de UI puro: nunca se persiste en projects.data. */
-  const [subAbiertos, setSubAbiertos] = useState({ GENERAL: true });
+  /* Subapartados desplegados dentro del acordeón: "General" y el de la
+     estructura activa se abren de entrada; el resto queda cerrado pero
+     SIEMPRE presente y desplegable. Estado de UI puro: nunca se persiste. */
+  const [subAbiertos, setSubAbiertos] = useState(() =>
+    structureType ? { GENERAL: true, [structureType]: true } : { GENERAL: true }
+  );
 
   const propios = section.fields.filter((f) => !f.grupo);
   const agrupados = section.fields.filter((f) => f.grupo === GRUPO_NOTAS_TECNICAS.id);
   const porClave = new Map(agrupados.map((f) => [f.key, f]));
 
-  /* Grupos visibles según el tipo de estructura elegido en Notas Técnicas.
-     Filtrar es solo presentación: los campos ocultos conservan su valor. */
-  const gruposVisibles = groupsForStructure(structureType)
+  /* SIEMPRE se muestran todos los subapartados: esta es una pantalla de
+     captura, así que el tipo de estructura elegido en Notas Técnicas no
+     oculta nada aquí (solo se resalta el que está activo). El filtrado por
+     estructura ocurre al generar las notas, no al editar los datos. */
+  const gruposVisibles = allFieldGroups()
     .map((g) => ({
       ...g,
       subgroups: g.subgroups
@@ -1950,35 +1939,46 @@ function SectionFieldsGrid({
 
           {grupoAbierto && (
             <div className="mt-4">
-              {!structureType ? (
-                <p className="text-xs text-navy-500 bg-navy-50 border border-navy-200 rounded-lg px-3 py-2 mb-4">
-                  Mostrando solo los parámetros comunes a todas las estructuras. Selecciona el tipo de estructura en{' '}
-                  <span className="font-semibold">Notas Técnicas</span> para ver también los específicos.
-                </p>
-              ) : (
-                <p className="text-xs text-navy-400 mb-4">
-                  Parámetros que alimentan las notas técnicas de{' '}
-                  <span className="font-semibold text-navy-600">{STRUCTURE_LABELS[structureType] || structureType}</span>.
-                  Los vacíos usan el valor sugerido del catálogo; nada se guarda hasta que edites y guardes esta pestaña.
-                </p>
-              )}
+              <p className="text-xs text-navy-400 mb-4">
+                Parámetros que alimentan las notas técnicas. Están todos disponibles para editar;
+                {structureType ? (
+                  <>
+                    {' '}las notas activas se generan a partir de{' '}
+                    <span className="font-semibold text-navy-600">{STRUCTURE_LABELS[structureType] || structureType}</span>.
+                  </>
+                ) : (
+                  <> el tipo de estructura se elige en <span className="font-semibold">Notas Técnicas</span>.</>
+                )}
+                {' '}Nada se guarda hasta que edites y guardes esta pestaña.
+              </p>
 
               <div className="space-y-3">
                 {gruposVisibles.map((grupo) => {
                   const abierto = !!subAbiertos[grupo.id];
+                  const esActivo = grupo.id === structureType;
                   const clavesGrupo = grupo.subgroups.flatMap((s) => s.fields.map((f) => f.key));
                   const conDatoGrupo = clavesGrupo.filter((k) => data && !isBlank(data[k])).length;
                   return (
-                    <div key={grupo.id} className="border border-navy-200 rounded-lg overflow-hidden">
+                    <div
+                      key={grupo.id}
+                      className={`border rounded-lg overflow-hidden ${esActivo ? 'border-lime-400' : 'border-navy-200'}`}
+                    >
                       <button
                         type="button"
                         onClick={() => setSubAbiertos((prev) => ({ ...prev, [grupo.id]: !prev[grupo.id] }))}
-                        className="flex items-center gap-2 w-full text-left px-3 py-2 bg-navy-50 hover:bg-navy-100 transition-colors"
+                        className={`flex items-center gap-2 w-full text-left px-3 py-2 transition-colors ${
+                          esActivo ? 'bg-lime-50 hover:bg-lime-100' : 'bg-navy-50 hover:bg-navy-100'
+                        }`}
                       >
                         {abierto
                           ? <ChevronDown className="w-4 h-4 text-navy-400 shrink-0" />
                           : <ChevronRight className="w-4 h-4 text-navy-400 shrink-0" />}
                         <span className="text-xs font-bold uppercase tracking-wide text-navy-600">{grupo.label}</span>
+                        {esActivo && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-lime-100 text-lime-700 border border-lime-300 normal-case">
+                            Notas activas
+                          </span>
+                        )}
                         <span className="text-xs text-navy-400 font-normal normal-case">
                           {conDatoGrupo} de {clavesGrupo.length}
                         </span>

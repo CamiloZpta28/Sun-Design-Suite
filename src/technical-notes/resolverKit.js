@@ -37,8 +37,11 @@ export function allowDefaultFor(catalogInput) {
 /** Campo de dominio (SCHEMA/projects.data) ya existente — status
  *  RESOLVED_PROJECT cuando el proyecto ya tiene dato, RESOLVED_DEFAULT
  *  cuando está vacío y el input lo permite, PENDING en caso contrario.
- *  `suggested` siempre viaja (aun en PENDING) para que la UI pueda mostrar
- *  "sugerido por memoria" sin aplicarlo. */
+ *  `suggested` viaja siempre (aun en PENDING) como dato interno de
+ *  trazabilidad: refleja el valor de referencia del catálogo. NINGUNA vista
+ *  lo muestra — la interfaz enseña el valor efectivo o "⚠ Pendiente", nunca
+ *  una sugerencia. Se conserva porque lo usan los tests y puede servir a
+ *  futuras exportaciones o auditorías. */
 export function schemaField({ id, label, tab, fieldKey, path, formatter = passthrough, defaultValue, allowDefault, categoryId }) {
   const suggested = !isBlank(defaultValue) ? formatter(defaultValue) : null;
   return {

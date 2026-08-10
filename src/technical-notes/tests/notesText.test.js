@@ -14,9 +14,9 @@ const textoDe = (structureType, data) => getResolvedTechnicalNotes(proyecto(data
 describe('texto copiable — formato', () => {
   it('usa numeración continua 1…N, no los note_id internos', () => {
     const texto = textoDe('CERRAMIENTO_PERIMETRAL');
-    expect(texto).toMatch(/^GENERALIDADES\n\n1\. /);
-    expect(texto).toContain('\n\n2. ');
-    expect(texto).toContain('\n\n4. '); // la numeración continúa entre secciones
+    expect(texto).toMatch(/^GENERALIDADES\n1\. /);
+    expect(texto).toContain('\n2. ');
+    expect(texto).toContain('\n4. '); // la numeración continúa entre secciones
   });
 
   it('no contiene ningún identificador interno', () => {
@@ -34,10 +34,44 @@ describe('texto copiable — formato', () => {
     expect(texto).toContain('CERRAMIENTO PERIMETRAL');
   });
 
-  it('separa notas y bloques con saltos de línea (nada pegado en una línea)', () => {
+  it('formato compacto: una nota por línea, SIN línea vacía entre numerales', () => {
+    ['CERRAMIENTO_PERIMETRAL', 'PORTON_METALICO', 'SHELTER_CIMENTACION', 'SOPORTE_INVERSORES'].forEach((s) => {
+      const texto = textoDe(s);
+      // Ninguna nota puede ir precedida de una línea en blanco.
+      expect(texto, s).not.toMatch(/\n\n\d+\. /);
+      // Ni existir tres saltos seguidos en ninguna parte.
+      expect(texto, s).not.toContain('\n\n\n');
+    });
+  });
+
+  it('cada línea de nota empieza por su número y no hay líneas vacías dentro de una sección', () => {
+    const lineas = textoDe('CERRAMIENTO_PERIMETRAL').split('\n');
+    lineas.forEach((linea, i) => {
+      if (!/^\d+\. /.test(linea)) return;
+      const anterior = lineas[i - 1];
+      // La línea previa a una nota es o el título de sección o la nota anterior.
+      expect(anterior === '' ? `vacía antes de "${linea.slice(0, 20)}"` : 'ok').toBe('ok');
+    });
+  });
+
+  it('SÍ hay una línea en blanco entre el final de una sección y el título siguiente', () => {
     const texto = textoDe('CERRAMIENTO_PERIMETRAL');
-    expect(texto.split('\n').length).toBeGreaterThan(50);
-    expect(texto).toContain('\n\n\n'); // separación entre bloques
+    expect(texto).toContain('\n\nCONCRETO\n');
+    expect(texto).toContain('\n\nMETAL\n');
+    expect(texto).toContain('\n\nCERRAMIENTO PERIMETRAL\n');
+  });
+
+  it('el título de sección va pegado a su primera nota', () => {
+    const texto = textoDe('CERRAMIENTO_PERIMETRAL');
+    expect(texto).toMatch(/GENERALIDADES\n1\. /);
+    expect(texto).toMatch(/\nCONCRETO\n4\. /);
+  });
+
+  it('no queda ninguna línea vacía suelta salvo las de separación entre secciones', () => {
+    const texto = textoDe('CERRAMIENTO_PERIMETRAL');
+    const vacias = texto.split('\n').filter((l) => l === '').length;
+    // Bundle de cerramiento = 4 secciones -> exactamente 3 separadores.
+    expect(vacias).toBe(3);
   });
 
   it('es texto plano: sin HTML, badges ni iconos', () => {
@@ -116,6 +150,15 @@ describe('texto copiable — es derivado, nunca fuente de verdad', () => {
   it('buildPlainTextNotes tolera una entrada vacía', () => {
     expect(buildPlainTextNotes(null)).toBe('');
     expect(buildPlainTextNotes({})).toBe('');
+  });
+
+  it('el textarea y el botón Copiar comparten exactamente el mismo contenido', () => {
+    /* En el panel, `texto` se pasa una sola vez a <NotasCopiables>, que lo usa
+       tanto para el value del textarea como para navigator.clipboard: no hay
+       dos formateos distintos que puedan divergir. Aquí se fija que la única
+       fuente sea textoCompleto y que coincida con el builder. */
+    const resolved = getResolvedTechnicalNotes(proyecto(), 'CERRAMIENTO_PERIMETRAL');
+    expect(resolved.textoCompleto).toBe(buildPlainTextNotes(resolved));
   });
 });
 
