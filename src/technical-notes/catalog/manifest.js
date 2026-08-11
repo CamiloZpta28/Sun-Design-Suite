@@ -34,7 +34,9 @@ export const MANIFEST = {
 export const STRUCTURE_LABELS = {
   PORTON_METALICO: 'Portón metálico',
   CERRAMIENTO_PERIMETRAL: 'Cerramiento perimetral',
-  SHELTER_CIMENTACION: 'Cimentación de shelter',
+  /* Nombre corto para la interfaz. El identificador interno sigue siendo
+     SHELTER_CIMENTACION en todas partes (bundles, resolvers, projects.data). */
+  SHELTER_CIMENTACION: 'Shelter',
   SOPORTE_INVERSORES: 'Soporte de inversores',
 };
 

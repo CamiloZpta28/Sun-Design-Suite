@@ -87,7 +87,7 @@ describe('texto copiable — aislamiento por bundle', () => {
     const texto = textoDe('CERRAMIENTO_PERIMETRAL');
     expect(texto).toContain('CERRAMIENTO PERIMETRAL');
     expect(texto).not.toContain('PORTÓN METÁLICO');
-    expect(texto).not.toContain('CIMENTACIÓN DE SHELTER');
+    expect(texto).not.toContain('SHELTER');
     expect(texto).not.toContain('SOPORTE DE INVERSORES');
     expect(texto).not.toContain('micropilotes');
   });
@@ -95,7 +95,7 @@ describe('texto copiable — aislamiento por bundle', () => {
   it('shelter incluye impermeabilización y no incluye metal ni cerramiento', () => {
     const texto = textoDe('SHELTER_CIMENTACION');
     expect(texto).toContain('IMPERMEABILIZACIÓN Y JUNTAS');
-    expect(texto).toContain('CIMENTACIÓN DE SHELTER');
+    expect(texto).toContain('SHELTER');
     expect(texto).not.toContain('\nMETAL\n');
     expect(texto).not.toContain('CERRAMIENTO PERIMETRAL');
   });

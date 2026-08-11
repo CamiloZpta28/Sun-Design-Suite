@@ -12,7 +12,7 @@ import { supabase } from './supabaseClient';
 import logoMark from './assets/logo-s-mark.png';
 import { isBlank, sumMetersFormatted } from './technical-notes/formatters.js';
 import { CATEGORIES } from './technical-notes/catalog/categories/index.js';
-import { optionsFor, groupForInput, STANDALONE_TECHNICAL_VALUES } from './technical-notes/repository.js';
+import { optionsFor, selectableOptionsFor, STANDALONE_TECHNICAL_VALUES } from './technical-notes/repository.js';
 import { allFieldGroups, allGroupedFieldKeys, requiresAccordion, groupToOpenFor, displayLabelFor } from './technical-notes/fieldGroups.js';
 import { hasConfirmedDefault, effectiveDefaultFor } from './technical-notes/confirmedDefaults.js';
 import { STRUCTURE_LABELS, getStructureType } from './technical-notes/index.js';
@@ -156,11 +156,10 @@ function catalogField(categoryId, inputKey, label, { structureScope } = {}) {
   if (input.type === 'project_value') {
     return { key: undefined, label, type: 'text' };
   }
-  const opciones = input.options || optionsFor(groupForInput(categoryId, inputKey, input.group), structureScope || categoryId);
   return {
     label,
     type: 'select',
-    opciones,
+    opciones: selectableOptionsFor(input, categoryId, inputKey, structureScope),
     defaultValue: input.default,
     allowOther: input.type !== 'select',
   };

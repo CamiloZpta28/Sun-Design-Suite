@@ -20,6 +20,7 @@ const ORIGEN_BADGE = {
   [STATUS.RESOLVED_PROJECT]: { texto: 'Proyecto', clase: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   [STATUS.RESOLVED_USER]: { texto: 'Seleccionado', clase: 'bg-sky-50 text-sky-700 border-sky-200' },
   [STATUS.RESOLVED_DEFAULT]: { texto: 'Default', clase: 'bg-navy-50 text-navy-500 border-navy-200' },
+  [STATUS.RESOLVED_DERIVED]: { texto: 'Derivado', clase: 'bg-violet-50 text-violet-700 border-violet-200' },
   [STATUS.PENDING]: { texto: 'Pendiente', clase: 'bg-amber-50 text-amber-700 border-amber-200' },
   [STATUS.INVALID]: { texto: 'Inválido', clase: 'bg-red-50 text-red-700 border-red-200' },
   [STATUS.UNKNOWN]: { texto: 'Sin resolver', clase: 'bg-red-50 text-red-700 border-red-200' },

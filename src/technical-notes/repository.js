@@ -116,6 +116,29 @@ export function groupForInput(categoryId, inputKey, declaredGroup) {
   return INPUT_GROUP_OVERRIDES[`${categoryId}.${inputKey}`] || declaredGroup;
 }
 
+/**
+ * Opciones que debe ofrecer el desplegable de un input del catálogo.
+ *
+ * Los tipos `number`, `number_unit` y `repository_value` no declaran `group`,
+ * así que el repositorio no tiene entradas para ellos. Sin este respaldo el
+ * campo quedaba como un desplegable VACÍO: el default existía pero no había
+ * ninguna opción que lo mostrara, y en pantalla se veía en blanco. En ese
+ * caso su propio valor de catálogo es la única opción conocida — y "Otro"
+ * sigue permitiendo apartarse de él.
+ *
+ * @param {object} input - input tal como lo declara la categoría
+ * @param {string} categoryId
+ * @param {string} inputKey
+ * @param {string} [structureScope] - estructura dueña, para el aislamiento
+ * @returns {string[]}
+ */
+export function selectableOptionsFor(input, categoryId, inputKey, structureScope) {
+  if (input.options) return input.options;
+  const delRepositorio = optionsFor(groupForInput(categoryId, inputKey, input.group), structureScope || categoryId);
+  if (delRepositorio.length > 0) return delRepositorio;
+  return input.default != null ? [input.default] : [];
+}
+
 /* ----------------------------------------------------------------------------
    VALORES TÉCNICOS SIN NOTA ASOCIADA
    ----------------------------------------------------------------------------

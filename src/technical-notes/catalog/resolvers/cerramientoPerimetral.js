@@ -25,27 +25,37 @@ import { CERRAMIENTO_PERIMETRAL } from '../categories/index.js';
 import { STATUS } from '../../engine.js';
 import { fromCatalog, getPath } from '../../resolverKit.js';
 import { isBlank, metersToCm, metersToMetersPhrase, sumMetersFormatted, passthrough } from '../../formatters.js';
+import { hasConfirmedDefault, effectiveDefaultFor } from '../../confirmedDefaults.js';
 
 const EST = 'estructural';
 
 /** POSTE_LONGITUD es la suma de anclaje + afloramiento, misma fórmula que el
- *  campo `computed` de SCHEMA (una sola fuente: sumMetersFormatted). Es
- *  project_value en el catálogo, así que NO cae al default "3.00 m": si
- *  falta cualquiera de los dos sumandos, queda PENDING. */
+ *  campo `computed` de SCHEMA (una sola fuente: sumMetersFormatted).
+ *
+ *  Nunca cae al default "3.00 m" del catálogo: es un valor DERIVADO, así que
+ *  se calcula o queda PENDING. Cada sumando usa su propio default confirmado
+ *  cuando el proyecto no trae dato (ambos valen 0.50 m, ver DECISION_POSTE),
+ *  de modo que en un proyecto vacío la longitud deriva 1.00 m. */
 function posteLongitudResolver() {
   const suggested = passthrough(CERRAMIENTO_PERIMETRAL.inputs.POSTE_LONGITUD.default);
+  const conDefault = (raw, inputKey) => {
+    if (!isBlank(raw)) return raw;
+    return hasConfirmedDefault('CERRAMIENTO_PERIMETRAL', inputKey)
+      ? effectiveDefaultFor('CERRAMIENTO_PERIMETRAL', inputKey, null)
+      : raw;
+  };
   return {
     id: 'POSTE_LONGITUD',
     label: 'Poste típico — longitud total (anclaje + afloramiento)',
     fieldRef: { tab: EST, fieldKey: 'cerramiento_poste_longitud_total' },
     resolve(data) {
-      const anclaje = getPath(data, [EST, 'cerramiento_poste_anclaje']);
-      const afloramiento = getPath(data, [EST, 'cerramiento_poste_afloramiento']);
+      const anclaje = conDefault(getPath(data, [EST, 'cerramiento_poste_anclaje']), 'POSTE_EMBEBIDO');
+      const afloramiento = conDefault(getPath(data, [EST, 'cerramiento_poste_afloramiento']), 'POSTE_AFLORAMIENTO');
       if (isBlank(anclaje) || isBlank(afloramiento)) return { status: STATUS.PENDING, value: null, suggested };
       const value = sumMetersFormatted(anclaje, afloramiento);
       return isBlank(value)
         ? { status: STATUS.INVALID, value: null, suggested }
-        : { status: STATUS.RESOLVED_PROJECT, value, suggested };
+        : { status: STATUS.RESOLVED_DERIVED, value, suggested };
     },
   };
 }
@@ -86,7 +96,10 @@ export function buildCerramientoResolvers() {
       tab: EST,
       fieldKey: 'cerramiento_poste_anclaje',
       path: [EST, 'cerramiento_poste_anclaje'],
-      formatter: metersToCm,
+      /* Se presenta en metros ("0.50 m"), igual que el afloramiento y la
+         longitud total, para que las tres magnitudes del poste se lean en la
+         misma unidad dentro de la nota. */
+      formatter: metersToMetersPhrase,
     }),
 
     POSTE_DIAMETRO: fromCatalog(cat, 'POSTE_DIAMETRO', {

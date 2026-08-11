@@ -25,6 +25,17 @@
    ============================================================================ */
 
 export const CONFIRMED_TECHNICAL_DEFAULTS = {
+  /* Cerramiento — poste típico.
+     El embebido y el afloramiento se guardan en METROS DECIMALES (sus
+     resolvers los formatean como "X.XX m"), así que el default va en esa
+     unidad de almacenamiento: '0.50' -> "0.50 m". Usar el "50 cm" que
+     declara el catálogo daría 50 metros.
+     Ambos valores están confirmados por el equipo; la longitud total se
+     deriva de su suma (ver DECISION_POSTE). */
+  'CERRAMIENTO_PERIMETRAL.POSTE_EMBEBIDO': { value: '0.50' },
+  'CERRAMIENTO_PERIMETRAL.POSTE_AFLORAMIENTO': { value: '0.50' },
+  'CERRAMIENTO_PERIMETRAL.POSTE_SEPARACION': {},
+
   // Cerramiento — diagonales
   'CERRAMIENTO_PERIMETRAL.DIAGONAL_LONGITUD': {},
   'CERRAMIENTO_PERIMETRAL.DIAGONAL_SEPARACION': {},
@@ -42,6 +53,28 @@ export const CONFIRMED_TECHNICAL_DEFAULTS = {
 
   // Portón — cimentación
   'PORTON_METALICO.REEMPLAZO_GRANULAR': {},
+};
+
+/* ----------------------------------------------------------------------------
+   DECISIÓN CONFIRMADA — geometría del poste típico
+   ----------------------------------------------------------------------------
+   La memoria original indicaba un afloramiento de 2.50 m (longitud total
+   3.00 m). El equipo confirmó posteriormente los valores del inventario
+   consolidado:
+
+       embebido 0.50 m + afloramiento 0.50 m  ->  longitud derivada 1.00 m
+
+   Estos son los valores vigentes y los que el motor precarga. Se deja
+   constancia del valor anterior únicamente para trazabilidad documental:
+   NO se migra ningún proyecto y cualquier valor ya guardado sigue mandando
+   sobre estos defaults.
+   -------------------------------------------------------------------------- */
+export const DECISION_POSTE = {
+  embebido: '0.50 m',
+  afloramiento: '0.50 m',
+  longitudDerivada: '1.00 m',
+  valorAnteriorAfloramiento: '2.50 m',
+  estado: 'CONFIRMADO por el equipo; sustituye el valor de la memoria original',
 };
 
 /** ¿Este input tiene un default confirmado que el motor puede aplicar? */

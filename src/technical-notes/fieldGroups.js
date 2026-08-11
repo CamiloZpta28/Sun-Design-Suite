@@ -84,7 +84,7 @@ export const FIELD_GROUPS = [
   },
   {
     id: 'SHELTER_CIMENTACION',
-    label: 'Cimentación de shelter',
+    label: 'Shelter',
     categoryId: 'SHELTER_CIMENTACION',
     subgroups: [
       {

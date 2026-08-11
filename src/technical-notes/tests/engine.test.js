@@ -184,7 +184,7 @@ describe('valores límite', () => {
     );
     const p = paramOf(resolved, 'POSTE_EMBEBIDO');
     expect(isResolvedStatus(p.status)).toBe(true);
-    expect(p.value).toBe('0 cm'); // no cae al default "50 cm"
+    expect(p.value).toBe('0.00 m'); // no cae al default "0.50 m"
   });
 
   it('false es un valor válido, no "vacío"', () => {
@@ -258,14 +258,23 @@ describe('parámetros derivados', () => {
     expect(paramOf(resolved, 'POSTE_LONGITUD').value).toBe('3.00 m');
   });
 
-  it('POSTE_LONGITUD queda PENDING si falta un sumando (no calcula con 0 ni usa el default)', () => {
+  it('POSTE_LONGITUD deriva de los defaults confirmados cuando el proyecto no trae dato', () => {
     const resolved = getResolvedTechnicalNotes(
       buildProject({ estructural: { cerramiento_poste_anclaje: '0.50' } }),
       'CERRAMIENTO_PERIMETRAL'
     );
     const p = paramOf(resolved, 'POSTE_LONGITUD');
-    expect(p.status).toBe(STATUS.PENDING);
-    expect(p.value).toBeNull();
+    // 0.50 del proyecto + 0.50 del default confirmado de afloramiento.
+    expect(p.status).toBe(STATUS.RESOLVED_DERIVED);
+    expect(p.value).toBe('1.00 m');
+  });
+
+  it('POSTE_LONGITUD nunca cae al "3.00 m" del catálogo: siempre es la suma real', () => {
+    const resolved = getResolvedTechnicalNotes(
+      buildProject({ estructural: { cerramiento_poste_afloramiento: '2.50' } }),
+      'CERRAMIENTO_PERIMETRAL'
+    );
+    expect(paramOf(resolved, 'POSTE_LONGITUD').value).toBe('3.00 m'); // 0.50 + 2.50, no el default
   });
 
   it('MICROPILOTE_TOTAL suma profundidad + sobresaliente', () => {

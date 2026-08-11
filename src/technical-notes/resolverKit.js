@@ -11,6 +11,7 @@ import { STATUS } from './engine.js';
 import { isBlank, passthrough } from './formatters.js';
 import { normalizeLegacyTechnicalValue } from './compatibility.js';
 import { hasConfirmedDefault, effectiveDefaultFor } from './confirmedDefaults.js';
+import { normalizeTechnicalText } from './textNormalization.js';
 
 function getPath(data, path) {
   return path.reduce((acc, key) => (acc == null ? undefined : acc[key]), data);
@@ -21,9 +22,13 @@ function getPath(data, path) {
  *  valor de proyecto antes de entrar a una nota: así ningún resolver ni
  *  componente necesita saber que existen formatos antiguos. */
 function presentValue(raw, { categoryId, inputId, formatter }) {
+  /* El whitespace se limpia PRIMERO: un valor pegado desde Word puede traer
+     NBSP invisibles que romperían tanto la comparación legacy como el
+     parseo numérico de los formatters. */
+  const limpio = normalizeTechnicalText(raw);
   const normalized = categoryId && inputId
-    ? normalizeLegacyTechnicalValue({ categoryId, inputId, value: raw })
-    : raw;
+    ? normalizeLegacyTechnicalValue({ categoryId, inputId, value: limpio })
+    : limpio;
   return formatter(normalized);
 }
 
@@ -51,7 +56,7 @@ export function allowDefaultFor(catalogInput, categoryId, inputKey) {
  *  una sugerencia. Se conserva porque lo usan los tests y puede servir a
  *  futuras exportaciones o auditorías. */
 export function schemaField({ id, label, tab, fieldKey, path, formatter = passthrough, defaultValue, allowDefault, categoryId }) {
-  const suggested = !isBlank(defaultValue) ? formatter(defaultValue) : null;
+  const suggested = !isBlank(defaultValue) ? formatter(normalizeTechnicalText(defaultValue)) : null;
   return {
     id,
     label,
@@ -78,7 +83,7 @@ export function schemaField({ id, label, tab, fieldKey, path, formatter = passth
  *  RESOLVED_PROJECT cuando hay valor explícito (distingue "dato de una
  *  pestaña de dominio" de "elección propia de Notas Técnicas"). */
 export function overrideField({ id, label, categoryId, overrideKey, formatter = passthrough, defaultValue, allowDefault }) {
-  const suggested = !isBlank(defaultValue) ? formatter(defaultValue) : null;
+  const suggested = !isBlank(defaultValue) ? formatter(normalizeTechnicalText(defaultValue)) : null;
   return {
     id,
     label,

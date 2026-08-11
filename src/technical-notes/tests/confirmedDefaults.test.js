@@ -107,16 +107,21 @@ describe('los demás project_value conservan su comportamiento', () => {
     expect(PORTON_METALICO.inputs.SOLDADURA.default).toBe('5 mm'); // catálogo intacto
   });
 
-  it('solo hay 7 inputs con default confirmado, y son los acordados', () => {
+  it('la lista de defaults confirmados es exactamente la acordada', () => {
     expect(Object.keys(CONFIRMED_TECHNICAL_DEFAULTS).sort()).toEqual([
       'CERRAMIENTO_PERIMETRAL.DIAGONAL_LONGITUD',
       'CERRAMIENTO_PERIMETRAL.DIAGONAL_SEPARACION',
       'CERRAMIENTO_PERIMETRAL.FIJACION',
+      'CERRAMIENTO_PERIMETRAL.POSTE_AFLORAMIENTO',
+      'CERRAMIENTO_PERIMETRAL.POSTE_EMBEBIDO',
+      'CERRAMIENTO_PERIMETRAL.POSTE_SEPARACION',
       'CERRAMIENTO_PERIMETRAL.SOLDADURA',
       'CERRAMIENTO_PERIMETRAL.VIENTO_LONGITUD',
       'CERRAMIENTO_PERIMETRAL.VIENTO_SEPARACION',
       'PORTON_METALICO.REEMPLAZO_GRANULAR',
     ]);
+    // El afloramiento entra por decisión confirmada del equipo (0.50 m).
+    expect(CONFIRMED_TECHNICAL_DEFAULTS['CERRAMIENTO_PERIMETRAL.POSTE_AFLORAMIENTO'].value).toBe('0.50');
   });
 });
 

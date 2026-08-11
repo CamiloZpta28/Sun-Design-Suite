@@ -31,6 +31,8 @@
    fuente: el `label` de esos módulos es descriptivo y largo (ej. "Concreto:
    materiales, control, colocación y curado"), poco práctico como encabezado
    al pegar las notas en un plano. */
+import { normalizeTechnicalText } from './textNormalization.js';
+
 const SECTION_TITLES = {
   GENERAL: 'Generalidades',
   CONCRETO: 'Concreto',
@@ -38,7 +40,7 @@ const SECTION_TITLES = {
   IMPERMEABILIZACION_JUNTAS: 'Impermeabilización y juntas',
   CERRAMIENTO_PERIMETRAL: 'Cerramiento perimetral',
   PORTON_METALICO: 'Portón metálico',
-  SHELTER_CIMENTACION: 'Cimentación de shelter',
+  SHELTER_CIMENTACION: 'Shelter',
   SOPORTE_INVERSORES: 'Soporte de inversores',
 };
 
@@ -55,7 +57,7 @@ export function sectionTitle(categoryId, fallback) {
  */
 export function buildPlainTextNotes(resolved) {
   if (!resolved || !resolved.secciones) return '';
-  return resolved.secciones
+  const texto = resolved.secciones
     .map((seccion) => {
       const titulo = sectionTitle(seccion.categoryId, seccion.titulo);
       // Una nota por línea: sin línea vacía entre numerales consecutivos.
@@ -64,4 +66,10 @@ export function buildPlainTextNotes(resolved) {
     })
     // Una única línea en blanco entre secciones.
     .join('\n\n');
+
+  /* Última pasada de normalización sobre el texto ya ensamblado: garantiza
+     que lo que se ve, lo que se copia y lo que consuma una exportación futura
+     sean exactamente la misma cadena, con espacios ASCII y saltos LF en
+     cualquier sistema operativo. */
+  return normalizeTechnicalText(texto);
 }

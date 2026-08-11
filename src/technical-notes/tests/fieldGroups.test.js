@@ -20,6 +20,7 @@ import {
   allGroupedFieldKeys,
 } from '../fieldGroups.js';
 import { getResolvedTechnicalNotes, STATUS } from '../index.js';
+import { STRUCTURE_LABELS } from '../catalog/manifest.js';
 
 const ESTRUCTURAS = ['CERRAMIENTO_PERIMETRAL', 'PORTON_METALICO', 'SHELTER_CIMENTACION', 'SOPORTE_INVERSORES'];
 const gruposDel = () => allFieldGroups().map((g) => g.id);
@@ -95,7 +96,7 @@ describe('Notas Técnicas SÍ sigue filtrando por bundle', () => {
     const cer = getResolvedTechnicalNotes(proyecto, 'CERRAMIENTO_PERIMETRAL');
     expect(cer.textoCompleto).toContain('CERRAMIENTO PERIMETRAL');
     expect(cer.textoCompleto).not.toContain('PORTÓN METÁLICO');
-    expect(cer.textoCompleto).not.toContain('CIMENTACIÓN DE SHELTER');
+    expect(cer.textoCompleto).not.toContain('SHELTER');
 
     const por = getResolvedTechnicalNotes(proyecto, 'PORTON_METALICO');
     expect(por.textoCompleto).toContain('PORTÓN METÁLICO');
@@ -240,5 +241,60 @@ describe('agrupar es solo presentación', () => {
       .toBe('ASTM A572 Gr 50');
     expect(getResolvedTechnicalNotes(project, 'CERRAMIENTO_PERIMETRAL').parametros.find((p) => p.id === 'POSTE_DIAMETRO').value)
       .toBe('Ø 3 in');
+  });
+});
+
+/* ============================================================================
+   NOMENCLATURA VISIBLE DEL SHELTER
+   ----------------------------------------------------------------------------
+   La estructura se muestra como "Shelter" en toda la interfaz, mientras que
+   el identificador interno sigue siendo SHELTER_CIMENTACION.
+   ============================================================================ */
+describe('nomenclatura visible: "Shelter"', () => {
+  const LARGO = 'Cimentación de shelter';
+
+  it('1 — el selector de tipo de estructura muestra "Shelter"', () => {
+    expect(STRUCTURE_LABELS.SHELTER_CIMENTACION).toBe('Shelter');
+  });
+
+  it('1 — la cabecera del panel y el subapartado del acordeón también', () => {
+    const r = getResolvedTechnicalNotes({ id: 'x', data: {} }, 'SHELTER_CIMENTACION');
+    expect(r.specLabel).toBe('Shelter');
+    expect(allFieldGroups().find((g) => g.id === 'SHELTER_CIMENTACION').label).toBe('Shelter');
+  });
+
+  it('2 — el nombre largo ya no aparece en ninguna salida visible', () => {
+    const r = getResolvedTechnicalNotes({ id: 'x', data: {} }, 'SHELTER_CIMENTACION');
+    expect(r.textoCompleto).not.toContain(LARGO);
+    expect(r.textoCompleto).toContain('SHELTER');
+    expect(r.parametros.some((p) => p.label.includes(LARGO))).toBe(false);
+    expect(r.pendientes.some((p) => p.label.includes(LARGO))).toBe(false);
+    expect(STRUCTURE_LABELS.SHELTER_CIMENTACION).not.toContain(LARGO);
+  });
+
+  it('3 — el identificador interno sigue siendo SHELTER_CIMENTACION', () => {
+    const r = getResolvedTechnicalNotes({ id: 'x', data: {} }, 'SHELTER_CIMENTACION');
+    expect(r.specId).toBe('SHELTER_CIMENTACION');
+    expect(allFieldGroups().map((g) => g.id)).toContain('SHELTER_CIMENTACION');
+    expect(Object.keys(STRUCTURE_LABELS)).toContain('SHELTER_CIMENTACION');
+    expect(groupToOpenFor('shelter_carga_viento')).toBe('SHELTER_CIMENTACION');
+  });
+
+  it('4 — el bundle y la generación de notas no cambian', () => {
+    const r = getResolvedTechnicalNotes({ id: 'x', data: {} }, 'SHELTER_CIMENTACION');
+    expect(r.secciones.map((s) => s.categoryId)).toEqual([
+      'GENERAL', 'CONCRETO', 'IMPERMEABILIZACION_JUNTAS', 'SHELTER_CIMENTACION',
+    ]);
+    const noteIds = r.secciones.flatMap((s) => s.notas).map((n) => n.noteId);
+    expect(noteIds).toContain('SHE-001');
+    expect(noteIds).toContain('SHE-005');
+    expect(noteIds).not.toContain('SHE-002'); // sísmica sigue excluida
+    expect(noteIds).toHaveLength(27);
+  });
+
+  it('4 — las demás estructuras conservan su nombre', () => {
+    expect(STRUCTURE_LABELS.CERRAMIENTO_PERIMETRAL).toBe('Cerramiento perimetral');
+    expect(STRUCTURE_LABELS.PORTON_METALICO).toBe('Portón metálico');
+    expect(STRUCTURE_LABELS.SOPORTE_INVERSORES).toBe('Soporte de inversores');
   });
 });

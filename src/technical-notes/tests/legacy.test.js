@@ -237,7 +237,7 @@ describe('TEST 9 y 10 — 0 y false siguen siendo valores válidos', () => {
     );
     const p = paramDe(resolved, 'POSTE_EMBEBIDO');
     expect(isResolvedStatus(p.status)).toBe(true);
-    expect(p.value).toBe('0 cm');
+    expect(p.value).toBe('0.00 m');
   });
 
   it('la capa de compatibilidad deja pasar 0 y false sin tocarlos', () => {

@@ -32,7 +32,7 @@ function micropiloteTotalResolver() {
       const value = sumMetersFormatted(prof, sobre);
       return isBlank(value)
         ? { status: STATUS.INVALID, value: null, suggested }
-        : { status: STATUS.RESOLVED_PROJECT, value, suggested };
+        : { status: STATUS.RESOLVED_DERIVED, value, suggested };
     },
   };
 }

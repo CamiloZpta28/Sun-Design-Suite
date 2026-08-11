@@ -41,13 +41,22 @@ export const STATUS = Object.freeze({
   RESOLVED_PROJECT: 'RESOLVED_PROJECT',
   RESOLVED_USER: 'RESOLVED_USER',
   RESOLVED_DEFAULT: 'RESOLVED_DEFAULT',
+  /* Calculado a partir de otros parámetros (ver preload_mode DERIVED del
+     inventario): no lo aporta el proyecto ni sale de un default propio, así
+     que se distingue para que la UI pueda etiquetarlo como derivado. */
+  RESOLVED_DERIVED: 'RESOLVED_DERIVED',
   PENDING: 'PENDING',
   INVALID: 'INVALID',
   EXCLUDED: 'EXCLUDED',
   UNKNOWN: 'UNKNOWN',
 });
 
-const RESOLVED_STATUSES = new Set([STATUS.RESOLVED_PROJECT, STATUS.RESOLVED_USER, STATUS.RESOLVED_DEFAULT]);
+const RESOLVED_STATUSES = new Set([
+  STATUS.RESOLVED_PROJECT,
+  STATUS.RESOLVED_USER,
+  STATUS.RESOLVED_DEFAULT,
+  STATUS.RESOLVED_DERIVED,
+]);
 export function isResolvedStatus(status) {
   return RESOLVED_STATUSES.has(status);
 }
