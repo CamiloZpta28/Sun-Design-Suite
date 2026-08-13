@@ -1436,9 +1436,9 @@ const CIMENTACION_TIPOS = [
 /* Lienzo y escala COMPARTIDOS por las 3 vistas de Postes MT, para que se     */
 /* vean alineadas entre sí (mismo tamaño en pantalla = mismo tamaño real).   */
 const POSTE_VB_W = 200;
-const POSTE_VB_H = 270;
+const POSTE_VB_H = 195;
 const POSTE_M2PX = 80;
-const POSTE_CSS_SIZE = 'w-40 h-52';
+const POSTE_CSS_SIZE = 'w-40 h-40';
 
 /* Dibujo tipo plano técnico (líneas negras, sin relleno de color) de un      */
 /* poste MT: cilindro + solado de limpieza (mismo cilindro, más corto) +     */
@@ -1453,14 +1453,14 @@ function PostesMtPreview({ datos }) {
   const altura = desplante + sobresaliente;
 
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-  const diamPx = clamp((diametro || 0.3) * POSTE_M2PX, 30, 100);
+  const diamPx = clamp((diametro || 0.3) * POSTE_M2PX, 28, 85);
   const rx = diamPx / 2;
   const ry = rx * 0.32;
-  const alturaPx = clamp((altura || 0.3) * POSTE_M2PX, 55, 150);
-  const soladoPx = clamp((espesorSolado || 0.05) * POSTE_M2PX, 5, 14);
+  const alturaPx = clamp((altura || 0.3) * POSTE_M2PX, 50, 100);
+  const soladoPx = clamp((espesorSolado || 0.05) * POSTE_M2PX, 5, 11);
 
   const cx = POSTE_VB_W / 2;
-  const topY = 42;
+  const topY = 30;
   const botY = topY + alturaPx;
   const soladoBotY = botY + soladoPx;
   const groundY = altura > 0 ? topY + (sobresaliente / altura) * alturaPx : topY;
@@ -1528,11 +1528,11 @@ function PostesMtSeccionLongitudinal({ datos }) {
 
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
   const anchoPx = clamp((diametro || 0.3) * POSTE_M2PX, 30, 100);
-  const alturaPx = clamp((altura || 0.3) * POSTE_M2PX, 55, 150);
-  const soladoPx = clamp((espesorSolado || 0.05) * POSTE_M2PX, 5, 14);
+  const alturaPx = clamp((altura || 0.3) * POSTE_M2PX, 50, 100);
+  const soladoPx = clamp((espesorSolado || 0.05) * POSTE_M2PX, 5, 11);
 
   const cx = POSTE_VB_W / 2;
-  const topY = 42;
+  const topY = 30;
   const botY = topY + alturaPx;
   const soladoBotY = botY + soladoPx;
   const groundY = altura > 0 ? topY + (sobresaliente / altura) * alturaPx : topY;
@@ -1581,10 +1581,10 @@ function PostesMtSeccionLongitudinal({ datos }) {
 function PostesMtSeccionTransversal({ datos }) {
   const diametro = parseFloat(datos.diametro) || 0;
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-  const rr = clamp((diametro || 0.3) * POSTE_M2PX, 30, 100) / 2;
+  const rr = clamp((diametro || 0.3) * POSTE_M2PX, 28, 85) / 2;
 
   const cx = POSTE_VB_W / 2;
-  const cy = POSTE_VB_H / 2 - 20;
+  const cy = POSTE_VB_H / 2 - 10;
 
   return (
     <svg viewBox={`0 0 ${POSTE_VB_W} ${POSTE_VB_H}`} className={POSTE_CSS_SIZE}>
