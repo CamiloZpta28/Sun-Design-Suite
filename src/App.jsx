@@ -1702,66 +1702,99 @@ const LUMI_VB_H = 195;
 const LUMI_M2PX = 80;
 const LUMI_CSS_SIZE = 'w-40 h-40';
 
-/* Isométrico de una cimentación de sección cuadrada: caja + solado (una     */
-/* caja más ancha y corta, misma forma que la cimentación) + plano de        */
-/* terreno natural (un paralelogramo que atraviesa la caja, coherente con la */
-/* perspectiva) + cotas de lado y altura.                                    */
+/* Isométrico de una cimentación de sección rectangular (o cuadrada, si       */
+/* ancho = profundo): caja + solado (misma forma, un poco más ancha y corta) */
+/* + plano de terreno natural (un paralelogramo coherente con la perspectiva) */
+/* + cotas independientes de ancho y profundo (una en cada borde visible de   */
+/* la base) + cota de altura.                                                */
 function LuminariasPreview({ datos }) {
-  const lado = parseFloat(datos.lado) || 0;
+  const ancho = parseFloat(datos.ancho) || 0;
+  const profundo = parseFloat(datos.profundo) || 0;
   const desplante = parseFloat(datos.desplante) || 0;
   const sobresaliente = parseFloat(datos.sobresaliente) || 0;
   const espesorSolado = parseFloat(datos.espesor_solado) || 0;
   const altura = desplante + sobresaliente;
 
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-  const ladoPx = clamp((lado || 0.3) * LUMI_M2PX, 26, 65);
+  const anchoPx = clamp((ancho || 0.3) * LUMI_M2PX, 26, 65);
+  const profundoPx = clamp((profundo || 0.3) * LUMI_M2PX, 26, 65);
   const alturaPx = clamp((altura || 0.3) * LUMI_M2PX, 50, 100);
   const soladoPx = clamp((espesorSolado || 0.05) * LUMI_M2PX, 5, 11);
   const groundFrac = altura > 0 ? desplante / altura : 0;
 
-  const half = ladoPx / 2;
+  const halfW = anchoPx / 2;
+  const halfD = profundoPx / 2;
   const bodyZ0 = soladoPx;
   const bodyZ1 = soladoPx + alturaPx;
   const groundZ = soladoPx + groundFrac * alturaPx;
 
   const ox = LUMI_VB_W / 2;
-  const oy = 18 + half + bodyZ1;
+  const oy = 18 + Math.max(halfW, halfD) + bodyZ1;
 
-  const soladoHalf = half + 6;
-  const groundHalf = half + 16;
+  const soladoHalfW = halfW + 6;
+  const soladoHalfD = halfD + 6;
+  const groundHalfW = halfW + 16;
+  const groundHalfD = halfD + 16;
 
-  // Punto más a la izquierda del plano de terreno (para poner ahí la etiqueta N.T.N)
-  const [groundLeftX, groundLeftY] = isoPt(-groundHalf, groundHalf, groundZ, ox, oy);
+  const [groundLeftX, groundLeftY] = isoPt(-groundHalfW, groundHalfD, groundZ, ox, oy);
   const groundPlane = poly([
-    isoPt(-groundHalf, -groundHalf, groundZ, ox, oy),
-    isoPt(groundHalf, -groundHalf, groundZ, ox, oy),
-    isoPt(groundHalf, groundHalf, groundZ, ox, oy),
-    isoPt(-groundHalf, groundHalf, groundZ, ox, oy),
+    isoPt(-groundHalfW, -groundHalfD, groundZ, ox, oy),
+    isoPt(groundHalfW, -groundHalfD, groundZ, ox, oy),
+    isoPt(groundHalfW, groundHalfD, groundZ, ox, oy),
+    isoPt(-groundHalfW, groundHalfD, groundZ, ox, oy),
   ]);
 
-  // Puntos de referencia para las cotas: esquina inferior-derecha del cuerpo
-  const [rightTopX, rightTopY] = isoPt(half, -half, bodyZ1, ox, oy);
-  const [rightBotX, rightBotY] = isoPt(half, -half, bodyZ0, ox, oy);
-  const [frontLeftX, frontLeftY] = isoPt(-half, half, bodyZ0 - soladoPx, ox, oy);
-  const [frontRightX, frontRightY] = isoPt(half, half, bodyZ0 - soladoPx, ox, oy);
+  // Los 3 puntos de la base que nos importan para las cotas: la esquina más
+  // cercana (donde se juntan los dos bordes visibles) y sus dos vecinas.
+  const nearBottom = isoPt(halfW, halfD, bodyZ0, ox, oy);
+  const frontLeftBottom = isoPt(-halfW, halfD, bodyZ0, ox, oy);
+  const rightBottom = isoPt(halfW, -halfD, bodyZ0, ox, oy);
+  const dimOffset = 16;
+
+  // Cota de altura, con la esquina superior/inferior derecha del cuerpo.
+  const [rightTopX, rightTopY] = isoPt(halfW, -halfD, bodyZ1, ox, oy);
+  const [rightBotX, rightBotY] = isoPt(halfW, -halfD, bodyZ0, ox, oy);
 
   return (
     <svg viewBox={`0 0 ${LUMI_VB_W} ${LUMI_VB_H}`} className={LUMI_CSS_SIZE}>
       {/* Solado: misma forma, un poco más ancho y corto */}
-      <IsoBoxLineArt x0={-soladoHalf} y0={-soladoHalf} w={soladoHalf * 2} d={soladoHalf * 2} z0={0} z1={soladoPx} ox={ox} oy={oy} />
+      <IsoBoxLineArt x0={-soladoHalfW} y0={-soladoHalfD} w={soladoHalfW * 2} d={soladoHalfD * 2} z0={0} z1={soladoPx} ox={ox} oy={oy} />
       {/* Cuerpo (pedestal) */}
-      <IsoBoxLineArt x0={-half} y0={-half} w={ladoPx} d={ladoPx} z0={bodyZ0} z1={bodyZ1} ox={ox} oy={oy} />
+      <IsoBoxLineArt x0={-halfW} y0={-halfD} w={anchoPx} d={profundoPx} z0={bodyZ0} z1={bodyZ1} ox={ox} oy={oy} />
       {/* Nivel de terreno natural: un plano que atraviesa el cuerpo */}
       <polygon points={groundPlane} fill="none" stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
       <text x={groundLeftX - 4} y={groundLeftY + 3} textAnchor="end" fontSize="8" fill="#6487C4" fontFamily="monospace">N.T.N</text>
-      {/* Cota de lado (frente-abajo) */}
+      {/* Cota de ancho: sobre el borde frontal-izquierdo de la base */}
       <g stroke="#152644" strokeWidth="1">
-        <line x1={frontLeftX} y1={frontLeftY + 16} x2={frontRightX} y2={frontRightY + 16} />
-        <line x1={frontLeftX} y1={frontLeftY + 12} x2={frontLeftX} y2={frontLeftY + 20} />
-        <line x1={frontRightX} y1={frontRightY + 12} x2={frontRightX} y2={frontRightY + 20} />
+        <line x1={frontLeftBottom[0]} y1={frontLeftBottom[1] + 6} x2={frontLeftBottom[0]} y2={frontLeftBottom[1] + dimOffset + 4} />
+        <line x1={nearBottom[0]} y1={nearBottom[1] + 6} x2={nearBottom[0]} y2={nearBottom[1] + dimOffset + 4} />
+        <line x1={frontLeftBottom[0]} y1={frontLeftBottom[1] + dimOffset} x2={nearBottom[0]} y2={nearBottom[1] + dimOffset} />
       </g>
-      <text x={(frontLeftX + frontRightX) / 2} y={(frontLeftY + frontRightY) / 2 + 32} textAnchor="middle" fontSize="10" fontWeight="600" fill="#152644">
-        {lado || '—'} × {lado || '—'} m
+      <text
+        x={(frontLeftBottom[0] + nearBottom[0]) / 2}
+        y={(frontLeftBottom[1] + nearBottom[1]) / 2 + dimOffset + 12}
+        textAnchor="middle"
+        fontSize="9.5"
+        fontWeight="600"
+        fill="#152644"
+      >
+        {ancho || '—'} m
+      </text>
+      {/* Cota de profundo: sobre el borde frontal-derecho de la base */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={rightBottom[0]} y1={rightBottom[1] + 6} x2={rightBottom[0]} y2={rightBottom[1] + dimOffset + 4} />
+        <line x1={nearBottom[0]} y1={nearBottom[1] + 6} x2={nearBottom[0]} y2={nearBottom[1] + dimOffset + 4} />
+        <line x1={rightBottom[0]} y1={rightBottom[1] + dimOffset} x2={nearBottom[0]} y2={nearBottom[1] + dimOffset} />
+      </g>
+      <text
+        x={(rightBottom[0] + nearBottom[0]) / 2}
+        y={(rightBottom[1] + nearBottom[1]) / 2 + dimOffset + 12}
+        textAnchor="middle"
+        fontSize="9.5"
+        fontWeight="600"
+        fill="#152644"
+      >
+        {profundo || '—'} m
       </text>
       {/* Cota de altura total */}
       <g stroke="#152644" strokeWidth="1">
@@ -1784,17 +1817,17 @@ function LuminariasPreview({ datos }) {
   );
 }
 
-/* Sección longitudinal (vista frontal 2D): un rectángulo — ancho = lado,     */
+/* Sección longitudinal (vista frontal 2D): un rectángulo — ancho = ancho,    */
 /* alto = altura total — igual estilo que Postes MT.                        */
 function LuminariasSeccionLongitudinal({ datos }) {
-  const lado = parseFloat(datos.lado) || 0;
+  const ancho = parseFloat(datos.ancho) || 0;
   const desplante = parseFloat(datos.desplante) || 0;
   const sobresaliente = parseFloat(datos.sobresaliente) || 0;
   const espesorSolado = parseFloat(datos.espesor_solado) || 0;
   const altura = desplante + sobresaliente;
 
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-  const anchoPx = clamp((lado || 0.3) * LUMI_M2PX, 28, 85);
+  const anchoPx = clamp((ancho || 0.3) * LUMI_M2PX, 28, 85);
   const alturaPx = clamp((altura || 0.3) * LUMI_M2PX, 50, 100);
   const soladoPx = clamp((espesorSolado || 0.05) * LUMI_M2PX, 5, 11);
 
@@ -1816,7 +1849,7 @@ function LuminariasSeccionLongitudinal({ datos }) {
         <line x1={cx + anchoPx / 2} y1={soladoBotY + 10} x2={cx + anchoPx / 2} y2={soladoBotY + 18} />
       </g>
       <text x={cx} y={soladoBotY + 30} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="#152644">
-        {lado || '—'} m
+        {ancho || '—'} m
       </text>
       <g stroke="#152644" strokeWidth="1">
         <line x1={cx + anchoPx / 2 + 30} y1={topY} x2={cx + anchoPx / 2 + 30} y2={botY} />
@@ -1838,26 +1871,47 @@ function LuminariasSeccionLongitudinal({ datos }) {
   );
 }
 
-/* Sección transversal (vista en planta 2D): un cuadrado con la cota del     */
-/* lado.                                                                     */
+/* Sección transversal (vista en planta 2D): un rectángulo (o cuadrado, si   */
+/* ancho = profundo) con AMBAS cotas — horizontal (ancho) y vertical         */
+/* (profundo) — porque la sección puede no ser cuadrada.                    */
 function LuminariasSeccionTransversal({ datos }) {
-  const lado = parseFloat(datos.lado) || 0;
+  const ancho = parseFloat(datos.ancho) || 0;
+  const profundo = parseFloat(datos.profundo) || 0;
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-  const s = clamp((lado || 0.3) * LUMI_M2PX, 28, 85);
+  const anchoPx = clamp((ancho || 0.3) * LUMI_M2PX, 28, 85);
+  const profundoPx = clamp((profundo || 0.3) * LUMI_M2PX, 28, 85);
 
   const cx = LUMI_VB_W / 2;
-  const cy = LUMI_VB_H / 2 - 10;
+  const cy = LUMI_VB_H / 2 - 14;
 
   return (
     <svg viewBox={`0 0 ${LUMI_VB_W} ${LUMI_VB_H}`} className={LUMI_CSS_SIZE}>
-      <rect x={cx - s / 2} y={cy - s / 2} width={s} height={s} fill="white" stroke="#152644" strokeWidth="1.3" />
+      <rect x={cx - anchoPx / 2} y={cy - profundoPx / 2} width={anchoPx} height={profundoPx} fill="white" stroke="#152644" strokeWidth="1.3" />
+      {/* Cota horizontal: ancho, debajo */}
       <g stroke="#152644" strokeWidth="1">
-        <line x1={cx - s / 2} y1={cy + s / 2 + 14} x2={cx + s / 2} y2={cy + s / 2 + 14} />
-        <line x1={cx - s / 2} y1={cy + s / 2 + 10} x2={cx - s / 2} y2={cy + s / 2 + 18} />
-        <line x1={cx + s / 2} y1={cy + s / 2 + 10} x2={cx + s / 2} y2={cy + s / 2 + 18} />
+        <line x1={cx - anchoPx / 2} y1={cy + profundoPx / 2 + 14} x2={cx + anchoPx / 2} y2={cy + profundoPx / 2 + 14} />
+        <line x1={cx - anchoPx / 2} y1={cy + profundoPx / 2 + 10} x2={cx - anchoPx / 2} y2={cy + profundoPx / 2 + 18} />
+        <line x1={cx + anchoPx / 2} y1={cy + profundoPx / 2 + 10} x2={cx + anchoPx / 2} y2={cy + profundoPx / 2 + 18} />
       </g>
-      <text x={cx} y={cy + s / 2 + 30} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="#152644">
-        {lado || '—'} m
+      <text x={cx} y={cy + profundoPx / 2 + 30} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="#152644">
+        {ancho || '—'} m
+      </text>
+      {/* Cota vertical: profundo, a la derecha */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx + anchoPx / 2 + 14} y1={cy - profundoPx / 2} x2={cx + anchoPx / 2 + 14} y2={cy + profundoPx / 2} />
+        <line x1={cx + anchoPx / 2 + 10} y1={cy - profundoPx / 2} x2={cx + anchoPx / 2 + 18} y2={cy - profundoPx / 2} />
+        <line x1={cx + anchoPx / 2 + 10} y1={cy + profundoPx / 2} x2={cx + anchoPx / 2 + 18} y2={cy + profundoPx / 2} />
+      </g>
+      <text
+        x={cx + anchoPx / 2 + 30}
+        y={cy}
+        textAnchor="middle"
+        fontSize="9.5"
+        fontWeight="600"
+        fill="#152644"
+        transform={`rotate(90, ${cx + anchoPx / 2 + 30}, ${cy})`}
+      >
+        {profundo || '—'} m
       </text>
     </svg>
   );
@@ -1888,7 +1942,7 @@ function LuminariasVistas({ datos }) {
 function LuminariasForm({ plantilla, onCancel, onSave }) {
   const [nombre, setNombre] = useState(plantilla?.nombre || '');
   const [datos, setDatos] = useState(
-    plantilla?.datos || { lado: '', desplante: '', sobresaliente: '', espesor_solado: '' }
+    plantilla?.datos || { ancho: '', profundo: '', desplante: '', sobresaliente: '', espesor_solado: '' }
   );
 
   function set(key, val) {
@@ -1924,10 +1978,17 @@ function LuminariasForm({ plantilla, onCancel, onSave }) {
               className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm"
             />
           </div>
-          <div>
-            <label className="block text-xs text-navy-500 mb-1">Lado de la sección cuadrada (m)</label>
-            <input value={datos.lado} onChange={(e) => set('lado', e.target.value)} placeholder="0.40" className={cellInput} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Ancho (m)</label>
+              <input value={datos.ancho} onChange={(e) => set('ancho', e.target.value)} placeholder="0.40" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Profundo (m)</label>
+              <input value={datos.profundo} onChange={(e) => set('profundo', e.target.value)} placeholder="0.40" className={cellInput} />
+            </div>
           </div>
+          <p className="text-xs text-navy-400 italic">Si la sección es cuadrada, usa el mismo valor en ambos.</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-navy-500 mb-1">Long. de desplante (m)</label>
@@ -1972,7 +2033,7 @@ const CIMENTACION_COMPONENTES = {
   luminarias: {
     Form: LuminariasForm,
     Preview: LuminariasPreview,
-    resumen: (d) => `${d.lado || '—'} × ${d.lado || '—'} m · ${((parseFloat(d.desplante) || 0) + (parseFloat(d.sobresaliente) || 0)).toFixed(2)} m`,
+    resumen: (d) => `${d.ancho || '—'} × ${d.profundo || '—'} m · ${((parseFloat(d.desplante) || 0) + (parseFloat(d.sobresaliente) || 0)).toFixed(2)} m`,
   },
 };
 

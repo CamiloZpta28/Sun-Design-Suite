@@ -171,14 +171,20 @@ ingeniero. Cada persona:
 
 - **Luminarias, segundo tipo de Cimentaciones construido**: mismo esquema
   que Postes MT (crear/editar/eliminar plantillas, 3 vistas tipo plano
-  técnico), pero con **sección cuadrada** en vez de circular: campo "Lado"
-  en vez de "Diámetro", la caja isométrica usa la misma geometría corregida
-  de los pedestales de proyectos (reescrita en estilo de líneas, no de
-  colores), el plano de N.T.N. es un rombo/paralelogramo coherente con esa
-  perspectiva (en vez de la elipse de Postes MT), y las dos vistas 2D son
-  un rectángulo (longitudinal) y un cuadrado (transversal). Ya quedan 2 de
-  las 6 cimentaciones construidas — Cámaras, Inversores, Cerramiento y
-  Shelter siguen en la fila.
+  técnico), pero con **sección rectangular** (no necesariamente cuadrada):
+  campos separados "Ancho" y "Profundo" en vez de un solo "Lado" —
+  la nota debajo del formulario avisa que si la sección es cuadrada, hay
+  que poner el mismo valor en ambos. La caja isométrica usa la misma
+  geometría corregida de los pedestales de proyectos (reescrita en estilo
+  de líneas, no de colores), con **una cota independiente por cada borde
+  visible de la base** (ancho y profundo por separado, no combinadas en
+  una sola etiqueta), y el plano de N.T.N. es un rombo/paralelogramo
+  coherente con esa perspectiva (en vez de la elipse de Postes MT). Las
+  dos vistas 2D son un rectángulo (longitudinal, con la cota de ancho) y
+  otro rectángulo (transversal, ahora con **ambas** cotas — horizontal y
+  vertical — para que no se pierda la profundidad cuando no es cuadrada).
+  Ya quedan 2 de las 6 cimentaciones construidas — Cámaras, Inversores,
+  Cerramiento y Shelter siguen en la fila.
   - Internamente agregué un registro `CIMENTACION_COMPONENTES` que le dice
     a la pantalla de Cimentaciones qué formulario/vista/resumen usar según
     el tipo activo, para no tener que reescribir esa lógica cada vez que
