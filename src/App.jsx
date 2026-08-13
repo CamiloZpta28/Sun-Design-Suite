@@ -6,7 +6,8 @@ import {
   Users, ExternalLink, Check, FileText, UploadCloud, XCircle, ClipboardList,
   Loader2, RefreshCw, LogOut, ShieldCheck, Lock, History, ClipboardCheck, StickyNote, UserCog,
   Folder, FolderPlus, ChevronDown, ChevronRight, PlayCircle, Video, Code2,
-  Bold, Italic, Underline, List, PartyPopper, MessageSquare, PieChart, AlertTriangle, Menu, UserPlus,
+  Bold, Italic, Underline, List, PartyPopper, MessageSquare, PieChart, AlertTriangle, Menu, UserPlus, Boxes,
+  CircleDot, Lightbulb, Home,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import logoMark from './assets/logo-s-mark.png';
@@ -1416,6 +1417,288 @@ function ResistenciaSelect({ value, onChange, className }) {
       className={className}
       placeholder="Ej. 28 MPa"
     />
+  );
+}
+
+/* Los 6 tipos de cimentación de la sección "Cimentaciones" (plantillas       */
+/* reutilizables entre proyectos), ordenados de menos a más complejo. Se van  */
+/* construyendo de a uno — "disponible: false" muestra un aviso de "muy      */
+/* pronto" en vez del formulario, sin quitar el tipo de la lista.            */
+const CIMENTACION_TIPOS = [
+  { id: 'postes_mt', label: 'Postes MT', icon: CircleDot, disponible: true },
+  { id: 'luminarias', label: 'Luminarias', icon: Lightbulb, disponible: false },
+  { id: 'camaras', label: 'Cámaras', icon: Video, disponible: false },
+  { id: 'inversores', label: 'Inversores', icon: Zap, disponible: false },
+  { id: 'cerramiento', label: 'Cerramiento', icon: Building2, disponible: false },
+  { id: 'shelter', label: 'Shelter', icon: Home, disponible: false },
+];
+
+/* Dibujo tipo plano técnico (líneas negras, sin relleno de color) de un      */
+/* poste MT: cilindro + solado de limpieza + cotas de diámetro y altura +    */
+/* nivel de terreno natural. No es a escala exacta, solo ilustrativo.        */
+function PostesMtPreview({ datos }) {
+  const diametro = parseFloat(datos.diametro) || 0;
+  const desplante = parseFloat(datos.desplante) || 0;
+  const sobresaliente = parseFloat(datos.sobresaliente) || 0;
+  const espesorSolado = parseFloat(datos.espesor_solado) || 0;
+  const altura = desplante + sobresaliente;
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const m2px = 90;
+  const diamPx = clamp((diametro || 0.3) * m2px, 34, 120);
+  const rx = diamPx / 2;
+  const ry = rx * 0.32;
+  const alturaPx = clamp((altura || 0.3) * m2px, 60, 170);
+  const soladoPx = clamp((espesorSolado || 0.05) * m2px, 4, 14);
+
+  const cx = 100;
+  const topY = 36;
+  const botY = topY + alturaPx;
+  const groundY = altura > 0 ? topY + (sobresaliente / altura) * alturaPx : topY;
+
+  const svgW = 210;
+  const svgH = botY + ry + soladoPx + 70;
+
+  return (
+    <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-44 h-56">
+      {/* Solado de limpieza */}
+      <rect x={cx - rx - 8} y={botY + ry * 0.5} width={(rx + 8) * 2} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      {/* Cuerpo del cilindro */}
+      <line x1={cx - rx} y1={topY} x2={cx - rx} y2={botY} stroke="#152644" strokeWidth="1.3" />
+      <line x1={cx + rx} y1={topY} x2={cx + rx} y2={botY} stroke="#152644" strokeWidth="1.3" />
+      <ellipse cx={cx} cy={botY} rx={rx} ry={ry} fill="none" stroke="#152644" strokeWidth="1.3" />
+      <ellipse cx={cx} cy={topY} rx={rx} ry={ry} fill="white" stroke="#152644" strokeWidth="1.3" />
+      {/* Nivel de terreno natural */}
+      <line x1={cx - rx - 26} y1={groundY} x2={cx + rx + 26} y2={groundY} stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
+      <text x={cx + rx + 4} y={groundY - 6} fontSize="8" fill="#6487C4" fontFamily="monospace">N.T.N</text>
+      {/* Cota de diámetro */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx - rx} y1={botY + ry + soladoPx + 16} x2={cx + rx} y2={botY + ry + soladoPx + 16} />
+        <line x1={cx - rx} y1={botY + ry + soladoPx + 12} x2={cx - rx} y2={botY + ry + soladoPx + 20} />
+        <line x1={cx + rx} y1={botY + ry + soladoPx + 12} x2={cx + rx} y2={botY + ry + soladoPx + 20} />
+      </g>
+      <text x={cx} y={botY + ry + soladoPx + 33} textAnchor="middle" fontSize="10" fontWeight="600" fill="#152644">
+        Ø {diametro || '—'} m
+      </text>
+      {/* Cota de altura total */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx + rx + 40} y1={topY} x2={cx + rx + 40} y2={botY} />
+        <line x1={cx + rx + 36} y1={topY} x2={cx + rx + 44} y2={topY} />
+        <line x1={cx + rx + 36} y1={botY} x2={cx + rx + 44} y2={botY} />
+      </g>
+      <text
+        x={cx + rx + 50}
+        y={(topY + botY) / 2}
+        fontSize="10"
+        fontWeight="600"
+        fill="#152644"
+        transform={`rotate(90, ${cx + rx + 50}, ${(topY + botY) / 2})`}
+      >
+        {altura ? altura.toFixed(2) : '—'} m
+      </text>
+    </svg>
+  );
+}
+
+/* Formulario de crear/editar una plantilla de Postes MT: diámetro, altura   */
+/* (desplante + sobresaliente), espesor de solado y resistencia.            */
+function PostesMtForm({ plantilla, onCancel, onSave }) {
+  const [nombre, setNombre] = useState(plantilla?.nombre || '');
+  const [datos, setDatos] = useState(
+    plantilla?.datos || { diametro: '', desplante: '', sobresaliente: '', espesor_solado: '', resistencia: '' }
+  );
+
+  function set(key, val) {
+    setDatos((prev) => ({ ...prev, [key]: val }));
+  }
+
+  const altura = (parseFloat(datos.desplante) || 0) + (parseFloat(datos.sobresaliente) || 0);
+  const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+
+  function submit(e) {
+    e.preventDefault();
+    if (!nombre.trim()) return;
+    onSave(nombre.trim(), datos);
+  }
+
+  return (
+    <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
+      <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
+        {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Postes MT
+      </p>
+      <div className="flex items-start gap-6 flex-wrap">
+        <div className="flex justify-center bg-navy-50 rounded-lg p-2 shrink-0">
+          <PostesMtPreview datos={datos} />
+        </div>
+        <div className="flex-1 space-y-3" style={{ minWidth: 240 }}>
+          <div>
+            <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre de la plantilla</label>
+            <input
+              autoFocus
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              placeholder="Ej. Poste MT Tipo 1"
+              className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Diámetro (m)</label>
+            <input value={datos.diametro} onChange={(e) => set('diametro', e.target.value)} placeholder="0.30" className={cellInput} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Long. de desplante (m)</label>
+              <input value={datos.desplante} onChange={(e) => set('desplante', e.target.value)} placeholder="1.20" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Long. sobresaliente (m)</label>
+              <input value={datos.sobresaliente} onChange={(e) => set('sobresaliente', e.target.value)} placeholder="0.05" className={cellInput} />
+            </div>
+          </div>
+          <p className="text-xs text-navy-400">
+            Altura total: <span className="font-mono text-navy-600">{altura.toFixed(2)} m</span> (desplante + sobresaliente)
+          </p>
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Espesor de solado (m)</label>
+            <input value={datos.espesor_solado} onChange={(e) => set('espesor_solado', e.target.value)} placeholder="0.05" className={cellInput} />
+          </div>
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Resistencia del concreto</label>
+            <ResistenciaSelect value={datos.resistencia} onChange={(val) => set('resistencia', val)} className={cellInput} />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700 px-3 py-2">
+              Cancelar
+            </button>
+            <button type="submit" className="bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2 rounded-lg">
+              Guardar plantilla
+            </button>
+          </div>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+/* Vista principal de "Cimentaciones": elige el tipo (6 en total, hoy solo   */
+/* Postes MT está construido) y administra sus plantillas (crear, editar,   */
+/* eliminar). Las que no están listas muestran un aviso de "muy pronto".    */
+function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete }) {
+  const [tipoActivo, setTipoActivo] = useState('postes_mt');
+  const [creando, setCreando] = useState(false);
+  const [editandoId, setEditandoId] = useState(null);
+  const [confirmandoId, setConfirmandoId] = useState(null);
+
+  const tipoDef = CIMENTACION_TIPOS.find((t) => t.id === tipoActivo);
+  const plantillasDelTipo = plantillas.filter((p) => p.tipo === tipoActivo);
+
+  function cerrarFormulario() {
+    setCreando(false);
+    setEditandoId(null);
+  }
+
+  return (
+    <div className="p-4 md:p-8 max-w-5xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-navy-800">Cimentaciones</h1>
+        <p className="text-navy-500 text-sm mt-1">
+          Plantillas reutilizables de dimensiones y despiece — se crean una vez y se usan en cualquier proyecto sin volver a digitarlas.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        {CIMENTACION_TIPOS.map((t) => {
+          const TIcon = t.icon;
+          const activo = tipoActivo === t.id;
+          const cantidad = plantillas.filter((p) => p.tipo === t.id).length;
+          return (
+            <button
+              key={t.id}
+              onClick={() => { setTipoActivo(t.id); cerrarFormulario(); }}
+              className={`flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-lg border transition-colors ${
+                activo ? 'bg-navy-800 text-white border-navy-800' : 'bg-white text-navy-600 border-navy-200 hover:border-navy-400'
+              }`}
+            >
+              <TIcon className="w-4 h-4" />
+              {t.label}
+              {t.disponible && <span className={activo ? 'text-navy-300' : 'text-navy-400'}>({cantidad})</span>}
+              {!t.disponible && <span className="text-xs italic opacity-70">(pronto)</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {!tipoDef.disponible ? (
+        <div className="bg-white border border-navy-200 rounded-xl p-10 text-center">
+          <tipoDef.icon className="w-8 h-8 text-navy-300 mx-auto mb-3" />
+          <p className="text-navy-600 font-semibold">"{tipoDef.label}" todavía no está disponible</p>
+          <p className="text-sm text-navy-400 mt-1">Vamos construyendo las 6 cimentaciones de a una — esta sigue en la fila.</p>
+        </div>
+      ) : (
+        <div>
+          {!creando && !editandoId && (
+            <button
+              onClick={() => setCreando(true)}
+              className="flex items-center gap-1.5 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg mb-5 transition-colors"
+            >
+              <Plus className="w-4 h-4" /> Nueva plantilla de {tipoDef.label}
+            </button>
+          )}
+
+          {(creando || editandoId) && (
+            <PostesMtForm
+              plantilla={editandoId ? plantillasDelTipo.find((p) => p.id === editandoId) : null}
+              onCancel={cerrarFormulario}
+              onSave={(nombre, datos) => {
+                if (editandoId) onUpdate(editandoId, { nombre, datos });
+                else onAdd(tipoActivo, nombre, datos);
+                cerrarFormulario();
+              }}
+            />
+          )}
+
+          {!creando && !editandoId && (
+            plantillasDelTipo.length === 0 ? (
+              <p className="text-sm text-navy-400 italic text-center py-10">Aún no hay plantillas de {tipoDef.label}.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {plantillasDelTipo.map((p) => (
+                  <div key={p.id} className="bg-white border border-navy-200 rounded-xl p-4">
+                    <div className="flex items-center justify-center mb-2">
+                      <PostesMtPreview datos={p.datos} />
+                    </div>
+                    <p className="font-semibold text-navy-800 text-sm text-center mb-1">{p.nombre}</p>
+                    <p className="text-xs text-navy-400 text-center mb-3">
+                      Ø {p.datos.diametro || '—'} m · {((parseFloat(p.datos.desplante) || 0) + (parseFloat(p.datos.sobresaliente) || 0)).toFixed(2)} m
+                    </p>
+                    <div className="flex items-center justify-center gap-4">
+                      <button onClick={() => setEditandoId(p.id)} className="text-xs font-semibold text-lime-600 hover:text-lime-700 flex items-center gap-1">
+                        <Pencil className="w-3.5 h-3.5" /> Editar
+                      </button>
+                      {confirmandoId === p.id ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-navy-500">¿Eliminar?</span>
+                          <button onClick={() => { onDelete(p.id); setConfirmandoId(null); }} className="text-xs font-bold text-red-600 hover:text-red-700">
+                            Sí
+                          </button>
+                          <button onClick={() => setConfirmandoId(null)} className="text-xs text-navy-400 hover:text-navy-600">
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmandoId(p.id)} className="text-xs font-semibold text-navy-400 hover:text-red-500 flex items-center gap-1">
+                          <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -3205,6 +3488,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
     { key: 'mis', label: 'Mis Proyectos', icon: FolderKanban },
     { key: 'todos', label: 'Todos los Proyectos', icon: Layers },
     { key: 'resumen_inversionistas', label: 'Resumen por Inversionista', icon: PieChart },
+    { key: 'cimentaciones', label: 'Cimentaciones', icon: Boxes },
     { key: 'equipo', label: 'Equipo', icon: UserCog },
     { key: 'instructivos', label: 'Instructivos', icon: Video },
     { key: 'enlaces', label: 'Enlaces de Interés', icon: Link2 },
@@ -5432,6 +5716,7 @@ export default function App() {
   const [inversionistas, setInversionistas] = useState([]);
   const [paises, setPaises] = useState([]);
   const [proveedores, setProveedores] = useState([]);
+  const [plantillasCimentacion, setPlantillasCimentacion] = useState([]);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   const [view, setViewState] = useState('dashboard');
@@ -5548,6 +5833,9 @@ export default function App() {
     } else {
       setProveedores(provRows.map((r) => r.nombre));
     }
+
+    const { data: plantillaRows } = await supabase.from('cimentacion_plantillas').select('*').order('created_at', { ascending: true });
+    setPlantillasCimentacion((plantillaRows || []).map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {} })));
 
     setDataLoaded(true);
   }
@@ -5693,6 +5981,34 @@ export default function App() {
     setProveedores((prev) => (prev.includes(limpio) ? prev : [...prev, limpio]));
     supabase.from('proveedores').upsert({ nombre: limpio }).then(({ error }) => {
       if (error) console.error('Error creando proveedor:', error);
+    });
+  }
+  function handleAddPlantillaCimentacion(tipo, nombre, datos) {
+    const nueva = { id: makeId('cim'), tipo, nombre, datos };
+    setPlantillasCimentacion((prev) => [...prev, nueva]);
+    supabase.from('cimentacion_plantillas').insert({ id: nueva.id, tipo, nombre, datos, creado_por: perfil?.nombre || null }).then(({ error }) => {
+      if (error) {
+        console.error('Error creando plantilla de cimentación:', error);
+        alert('No se pudo guardar la plantilla. Detalle: ' + error.message);
+      }
+    });
+  }
+  function handleUpdatePlantillaCimentacion(id, patch) {
+    setPlantillasCimentacion((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    supabase.from('cimentacion_plantillas').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error('Error editando plantilla de cimentación:', error);
+        alert('No se pudo guardar el cambio. Detalle: ' + error.message);
+      }
+    });
+  }
+  function handleDeletePlantillaCimentacion(id) {
+    setPlantillasCimentacion((prev) => prev.filter((p) => p.id !== id));
+    supabase.from('cimentacion_plantillas').delete().eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error('Error eliminando plantilla de cimentación:', error);
+        alert('No se pudo eliminar la plantilla. Detalle: ' + error.message);
+      }
     });
   }
   function handleAddCarpeta(nombre) {
@@ -5899,6 +6215,14 @@ export default function App() {
         )}
         {view === 'resumen_inversionistas' && (
           <ResumenInversionistasView projects={projects} onOpenProject={openProject} />
+        )}
+        {view === 'cimentaciones' && (
+          <CimentacionesView
+            plantillas={plantillasCimentacion}
+            onAdd={handleAddPlantillaCimentacion}
+            onUpdate={handleUpdatePlantillaCimentacion}
+            onDelete={handleDeletePlantillaCimentacion}
+          />
         )}
         {view === 'equipo' && (
           <EquipoView

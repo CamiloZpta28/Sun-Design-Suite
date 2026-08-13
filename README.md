@@ -43,7 +43,8 @@ Sigue los pasos en orden. No necesitas experiencia previa con Supabase.
 > `supabase/migration_paises.sql` y
 > `supabase/migration_guardado_parcial.sql`,
 > `supabase/migration_proveedores.sql` y
-> `supabase/migration_perfil_fechas.sql`. Cada uno agrega
+> `supabase/migration_perfil_fechas.sql` y
+> `supabase/migration_cimentacion_plantillas.sql`. Cada uno agrega
 > solo lo nuevo sin tocar lo que ya tenías. Si no recuerdas si ya corriste
 > alguno, no pasa nada por intentarlo de nuevo: en el peor caso te marcará
 > un error de "ya existe", que puedes ignorar.
@@ -167,6 +168,32 @@ ingeniero. Cada persona:
 ---
 
 ## Notas y siguientes pasos
+
+- **Nueva sección "Cimentaciones"** (menú lateral): plantillas reutilizables
+  de dimensiones/despiece de cimentación, independientes de cualquier
+  proyecto. Están las 6 categorías que pediste (Postes MT, Luminarias,
+  Cámaras, Inversores, Cerramiento, Shelter), ordenadas de menos a más
+  compleja, pero **por ahora solo "Postes MT" tiene formulario real** —
+  las otras 5 muestran un aviso de "todavía no está disponible" hasta que
+  las construyamos una por una, como pediste.
+  - **Postes MT**: diámetro, longitud de desplante, longitud sobresaliente
+    (la altura total se calcula sola, igual que en los proyectos), espesor
+    de solado, y resistencia del concreto (mismo selector de 21/24/28/31
+    MPa + "otro" que ya usábamos). Se pueden crear, editar y eliminar
+    plantillas libremente — cualquiera del equipo con sesión iniciada
+    puede administrarlas (mismo nivel de acceso que Instructivos).
+  - **Previsualización tipo plano técnico**: dibujo de líneas (sin relleno
+    de color) con el cilindro, el nivel de terreno natural, el solado, y
+    cotas de diámetro y altura — inspirado en la imagen que me
+    compartiste. Lo probé con varias combinaciones de medidas antes de
+    entregarlo.
+  - **Pendiente para más adelante** (no incluido todavía): usar una
+    plantilla directamente desde un proyecto (ej. elegir "Postes MT Tipo
+    1" en la pestaña Estructural del proyecto y que precargue esos
+    datos). Lo dejamos para cuando quieras retomarlo — probablemente
+    tiene más sentido hacerlo cuando ya tengamos más de un tipo
+    construido.
+  - **Necesita migración**: `supabase/migration_cimentacion_plantillas.sql`.
 
 - **Aviso de conflicto al guardar una pestaña técnica**: al darle "Guardar
   cambios" en una pestaña (Civil, Mecánica, etc.), la app revisa primero

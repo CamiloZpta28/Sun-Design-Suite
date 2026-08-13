@@ -190,6 +190,21 @@ create table if not exists proveedores (
   created_at timestamptz default now()
 );
 
+-- Plantillas de cimentaciones reutilizables (sección "Cimentaciones" del
+-- menú, separada de los proyectos). "tipo" es uno de: postes_mt,
+-- luminarias, camaras, inversores, cerramiento, shelter. "datos" guarda
+-- las dimensiones/despiece propios de cada tipo (estructura libre en
+-- jsonb, para poder ir agregando tipos sin migrar la tabla cada vez).
+create table if not exists cimentacion_plantillas (
+  id text primary key,
+  tipo text not null,
+  nombre text not null,
+  datos jsonb not null default '{}'::jsonb,
+  creado_por text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 -- Roles de cada persona (puede tener varios a la vez, ej. Líder Civil +
 -- Ing. Civil). Solo un líder puede otorgar o quitar roles — ver políticas
 -- más abajo. Es una tabla aparte (no una columna en "profiles") para poder
@@ -314,6 +329,16 @@ create policy "Lectura de proveedores" on proveedores
   for select using (auth.role() = 'authenticated');
 create policy "Crear proveedores" on proveedores
   for insert with check (auth.role() = 'authenticated');
+
+alter table cimentacion_plantillas enable row level security;
+create policy "Lectura de plantillas de cimentacion" on cimentacion_plantillas
+  for select using (auth.role() = 'authenticated');
+create policy "Crear plantillas de cimentacion" on cimentacion_plantillas
+  for insert with check (auth.role() = 'authenticated');
+create policy "Editar plantillas de cimentacion" on cimentacion_plantillas
+  for update using (auth.role() = 'authenticated');
+create policy "Eliminar plantillas de cimentacion" on cimentacion_plantillas
+  for delete using (auth.role() = 'authenticated');
 
 alter table activity_log enable row level security;
 
