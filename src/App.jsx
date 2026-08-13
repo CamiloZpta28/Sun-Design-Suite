@@ -211,7 +211,6 @@ const SCHEMA = [
       { key: 'altitud', label: 'Altitud (m.s.n.m.)', type: 'text' },
       { key: 'fecha_inicio', label: 'Fecha de Inicio', type: 'date' },
       { key: 'fecha_entrega', label: 'Fecha de Entrega', type: 'date' },
-      { key: 'drive_url', label: 'Carpeta de Drive (URL)', type: 'text' },
     ],
   },
   {
@@ -3412,7 +3411,7 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionista
     general: {
       municipio: '', departamento: '', pais: 'Colombia', inversionista: '',
       numero_minigranja: '', numero_predio: '',
-      fecha_inicio: '', fecha_entrega: '',
+      fecha_inicio: '', fecha_entrega: '', drive_url: '',
     },
   });
 
@@ -3513,6 +3512,16 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionista
             <div>
               <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Fecha de Entrega</label>
               <input type="date" value={form.general.fecha_entrega} onChange={(e) => setGeneral('fecha_entrega', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
+            </div>
+            <div className="col-span-3">
+              <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Carpeta de Drive (URL, opcional)</label>
+              <input
+                type="text"
+                value={form.general.drive_url}
+                onChange={(e) => setGeneral('drive_url', e.target.value)}
+                placeholder="https://drive.google.com/…"
+                className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm font-mono"
+              />
             </div>
           </div>
 
@@ -3722,6 +3731,8 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [editingNombre, setEditingNombre] = useState(false);
   const [nombreDraft, setNombreDraft] = useState(project.nombre);
+  const [editingDriveUrl, setEditingDriveUrl] = useState(false);
+  const [driveUrlDraft, setDriveUrlDraft] = useState(project.data.general?.drive_url || '');
   const [showConfetti, setShowConfetti] = useState(false);
   /* Campo al que saltar tras pulsar un pendiente en Notas Técnicas. Estado de
      UI únicamente: no se persiste en projects.data. */
@@ -3854,6 +3865,24 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
     setEditingNombre(false);
     setHistorial(null);
   }
+  function saveDriveUrl() {
+    const nuevo = driveUrlDraft.trim();
+    const anterior = project.data.general?.drive_url || '';
+    if (nuevo === anterior) {
+      setEditingDriveUrl(false);
+      return;
+    }
+    const nuevoGeneral = { ...project.data.general, drive_url: nuevo };
+    updateProject(
+      project.id,
+      (p) => ({ ...p, data: { ...p.data, general: nuevoGeneral } }),
+      nuevo ? 'Actualizó el link de la carpeta de Drive' : 'Quitó el link de la carpeta de Drive',
+      'general',
+      () => supabase.rpc('merge_project_data_section', { p_id: project.id, p_section: 'general', p_value: nuevoGeneral })
+    );
+    setEditingDriveUrl(false);
+    setHistorial(null);
+  }
   function handleEquipoChange(roleKey, nombre) {
     // No se registra en el historial: las asignaciones de equipo/rol
     // generaban demasiado ruido en la trazabilidad de cambios técnicos.
@@ -3969,25 +3998,59 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
               ) : (
                 <StatusBadge estado={project.estado} />
               )}
-              <button
-                onClick={() => {
-                  const url = project.data.general?.drive_url;
-                  if (url) {
-                    window.open(normalizeUrl(url), '_blank', 'noopener,noreferrer');
-                  } else {
-                    setActiveTab('general');
-                    if (puedeEditarContenido) setEditMode(true);
-                  }
-                }}
-                title={project.data.general?.drive_url ? 'Abrir carpeta de Drive' : 'Agrega el link de Drive en la pestaña General'}
-                className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-md transition-colors ${
-                  project.data.general?.drive_url
-                    ? 'bg-nashville-500 hover:bg-nashville-600 text-white'
-                    : 'bg-navy-700 hover:bg-navy-600 text-navy-300'
-                }`}
-              >
-                <Folder className="w-3.5 h-3.5" /> Carpeta
-              </button>
+              {editingDriveUrl ? (
+                <div className="flex items-center gap-1.5 bg-navy-700 rounded-md px-2 py-1">
+                  <input
+                    type="text"
+                    autoFocus
+                    value={driveUrlDraft}
+                    onChange={(e) => setDriveUrlDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') saveDriveUrl();
+                      if (e.key === 'Escape') { setDriveUrlDraft(project.data.general?.drive_url || ''); setEditingDriveUrl(false); }
+                    }}
+                    placeholder="Pega el link de la carpeta de Drive…"
+                    className="text-xs font-mono text-white bg-navy-800 border border-navy-600 rounded px-2 py-1 w-56 focus:outline-none focus:ring-2 focus:ring-lime-400"
+                  />
+                  <button onClick={saveDriveUrl} title="Guardar" className="text-emerald-400 hover:text-emerald-300 shrink-0">
+                    <Check className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => { setDriveUrlDraft(project.data.general?.drive_url || ''); setEditingDriveUrl(false); }}
+                    title="Cancelar"
+                    className="text-navy-300 hover:text-white shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => {
+                      const url = project.data.general?.drive_url;
+                      if (url) window.open(normalizeUrl(url), '_blank', 'noopener,noreferrer');
+                    }}
+                    disabled={!project.data.general?.drive_url}
+                    title={project.data.general?.drive_url ? 'Abrir carpeta de Drive' : 'No hay link de Drive guardado'}
+                    className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-md transition-colors ${
+                      project.data.general?.drive_url
+                        ? 'bg-nashville-500 hover:bg-nashville-600 text-white'
+                        : 'bg-navy-700 text-navy-500 opacity-60 cursor-not-allowed'
+                    }`}
+                  >
+                    <Folder className="w-3.5 h-3.5" /> Carpeta
+                  </button>
+                  {puedeEditarContenido && (
+                    <button
+                      onClick={() => { setDriveUrlDraft(project.data.general?.drive_url || ''); setEditingDriveUrl(true); }}
+                      title="Editar link de Drive"
+                      className="text-navy-300 hover:text-white p-1.5"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
               <button onClick={() => window.print()} className="flex items-center gap-1.5 bg-lime-500 hover:bg-lime-600 text-navy-900 text-xs font-bold px-3 py-1.5 rounded-md transition-colors">
                 <Printer className="w-3.5 h-3.5" /> Exportar / Imprimir
               </button>
