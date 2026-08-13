@@ -177,16 +177,19 @@ ingeniero. Cada persona:
   las otras 5 muestran un aviso de "todavía no está disponible" hasta que
   las construyamos una por una, como pediste.
   - **Postes MT**: diámetro, longitud de desplante, longitud sobresaliente
-    (la altura total se calcula sola, igual que en los proyectos), espesor
-    de solado, y resistencia del concreto (mismo selector de 21/24/28/31
-    MPa + "otro" que ya usábamos). Se pueden crear, editar y eliminar
-    plantillas libremente — cualquiera del equipo con sesión iniciada
-    puede administrarlas (mismo nivel de acceso que Instructivos).
-  - **Previsualización tipo plano técnico**: dibujo de líneas (sin relleno
-    de color) con el cilindro, el nivel de terreno natural, el solado, y
-    cotas de diámetro y altura — inspirado en la imagen que me
-    compartiste. Lo probé con varias combinaciones de medidas antes de
-    entregarlo.
+    (la altura total se calcula sola, igual que en los proyectos), y
+    espesor de solado. Ya **no incluye resistencia del concreto** — eso
+    pasó a decidirse en cada proyecto, no en la plantilla. Se pueden
+    crear, editar y eliminar plantillas libremente — cualquiera del
+    equipo con sesión iniciada puede administrarlas (mismo nivel de
+    acceso que Instructivos).
+  - **Tres vistas tipo plano técnico**: isométrico (con el solado como un
+    cilindro igual a la cimentación, y el nivel de terreno natural como un
+    plano elíptico coherente con la perspectiva — ambos corregidos tras tu
+    primer feedback), más dos vistas 2D nuevas: sección longitudinal (un
+    rectángulo, con el terreno como línea recta porque ahí sí es una vista
+    plana real) y sección transversal (un círculo). Verifiqué visualmente
+    las tres antes de entregarlas, con distintas combinaciones de medidas.
   - **Pendiente para más adelante** (no incluido todavía): usar una
     plantilla directamente desde un proyecto (ej. elegir "Postes MT Tipo
     1" en la pestaña Estructural del proyecto y que precargue esos

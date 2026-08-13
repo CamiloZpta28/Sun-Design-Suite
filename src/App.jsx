@@ -1434,8 +1434,10 @@ const CIMENTACION_TIPOS = [
 ];
 
 /* Dibujo tipo plano técnico (líneas negras, sin relleno de color) de un      */
-/* poste MT: cilindro + solado de limpieza + cotas de diámetro y altura +    */
-/* nivel de terreno natural. No es a escala exacta, solo ilustrativo.        */
+/* poste MT: cilindro + solado de limpieza (mismo cilindro, más corto) +     */
+/* cotas de diámetro y altura + nivel de terreno natural (como un plano      */
+/* elíptico, coherente con la perspectiva del cilindro). No es a escala      */
+/* exacta, solo ilustrativo.                                                 */
 function PostesMtPreview({ datos }) {
   const diametro = parseFloat(datos.diametro) || 0;
   const desplante = parseFloat(datos.desplante) || 0;
@@ -1449,35 +1451,43 @@ function PostesMtPreview({ datos }) {
   const rx = diamPx / 2;
   const ry = rx * 0.32;
   const alturaPx = clamp((altura || 0.3) * m2px, 60, 170);
-  const soladoPx = clamp((espesorSolado || 0.05) * m2px, 4, 14);
+  const soladoPx = clamp((espesorSolado || 0.05) * m2px, 5, 16);
 
   const cx = 100;
   const topY = 36;
   const botY = topY + alturaPx;
+  const soladoBotY = botY + soladoPx;
   const groundY = altura > 0 ? topY + (sobresaliente / altura) * alturaPx : topY;
+  const groundRx = rx + 24;
+  const groundRy = ry + (ry / rx) * 24;
 
   const svgW = 210;
-  const svgH = botY + ry + soladoPx + 70;
+  const svgH = soladoBotY + ry + 60;
 
   return (
     <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-44 h-56">
-      {/* Solado de limpieza */}
-      <rect x={cx - rx - 8} y={botY + ry * 0.5} width={(rx + 8) * 2} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
-      {/* Cuerpo del cilindro */}
+      {/* Solado de limpieza: mismo cilindro, un poco más ancho y corto */}
+      <g>
+        <line x1={cx - rx - 6} y1={botY} x2={cx - rx - 6} y2={soladoBotY} stroke="#152644" strokeWidth="1.1" />
+        <line x1={cx + rx + 6} y1={botY} x2={cx + rx + 6} y2={soladoBotY} stroke="#152644" strokeWidth="1.1" />
+        <ellipse cx={cx} cy={soladoBotY} rx={rx + 6} ry={ry + 2} fill="#F6F7F9" stroke="#152644" strokeWidth="1.1" />
+        <ellipse cx={cx} cy={botY} rx={rx + 6} ry={ry + 2} fill="#F6F7F9" stroke="#152644" strokeWidth="1.1" />
+      </g>
+      {/* Cuerpo del cilindro (poste) */}
       <line x1={cx - rx} y1={topY} x2={cx - rx} y2={botY} stroke="#152644" strokeWidth="1.3" />
       <line x1={cx + rx} y1={topY} x2={cx + rx} y2={botY} stroke="#152644" strokeWidth="1.3" />
       <ellipse cx={cx} cy={botY} rx={rx} ry={ry} fill="none" stroke="#152644" strokeWidth="1.3" />
       <ellipse cx={cx} cy={topY} rx={rx} ry={ry} fill="white" stroke="#152644" strokeWidth="1.3" />
-      {/* Nivel de terreno natural */}
-      <line x1={cx - rx - 26} y1={groundY} x2={cx + rx + 26} y2={groundY} stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
-      <text x={cx + rx + 4} y={groundY - 6} fontSize="8" fill="#6487C4" fontFamily="monospace">N.T.N</text>
+      {/* Nivel de terreno natural: un plano (elipse) que atraviesa el poste, no una línea recta */}
+      <ellipse cx={cx} cy={groundY} rx={groundRx} ry={groundRy} fill="none" stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
+      <text x={cx + groundRx + 4} y={groundY + 3} fontSize="8" fill="#6487C4" fontFamily="monospace">N.T.N</text>
       {/* Cota de diámetro */}
       <g stroke="#152644" strokeWidth="1">
-        <line x1={cx - rx} y1={botY + ry + soladoPx + 16} x2={cx + rx} y2={botY + ry + soladoPx + 16} />
-        <line x1={cx - rx} y1={botY + ry + soladoPx + 12} x2={cx - rx} y2={botY + ry + soladoPx + 20} />
-        <line x1={cx + rx} y1={botY + ry + soladoPx + 12} x2={cx + rx} y2={botY + ry + soladoPx + 20} />
+        <line x1={cx - rx} y1={soladoBotY + ry + 18} x2={cx + rx} y2={soladoBotY + ry + 18} />
+        <line x1={cx - rx} y1={soladoBotY + ry + 14} x2={cx - rx} y2={soladoBotY + ry + 22} />
+        <line x1={cx + rx} y1={soladoBotY + ry + 14} x2={cx + rx} y2={soladoBotY + ry + 22} />
       </g>
-      <text x={cx} y={botY + ry + soladoPx + 33} textAnchor="middle" fontSize="10" fontWeight="600" fill="#152644">
+      <text x={cx} y={soladoBotY + ry + 35} textAnchor="middle" fontSize="10" fontWeight="600" fill="#152644">
         Ø {diametro || '—'} m
       </text>
       {/* Cota de altura total */}
@@ -1489,6 +1499,7 @@ function PostesMtPreview({ datos }) {
       <text
         x={cx + rx + 50}
         y={(topY + botY) / 2}
+        textAnchor="middle"
         fontSize="10"
         fontWeight="600"
         fill="#152644"
@@ -1502,10 +1513,121 @@ function PostesMtPreview({ datos }) {
 
 /* Formulario de crear/editar una plantilla de Postes MT: diámetro, altura   */
 /* (desplante + sobresaliente), espesor de solado y resistencia.            */
+/* Sección longitudinal (vista frontal 2D, sin perspectiva): un rectángulo   */
+/* — ancho = diámetro, alto = altura total — con el solado, el nivel de     */
+/* terreno (aquí sí una línea recta, porque es una vista plana real) y las   */
+/* cotas de ancho y alto.                                                    */
+function PostesMtSeccionLongitudinal({ datos }) {
+  const diametro = parseFloat(datos.diametro) || 0;
+  const desplante = parseFloat(datos.desplante) || 0;
+  const sobresaliente = parseFloat(datos.sobresaliente) || 0;
+  const espesorSolado = parseFloat(datos.espesor_solado) || 0;
+  const altura = desplante + sobresaliente;
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const m2px = 90;
+  const anchoPx = clamp((diametro || 0.3) * m2px, 30, 100);
+  const alturaPx = clamp((altura || 0.3) * m2px, 60, 170);
+  const soladoPx = clamp((espesorSolado || 0.05) * m2px, 5, 16);
+
+  const cx = 80;
+  const topY = 20;
+  const botY = topY + alturaPx;
+  const soladoBotY = botY + soladoPx;
+  const groundY = altura > 0 ? topY + (sobresaliente / altura) * alturaPx : topY;
+
+  const svgW = 175;
+  const svgH = soladoBotY + 55;
+
+  return (
+    <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-32 h-44">
+      {/* Solado */}
+      <rect x={cx - anchoPx / 2 - 6} y={botY} width={anchoPx + 12} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      {/* Cuerpo (vista frontal) */}
+      <rect x={cx - anchoPx / 2} y={topY} width={anchoPx} height={alturaPx} fill="white" stroke="#152644" strokeWidth="1.3" />
+      {/* Nivel de terreno natural (línea recta: aquí sí es correcto, es una vista plana) */}
+      <line x1={cx - anchoPx / 2 - 20} y1={groundY} x2={cx + anchoPx / 2 + 20} y2={groundY} stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
+      <text x={cx + anchoPx / 2 + 22} y={groundY + 3} fontSize="7.5" fill="#6487C4" fontFamily="monospace">N.T.N</text>
+      {/* Cota de ancho (diámetro) */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx - anchoPx / 2} y1={soladoBotY + 14} x2={cx + anchoPx / 2} y2={soladoBotY + 14} />
+        <line x1={cx - anchoPx / 2} y1={soladoBotY + 10} x2={cx - anchoPx / 2} y2={soladoBotY + 18} />
+        <line x1={cx + anchoPx / 2} y1={soladoBotY + 10} x2={cx + anchoPx / 2} y2={soladoBotY + 18} />
+      </g>
+      <text x={cx} y={soladoBotY + 30} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="#152644">
+        Ø {diametro || '—'} m
+      </text>
+      {/* Cota de alto */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx + anchoPx / 2 + 30} y1={topY} x2={cx + anchoPx / 2 + 30} y2={botY} />
+        <line x1={cx + anchoPx / 2 + 26} y1={topY} x2={cx + anchoPx / 2 + 34} y2={topY} />
+        <line x1={cx + anchoPx / 2 + 26} y1={botY} x2={cx + anchoPx / 2 + 34} y2={botY} />
+      </g>
+      <text
+        x={cx + anchoPx / 2 + 40}
+        y={(topY + botY) / 2}
+        textAnchor="middle"
+        fontSize="9.5"
+        fontWeight="600"
+        fill="#152644"
+        transform={`rotate(90, ${cx + anchoPx / 2 + 40}, ${(topY + botY) / 2})`}
+      >
+        {altura ? altura.toFixed(2) : '—'} m
+      </text>
+    </svg>
+  );
+}
+
+/* Sección transversal (vista en planta 2D): un círculo con la cota del      */
+/* diámetro.                                                                 */
+function PostesMtSeccionTransversal({ datos }) {
+  const diametro = parseFloat(datos.diametro) || 0;
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const rr = clamp((diametro || 0.3) * 90, 40, 130) / 2;
+
+  const cx = 80;
+  const cy = 65;
+  const svgW = 160;
+  const svgH = 150;
+
+  return (
+    <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-32 h-32">
+      <circle cx={cx} cy={cy} r={rr} fill="white" stroke="#152644" strokeWidth="1.3" />
+      <line x1={cx - rr} y1={cy} x2={cx + rr} y2={cy} stroke="#152644" strokeWidth="1" />
+      <line x1={cx - rr} y1={cy - 5} x2={cx - rr} y2={cy + 5} stroke="#152644" strokeWidth="1" />
+      <line x1={cx + rr} y1={cy - 5} x2={cx + rr} y2={cy + 5} stroke="#152644" strokeWidth="1" />
+      <text x={cx} y={cy + rr + 20} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="#152644">
+        Ø {diametro || '—'} m
+      </text>
+    </svg>
+  );
+}
+
+/* Junta las 3 vistas (isométrico + las 2 secciones 2D) lado a lado, cada     */
+/* una con su etiqueta — así se ve como un plano técnico real.              */
+function PostesMtVistas({ datos }) {
+  return (
+    <div className="flex flex-wrap gap-4 justify-center">
+      <div className="text-center">
+        <PostesMtPreview datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Isométrico</p>
+      </div>
+      <div className="text-center">
+        <PostesMtSeccionLongitudinal datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Sección longitudinal</p>
+      </div>
+      <div className="text-center">
+        <PostesMtSeccionTransversal datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Sección transversal</p>
+      </div>
+    </div>
+  );
+}
+
 function PostesMtForm({ plantilla, onCancel, onSave }) {
   const [nombre, setNombre] = useState(plantilla?.nombre || '');
   const [datos, setDatos] = useState(
-    plantilla?.datos || { diametro: '', desplante: '', sobresaliente: '', espesor_solado: '', resistencia: '' }
+    plantilla?.datos || { diametro: '', desplante: '', sobresaliente: '', espesor_solado: '' }
   );
 
   function set(key, val) {
@@ -1527,8 +1649,8 @@ function PostesMtForm({ plantilla, onCancel, onSave }) {
         {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Postes MT
       </p>
       <div className="flex items-start gap-6 flex-wrap">
-        <div className="flex justify-center bg-navy-50 rounded-lg p-2 shrink-0">
-          <PostesMtPreview datos={datos} />
+        <div className="flex justify-center bg-navy-50 rounded-lg p-3 shrink-0">
+          <PostesMtVistas datos={datos} />
         </div>
         <div className="flex-1 space-y-3" style={{ minWidth: 240 }}>
           <div>
@@ -1561,10 +1683,6 @@ function PostesMtForm({ plantilla, onCancel, onSave }) {
           <div>
             <label className="block text-xs text-navy-500 mb-1">Espesor de solado (m)</label>
             <input value={datos.espesor_solado} onChange={(e) => set('espesor_solado', e.target.value)} placeholder="0.05" className={cellInput} />
-          </div>
-          <div>
-            <label className="block text-xs text-navy-500 mb-1">Resistencia del concreto</label>
-            <ResistenciaSelect value={datos.resistencia} onChange={(val) => set('resistencia', val)} className={cellInput} />
           </div>
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700 px-3 py-2">
