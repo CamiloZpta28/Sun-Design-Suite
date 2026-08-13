@@ -1426,7 +1426,7 @@ function ResistenciaSelect({ value, onChange, className }) {
 /* pronto" en vez del formulario, sin quitar el tipo de la lista.            */
 const CIMENTACION_TIPOS = [
   { id: 'postes_mt', label: 'Postes MT', icon: CircleDot, disponible: true },
-  { id: 'luminarias', label: 'Luminarias', icon: Lightbulb, disponible: false },
+  { id: 'luminarias', label: 'Luminarias', icon: Lightbulb, disponible: true },
   { id: 'camaras', label: 'Cámaras', icon: Video, disponible: false },
   { id: 'inversores', label: 'Inversores', icon: Zap, disponible: false },
   { id: 'cerramiento', label: 'Cerramiento', icon: Building2, disponible: false },
@@ -1694,6 +1694,288 @@ function PostesMtForm({ plantilla, onCancel, onSave }) {
   );
 }
 
+/* Lienzo y escala compartidos por las 3 vistas de Luminarias — mismo         */
+/* criterio que Postes MT, pero con sección cuadrada (isométrico con caja    */
+/* rectangular en vez de cilindro).                                          */
+const LUMI_VB_W = 200;
+const LUMI_VB_H = 195;
+const LUMI_M2PX = 80;
+const LUMI_CSS_SIZE = 'w-40 h-40';
+
+/* Isométrico de una cimentación de sección cuadrada: caja + solado (una     */
+/* caja más ancha y corta, misma forma que la cimentación) + plano de        */
+/* terreno natural (un paralelogramo que atraviesa la caja, coherente con la */
+/* perspectiva) + cotas de lado y altura.                                    */
+function LuminariasPreview({ datos }) {
+  const lado = parseFloat(datos.lado) || 0;
+  const desplante = parseFloat(datos.desplante) || 0;
+  const sobresaliente = parseFloat(datos.sobresaliente) || 0;
+  const espesorSolado = parseFloat(datos.espesor_solado) || 0;
+  const altura = desplante + sobresaliente;
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const ladoPx = clamp((lado || 0.3) * LUMI_M2PX, 26, 65);
+  const alturaPx = clamp((altura || 0.3) * LUMI_M2PX, 50, 100);
+  const soladoPx = clamp((espesorSolado || 0.05) * LUMI_M2PX, 5, 11);
+  const groundFrac = altura > 0 ? desplante / altura : 0;
+
+  const half = ladoPx / 2;
+  const bodyZ0 = soladoPx;
+  const bodyZ1 = soladoPx + alturaPx;
+  const groundZ = soladoPx + groundFrac * alturaPx;
+
+  const ox = LUMI_VB_W / 2;
+  const oy = 18 + half + bodyZ1;
+
+  const soladoHalf = half + 6;
+  const groundHalf = half + 16;
+
+  // Punto más a la izquierda del plano de terreno (para poner ahí la etiqueta N.T.N)
+  const [groundLeftX, groundLeftY] = isoPt(-groundHalf, groundHalf, groundZ, ox, oy);
+  const groundPlane = poly([
+    isoPt(-groundHalf, -groundHalf, groundZ, ox, oy),
+    isoPt(groundHalf, -groundHalf, groundZ, ox, oy),
+    isoPt(groundHalf, groundHalf, groundZ, ox, oy),
+    isoPt(-groundHalf, groundHalf, groundZ, ox, oy),
+  ]);
+
+  // Puntos de referencia para las cotas: esquina inferior-derecha del cuerpo
+  const [rightTopX, rightTopY] = isoPt(half, -half, bodyZ1, ox, oy);
+  const [rightBotX, rightBotY] = isoPt(half, -half, bodyZ0, ox, oy);
+  const [frontLeftX, frontLeftY] = isoPt(-half, half, bodyZ0 - soladoPx, ox, oy);
+  const [frontRightX, frontRightY] = isoPt(half, half, bodyZ0 - soladoPx, ox, oy);
+
+  return (
+    <svg viewBox={`0 0 ${LUMI_VB_W} ${LUMI_VB_H}`} className={LUMI_CSS_SIZE}>
+      {/* Solado: misma forma, un poco más ancho y corto */}
+      <IsoBoxLineArt x0={-soladoHalf} y0={-soladoHalf} w={soladoHalf * 2} d={soladoHalf * 2} z0={0} z1={soladoPx} ox={ox} oy={oy} />
+      {/* Cuerpo (pedestal) */}
+      <IsoBoxLineArt x0={-half} y0={-half} w={ladoPx} d={ladoPx} z0={bodyZ0} z1={bodyZ1} ox={ox} oy={oy} />
+      {/* Nivel de terreno natural: un plano que atraviesa el cuerpo */}
+      <polygon points={groundPlane} fill="none" stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
+      <text x={groundLeftX - 4} y={groundLeftY + 3} textAnchor="end" fontSize="8" fill="#6487C4" fontFamily="monospace">N.T.N</text>
+      {/* Cota de lado (frente-abajo) */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={frontLeftX} y1={frontLeftY + 16} x2={frontRightX} y2={frontRightY + 16} />
+        <line x1={frontLeftX} y1={frontLeftY + 12} x2={frontLeftX} y2={frontLeftY + 20} />
+        <line x1={frontRightX} y1={frontRightY + 12} x2={frontRightX} y2={frontRightY + 20} />
+      </g>
+      <text x={(frontLeftX + frontRightX) / 2} y={(frontLeftY + frontRightY) / 2 + 32} textAnchor="middle" fontSize="10" fontWeight="600" fill="#152644">
+        {lado || '—'} × {lado || '—'} m
+      </text>
+      {/* Cota de altura total */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={rightTopX + 34} y1={rightTopY} x2={rightBotX + 34} y2={rightBotY} />
+        <line x1={rightTopX + 30} y1={rightTopY} x2={rightTopX + 38} y2={rightTopY} />
+        <line x1={rightBotX + 30} y1={rightBotY} x2={rightBotX + 38} y2={rightBotY} />
+      </g>
+      <text
+        x={rightTopX + 46}
+        y={(rightTopY + rightBotY) / 2}
+        textAnchor="middle"
+        fontSize="10"
+        fontWeight="600"
+        fill="#152644"
+        transform={`rotate(90, ${rightTopX + 46}, ${(rightTopY + rightBotY) / 2})`}
+      >
+        {altura ? altura.toFixed(2) : '—'} m
+      </text>
+    </svg>
+  );
+}
+
+/* Sección longitudinal (vista frontal 2D): un rectángulo — ancho = lado,     */
+/* alto = altura total — igual estilo que Postes MT.                        */
+function LuminariasSeccionLongitudinal({ datos }) {
+  const lado = parseFloat(datos.lado) || 0;
+  const desplante = parseFloat(datos.desplante) || 0;
+  const sobresaliente = parseFloat(datos.sobresaliente) || 0;
+  const espesorSolado = parseFloat(datos.espesor_solado) || 0;
+  const altura = desplante + sobresaliente;
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const anchoPx = clamp((lado || 0.3) * LUMI_M2PX, 28, 85);
+  const alturaPx = clamp((altura || 0.3) * LUMI_M2PX, 50, 100);
+  const soladoPx = clamp((espesorSolado || 0.05) * LUMI_M2PX, 5, 11);
+
+  const cx = LUMI_VB_W / 2;
+  const topY = 30;
+  const botY = topY + alturaPx;
+  const soladoBotY = botY + soladoPx;
+  const groundY = altura > 0 ? topY + (sobresaliente / altura) * alturaPx : topY;
+
+  return (
+    <svg viewBox={`0 0 ${LUMI_VB_W} ${LUMI_VB_H}`} className={LUMI_CSS_SIZE}>
+      <rect x={cx - anchoPx / 2 - 6} y={botY} width={anchoPx + 12} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      <rect x={cx - anchoPx / 2} y={topY} width={anchoPx} height={alturaPx} fill="white" stroke="#152644" strokeWidth="1.3" />
+      <line x1={cx - anchoPx / 2 - 20} y1={groundY} x2={cx + anchoPx / 2 + 20} y2={groundY} stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
+      <text x={cx - anchoPx / 2 - 22} y={groundY + 3} textAnchor="end" fontSize="7.5" fill="#6487C4" fontFamily="monospace">N.T.N</text>
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx - anchoPx / 2} y1={soladoBotY + 14} x2={cx + anchoPx / 2} y2={soladoBotY + 14} />
+        <line x1={cx - anchoPx / 2} y1={soladoBotY + 10} x2={cx - anchoPx / 2} y2={soladoBotY + 18} />
+        <line x1={cx + anchoPx / 2} y1={soladoBotY + 10} x2={cx + anchoPx / 2} y2={soladoBotY + 18} />
+      </g>
+      <text x={cx} y={soladoBotY + 30} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="#152644">
+        {lado || '—'} m
+      </text>
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx + anchoPx / 2 + 30} y1={topY} x2={cx + anchoPx / 2 + 30} y2={botY} />
+        <line x1={cx + anchoPx / 2 + 26} y1={topY} x2={cx + anchoPx / 2 + 34} y2={topY} />
+        <line x1={cx + anchoPx / 2 + 26} y1={botY} x2={cx + anchoPx / 2 + 34} y2={botY} />
+      </g>
+      <text
+        x={cx + anchoPx / 2 + 40}
+        y={(topY + botY) / 2}
+        textAnchor="middle"
+        fontSize="9.5"
+        fontWeight="600"
+        fill="#152644"
+        transform={`rotate(90, ${cx + anchoPx / 2 + 40}, ${(topY + botY) / 2})`}
+      >
+        {altura ? altura.toFixed(2) : '—'} m
+      </text>
+    </svg>
+  );
+}
+
+/* Sección transversal (vista en planta 2D): un cuadrado con la cota del     */
+/* lado.                                                                     */
+function LuminariasSeccionTransversal({ datos }) {
+  const lado = parseFloat(datos.lado) || 0;
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const s = clamp((lado || 0.3) * LUMI_M2PX, 28, 85);
+
+  const cx = LUMI_VB_W / 2;
+  const cy = LUMI_VB_H / 2 - 10;
+
+  return (
+    <svg viewBox={`0 0 ${LUMI_VB_W} ${LUMI_VB_H}`} className={LUMI_CSS_SIZE}>
+      <rect x={cx - s / 2} y={cy - s / 2} width={s} height={s} fill="white" stroke="#152644" strokeWidth="1.3" />
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx - s / 2} y1={cy + s / 2 + 14} x2={cx + s / 2} y2={cy + s / 2 + 14} />
+        <line x1={cx - s / 2} y1={cy + s / 2 + 10} x2={cx - s / 2} y2={cy + s / 2 + 18} />
+        <line x1={cx + s / 2} y1={cy + s / 2 + 10} x2={cx + s / 2} y2={cy + s / 2 + 18} />
+      </g>
+      <text x={cx} y={cy + s / 2 + 30} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="#152644">
+        {lado || '—'} m
+      </text>
+    </svg>
+  );
+}
+
+/* Junta las 3 vistas de Luminarias lado a lado, cada una con su etiqueta.   */
+function LuminariasVistas({ datos }) {
+  return (
+    <div className="flex flex-wrap gap-4 justify-center">
+      <div className="text-center">
+        <LuminariasPreview datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Isométrico</p>
+      </div>
+      <div className="text-center">
+        <LuminariasSeccionLongitudinal datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Sección longitudinal</p>
+      </div>
+      <div className="text-center">
+        <LuminariasSeccionTransversal datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Sección transversal</p>
+      </div>
+    </div>
+  );
+}
+
+/* Formulario de crear/editar una plantilla de Luminarias: lado (sección      */
+/* cuadrada), altura (desplante + sobresaliente) y espesor de solado.       */
+function LuminariasForm({ plantilla, onCancel, onSave }) {
+  const [nombre, setNombre] = useState(plantilla?.nombre || '');
+  const [datos, setDatos] = useState(
+    plantilla?.datos || { lado: '', desplante: '', sobresaliente: '', espesor_solado: '' }
+  );
+
+  function set(key, val) {
+    setDatos((prev) => ({ ...prev, [key]: val }));
+  }
+
+  const altura = (parseFloat(datos.desplante) || 0) + (parseFloat(datos.sobresaliente) || 0);
+  const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+
+  function submit(e) {
+    e.preventDefault();
+    if (!nombre.trim()) return;
+    onSave(nombre.trim(), datos);
+  }
+
+  return (
+    <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
+      <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
+        {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Luminarias
+      </p>
+      <div className="flex items-start gap-6 flex-wrap">
+        <div className="flex justify-center bg-navy-50 rounded-lg p-3 shrink-0">
+          <LuminariasVistas datos={datos} />
+        </div>
+        <div className="flex-1 space-y-3" style={{ minWidth: 240 }}>
+          <div>
+            <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre de la plantilla</label>
+            <input
+              autoFocus
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              placeholder="Ej. Luminaria Tipo 1"
+              className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Lado de la sección cuadrada (m)</label>
+            <input value={datos.lado} onChange={(e) => set('lado', e.target.value)} placeholder="0.40" className={cellInput} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Long. de desplante (m)</label>
+              <input value={datos.desplante} onChange={(e) => set('desplante', e.target.value)} placeholder="0.50" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Long. sobresaliente (m)</label>
+              <input value={datos.sobresaliente} onChange={(e) => set('sobresaliente', e.target.value)} placeholder="0.10" className={cellInput} />
+            </div>
+          </div>
+          <p className="text-xs text-navy-400">
+            Altura total: <span className="font-mono text-navy-600">{altura.toFixed(2)} m</span> (desplante + sobresaliente)
+          </p>
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Espesor de solado (m)</label>
+            <input value={datos.espesor_solado} onChange={(e) => set('espesor_solado', e.target.value)} placeholder="0.05" className={cellInput} />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700 px-3 py-2">
+              Cancelar
+            </button>
+            <button type="submit" className="bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2 rounded-lg">
+              Guardar plantilla
+            </button>
+          </div>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+/* Registro por tipo: qué formulario/vista/resumen usar en la lista según el */
+/* tipo de cimentación activo. Se va llenando a medida que construimos cada  */
+/* uno — los que faltan simplemente no aparecen aquí (CimentacionesView ya   */
+/* filtra por "disponible" antes de llegar a este punto).                   */
+const CIMENTACION_COMPONENTES = {
+  postes_mt: {
+    Form: PostesMtForm,
+    Preview: PostesMtPreview,
+    resumen: (d) => `Ø ${d.diametro || '—'} m · ${((parseFloat(d.desplante) || 0) + (parseFloat(d.sobresaliente) || 0)).toFixed(2)} m`,
+  },
+  luminarias: {
+    Form: LuminariasForm,
+    Preview: LuminariasPreview,
+    resumen: (d) => `${d.lado || '—'} × ${d.lado || '—'} m · ${((parseFloat(d.desplante) || 0) + (parseFloat(d.sobresaliente) || 0)).toFixed(2)} m`,
+  },
+};
+
 /* Vista principal de "Cimentaciones": elige el tipo (6 en total, hoy solo   */
 /* Postes MT está construido) y administra sus plantillas (crear, editar,   */
 /* eliminar). Las que no están listas muestran un aviso de "muy pronto".    */
@@ -1705,6 +1987,7 @@ function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete }) {
 
   const tipoDef = CIMENTACION_TIPOS.find((t) => t.id === tipoActivo);
   const plantillasDelTipo = plantillas.filter((p) => p.tipo === tipoActivo);
+  const componentes = CIMENTACION_COMPONENTES[tipoActivo];
 
   function cerrarFormulario() {
     setCreando(false);
@@ -1760,7 +2043,7 @@ function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete }) {
           )}
 
           {(creando || editandoId) && (
-            <PostesMtForm
+            <componentes.Form
               plantilla={editandoId ? plantillasDelTipo.find((p) => p.id === editandoId) : null}
               onCancel={cerrarFormulario}
               onSave={(nombre, datos) => {
@@ -1779,11 +2062,11 @@ function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete }) {
                 {plantillasDelTipo.map((p) => (
                   <div key={p.id} className="bg-white border border-navy-200 rounded-xl p-4">
                     <div className="flex items-center justify-center mb-2">
-                      <PostesMtPreview datos={p.datos} />
+                      <componentes.Preview datos={p.datos} />
                     </div>
                     <p className="font-semibold text-navy-800 text-sm text-center mb-1">{p.nombre}</p>
                     <p className="text-xs text-navy-400 text-center mb-3">
-                      Ø {p.datos.diametro || '—'} m · {((parseFloat(p.datos.desplante) || 0) + (parseFloat(p.datos.sobresaliente) || 0)).toFixed(2)} m
+                      {componentes.resumen(p.datos)}
                     </p>
                     <div className="flex items-center justify-center gap-4">
                       <button onClick={() => setEditandoId(p.id)} className="text-xs font-semibold text-lime-600 hover:text-lime-700 flex items-center gap-1">
@@ -1856,6 +2139,35 @@ function IsoBox({ x0, y0, w, d, z0, z1, ox, oy, colors }) {
       <polygon points={poly(left)} fill={colors[2]} stroke="#59671E" strokeWidth="1" />
       <polygon points={poly(right)} fill={colors[1]} stroke="#59671E" strokeWidth="1" />
       <polygon points={poly(top)} fill={colors[0]} stroke="#59671E" strokeWidth="1" />
+    </g>
+  );
+}
+/* Misma caja isométrica de arriba, pero en estilo "plano técnico" (líneas    */
+/* azul oscuro, sin relleno de color) — para las plantillas de Cimentaciones. */
+function IsoBoxLineArt({ x0, y0, w, d, z0, z1, ox, oy, fillTop = 'white', fillSide = '#F6F7F9' }) {
+  const top = [
+    isoPt(x0, y0, z1, ox, oy),
+    isoPt(x0 + w, y0, z1, ox, oy),
+    isoPt(x0 + w, y0 + d, z1, ox, oy),
+    isoPt(x0, y0 + d, z1, ox, oy),
+  ];
+  const right = [
+    isoPt(x0 + w, y0, z1, ox, oy),
+    isoPt(x0 + w, y0 + d, z1, ox, oy),
+    isoPt(x0 + w, y0 + d, z0, ox, oy),
+    isoPt(x0 + w, y0, z0, ox, oy),
+  ];
+  const left = [
+    isoPt(x0, y0 + d, z1, ox, oy),
+    isoPt(x0 + w, y0 + d, z1, ox, oy),
+    isoPt(x0 + w, y0 + d, z0, ox, oy),
+    isoPt(x0, y0 + d, z0, ox, oy),
+  ];
+  return (
+    <g>
+      <polygon points={poly(left)} fill={fillSide} stroke="#152644" strokeWidth="1.1" />
+      <polygon points={poly(right)} fill={fillSide} stroke="#152644" strokeWidth="1.1" />
+      <polygon points={poly(top)} fill={fillTop} stroke="#152644" strokeWidth="1.3" />
     </g>
   );
 }
