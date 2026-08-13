@@ -1427,7 +1427,7 @@ function ResistenciaSelect({ value, onChange, className }) {
 const CIMENTACION_TIPOS = [
   { id: 'postes_mt', label: 'Postes MT', icon: CircleDot, disponible: true },
   { id: 'luminarias', label: 'Luminarias', icon: Lightbulb, disponible: true },
-  { id: 'camaras', label: 'Cámaras', icon: Video, disponible: false },
+  { id: 'camaras', label: 'Cámaras', icon: Video, disponible: true },
   { id: 'inversores', label: 'Inversores', icon: Zap, disponible: false },
   { id: 'cerramiento', label: 'Cerramiento', icon: Building2, disponible: false },
   { id: 'shelter', label: 'Shelter', icon: Home, disponible: false },
@@ -1762,8 +1762,8 @@ function LuminariasPreview({ datos }) {
   const anchoP2 = isoPt(nearBottomModel[0], nearBottomModel[1] + dimPush, bodyZ0, ox, oy);
   const profP1 = isoPt(nearBottomModel[0] + dimPush, nearBottomModel[1], bodyZ0, ox, oy);
   const profP2 = isoPt(rightModel[0] + dimPush, rightModel[1], bodyZ0, ox, oy);
-  const anchoLabel = isoPt((frontLeftModel[0] + nearBottomModel[0]) / 2, frontLeftModel[1] + dimPush + 10, bodyZ0, ox, oy);
-  const profLabel = isoPt(nearBottomModel[0] + dimPush + 10, (nearBottomModel[1] + rightModel[1]) / 2, bodyZ0, ox, oy);
+  const anchoLabel = isoPt((frontLeftModel[0] + nearBottomModel[0]) / 2, frontLeftModel[1] + dimPush + 16, bodyZ0, ox, oy);
+  const profLabel = isoPt(nearBottomModel[0] + dimPush + 16, (nearBottomModel[1] + rightModel[1]) / 2, bodyZ0, ox, oy);
 
   // Cota de altura, con la esquina superior/inferior derecha del cuerpo.
   const [rightTopX, rightTopY] = isoPt(halfW, -halfD, bodyZ1, ox, oy);
@@ -2024,6 +2024,251 @@ function LuminariasForm({ plantilla, onCancel, onSave }) {
 /* tipo de cimentación activo. Se va llenando a medida que construimos cada  */
 /* uno — los que faltan simplemente no aparecen aquí (CimentacionesView ya   */
 /* filtra por "disponible" antes de llegar a este punto).                   */
+/* ============================================================ */
+/* CÁMARAS (CCTV) — misma estructura que Luminarias, sección       */
+/* rectangular/cuadrada.                                            */
+/* ============================================================ */
+
+const CAM_VB_W = 200;
+const CAM_VB_H = 195;
+const CAM_M2PX = 80;
+const CAM_CSS_SIZE = 'w-40 h-40';
+
+/* Isométrico de una cimentación de sección rectangular (o cuadrada, si       */
+/* ancho = profundo): caja + solado (misma forma, un poco más ancha y corta) */
+/* + plano de terreno natural (un paralelogramo coherente con la perspectiva) */
+/* + cotas independientes de ancho y profundo (una en cada borde visible de   */
+/* la base) + cota de altura.                                                */
+function CamarasPreview({ datos }) {
+  const ancho = parseFloat(datos.ancho) || 0;
+  const profundo = parseFloat(datos.profundo) || 0;
+  const desplante = parseFloat(datos.desplante) || 0;
+  const sobresaliente = parseFloat(datos.sobresaliente) || 0;
+  const espesorSolado = parseFloat(datos.espesor_solado) || 0;
+  const altura = desplante + sobresaliente;
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const anchoPx = clamp((ancho || 0.3) * CAM_M2PX, 26, 65);
+  const profundoPx = clamp((profundo || 0.3) * CAM_M2PX, 26, 65);
+  const alturaPx = clamp((altura || 0.3) * CAM_M2PX, 50, 100);
+  const soladoPx = clamp((espesorSolado || 0.05) * CAM_M2PX, 5, 11);
+  const groundFrac = altura > 0 ? desplante / altura : 0;
+
+  const halfW = anchoPx / 2;
+  const halfD = profundoPx / 2;
+  const bodyZ0 = soladoPx;
+  const bodyZ1 = soladoPx + alturaPx;
+  const groundZ = soladoPx + groundFrac * alturaPx;
+
+  const ox = CAM_VB_W / 2;
+  const oy = 18 + Math.max(halfW, halfD) + bodyZ1;
+
+  const soladoHalfW = halfW + 6;
+  const soladoHalfD = halfD + 6;
+  const groundHalfW = halfW + 16;
+  const groundHalfD = halfD + 16;
+
+  const [groundLeftX, groundLeftY] = isoPt(-groundHalfW, groundHalfD, groundZ, ox, oy);
+  const groundPlane = poly([
+    isoPt(-groundHalfW, -groundHalfD, groundZ, ox, oy),
+    isoPt(groundHalfW, -groundHalfD, groundZ, ox, oy),
+    isoPt(groundHalfW, groundHalfD, groundZ, ox, oy),
+    isoPt(-groundHalfW, groundHalfD, groundZ, ox, oy),
+  ]);
+
+  // Los puntos reales de la base que nos importan: la esquina más cercana
+  // (donde se juntan los dos bordes visibles) y sus dos vecinas.
+  const nearBottomModel = [halfW, halfD];
+  const frontLeftModel = [-halfW, halfD];
+  const rightModel = [halfW, -halfD];
+  const nearBottomPt = isoPt(nearBottomModel[0], nearBottomModel[1], bodyZ0, ox, oy);
+  const frontLeftPt = isoPt(frontLeftModel[0], frontLeftModel[1], bodyZ0, ox, oy);
+  const rightPt = isoPt(rightModel[0], rightModel[1], bodyZ0, ox, oy);
+
+  // Cada cota se dibuja PARALELA a su propio borde, desplazada hacia afuera
+  // en el eje del modelo correspondiente (no en pantalla) — así una queda
+  // "hacia el frente" (ancho) y la otra "hacia la derecha" (profundo), sin
+  // que sus etiquetas choquen entre sí.
+  const dimPush = 22;
+  const anchoP1 = isoPt(frontLeftModel[0], frontLeftModel[1] + dimPush, bodyZ0, ox, oy);
+  const anchoP2 = isoPt(nearBottomModel[0], nearBottomModel[1] + dimPush, bodyZ0, ox, oy);
+  const profP1 = isoPt(nearBottomModel[0] + dimPush, nearBottomModel[1], bodyZ0, ox, oy);
+  const profP2 = isoPt(rightModel[0] + dimPush, rightModel[1], bodyZ0, ox, oy);
+  const anchoLabel = isoPt((frontLeftModel[0] + nearBottomModel[0]) / 2, frontLeftModel[1] + dimPush + 16, bodyZ0, ox, oy);
+  const profLabel = isoPt(nearBottomModel[0] + dimPush + 16, (nearBottomModel[1] + rightModel[1]) / 2, bodyZ0, ox, oy);
+
+  // Cota de altura, con la esquina superior/inferior derecha del cuerpo.
+  const [rightTopX, rightTopY] = isoPt(halfW, -halfD, bodyZ1, ox, oy);
+  const [rightBotX, rightBotY] = isoPt(halfW, -halfD, bodyZ0, ox, oy);
+
+  return (
+    <svg viewBox={`0 0 ${CAM_VB_W} ${CAM_VB_H}`} className={CAM_CSS_SIZE}>
+      {/* Solado: misma forma, un poco más ancho y corto */}
+      <IsoBoxLineArt x0={-soladoHalfW} y0={-soladoHalfD} w={soladoHalfW * 2} d={soladoHalfD * 2} z0={0} z1={soladoPx} ox={ox} oy={oy} />
+      {/* Cuerpo (pedestal) */}
+      <IsoBoxLineArt x0={-halfW} y0={-halfD} w={anchoPx} d={profundoPx} z0={bodyZ0} z1={bodyZ1} ox={ox} oy={oy} />
+      {/* Nivel de terreno natural: un plano que atraviesa el cuerpo */}
+      <polygon points={groundPlane} fill="none" stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
+      <text x={groundLeftX - 4} y={groundLeftY + 3} textAnchor="end" fontSize="8" fill="#6487C4" fontFamily="monospace">N.T.N</text>
+      {/* Cota de ancho: paralela al borde frontal-izquierdo, desplazada "hacia el frente" */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={frontLeftPt[0]} y1={frontLeftPt[1]} x2={anchoP1[0]} y2={anchoP1[1]} />
+        <line x1={nearBottomPt[0]} y1={nearBottomPt[1]} x2={anchoP2[0]} y2={anchoP2[1]} />
+        <line x1={anchoP1[0]} y1={anchoP1[1]} x2={anchoP2[0]} y2={anchoP2[1]} />
+      </g>
+      <text x={anchoLabel[0]} y={anchoLabel[1]} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="#152644">
+        {ancho || '—'} m
+      </text>
+      {/* Cota de profundo: paralela al borde frontal-derecho, desplazada "hacia la derecha" */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={nearBottomPt[0]} y1={nearBottomPt[1]} x2={profP1[0]} y2={profP1[1]} />
+        <line x1={rightPt[0]} y1={rightPt[1]} x2={profP2[0]} y2={profP2[1]} />
+        <line x1={profP1[0]} y1={profP1[1]} x2={profP2[0]} y2={profP2[1]} />
+      </g>
+      <text x={profLabel[0]} y={profLabel[1]} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="#152644">
+        {profundo || '—'} m
+      </text>
+      {/* Cota de altura total */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={rightTopX + 34} y1={rightTopY} x2={rightBotX + 34} y2={rightBotY} />
+        <line x1={rightTopX + 30} y1={rightTopY} x2={rightTopX + 38} y2={rightTopY} />
+        <line x1={rightBotX + 30} y1={rightBotY} x2={rightBotX + 38} y2={rightBotY} />
+      </g>
+      <text
+        x={rightTopX + 46}
+        y={(rightTopY + rightBotY) / 2}
+        textAnchor="middle"
+        fontSize="10"
+        fontWeight="600"
+        fill="#152644"
+        transform={`rotate(90, ${rightTopX + 46}, ${(rightTopY + rightBotY) / 2})`}
+      >
+        {altura ? altura.toFixed(2) : '—'} m
+      </text>
+    </svg>
+  );
+}
+
+/* Sección longitudinal (vista frontal 2D): un rectángulo — ancho = ancho,    */
+/* alto = altura total — igual estilo que Postes MT.                        */
+function CamarasSeccionLongitudinal({ datos }) {
+  const ancho = parseFloat(datos.ancho) || 0;
+  const desplante = parseFloat(datos.desplante) || 0;
+  const sobresaliente = parseFloat(datos.sobresaliente) || 0;
+  const espesorSolado = parseFloat(datos.espesor_solado) || 0;
+  const altura = desplante + sobresaliente;
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const anchoPx = clamp((ancho || 0.3) * CAM_M2PX, 28, 85);
+  const alturaPx = clamp((altura || 0.3) * CAM_M2PX, 50, 100);
+  const soladoPx = clamp((espesorSolado || 0.05) * CAM_M2PX, 5, 11);
+
+  const cx = CAM_VB_W / 2;
+  const topY = 30;
+  const botY = topY + alturaPx;
+  const soladoBotY = botY + soladoPx;
+  const groundY = altura > 0 ? topY + (sobresaliente / altura) * alturaPx : topY;
+
+  return (
+    <svg viewBox={`0 0 ${CAM_VB_W} ${CAM_VB_H}`} className={CAM_CSS_SIZE}>
+      <rect x={cx - anchoPx / 2 - 6} y={botY} width={anchoPx + 12} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      <rect x={cx - anchoPx / 2} y={topY} width={anchoPx} height={alturaPx} fill="white" stroke="#152644" strokeWidth="1.3" />
+      <line x1={cx - anchoPx / 2 - 20} y1={groundY} x2={cx + anchoPx / 2 + 20} y2={groundY} stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
+      <text x={cx - anchoPx / 2 - 22} y={groundY + 3} textAnchor="end" fontSize="7.5" fill="#6487C4" fontFamily="monospace">N.T.N</text>
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx - anchoPx / 2} y1={soladoBotY + 14} x2={cx + anchoPx / 2} y2={soladoBotY + 14} />
+        <line x1={cx - anchoPx / 2} y1={soladoBotY + 10} x2={cx - anchoPx / 2} y2={soladoBotY + 18} />
+        <line x1={cx + anchoPx / 2} y1={soladoBotY + 10} x2={cx + anchoPx / 2} y2={soladoBotY + 18} />
+      </g>
+      <text x={cx} y={soladoBotY + 30} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="#152644">
+        {ancho || '—'} m
+      </text>
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx + anchoPx / 2 + 30} y1={topY} x2={cx + anchoPx / 2 + 30} y2={botY} />
+        <line x1={cx + anchoPx / 2 + 26} y1={topY} x2={cx + anchoPx / 2 + 34} y2={topY} />
+        <line x1={cx + anchoPx / 2 + 26} y1={botY} x2={cx + anchoPx / 2 + 34} y2={botY} />
+      </g>
+      <text
+        x={cx + anchoPx / 2 + 40}
+        y={(topY + botY) / 2}
+        textAnchor="middle"
+        fontSize="9.5"
+        fontWeight="600"
+        fill="#152644"
+        transform={`rotate(90, ${cx + anchoPx / 2 + 40}, ${(topY + botY) / 2})`}
+      >
+        {altura ? altura.toFixed(2) : '—'} m
+      </text>
+    </svg>
+  );
+}
+
+/* Sección transversal (vista en planta 2D): un rectángulo (o cuadrado, si   */
+/* ancho = profundo) con AMBAS cotas — horizontal (ancho) y vertical         */
+/* (profundo) — porque la sección puede no ser cuadrada.                    */
+function CamarasSeccionTransversal({ datos }) {
+  const ancho = parseFloat(datos.ancho) || 0;
+  const profundo = parseFloat(datos.profundo) || 0;
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const anchoPx = clamp((ancho || 0.3) * CAM_M2PX, 28, 85);
+  const profundoPx = clamp((profundo || 0.3) * CAM_M2PX, 28, 85);
+
+  const cx = CAM_VB_W / 2;
+  const cy = CAM_VB_H / 2 - 14;
+
+  return (
+    <svg viewBox={`0 0 ${CAM_VB_W} ${CAM_VB_H}`} className={CAM_CSS_SIZE}>
+      <rect x={cx - anchoPx / 2} y={cy - profundoPx / 2} width={anchoPx} height={profundoPx} fill="white" stroke="#152644" strokeWidth="1.3" />
+      {/* Cota horizontal: ancho, debajo */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx - anchoPx / 2} y1={cy + profundoPx / 2 + 14} x2={cx + anchoPx / 2} y2={cy + profundoPx / 2 + 14} />
+        <line x1={cx - anchoPx / 2} y1={cy + profundoPx / 2 + 10} x2={cx - anchoPx / 2} y2={cy + profundoPx / 2 + 18} />
+        <line x1={cx + anchoPx / 2} y1={cy + profundoPx / 2 + 10} x2={cx + anchoPx / 2} y2={cy + profundoPx / 2 + 18} />
+      </g>
+      <text x={cx} y={cy + profundoPx / 2 + 30} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="#152644">
+        {ancho || '—'} m
+      </text>
+      {/* Cota vertical: profundo, a la derecha */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx + anchoPx / 2 + 14} y1={cy - profundoPx / 2} x2={cx + anchoPx / 2 + 14} y2={cy + profundoPx / 2} />
+        <line x1={cx + anchoPx / 2 + 10} y1={cy - profundoPx / 2} x2={cx + anchoPx / 2 + 18} y2={cy - profundoPx / 2} />
+        <line x1={cx + anchoPx / 2 + 10} y1={cy + profundoPx / 2} x2={cx + anchoPx / 2 + 18} y2={cy + profundoPx / 2} />
+      </g>
+      <text
+        x={cx + anchoPx / 2 + 30}
+        y={cy}
+        textAnchor="middle"
+        fontSize="9.5"
+        fontWeight="600"
+        fill="#152644"
+        transform={`rotate(90, ${cx + anchoPx / 2 + 30}, ${cy})`}
+      >
+        {profundo || '—'} m
+      </text>
+    </svg>
+  );
+}
+
+/* Junta las 3 vistas de Luminarias lado a lado, cada una con su etiqueta.   */
+function CamarasVistas({ datos }) {
+  return (
+    <div className="flex flex-wrap gap-4 justify-center">
+      <div className="text-center">
+        <CamarasPreview datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Isométrico</p>
+      </div>
+      <div className="text-center">
+        <CamarasSeccionLongitudinal datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Sección longitudinal</p>
+      </div>
+      <div className="text-center">
+        <CamarasSeccionTransversal datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Sección transversal</p>
+      </div>
+    </div>
+  );
+}
+
 const CIMENTACION_COMPONENTES = {
   postes_mt: {
     Form: PostesMtForm,
@@ -2033,6 +2278,11 @@ const CIMENTACION_COMPONENTES = {
   luminarias: {
     Form: LuminariasForm,
     Preview: LuminariasPreview,
+    resumen: (d) => `${d.ancho || '—'} × ${d.profundo || '—'} m · ${((parseFloat(d.desplante) || 0) + (parseFloat(d.sobresaliente) || 0)).toFixed(2)} m`,
+  },
+  camaras: {
+    Form: CamarasForm,
+    Preview: CamarasPreview,
     resumen: (d) => `${d.ancho || '—'} × ${d.profundo || '—'} m · ${((parseFloat(d.desplante) || 0) + (parseFloat(d.sobresaliente) || 0)).toFixed(2)} m`,
   },
 };

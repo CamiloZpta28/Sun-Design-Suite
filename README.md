@@ -169,6 +169,16 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Cámaras (CCTV), tercer tipo de Cimentaciones construido**: misma
+  estructura exacta que Luminarias (ancho, profundo, desplante,
+  sobresaliente, espesor de solado, y las 3 vistas técnicas), ya que en
+  el esquema de los proyectos las cimentaciones de CCTV también eran de
+  sección rectangular. Ya quedan 3 de las 6 — Inversores, Cerramiento y
+  Shelter siguen en la fila.
+- **Ajuste de las cotas de Luminarias**: el valor de cada cota (ancho y
+  profundo) se separó un poco más de su propia línea — antes quedaba casi
+  pegado a la línea y era difícil de leer.
+
 - **Luminarias, segundo tipo de Cimentaciones construido**: mismo esquema
   que Postes MT (crear/editar/eliminar plantillas, 3 vistas tipo plano
   técnico), pero con **sección rectangular** (no necesariamente cuadrada):
