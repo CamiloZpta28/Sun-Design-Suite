@@ -3258,7 +3258,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { key: 'mis', label: 'Mis Proyectos', icon: FolderKanban },
     { key: 'todos', label: 'Todos los Proyectos', icon: Layers },
-    { key: 'resumen_inversionistas', label: 'Por Inversionista', icon: PieChart },
+    { key: 'resumen_inversionistas', label: 'Resumen por Inversionista', icon: PieChart },
     { key: 'equipo', label: 'Equipo', icon: UserCog },
     { key: 'instructivos', label: 'Instructivos', icon: Video },
     { key: 'enlaces', label: 'Enlaces de Interés', icon: Link2 },
@@ -3284,11 +3284,11 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
             <button
               key={item.key}
               onClick={() => setView(item.key)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border-l-2 ${
+              className={`w-full flex items-center gap-3 px-3 py-2.5 min-h-10 rounded-lg text-sm font-medium leading-tight transition-colors border-l-2 ${
                 active ? 'bg-navy-800 text-white border-lime-500' : 'text-navy-300 border-transparent hover:bg-navy-800 hover:text-white'
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="w-4 h-4 shrink-0" />
               {item.label}
             </button>
           );
@@ -3635,7 +3635,9 @@ function InversionistaResumenCard({ nombre, proyectos, onOpenProject }) {
 
 function ResumenInversionistasView({ projects, onOpenProject }) {
   const grupos = new Map();
-  projects.forEach((p) => {
+  // Los proyectos "Finalizado" ya se archivan aparte y no se cuentan aquí —
+  // este resumen es sobre el trabajo que sigue en curso por inversionista.
+  projects.filter((p) => p.estado !== 'finalizado').forEach((p) => {
     const inv = (p.data.general?.inversionista || '').trim() || 'Sin inversionista definido';
     if (!grupos.has(inv)) grupos.set(inv, []);
     grupos.get(inv).push(p);
@@ -3646,7 +3648,7 @@ function ResumenInversionistasView({ projects, onOpenProject }) {
     <div className="p-8 max-w-6xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-navy-800">Resumen por Inversionista</h1>
-        <p className="text-navy-500 text-sm mt-1">Progreso de Control Documental y estado de proyectos, agrupado por inversionista.</p>
+        <p className="text-navy-500 text-sm mt-1">Progreso de Control Documental y estado de proyectos, agrupado por inversionista. No incluye proyectos finalizados.</p>
       </div>
       {inversionistasOrdenados.length === 0 ? (
         <p className="text-sm text-navy-400 italic text-center py-16">Aún no hay proyectos para resumir.</p>
