@@ -1433,6 +1433,13 @@ const CIMENTACION_TIPOS = [
   { id: 'shelter', label: 'Shelter', icon: Home, disponible: false },
 ];
 
+/* Lienzo y escala COMPARTIDOS por las 3 vistas de Postes MT, para que se     */
+/* vean alineadas entre sí (mismo tamaño en pantalla = mismo tamaño real).   */
+const POSTE_VB_W = 200;
+const POSTE_VB_H = 270;
+const POSTE_M2PX = 80;
+const POSTE_CSS_SIZE = 'w-40 h-52';
+
 /* Dibujo tipo plano técnico (líneas negras, sin relleno de color) de un      */
 /* poste MT: cilindro + solado de limpieza (mismo cilindro, más corto) +     */
 /* cotas de diámetro y altura + nivel de terreno natural (como un plano      */
@@ -1446,26 +1453,22 @@ function PostesMtPreview({ datos }) {
   const altura = desplante + sobresaliente;
 
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-  const m2px = 90;
-  const diamPx = clamp((diametro || 0.3) * m2px, 34, 120);
+  const diamPx = clamp((diametro || 0.3) * POSTE_M2PX, 30, 100);
   const rx = diamPx / 2;
   const ry = rx * 0.32;
-  const alturaPx = clamp((altura || 0.3) * m2px, 60, 170);
-  const soladoPx = clamp((espesorSolado || 0.05) * m2px, 5, 16);
+  const alturaPx = clamp((altura || 0.3) * POSTE_M2PX, 55, 150);
+  const soladoPx = clamp((espesorSolado || 0.05) * POSTE_M2PX, 5, 14);
 
-  const cx = 100;
-  const topY = 36;
+  const cx = POSTE_VB_W / 2;
+  const topY = 42;
   const botY = topY + alturaPx;
   const soladoBotY = botY + soladoPx;
   const groundY = altura > 0 ? topY + (sobresaliente / altura) * alturaPx : topY;
-  const groundRx = rx + 24;
-  const groundRy = ry + (ry / rx) * 24;
-
-  const svgW = 210;
-  const svgH = soladoBotY + ry + 60;
+  const groundRx = rx + 20;
+  const groundRy = ry + (ry / rx) * 20;
 
   return (
-    <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-44 h-56">
+    <svg viewBox={`0 0 ${POSTE_VB_W} ${POSTE_VB_H}`} className={POSTE_CSS_SIZE}>
       {/* Solado de limpieza: mismo cilindro, un poco más ancho y corto */}
       <g>
         <line x1={cx - rx - 6} y1={botY} x2={cx - rx - 6} y2={soladoBotY} stroke="#152644" strokeWidth="1.1" />
@@ -1480,7 +1483,7 @@ function PostesMtPreview({ datos }) {
       <ellipse cx={cx} cy={topY} rx={rx} ry={ry} fill="white" stroke="#152644" strokeWidth="1.3" />
       {/* Nivel de terreno natural: un plano (elipse) que atraviesa el poste, no una línea recta */}
       <ellipse cx={cx} cy={groundY} rx={groundRx} ry={groundRy} fill="none" stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
-      <text x={cx + groundRx + 4} y={groundY + 3} fontSize="8" fill="#6487C4" fontFamily="monospace">N.T.N</text>
+      <text x={cx - groundRx - 4} y={groundY + 3} textAnchor="end" fontSize="8" fill="#6487C4" fontFamily="monospace">N.T.N</text>
       {/* Cota de diámetro */}
       <g stroke="#152644" strokeWidth="1">
         <line x1={cx - rx} y1={soladoBotY + ry + 18} x2={cx + rx} y2={soladoBotY + ry + 18} />
@@ -1511,12 +1514,11 @@ function PostesMtPreview({ datos }) {
   );
 }
 
-/* Formulario de crear/editar una plantilla de Postes MT: diámetro, altura   */
-/* (desplante + sobresaliente), espesor de solado y resistencia.            */
 /* Sección longitudinal (vista frontal 2D, sin perspectiva): un rectángulo   */
 /* — ancho = diámetro, alto = altura total — con el solado, el nivel de     */
 /* terreno (aquí sí una línea recta, porque es una vista plana real) y las   */
-/* cotas de ancho y alto.                                                    */
+/* cotas de ancho y alto. Usa el mismo lienzo/escala que el isométrico para  */
+/* que las tres vistas se vean alineadas entre sí.                          */
 function PostesMtSeccionLongitudinal({ datos }) {
   const diametro = parseFloat(datos.diametro) || 0;
   const desplante = parseFloat(datos.desplante) || 0;
@@ -1525,29 +1527,25 @@ function PostesMtSeccionLongitudinal({ datos }) {
   const altura = desplante + sobresaliente;
 
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-  const m2px = 90;
-  const anchoPx = clamp((diametro || 0.3) * m2px, 30, 100);
-  const alturaPx = clamp((altura || 0.3) * m2px, 60, 170);
-  const soladoPx = clamp((espesorSolado || 0.05) * m2px, 5, 16);
+  const anchoPx = clamp((diametro || 0.3) * POSTE_M2PX, 30, 100);
+  const alturaPx = clamp((altura || 0.3) * POSTE_M2PX, 55, 150);
+  const soladoPx = clamp((espesorSolado || 0.05) * POSTE_M2PX, 5, 14);
 
-  const cx = 80;
-  const topY = 20;
+  const cx = POSTE_VB_W / 2;
+  const topY = 42;
   const botY = topY + alturaPx;
   const soladoBotY = botY + soladoPx;
   const groundY = altura > 0 ? topY + (sobresaliente / altura) * alturaPx : topY;
 
-  const svgW = 175;
-  const svgH = soladoBotY + 55;
-
   return (
-    <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-32 h-44">
+    <svg viewBox={`0 0 ${POSTE_VB_W} ${POSTE_VB_H}`} className={POSTE_CSS_SIZE}>
       {/* Solado */}
       <rect x={cx - anchoPx / 2 - 6} y={botY} width={anchoPx + 12} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
       {/* Cuerpo (vista frontal) */}
       <rect x={cx - anchoPx / 2} y={topY} width={anchoPx} height={alturaPx} fill="white" stroke="#152644" strokeWidth="1.3" />
       {/* Nivel de terreno natural (línea recta: aquí sí es correcto, es una vista plana) */}
       <line x1={cx - anchoPx / 2 - 20} y1={groundY} x2={cx + anchoPx / 2 + 20} y2={groundY} stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
-      <text x={cx + anchoPx / 2 + 22} y={groundY + 3} fontSize="7.5" fill="#6487C4" fontFamily="monospace">N.T.N</text>
+      <text x={cx - anchoPx / 2 - 22} y={groundY + 3} textAnchor="end" fontSize="7.5" fill="#6487C4" fontFamily="monospace">N.T.N</text>
       {/* Cota de ancho (diámetro) */}
       <g stroke="#152644" strokeWidth="1">
         <line x1={cx - anchoPx / 2} y1={soladoBotY + 14} x2={cx + anchoPx / 2} y2={soladoBotY + 14} />
@@ -1579,19 +1577,17 @@ function PostesMtSeccionLongitudinal({ datos }) {
 }
 
 /* Sección transversal (vista en planta 2D): un círculo con la cota del      */
-/* diámetro.                                                                 */
+/* diámetro. Mismo lienzo/escala que las otras dos vistas.                  */
 function PostesMtSeccionTransversal({ datos }) {
   const diametro = parseFloat(datos.diametro) || 0;
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-  const rr = clamp((diametro || 0.3) * 90, 40, 130) / 2;
+  const rr = clamp((diametro || 0.3) * POSTE_M2PX, 30, 100) / 2;
 
-  const cx = 80;
-  const cy = 65;
-  const svgW = 160;
-  const svgH = 150;
+  const cx = POSTE_VB_W / 2;
+  const cy = POSTE_VB_H / 2 - 20;
 
   return (
-    <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-32 h-32">
+    <svg viewBox={`0 0 ${POSTE_VB_W} ${POSTE_VB_H}`} className={POSTE_CSS_SIZE}>
       <circle cx={cx} cy={cy} r={rr} fill="white" stroke="#152644" strokeWidth="1.3" />
       <line x1={cx - rr} y1={cy} x2={cx + rr} y2={cy} stroke="#152644" strokeWidth="1" />
       <line x1={cx - rr} y1={cy - 5} x2={cx - rr} y2={cy + 5} stroke="#152644" strokeWidth="1" />
@@ -3634,12 +3630,15 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
             <p className="text-white font-bold leading-tight">Sun Design Suite</p>
             <p className="text-xs text-navy-300 tracking-wide">Minigranjas Fotovoltaicas</p>
           </div>
+          <button onClick={onRefresh} title="Actualizar datos compartidos" className="text-navy-300 hover:text-white shrink-0">
+            <RefreshCw className="w-4 h-4" />
+          </button>
           <button onClick={onCloseMobile} className="md:hidden text-navy-300 hover:text-white shrink-0" title="Cerrar menú">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <nav className="custom-scroll flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = view === item.key;
@@ -3657,33 +3656,6 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
             );
           })}
         </nav>
-
-        <div className="px-6 pb-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-navy-300">Resumen</p>
-            <button onClick={onRefresh} title="Actualizar datos compartidos" className="text-navy-300 hover:text-white">
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-1.5">
-            <div className="bg-navy-800 rounded-md py-1.5 text-center">
-              <p className="text-emerald-400 text-sm font-bold">{stats.activo}</p>
-              <p className="text-xs text-navy-300">Activos</p>
-            </div>
-            <div className="bg-navy-800 rounded-md py-1.5 text-center">
-              <p className="text-yellow-400 text-sm font-bold">{stats.pausa}</p>
-              <p className="text-xs text-navy-300">Pausa</p>
-            </div>
-            <div className="bg-navy-800 rounded-md py-1.5 text-center">
-              <p className="text-red-400 text-sm font-bold">{stats.inactivo}</p>
-              <p className="text-xs text-navy-300">Inact.</p>
-            </div>
-            <div className="bg-navy-800 rounded-md py-1.5 text-center">
-              <p className="text-violet-400 text-sm font-bold">{stats.finalizado}</p>
-              <p className="text-xs text-navy-300">Final.</p>
-            </div>
-          </div>
-        </div>
 
         <div
           className="p-4 border-t border-navy-800 flex items-center gap-3"
@@ -6271,6 +6243,11 @@ export default function App() {
           }
         }
         .print-only { display: none; }
+        .custom-scroll { scrollbar-width: thin; scrollbar-color: #2A497E transparent; }
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background-color: #2A497E; border-radius: 999px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background-color: #3C64AA; }
       `}</style>
 
       <Sidebar
