@@ -6,7 +6,7 @@ import {
   Users, ExternalLink, Check, FileText, UploadCloud, XCircle, ClipboardList,
   Loader2, RefreshCw, LogOut, ShieldCheck, Lock, History, ClipboardCheck, StickyNote, UserCog,
   Folder, FolderPlus, ChevronDown, ChevronRight, PlayCircle, Video, Code2,
-  Bold, Italic, Underline, List, PartyPopper, MessageSquare,
+  Bold, Italic, Underline, List, PartyPopper, MessageSquare, PieChart,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import logoMark from './assets/logo-s-mark.png';
@@ -3236,6 +3236,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { key: 'mis', label: 'Mis Proyectos', icon: FolderKanban },
     { key: 'todos', label: 'Todos los Proyectos', icon: Layers },
+    { key: 'resumen_inversionistas', label: 'Resumen por Inversionista', icon: PieChart },
     { key: 'equipo', label: 'Equipo', icon: UserCog },
     { key: 'instructivos', label: 'Instructivos', icon: Video },
     { key: 'enlaces', label: 'Enlaces de Interés', icon: Link2 },
@@ -3517,6 +3518,103 @@ function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, dire
           <p className="text-sm">
             {mostrarArchivados ? 'No hay proyectos finalizados con esos filtros.' : 'No se encontraron proyectos con esos filtros.'}
           </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Tarjeta de resumen de UN inversionista: cuántos proyectos tiene en cada    */
+/* estado, progreso de Control Documental sumando TODOS sus proyectos, y     */
+/* una lista desplegable de esos proyectos (clic para ir directo a uno).    */
+function InversionistaResumenCard({ nombre, proyectos, onOpenProject }) {
+  const [expandido, setExpandido] = useState(false);
+
+  const conteoEstadoProyecto = {};
+  proyectos.forEach((p) => { conteoEstadoProyecto[p.estado] = (conteoEstadoProyecto[p.estado] || 0) + 1; });
+
+  const conteoDocsAgregado = {};
+  DOC_ESTADOS.forEach((e) => { conteoDocsAgregado[e] = 0; });
+  let totalDocsAgregado = 0;
+  proyectos.forEach((p) => {
+    const { conteoPorEstado, total } = computeProjectDocProgress(p);
+    DOC_ESTADOS.forEach((e) => { conteoDocsAgregado[e] += conteoPorEstado[e]; });
+    totalDocsAgregado += total;
+  });
+
+  return (
+    <div className="bg-white border border-navy-200 rounded-xl p-5">
+      <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
+        <div>
+          <h2 className="text-lg font-bold text-navy-800">{nombre}</h2>
+          <p className="text-xs text-navy-400">{proyectos.length} proyecto{proyectos.length === 1 ? '' : 's'}</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {Object.keys(STATUS_CONFIG).map((key) => {
+            const cfg = STATUS_CONFIG[key];
+            const cantidad = conteoEstadoProyecto[key] || 0;
+            if (cantidad === 0) return null;
+            return (
+              <span key={key} className={`text-xs font-semibold px-2 py-1 rounded-full border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+                {cfg.label}: {cantidad}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-2">Progreso de Control Documental (todos sus proyectos)</p>
+        <ProgresoDonut conteoPorEstado={conteoDocsAgregado} total={totalDocsAgregado} />
+      </div>
+
+      <button onClick={() => setExpandido((v) => !v)} className="flex items-center gap-1 text-xs font-semibold text-lime-600 hover:text-lime-700">
+        {expandido ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+        {expandido ? 'Ocultar' : 'Ver'} proyectos
+      </button>
+      {expandido && (
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {proyectos.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => onOpenProject(p.id)}
+              className="flex items-center justify-between gap-2 bg-navy-50 hover:bg-navy-100 border border-navy-200 rounded-lg px-3 py-2.5 text-left transition-colors"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-navy-700 truncate">{projectDisplayName(p)}</p>
+                <p className="text-xs text-navy-400 truncate">{p.data.general.municipio}, {p.data.general.departamento}</p>
+              </div>
+              <StatusBadge estado={p.estado} size="sm" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ResumenInversionistasView({ projects, onOpenProject }) {
+  const grupos = new Map();
+  projects.forEach((p) => {
+    const inv = (p.data.general?.inversionista || '').trim() || 'Sin inversionista definido';
+    if (!grupos.has(inv)) grupos.set(inv, []);
+    grupos.get(inv).push(p);
+  });
+  const inversionistasOrdenados = [...grupos.keys()].sort((a, b) => a.localeCompare(b, 'es'));
+
+  return (
+    <div className="p-8 max-w-6xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-navy-800">Resumen por Inversionista</h1>
+        <p className="text-navy-500 text-sm mt-1">Progreso de Control Documental y estado de proyectos, agrupado por inversionista.</p>
+      </div>
+      {inversionistasOrdenados.length === 0 ? (
+        <p className="text-sm text-navy-400 italic text-center py-16">Aún no hay proyectos para resumir.</p>
+      ) : (
+        <div className="space-y-6">
+          {inversionistasOrdenados.map((inv) => (
+            <InversionistaResumenCard key={inv} nombre={inv} proyectos={grupos.get(inv)} onOpenProject={onOpenProject} />
+          ))}
         </div>
       )}
     </div>
@@ -5689,6 +5787,9 @@ export default function App() {
             archivarFinalizados
             mostrarFiltroInversionista
           />
+        )}
+        {view === 'resumen_inversionistas' && (
+          <ResumenInversionistasView projects={projects} onOpenProject={openProject} />
         )}
         {view === 'equipo' && (
           <EquipoView

@@ -168,6 +168,15 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Bloque 5 de la macro-actualización — cierra la lista** (resumen por
+  inversionista): nueva pestaña "Resumen por Inversionista" en el menú.
+  Agrupa todos los proyectos por inversionista y para cada uno muestra:
+  cuántos proyectos tiene en cada estado (activo/pausa/inactivo/
+  finalizado), una torta con el progreso de Control Documental sumando
+  **todos** sus proyectos juntos, y una lista desplegable de esos
+  proyectos (clic en cualquiera te lleva directo a él). No necesita
+  ninguna migración — reutiliza los mismos datos que ya existen.
+
 - **Bloque 4 de la macro-actualización** (Control Documental: acordeón +
   historial de versiones):
   - Cada documento ahora aparece **contraído** de entrada: solo se ve el
