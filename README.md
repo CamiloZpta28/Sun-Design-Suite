@@ -168,6 +168,28 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Bloque 4 de la macro-actualización** (Control Documental: acordeón +
+  historial de versiones):
+  - Cada documento ahora aparece **contraído** de entrada: solo se ve el
+    nombre, código, tipo y el estado — igual que pediste. Clic en el
+    documento (o en la flecha) despliega Observaciones, Comentarios de
+    Control de Calidad y el nuevo historial de entregas.
+  - Cuando está contraído, se ven íconos de aviso si ya hay algo cargado:
+    un ícono de mensaje si hay observaciones, un check si hay comentario
+    de Control de Calidad, y una píldora "N versiones" si ya se registró
+    algún historial de entregas — así no hay que abrir cada documento
+    para saber si tiene algo pendiente de revisar.
+  - **Historial de entregas**: dentro de cada documento se pueden agregar
+    tantas "versiones" como hagan falta, cada una con su fecha de entrega
+    y, opcionalmente, la fecha en que devolvieron comentarios (para
+    proyectos sin interventoría, ese campo simplemente se deja vacío). Se
+    guarda como una lista dentro del mismo documento (`versiones: [...]`
+    dentro de `documentos[codigo]`), sin necesidad de ninguna tabla ni
+    migración nueva en Supabase.
+  - La hoja de vida imprimible ahora incluye una columna "Últ. entrega"
+    en la tabla de Control Documental, con la versión más reciente y su
+    fecha (y la fecha de comentarios recibidos, si la hay).
+
 - **Bloque 3 de la macro-actualización** (rediseño de Equipo):
   - La pestaña "Equipo" ahora agrupa a todos en 5 categorías fijas: Ing.
     Civiles (civil, hidráulico, estructural), Ing. Eléctricos, Delineantes,

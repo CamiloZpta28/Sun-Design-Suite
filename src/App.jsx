@@ -6,7 +6,7 @@ import {
   Users, ExternalLink, Check, FileText, UploadCloud, XCircle, ClipboardList,
   Loader2, RefreshCw, LogOut, ShieldCheck, Lock, History, ClipboardCheck, StickyNote, UserCog,
   Folder, FolderPlus, ChevronDown, ChevronRight, PlayCircle, Video, Code2,
-  Bold, Italic, Underline, List, PartyPopper,
+  Bold, Italic, Underline, List, PartyPopper, MessageSquare,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import logoMark from './assets/logo-s-mark.png';
@@ -2487,6 +2487,149 @@ function EspecialidadBarra({ especialidad, docs, conteo }) {
   );
 }
 
+/* Historial de entregas de un documento: fecha de entrega + fecha de        */
+/* devolución de comentarios (opcional, no todos los proyectos tienen       */
+/* interventoría) por cada versión. Se puede agregar cuantas versiones      */
+/* hagan falta.                                                             */
+function VersionesTracker({ versiones, onChange, disabled }) {
+  const lista = versiones || [];
+
+  function actualizarVersion(idx, patch) {
+    onChange(lista.map((v, i) => (i === idx ? { ...v, ...patch } : v)));
+  }
+  function agregarVersion() {
+    onChange([...lista, { id: makeId('ver'), entrega: '', comentarios_recibidos: '' }]);
+  }
+  function quitarVersion(idx) {
+    onChange(lista.filter((_, i) => i !== idx));
+  }
+
+  return (
+    <div>
+      <p className="text-xs font-semibold text-navy-400 mb-1.5">Historial de entregas</p>
+      {lista.length === 0 && <p className="text-xs text-navy-300 italic mb-2">Aún no hay versiones registradas.</p>}
+      <div className="space-y-2 mb-2">
+        {lista.map((v, idx) => (
+          <div key={v.id} className="flex items-center gap-3 flex-wrap bg-navy-50 border border-navy-200 rounded-lg px-2.5 py-2">
+            <span className="text-xs font-bold text-navy-600 shrink-0">Versión {idx + 1}</span>
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-navy-500">Entrega:</label>
+              <input
+                type="date"
+                disabled={disabled}
+                value={v.entrega || ''}
+                onChange={(e) => actualizarVersion(idx, { entrega: e.target.value })}
+                className="text-xs rounded-md border border-navy-300 px-2 py-1 disabled:bg-navy-100 disabled:text-navy-400"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-navy-500">Comentarios recibidos (si aplica):</label>
+              <input
+                type="date"
+                disabled={disabled}
+                value={v.comentarios_recibidos || ''}
+                onChange={(e) => actualizarVersion(idx, { comentarios_recibidos: e.target.value })}
+                className="text-xs rounded-md border border-navy-300 px-2 py-1 disabled:bg-navy-100 disabled:text-navy-400"
+              />
+            </div>
+            {!disabled && (
+              <button onClick={() => quitarVersion(idx)} title="Quitar esta versión" className="text-navy-300 hover:text-red-500 ml-auto shrink-0">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      {!disabled && (
+        <button onClick={agregarVersion} className="flex items-center gap-1 text-xs font-semibold text-lime-600 hover:text-lime-700">
+          <Plus className="w-3.5 h-3.5" /> Agregar versión
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* Tarjeta de un documento en Control Documental. Contraída de entrada:      */
+/* solo se ve nombre/código/tipo y el estado. Al hacer clic se despliegan    */
+/* Observaciones, Comentarios de Calidad y el historial de entregas. Cuando  */
+/* está contraída, unos íconos avisan si ya hay observación/comentario/      */
+/* versiones registradas, para no tener que abrir cada una para revisar.    */
+function DocumentoCard({ doc, codigoFinal, estadoDoc, estadoValor, puedeEditarContenido, puedeComentar, onDocChange }) {
+  const [expandido, setExpandido] = useState(false);
+  const cfg = DOC_ESTADO_CONFIG[estadoValor];
+  const tieneObs = !!(estadoDoc.observaciones && estadoDoc.observaciones.trim());
+  const tieneComentario = !!(estadoDoc.comentarios && estadoDoc.comentarios.trim());
+  const versiones = estadoDoc.versiones || [];
+
+  return (
+    <div className={`bg-white rounded-lg border-l-4 ${cfg.border} border-t border-r border-b border-t-navy-200 border-r-navy-200 border-b-navy-200 overflow-hidden`}>
+      <div className="flex flex-wrap items-start justify-between gap-2 p-3">
+        <button onClick={() => setExpandido((v) => !v)} className="flex items-start gap-2 min-w-0 flex-1 text-left">
+          <span className="mt-0.5 text-navy-300 shrink-0">
+            {expandido ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-navy-700 flex items-center gap-1.5 flex-wrap">
+              {doc.nombre}
+              {tieneObs && <MessageSquare className="w-3.5 h-3.5 text-navy-400 shrink-0" title="Tiene observaciones" />}
+              {tieneComentario && <ClipboardCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" title="Tiene comentario de Control de Calidad" />}
+              {versiones.length > 0 && (
+                <span className="text-xs font-semibold bg-navy-100 text-navy-500 px-1.5 py-0.5 rounded-full shrink-0">
+                  {versiones.length} versión{versiones.length === 1 ? '' : 'es'}
+                </span>
+              )}
+            </p>
+            <p className="text-xs font-mono text-navy-400">{codigoFinal} · {doc.tipo}</p>
+          </div>
+        </button>
+        {puedeEditarContenido ? (
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
+            <select
+              value={estadoValor}
+              onChange={(e) => onDocChange(doc, { estado: e.target.value })}
+              className="text-xs rounded-md border border-navy-300 px-2 py-1"
+            >
+              {DOC_ESTADOS.map((op) => (
+                <option key={op} value={op}>{op}</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <DocEstadoBadge estado={estadoValor} />
+        )}
+      </div>
+      {expandido && (
+        <div className="px-3 pb-3 pt-1 border-t border-navy-100 space-y-3">
+          <div>
+            <p className="text-xs font-semibold text-navy-400 mb-1">Observaciones</p>
+            <ComentarioEditable
+              value={estadoDoc.observaciones}
+              onCommit={(val) => onDocChange(doc, { observaciones: val })}
+              disabled={!puedeEditarContenido}
+              placeholder="Ej. por qué sigue en proceso, qué falta, a quién se le pidió…"
+            />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-navy-400 mb-1">Comentarios de Control de Calidad</p>
+            <ComentarioEditable
+              value={estadoDoc.comentarios}
+              onCommit={(val) => onDocChange(doc, { comentarios: val })}
+              disabled={!puedeComentar}
+              placeholder="Comentarios de control de calidad…"
+            />
+          </div>
+          <VersionesTracker
+            versiones={versiones}
+            onChange={(nuevas) => onDocChange(doc, { versiones: nuevas })}
+            disabled={!puedeEditarContenido}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, onDocChange }) {
   const general = project.data.general;
   const lista = pickDocumentList(general.inversionista);
@@ -2642,50 +2785,17 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
                 const codigoFinal = prefijo ? doc.codigo.replace('COLXXXXXXPX', prefijo) : doc.codigo;
                 const estadoDoc = estadoActual[doc.codigo] || {};
                 const estadoValor = estadoDoc.estado || 'Pendiente';
-                const cfg = DOC_ESTADO_CONFIG[estadoValor];
                 return (
-                  <div key={doc.codigo} className={`bg-white rounded-lg border-l-4 ${cfg.border} border-t border-r border-b border-t-navy-200 border-r-navy-200 border-b-navy-200 p-3`}>
-                    <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-navy-700">{doc.nombre}</p>
-                        <p className="text-xs font-mono text-navy-400">{codigoFinal} · {doc.tipo}</p>
-                      </div>
-                      {puedeEditarContenido ? (
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
-                          <select
-                            value={estadoValor}
-                            onChange={(e) => onDocChange(doc, { estado: e.target.value })}
-                            className="text-xs rounded-md border border-navy-300 px-2 py-1"
-                          >
-                            {DOC_ESTADOS.map((op) => (
-                              <option key={op} value={op}>{op}</option>
-                            ))}
-                          </select>
-                        </div>
-                      ) : (
-                        <DocEstadoBadge estado={estadoValor} />
-                      )}
-                    </div>
-                    <div className="mb-2">
-                      <p className="text-xs font-semibold text-navy-400 mb-1">Observaciones</p>
-                      <ComentarioEditable
-                        value={estadoDoc.observaciones}
-                        onCommit={(val) => onDocChange(doc, { observaciones: val })}
-                        disabled={!puedeEditarContenido}
-                        placeholder="Ej. por qué sigue en proceso, qué falta, a quién se le pidió…"
-                      />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-navy-400 mb-1">Comentarios de Control de Calidad</p>
-                      <ComentarioEditable
-                        value={estadoDoc.comentarios}
-                        onCommit={(val) => onDocChange(doc, { comentarios: val })}
-                        disabled={!puedeComentar}
-                        placeholder="Comentarios de control de calidad…"
-                      />
-                    </div>
-                  </div>
+                  <DocumentoCard
+                    key={doc.codigo}
+                    doc={doc}
+                    codigoFinal={codigoFinal}
+                    estadoDoc={estadoDoc}
+                    estadoValor={estadoValor}
+                    puedeEditarContenido={puedeEditarContenido}
+                    puedeComentar={puedeComentar}
+                    onDocChange={onDocChange}
+                  />
                 );
               })}
             </div>
@@ -2879,18 +2989,24 @@ function PrintableReport({ project }) {
                       <th className="text-left px-2 py-1 border-b border-navy-300">Código</th>
                       <th className="text-left px-2 py-1 border-b border-navy-300">Estado</th>
                       <th className="text-left px-2 py-1 border-b border-navy-300">Comentarios</th>
+                      <th className="text-left px-2 py-1 border-b border-navy-300">Últ. entrega</th>
                     </tr>
                   </thead>
                   <tbody>
                     {g.docs.map((doc) => {
                       const codigoFinal = prefijo ? doc.codigo.replace('COLXXXXXXPX', prefijo) : doc.codigo;
                       const info = estadoActual[doc.codigo] || {};
+                      const versiones = info.versiones || [];
+                      const ultima = versiones[versiones.length - 1];
                       return (
                         <tr key={doc.codigo} className="border-b border-navy-100">
                           <td className="px-2 py-1">{doc.nombre}</td>
                           <td className="px-2 py-1 font-mono">{codigoFinal}</td>
                           <td className="px-2 py-1">{info.estado || 'Pendiente'}</td>
                           <td className="px-2 py-1">{info.comentarios || '—'}</td>
+                          <td className="px-2 py-1">
+                            {ultima ? `V${versiones.length}: ${formatDate(ultima.entrega) || '—'}${ultima.comentarios_recibidos ? ` (com. ${formatDate(ultima.comentarios_recibidos)})` : ''}` : '—'}
+                          </td>
                         </tr>
                       );
                     })}
