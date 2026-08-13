@@ -2390,27 +2390,35 @@ function ProgresoDonut({ conteoPorEstado, total, compact = false }) {
   }
 
   return (
-    <div className="flex items-center gap-4 flex-wrap">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
-        {slices.length === 0 ? (
-          <circle cx={cx} cy={cy} r={(radius + innerRadius) / 2} fill="none" stroke="#CBD5E6" strokeWidth={radius - innerRadius} />
-        ) : (
-          slices.map((s) => (
-            <path key={s.estado} d={s.d} fill={s.color} stroke="white" strokeWidth="1.5" />
-          ))
-        )}
-        <text x={cx} y={cy - 11} textAnchor="middle" fontSize="16" fontWeight="700" fill="#152644">{pct}%</text>
-        <text x={cx} y={cy + 2} textAnchor="middle" fontSize="7" fill="#6487C4" fontFamily="monospace">APC</text>
-        <text x={cx} y={cy + 17} textAnchor="middle" fontSize="13" fontWeight="700" fill="#8B5CF6">{pctEntregado}%</text>
-        <text x={cx} y={cy + 27} textAnchor="middle" fontSize="6.5" fill="#8B5CF6" fontFamily="monospace">ENTREGADO</text>
-      </svg>
-      <div className="space-y-1">
-        {DOC_ESTADOS.filter((estado) => conteoPorEstado[estado] > 0).map((estado) => (
-          <div key={estado} className="flex items-center gap-1.5 text-xs">
-            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: DOC_ESTADO_HEX[estado] }} />
-            <span className="text-navy-600">{DOC_ESTADO_CORTO[estado]}: <span className="font-semibold">{conteoPorEstado[estado]}</span></span>
-          </div>
-        ))}
+    <div>
+      <div className="flex items-center gap-4 flex-wrap">
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
+          {slices.length === 0 ? (
+            <circle cx={cx} cy={cy} r={(radius + innerRadius) / 2} fill="none" stroke="#CBD5E6" strokeWidth={radius - innerRadius} />
+          ) : (
+            slices.map((s) => (
+              <path key={s.estado} d={s.d} fill={s.color} stroke="white" strokeWidth="1.5" />
+            ))
+          )}
+        </svg>
+        <div className="space-y-1">
+          {DOC_ESTADOS.filter((estado) => conteoPorEstado[estado] > 0).map((estado) => (
+            <div key={estado} className="flex items-center gap-1.5 text-xs">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: DOC_ESTADO_HEX[estado] }} />
+              <span className="text-navy-600">{DOC_ESTADO_CORTO[estado]}: <span className="font-semibold">{conteoPorEstado[estado]}</span></span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center justify-center gap-8 mt-3 pt-3 border-t border-navy-200">
+        <div className="text-center">
+          <p className="text-2xl font-bold text-navy-800">{pct}%</p>
+          <p className="text-xs font-semibold text-navy-400 tracking-wide">APC</p>
+        </div>
+        <div className="text-center">
+          <p className="text-2xl font-bold text-violet-600">{pctEntregado}%</p>
+          <p className="text-xs font-semibold text-violet-400 tracking-wide">ENTREGADO</p>
+        </div>
       </div>
     </div>
   );

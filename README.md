@@ -168,6 +168,19 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Ícono de la app**: generé un set completo de íconos con la "S" de la
+  marca sobre fondo lima (`public/icon-192.png`, `icon-512.png`,
+  `icon-maskable-512.png` para Android, `apple-touch-icon.png` para iOS, y
+  favicons), más `public/manifest.webmanifest` conectado en `index.html`.
+  Con esto, si alguien agrega la página a la pantalla de inicio desde el
+  celular (Android o iPhone), el ícono sale con los colores reales de la
+  marca en vez del genérico. Si el logo cambia más adelante, solo hay que
+  regenerar esos PNG con la nueva "S" — no hace falta tocar código.
+- **Porcentajes de la torta, más grandes y centrados**: "APC" y
+  "Entregado" ya no van apretados dentro del hueco del donut — ahora
+  aparecen en una fila centrada debajo de la torta y la lista de estados,
+  con letra más grande y fácil de leer.
+
 - **Optimización para móvil**: el menú lateral ya no se queda fijo
   ocupando la pantalla en celulares — ahora es un panel que se abre con
   el botón de menú (☰) arriba a la izquierda, con fondo oscuro para
