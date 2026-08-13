@@ -4064,6 +4064,9 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
   const [activeTab, setActiveTab] = useState(SCHEMA[0].id);
   const [editMode, setEditMode] = useState(false);
   const [draftData, setDraftData] = useState(null);
+  const [baseSectionSnapshot, setBaseSectionSnapshot] = useState(null);
+  const [saveConflict, setSaveConflict] = useState(null); // { seccionId, accion, nuevaSeccion, servidorActual } | null
+  const [checkingConflict, setCheckingConflict] = useState(false);
   const [historial, setHistorial] = useState(null);
   const [loadingHistorial, setLoadingHistorial] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -4101,13 +4104,42 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
 
   function startEdit() {
     setDraftData(JSON.parse(JSON.stringify(project.data)));
+    setBaseSectionSnapshot(JSON.parse(JSON.stringify(project.data[activeSection.id])));
     setEditMode(true);
   }
   function cancelEdit() {
     setDraftData(null);
     setEditMode(false);
   }
-  function saveEdit() {
+  function confirmarGuardado(seccionId, nuevaSeccion, accion) {
+    updateProject(
+      project.id,
+      (p) => ({ ...p, data: { ...p.data, [seccionId]: nuevaSeccion } }),
+      accion,
+      seccionId,
+      () => supabase.rpc('merge_project_data_section', { p_id: project.id, p_section: seccionId, p_value: nuevaSeccion })
+    );
+    setEditMode(false);
+    setDraftData(null);
+    setSaveConflict(null);
+    setHistorial(null);
+  }
+  function descartarYRecargar() {
+    const { seccionId, servidorActual } = saveConflict;
+    // Solo actualiza la vista local con lo que ya está guardado en el servidor
+    // (no vuelve a escribir nada — por eso el "persist" no hace nada).
+    updateProject(
+      project.id,
+      (p) => ({ ...p, data: { ...p.data, [seccionId]: servidorActual } }),
+      undefined,
+      undefined,
+      () => Promise.resolve({ error: null })
+    );
+    setEditMode(false);
+    setDraftData(null);
+    setSaveConflict(null);
+  }
+  async function saveEdit() {
     const cambios = diffSectionData(activeSection, project.data[activeSection.id], draftData[activeSection.id]);
     if (cambios.length === 0) {
       // No se tocó nada: ni se guarda, ni se registra en el historial.
@@ -4118,16 +4150,23 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
     const accion = `Editó "${activeSection.label}" — ${cambios.join('; ')}`;
     const seccionId = activeSection.id;
     const nuevaSeccion = draftData[seccionId];
-    updateProject(
-      project.id,
-      (p) => ({ ...p, data: { ...p.data, [seccionId]: nuevaSeccion } }),
-      accion,
-      seccionId,
-      () => supabase.rpc('merge_project_data_section', { p_id: project.id, p_section: seccionId, p_value: nuevaSeccion })
-    );
-    setEditMode(false);
-    setDraftData(null);
-    setHistorial(null);
+
+    // Antes de guardar, revisamos si alguien más cambió esta misma pestaña
+    // mientras nosotros la teníamos abierta — así evitamos que un guardado
+    // borre en silencio lo que la otra persona acaba de hacer.
+    setCheckingConflict(true);
+    const { data: freshRow, error } = await supabase.from('projects').select('data').eq('id', project.id).maybeSingle();
+    setCheckingConflict(false);
+
+    if (!error && freshRow) {
+      const servidorActual = freshRow.data?.[seccionId];
+      const cambioAjeno = JSON.stringify(servidorActual) !== JSON.stringify(baseSectionSnapshot);
+      if (cambioAjeno) {
+        setSaveConflict({ seccionId, accion, nuevaSeccion, servidorActual });
+        return; // Esperamos a que la persona decida qué hacer.
+      }
+    }
+    confirmarGuardado(seccionId, nuevaSeccion, accion);
   }
   function handleFieldChange(sectionId, fieldKey, value) {
     setDraftData((prev) => ({ ...prev, [sectionId]: { ...prev[sectionId], [fieldKey]: value } }));
@@ -4281,6 +4320,38 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
   return (
     <div className="max-w-6xl mx-auto">
       {showConfetti && <Confetti />}
+      {saveConflict && (
+        <div className="no-print fixed inset-0 bg-navy-900/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center gap-2 mb-3 text-orange-600">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <h3 className="font-bold text-base">Alguien más editó esto mientras tú también lo hacías</h3>
+            </div>
+            <p className="text-sm text-navy-600 mb-5">
+              Otra persona guardó cambios en <strong>"{activeSection.label}"</strong> de este proyecto después de que empezaste a editar.
+              Si guardas ahora, tus cambios reemplazarán los de esa persona en esta pestaña. Si prefieres, puedes ver primero lo que
+              cambió y volver a hacer tus cambios después.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => confirmarGuardado(saveConflict.seccionId, saveConflict.nuevaSeccion, saveConflict.accion)}
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold text-sm py-2.5 rounded-lg transition-colors"
+              >
+                Guardar mis cambios de todas formas
+              </button>
+              <button
+                onClick={descartarYRecargar}
+                className="w-full bg-navy-100 hover:bg-navy-200 text-navy-700 font-semibold text-sm py-2.5 rounded-lg transition-colors"
+              >
+                Ver los cambios más recientes (perderé lo que edité)
+              </button>
+              <button onClick={() => setSaveConflict(null)} className="text-xs text-navy-400 hover:text-navy-600 mt-1">
+                Cancelar y seguir editando
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="no-print p-4 md:p-8">
         <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-navy-500 hover:text-navy-700 mb-6">
           <ChevronLeft className="w-4 h-4" /> Volver al listado
@@ -4542,8 +4613,12 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
                       <button onClick={cancelEdit} className="flex items-center gap-1.5 text-xs font-semibold text-navy-500 hover:text-navy-700">
                         <XCircle className="w-3.5 h-3.5" /> Cancelar
                       </button>
-                      <button onClick={saveEdit} className="flex items-center gap-1.5 text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-md">
-                        <Save className="w-3.5 h-3.5" /> Guardar cambios
+                      <button
+                        onClick={saveEdit}
+                        disabled={checkingConflict}
+                        className="flex items-center gap-1.5 text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white px-3 py-1.5 rounded-md"
+                      >
+                        <Save className="w-3.5 h-3.5" /> {checkingConflict ? 'Verificando…' : 'Guardar cambios'}
                       </button>
                     </div>
                   )}

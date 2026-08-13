@@ -168,6 +168,18 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Aviso de conflicto al guardar una pestaña técnica**: al darle "Guardar
+  cambios" en una pestaña (Civil, Mecánica, etc.), la app revisa primero
+  si alguien más guardó algo en esa misma pestaña de ese mismo proyecto
+  mientras tú la tenías abierta. Si detecta que sí, te muestra un aviso
+  con dos opciones: guardar tus cambios de todas formas (reemplazando los
+  de la otra persona) o ver primero lo que cambió y decidir después. Este
+  es el único punto donde antes se podía perder trabajo en silencio
+  (editar la misma pestaña del mismo proyecto a la vez); todo lo demás
+  (documentos, notas, archivos, equipo, otras pestañas) ya estaba
+  protegido desde antes. No necesita ninguna migración — usa las mismas
+  tablas y funciones de siempre.
+
 - **Corrección en Equipo — nadie queda invisible**: encontré que las 5
   categorías originales dejaban a algunas personas sin ningún lugar
   donde aparecer (por eso no podías encontrar a alguien nuevo para
