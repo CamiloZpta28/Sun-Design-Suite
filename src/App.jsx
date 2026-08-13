@@ -2020,6 +2020,90 @@ function LuminariasForm({ plantilla, onCancel, onSave }) {
   );
 }
 
+/* Formulario de crear/editar una plantilla de Cámaras (CCTV): mismo         */
+/* esquema que Luminarias (ancho, profundo, desplante, sobresaliente,       */
+/* espesor de solado).                                                       */
+function CamarasForm({ plantilla, onCancel, onSave }) {
+  const [nombre, setNombre] = useState(plantilla?.nombre || '');
+  const [datos, setDatos] = useState(
+    plantilla?.datos || { ancho: '', profundo: '', desplante: '', sobresaliente: '', espesor_solado: '' }
+  );
+
+  function set(key, val) {
+    setDatos((prev) => ({ ...prev, [key]: val }));
+  }
+
+  const altura = (parseFloat(datos.desplante) || 0) + (parseFloat(datos.sobresaliente) || 0);
+  const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+
+  function submit(e) {
+    e.preventDefault();
+    if (!nombre.trim()) return;
+    onSave(nombre.trim(), datos);
+  }
+
+  return (
+    <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
+      <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
+        {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Cámaras
+      </p>
+      <div className="flex items-start gap-6 flex-wrap">
+        <div className="flex justify-center bg-navy-50 rounded-lg p-3 shrink-0">
+          <CamarasVistas datos={datos} />
+        </div>
+        <div className="flex-1 space-y-3" style={{ minWidth: 240 }}>
+          <div>
+            <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre de la plantilla</label>
+            <input
+              autoFocus
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              placeholder="Ej. Cámara Tipo 1"
+              className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Ancho (m)</label>
+              <input value={datos.ancho} onChange={(e) => set('ancho', e.target.value)} placeholder="0.40" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Profundo (m)</label>
+              <input value={datos.profundo} onChange={(e) => set('profundo', e.target.value)} placeholder="0.40" className={cellInput} />
+            </div>
+          </div>
+          <p className="text-xs text-navy-400 italic">Si la sección es cuadrada, usa el mismo valor en ambos.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Long. de desplante (m)</label>
+              <input value={datos.desplante} onChange={(e) => set('desplante', e.target.value)} placeholder="0.50" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Long. sobresaliente (m)</label>
+              <input value={datos.sobresaliente} onChange={(e) => set('sobresaliente', e.target.value)} placeholder="0.10" className={cellInput} />
+            </div>
+          </div>
+          <p className="text-xs text-navy-400">
+            Altura total: <span className="font-mono text-navy-600">{altura.toFixed(2)} m</span> (desplante + sobresaliente)
+          </p>
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Espesor de solado (m)</label>
+            <input value={datos.espesor_solado} onChange={(e) => set('espesor_solado', e.target.value)} placeholder="0.05" className={cellInput} />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700 px-3 py-2">
+              Cancelar
+            </button>
+            <button type="submit" className="bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2 rounded-lg">
+              Guardar plantilla
+            </button>
+          </div>
+        </div>
+      </div>
+    </form>
+  );
+}
+
 /* Registro por tipo: qué formulario/vista/resumen usar en la lista según el */
 /* tipo de cimentación activo. Se va llenando a medida que construimos cada  */
 /* uno — los que faltan simplemente no aparecen aquí (CimentacionesView ya   */

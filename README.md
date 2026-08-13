@@ -169,6 +169,17 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Corrección urgente — página en blanco**: al duplicar Luminarias para
+  crear Cámaras, corté el bloque de código un poco antes de tiempo y
+  `CamarasForm` quedó usado pero nunca definido. Esto no lo detecta
+  `npm run build` (JavaScript solo revienta con eso al ejecutarse en el
+  navegador, no al compilar), por eso pasó sin avisar. Ya está corregido:
+  agregué la función que faltaba, y de paso escaneé todo el archivo
+  buscando cualquier otro identificador usado pero no definido (no
+  apareció ninguno más). También ejecuté el paquete final en un entorno
+  simulado de navegador para confirmar que ya no truena al cargar, antes
+  de entregarte esto.
+
 - **Cámaras (CCTV), tercer tipo de Cimentaciones construido**: misma
   estructura exacta que Luminarias (ancho, profundo, desplante,
   sobresaliente, espesor de solado, y las 3 vistas técnicas), ya que en
