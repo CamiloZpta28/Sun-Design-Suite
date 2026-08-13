@@ -1168,6 +1168,28 @@ function computeProjectDocProgress(project) {
   return { conteoPorEstado, total: lista.length };
 }
 
+/* Igual que arriba pero sumando VARIOS proyectos a la vez y separado por     */
+/* especialidad — para el resumen por inversionista. "No aplica" se excluye  */
+/* del conteo (no se cuenta en el seguimiento, igual que en cada proyecto).  */
+function computeEspecialidadProgressMultiProyecto(proyectos) {
+  const porEspecialidad = new Map();
+  proyectos.forEach((p) => {
+    const lista = pickDocumentList(p.data.general?.inversionista);
+    const documentos = p.documentos || {};
+    lista.forEach((doc) => {
+      const estado = (documentos[doc.codigo] && documentos[doc.codigo].estado) || 'Pendiente';
+      if (estado === 'No aplica') return;
+      if (!porEspecialidad.has(doc.especialidad)) {
+        const inicial = {};
+        DOC_ESTADOS.forEach((e) => { inicial[e] = 0; });
+        porEspecialidad.set(doc.especialidad, inicial);
+      }
+      porEspecialidad.get(doc.especialidad)[estado] += 1;
+    });
+  });
+  return porEspecialidad;
+}
+
 /* Arma el prefijo de código del proyecto (ej. COLBOYT147P1) a partir de los  */
 /* campos de General. El departamento ya no se escribe a mano: se busca su   */
 /* abreviatura oficial de 3 letras en DEPARTAMENTO_ABREVIATURA según el      */
@@ -3236,7 +3258,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { key: 'mis', label: 'Mis Proyectos', icon: FolderKanban },
     { key: 'todos', label: 'Todos los Proyectos', icon: Layers },
-    { key: 'resumen_inversionistas', label: 'Resumen por Inversionista', icon: PieChart },
+    { key: 'resumen_inversionistas', label: 'Por Inversionista', icon: PieChart },
     { key: 'equipo', label: 'Equipo', icon: UserCog },
     { key: 'instructivos', label: 'Instructivos', icon: Video },
     { key: 'enlaces', label: 'Enlaces de Interés', icon: Link2 },
@@ -3541,6 +3563,7 @@ function InversionistaResumenCard({ nombre, proyectos, onOpenProject }) {
     DOC_ESTADOS.forEach((e) => { conteoDocsAgregado[e] += conteoPorEstado[e]; });
     totalDocsAgregado += total;
   });
+  const especialidadMap = computeEspecialidadProgressMultiProyecto(proyectos);
 
   return (
     <div className="bg-white border border-navy-200 rounded-xl p-5">
@@ -3563,9 +3586,26 @@ function InversionistaResumenCard({ nombre, proyectos, onOpenProject }) {
         </div>
       </div>
 
-      <div className="mb-4">
-        <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-2">Progreso de Control Documental (todos sus proyectos)</p>
-        <ProgresoDonut conteoPorEstado={conteoDocsAgregado} total={totalDocsAgregado} />
+      <div className="bg-navy-50 border border-navy-200 rounded-xl p-4 mb-4">
+        <div className="flex flex-wrap gap-6 items-stretch">
+          <div className="flex flex-col">
+            <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-3">Progreso (todos sus proyectos)</p>
+            <div className="flex-1 flex items-center">
+              <ProgresoDonut conteoPorEstado={conteoDocsAgregado} total={totalDocsAgregado} />
+            </div>
+          </div>
+          <div className="flex-1 min-w-[180px] border-l border-navy-200 pl-6">
+            <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-3">Progreso por especialidad</p>
+            <p className="text-xs text-navy-400 mb-3">No incluye documentos en "No aplica" — esos no se cuentan en el seguimiento.</p>
+            <div className="space-y-3">
+              {[...especialidadMap.keys()].sort((a, b) => a.localeCompare(b, 'es')).map((esp) => {
+                const conteo = especialidadMap.get(esp);
+                const total = Object.values(conteo).reduce((a, b) => a + b, 0);
+                return <EspecialidadBarra key={esp} especialidad={esp} docs={Array.from({ length: total })} conteo={conteo} />;
+              })}
+            </div>
+          </div>
+        </div>
       </div>
 
       <button onClick={() => setExpandido((v) => !v)} className="flex items-center gap-1 text-xs font-semibold text-lime-600 hover:text-lime-700">
