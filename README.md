@@ -168,6 +168,15 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Corrección en Equipo — nadie queda invisible**: encontré que las 5
+  categorías originales dejaban a algunas personas sin ningún lugar
+  donde aparecer (por eso no podías encontrar a alguien nuevo para
+  asignarle un rol). Ahora: "Ing. Civiles" también incluye Ing.
+  Geotécnico, hay una categoría nueva "Control de Calidad" para ese rol,
+  y agregué "Sin rol asignado" (arriba de todo, en naranja) para
+  cualquiera que aún no tenga ningún rol — así una persona recién creada
+  siempre aparece en algún lado y se le puede asignar su rol desde ahí.
+
 - **Ícono de la app**: generé un set completo de íconos con la "S" de la
   marca sobre fondo lima (`public/icon-192.png`, `icon-512.png`,
   `icon-maskable-512.png` para Android, `apple-touch-icon.png` para iOS, y

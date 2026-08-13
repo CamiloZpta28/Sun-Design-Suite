@@ -6,7 +6,7 @@ import {
   Users, ExternalLink, Check, FileText, UploadCloud, XCircle, ClipboardList,
   Loader2, RefreshCw, LogOut, ShieldCheck, Lock, History, ClipboardCheck, StickyNote, UserCog,
   Folder, FolderPlus, ChevronDown, ChevronRight, PlayCircle, Video, Code2,
-  Bold, Italic, Underline, List, PartyPopper, MessageSquare, PieChart, AlertTriangle, Menu,
+  Bold, Italic, Underline, List, PartyPopper, MessageSquare, PieChart, AlertTriangle, Menu, UserPlus,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import logoMark from './assets/logo-s-mark.png';
@@ -96,9 +96,10 @@ const ROLES_DE_ALTO_NIVEL = [...LEADER_ROLE_KEYS, DEV_ROLE.key];
 /* Agrupación de la pestaña "Equipo": una persona puede caer en varias        */
 /* categorías a la vez si tiene varios roles (ej. Ing. Civil y Líder Civil). */
 const EQUIPO_CATEGORIAS = [
-  { id: 'ing_civiles', label: 'Ing. Civiles', icon: HardHat, roles: ['civil', 'hidraulico', 'estructural'] },
+  { id: 'ing_civiles', label: 'Ing. Civiles', icon: HardHat, roles: ['civil', 'hidraulico', 'estructural', 'geotecnico'] },
   { id: 'ing_electricos', label: 'Ing. Eléctricos', icon: Zap, roles: ['electrico'] },
   { id: 'delineantes', label: 'Delineantes', icon: PenTool, roles: ['delineante'] },
+  { id: 'control_calidad', label: 'Control de Calidad', icon: ClipboardCheck, roles: [QA_ROLE.key] },
   { id: 'lideres', label: 'Líderes', icon: ShieldCheck, roles: LEADER_ROLE_KEYS },
   { id: 'desarrolladores', label: 'Desarrolladores', icon: Code2, roles: [DEV_ROLE.key] },
 ];
@@ -5250,6 +5251,36 @@ function TeamCategoriesView({ directorio, perfil, onOpenPerson }) {
       </div>
 
       <div className="space-y-8">
+        {(() => {
+          const sinRol = directorio.filter((u) => !EQUIPO_CATEGORIAS.some((cat) => u.roles.some((r) => cat.roles.includes(r))));
+          if (sinRol.length === 0) return null;
+          return (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <UserPlus className="w-4 h-4 text-orange-500" />
+                <h2 className="text-sm font-bold uppercase tracking-wide text-orange-600">Sin rol asignado</h2>
+                <span className="text-xs text-navy-400">({sinRol.length})</span>
+              </div>
+              <p className="text-xs text-navy-400 mb-2">Personas que crearon su cuenta pero todavía no tienen ningún rol — haz clic para asignarles uno.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {sinRol.map((u) => (
+                  <button
+                    key={u.id}
+                    onClick={() => onOpenPerson(u.id)}
+                    className="flex items-center gap-3 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg p-3 text-left transition-colors"
+                  >
+                    <Avatar name={u.nombre} foto={u.foto} />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-navy-800 truncate text-sm">{u.nombre}{u.id === perfil.id ? ' (tú)' : ''}</p>
+                      <p className="text-xs text-orange-600 truncate">Sin rol — pendiente de asignar</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-navy-300 shrink-0" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
         {EQUIPO_CATEGORIAS.map((cat) => {
           const personas = directorio.filter((u) => u.roles.some((r) => cat.roles.includes(r)));
           const CatIcon = cat.icon;
