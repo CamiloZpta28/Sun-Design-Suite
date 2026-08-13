@@ -3289,7 +3289,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
               }`}
             >
               <Icon className="w-4 h-4 shrink-0" />
-              {item.label}
+              <span className="flex-1 text-left">{item.label}</span>
             </button>
           );
         })}
