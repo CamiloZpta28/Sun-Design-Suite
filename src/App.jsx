@@ -3222,7 +3222,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
       >
         <div
           className="px-5 py-6 border-b border-navy-800 flex items-center gap-2.5"
-          style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1.5rem)' }}
+          style={{ paddingTop: 'max(env(safe-area-inset-top) + 1.5rem, 3.25rem)' }}
         >
           <div className="w-9 h-9 rounded-lg bg-lime-300 flex items-center justify-center shrink-0">
             <img src={logoMark} alt="" className="w-5 h-5 object-contain" />
@@ -3284,7 +3284,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
 
         <div
           className="p-4 border-t border-navy-800 flex items-center gap-3"
-          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom) + 1rem, 1.25rem)' }}
         >
           <Avatar name={perfil.nombre} foto={perfil.foto} />
           <div className="min-w-0 flex-1">
@@ -5748,7 +5748,7 @@ export default function App() {
       <main className="app-main flex-1 overflow-y-auto overflow-x-hidden min-w-0">
         <div
           className="no-print md:hidden sticky top-0 z-20 flex items-center gap-3 bg-navy-900 px-4 py-3"
-          style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)' }}
+          style={{ paddingTop: 'max(env(safe-area-inset-top) + 0.75rem, 2.75rem)' }}
         >
           <button onClick={() => setSidebarOpen(true)} className="text-white p-1" title="Abrir menú">
             <Menu className="w-6 h-6" />
