@@ -41,8 +41,9 @@ Sigue los pasos en orden. No necesitas experiencia previa con Supabase.
 > `supabase/migration_historial_categoria.sql` y
 > `supabase/migration_inversionistas.sql` y
 > `supabase/migration_paises.sql` y
-> `supabase/migration_guardado_parcial.sql` y
-> `supabase/migration_proveedores.sql`. Cada uno agrega
+> `supabase/migration_guardado_parcial.sql`,
+> `supabase/migration_proveedores.sql` y
+> `supabase/migration_perfil_fechas.sql`. Cada uno agrega
 > solo lo nuevo sin tocar lo que ya tenías. Si no recuerdas si ya corriste
 > alguno, no pasa nada por intentarlo de nuevo: en el peor caso te marcará
 > un error de "ya existe", que puedes ignorar.
@@ -166,6 +167,27 @@ ingeniero. Cada persona:
 ---
 
 ## Notas y siguientes pasos
+
+- **Bloque 3 de la macro-actualización** (rediseño de Equipo):
+  - La pestaña "Equipo" ahora agrupa a todos en 5 categorías fijas: Ing.
+    Civiles (civil, hidráulico, estructural), Ing. Eléctricos, Delineantes,
+    Líderes (los 4 roles de líder, incluido Líder de Diseño) y
+    Desarrolladores. Una persona puede aparecer en varias categorías si
+    tiene varios roles.
+  - Ya no hay un panel desplegable para asignar roles en la propia lista:
+    ahora se hace clic en una persona y se abre su **ficha** — ahí se
+    editan los roles (con los mismos permisos de siempre), la fecha de
+    cumpleaños y la fecha de ingreso (editables por el Líder de Diseño o
+    por la propia persona), y se puede eliminar la cuenta.
+  - La ficha también muestra los **proyectos asignados** a esa persona,
+    cada uno con una mini torta de progreso de Control Documental — clic
+    en cualquiera y te lleva directo a ese proyecto.
+  - **Necesita migración**: `supabase/migration_perfil_fechas.sql` (agrega
+    las columnas de fecha y el permiso para que el Líder de Diseño edite
+    cualquier perfil, no solo el propio).
+  - Supuse que el cuarto rol de "Líderes" era **Líder de Diseño** (en tu
+    lista mencionaste "Líder civil" dos veces); si no era así, se ajusta
+    fácilmente en la constante `EQUIPO_CATEGORIAS` de `src/App.jsx`.
 
 - **Bloque 1 de la macro-actualización** (torta, Drive, roles, proveedor,
   General):

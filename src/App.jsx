@@ -93,6 +93,16 @@ const ALL_ROLE_DEFS = [...ROLES, ...LEADER_ROLES, QA_ROLE, DEV_ROLE];
 /* Roles que solo el Líder de Diseño (o un Desarrollador) puede otorgar.     */
 const ROLES_DE_ALTO_NIVEL = [...LEADER_ROLE_KEYS, DEV_ROLE.key];
 
+/* Agrupación de la pestaña "Equipo": una persona puede caer en varias        */
+/* categorías a la vez si tiene varios roles (ej. Ing. Civil y Líder Civil). */
+const EQUIPO_CATEGORIAS = [
+  { id: 'ing_civiles', label: 'Ing. Civiles', icon: HardHat, roles: ['civil', 'hidraulico', 'estructural'] },
+  { id: 'ing_electricos', label: 'Ing. Eléctricos', icon: Zap, roles: ['electrico'] },
+  { id: 'delineantes', label: 'Delineantes', icon: PenTool, roles: ['delineante'] },
+  { id: 'lideres', label: 'Líderes', icon: ShieldCheck, roles: LEADER_ROLE_KEYS },
+  { id: 'desarrolladores', label: 'Desarrolladores', icon: Code2, roles: [DEV_ROLE.key] },
+];
+
 function roleLabel(key) {
   return ALL_ROLE_DEFS.find((r) => r.key === key)?.label || key;
 }
@@ -726,7 +736,14 @@ function rowToProject(row) {
   };
 }
 function rowToProfile(row, roles) {
-  return { id: row.id, nombre: row.nombre, foto: row.foto_url, roles: roles || [] };
+  return {
+    id: row.id,
+    nombre: row.nombre,
+    foto: row.foto_url,
+    fecha_cumpleanos: row.fecha_cumpleanos || '',
+    fecha_ingreso: row.fecha_ingreso || '',
+    roles: roles || [],
+  };
 }
 
 /* --------------------------- 4. DATOS SEMILLA -------------------------------- */
@@ -1134,6 +1151,21 @@ function pickDocumentList(inversionista) {
   if (v === 'CFM') return DOCS_CFM;
   if (v === 'FENOGE') return DOCS_FENOGE;
   return DOCS_ESTANDAR;
+}
+
+/* Progreso de Control Documental de un proyecto (conteo por estado), para   */
+/* reutilizar en cualquier lado que necesite un resumen — ej. la ficha de    */
+/* una persona en Equipo, mostrando el avance de cada proyecto asignado.    */
+function computeProjectDocProgress(project) {
+  const lista = pickDocumentList(project.data.general?.inversionista);
+  const documentos = project.documentos || {};
+  const conteoPorEstado = {};
+  DOC_ESTADOS.forEach((e) => { conteoPorEstado[e] = 0; });
+  lista.forEach((doc) => {
+    const estado = (documentos[doc.codigo] && documentos[doc.codigo].estado) || 'Pendiente';
+    conteoPorEstado[estado] = (conteoPorEstado[estado] || 0) + 1;
+  });
+  return { conteoPorEstado, total: lista.length };
 }
 
 /* Arma el prefijo de código del proyecto (ej. COLBOYT147P1) a partir de los  */
@@ -2328,8 +2360,8 @@ function DocEstadoBadge({ estado }) {
 
 /* Diagrama de torta (donut) del progreso de Control Documental. Es puramente */
 /* visual — a propósito no aparece en la hoja de vida imprimible.            */
-function ProgresoDonut({ conteoPorEstado, total }) {
-  const size = 116;
+function ProgresoDonut({ conteoPorEstado, total, compact = false }) {
+  const size = compact ? 52 : 116;
   const radius = size / 2;
   const innerRadius = radius * 0.58;
   const cx = radius;
@@ -2341,7 +2373,11 @@ function ProgresoDonut({ conteoPorEstado, total }) {
   const totalSeguido = total - (conteoPorEstado['No aplica'] || 0);
 
   if (total === 0) {
-    return (
+    return compact ? (
+      <div className="shrink-0 flex items-center justify-center rounded-full bg-navy-100" style={{ width: size, height: size }}>
+        <span className="text-[9px] text-navy-400">N/A</span>
+      </div>
+    ) : (
       <div className="flex items-center justify-center" style={{ width: size, height: size }}>
         <p className="text-xs text-navy-400 italic text-center px-2">Sin documentos<br />en esta vista</p>
       </div>
@@ -2369,6 +2405,19 @@ function ProgresoDonut({ conteoPorEstado, total }) {
   const pct = totalSeguido === 0 ? 0 : Math.round((aprobados / totalSeguido) * 100);
   const entregados = conteoPorEstado['Entregado'] || 0;
   const pctEntregado = totalSeguido === 0 ? 0 : Math.round((entregados / totalSeguido) * 100);
+
+  if (compact) {
+    return (
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
+        {slices.length === 0 ? (
+          <circle cx={cx} cy={cy} r={(radius + innerRadius) / 2} fill="none" stroke="#CBD5E6" strokeWidth={radius - innerRadius} />
+        ) : (
+          slices.map((s) => <path key={s.estado} d={s.d} fill={s.color} stroke="white" strokeWidth="1" />)
+        )}
+        <text x={cx} y={cy + 3} textAnchor="middle" fontSize="12" fontWeight="700" fill="#152644">{pct}%</text>
+      </svg>
+    );
+  }
 
   return (
     <div className="flex items-center gap-4 flex-wrap">
@@ -4795,30 +4844,198 @@ function InstructivosView({ carpetas, videos, onAddCarpeta, onUpdateCarpeta, onD
   );
 }
 
-function TeamRolesView({ directorio, perfil, onToggleRole, onDeleteUser }) {
-  const soyLider = isLeader(perfil);
-  const soyLiderDiseno = isDesignLeader(perfil);
-  const [pending, setPending] = useState(null); // `${userId}:${roleKey}` mientras se guarda
-  const [confirmingUserId, setConfirmingUserId] = useState(null);
-  const [deletingUserId, setDeletingUserId] = useState(null);
-  const [expandedUserId, setExpandedUserId] = useState(null);
+/* Insignias de rol con toggle, reutilizadas dentro de la ficha de cada       */
+/* persona (antes vivían inline en la lista de Equipo).                      */
+function RoleBadgesEditor({ persona, perfil, onToggleRole }) {
+  const [pending, setPending] = useState(null);
 
-  async function handleToggle(userId, roleKey, tieneRol) {
-    const key = `${userId}:${roleKey}`;
-    setPending(key);
-    await onToggleRole(userId, roleKey, tieneRol);
+  async function handleToggle(roleKey, tieneRol) {
+    setPending(roleKey);
+    await onToggleRole(persona.id, roleKey, tieneRol);
     setPending(null);
   }
 
-  async function handleDelete(userId) {
-    setDeletingUserId(userId);
-    await onDeleteUser(userId);
-    setDeletingUserId(null);
-    setConfirmingUserId(null);
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {ALL_ROLE_DEFS.map((role) => {
+        const tieneRol = persona.roles.includes(role.key);
+        const cargando = pending === role.key;
+        const puedeAsignarEste = canAssignRole(perfil, role.key);
+        const RoleIcon = role.icon;
+        return (
+          <button
+            key={role.key}
+            disabled={!puedeAsignarEste || cargando}
+            title={!puedeAsignarEste ? 'Solo el Líder de Diseño (o un Desarrollador) puede asignar este rol' : undefined}
+            onClick={() => handleToggle(role.key, tieneRol)}
+            className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
+              tieneRol ? 'bg-lime-100 text-lime-800 border-lime-300' : 'bg-navy-50 text-navy-400 border-navy-200'
+            } ${puedeAsignarEste ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'} ${cargando ? 'opacity-50' : ''}`}
+          >
+            <RoleIcon className="w-3 h-3" />
+            {role.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* Ficha de una persona: roles (editables por quien tenga permiso), datos de  */
+/* cumpleaños/ingreso, y los proyectos donde está asignada con un resumen    */
+/* de Control Documental de cada uno (clic para ir directo al proyecto).    */
+function PersonProfileView({ persona, perfil, projects, onBack, onToggleRole, onDeleteUser, onUpdatePersonaInfo, onOpenProject }) {
+  const soyLiderDiseno = isDesignLeader(perfil);
+  const puedeEditarFechas = soyLiderDiseno || persona.id === perfil.id;
+  const [editingFechas, setEditingFechas] = useState(false);
+  const [cumpleDraft, setCumpleDraft] = useState(persona.fecha_cumpleanos || '');
+  const [ingresoDraft, setIngresoDraft] = useState(persona.fecha_ingreso || '');
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  function guardarFechas() {
+    onUpdatePersonaInfo(persona.id, { fecha_cumpleanos: cumpleDraft || null, fecha_ingreso: ingresoDraft || null });
+    setEditingFechas(false);
   }
 
-  const [filtroRol, setFiltroRol] = useState('todos');
-  const directorioFiltrado = filtroRol === 'todos' ? directorio : directorio.filter((u) => u.roles.includes(filtroRol));
+  async function confirmarEliminar() {
+    setDeleting(true);
+    await onDeleteUser(persona.id);
+    setDeleting(false);
+    onBack();
+  }
+
+  const proyectosAsignados = projects.filter((p) => equipoNombres(p.equipo).includes(persona.nombre));
+
+  return (
+    <div className="p-8 max-w-4xl mx-auto">
+      <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-navy-500 hover:text-navy-700 mb-6">
+        <ChevronLeft className="w-4 h-4" /> Volver a Equipo
+      </button>
+
+      <div className="bg-white border border-navy-200 rounded-xl p-6 mb-6">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-4">
+            <Avatar name={persona.nombre} foto={persona.foto} size="lg" />
+            <div>
+              <h1 className="text-xl font-bold text-navy-800">{persona.nombre}{persona.id === perfil.id ? ' (tú)' : ''}</h1>
+              <p className="text-sm text-navy-500">{rolesLabel(persona)}</p>
+            </div>
+          </div>
+          {soyLiderDiseno && persona.id !== perfil.id && (
+            confirmingDelete ? (
+              <div className="flex items-center gap-1.5 bg-navy-50 border border-navy-200 rounded-lg px-2.5 py-1.5">
+                <span className="text-xs text-navy-600 whitespace-nowrap">¿Eliminar la cuenta de {persona.nombre.split(' ')[0]}?</span>
+                <button
+                  onClick={confirmarEliminar}
+                  disabled={deleting}
+                  className="text-xs font-bold bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-2 py-1 rounded-md transition-colors"
+                >
+                  Sí, eliminar
+                </button>
+                <button onClick={() => setConfirmingDelete(false)} className="text-xs text-navy-400 hover:text-navy-600 px-1.5">
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmingDelete(true)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-navy-400 hover:text-red-500"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Eliminar cuenta
+              </button>
+            )
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 pt-5 border-t border-navy-100">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-1">Fecha de cumpleaños</p>
+            {editingFechas ? (
+              <input type="date" value={cumpleDraft} onChange={(e) => setCumpleDraft(e.target.value)} className="rounded-lg border border-navy-300 px-2.5 py-1.5 text-sm" />
+            ) : (
+              <p className={persona.fecha_cumpleanos ? 'text-sm text-navy-700' : 'text-sm text-navy-300 italic'}>
+                {persona.fecha_cumpleanos ? formatDate(persona.fecha_cumpleanos) : 'Sin definir'}
+              </p>
+            )}
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-1">Fecha de ingreso</p>
+            {editingFechas ? (
+              <input type="date" value={ingresoDraft} onChange={(e) => setIngresoDraft(e.target.value)} className="rounded-lg border border-navy-300 px-2.5 py-1.5 text-sm" />
+            ) : (
+              <p className={persona.fecha_ingreso ? 'text-sm text-navy-700' : 'text-sm text-navy-300 italic'}>
+                {persona.fecha_ingreso ? formatDate(persona.fecha_ingreso) : 'Sin definir'}
+              </p>
+            )}
+          </div>
+          {puedeEditarFechas && (
+            <div className="sm:col-span-2 flex gap-2">
+              {editingFechas ? (
+                <>
+                  <button onClick={guardarFechas} className="flex items-center gap-1.5 text-xs font-semibold bg-lime-500 hover:bg-lime-600 text-navy-900 px-3 py-1.5 rounded-md">
+                    <Check className="w-3.5 h-3.5" /> Guardar
+                  </button>
+                  <button
+                    onClick={() => { setCumpleDraft(persona.fecha_cumpleanos || ''); setIngresoDraft(persona.fecha_ingreso || ''); setEditingFechas(false); }}
+                    className="text-xs text-navy-400 hover:text-navy-600 px-2 py-1.5"
+                  >
+                    Cancelar
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => setEditingFechas(true)} className="flex items-center gap-1.5 text-xs font-semibold text-lime-600 hover:text-lime-700">
+                  <Pencil className="w-3.5 h-3.5" /> Editar fechas
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white border border-navy-200 rounded-xl p-6 mb-6">
+        <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-3">Roles</p>
+        <RoleBadgesEditor persona={persona} perfil={perfil} onToggleRole={onToggleRole} />
+      </div>
+
+      <div className="bg-white border border-navy-200 rounded-xl p-6">
+        <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
+          Proyectos asignados <span className="font-normal text-navy-400">({proyectosAsignados.length})</span>
+        </p>
+        {proyectosAsignados.length === 0 ? (
+          <p className="text-sm text-navy-400 italic">No está asignado(a) a ningún proyecto todavía.</p>
+        ) : (
+          <div className="space-y-3">
+            {proyectosAsignados.map((p) => {
+              const { conteoPorEstado, total } = computeProjectDocProgress(p);
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => onOpenProject(p.id)}
+                  className="w-full flex items-center gap-4 bg-navy-50 hover:bg-navy-100 border border-navy-200 rounded-lg p-3 text-left transition-colors"
+                >
+                  <ProgresoDonut conteoPorEstado={conteoPorEstado} total={total} compact />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-navy-800 truncate">{projectDisplayName(p)}</p>
+                    <p className="text-xs text-navy-400">{p.data.general.municipio}, {p.data.general.departamento}</p>
+                    <StatusBadge estado={p.estado} size="sm" />
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-navy-300 shrink-0" />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* Lista de Equipo agrupada en 5 categorías fijas — una persona puede         */
+/* aparecer en varias si tiene varios roles. Clic en una persona → su ficha. */
+function TeamCategoriesView({ directorio, perfil, onOpenPerson }) {
+  const soyLider = isLeader(perfil);
+  const soyLiderDiseno = isDesignLeader(perfil);
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
@@ -4826,114 +5043,70 @@ function TeamRolesView({ directorio, perfil, onToggleRole, onDeleteUser }) {
         <h1 className="text-2xl font-bold text-navy-800">Equipo</h1>
         <p className="text-navy-500 text-sm mt-1">
           {soyLider
-            ? 'Como líder, puedes otorgar o quitar roles técnicos. Solo el Líder de Diseño puede otorgar o quitar roles de líder o de Desarrollador.'
-            : 'Solo un líder puede asignar roles. Aquí puedes ver qué rol tiene cada persona del equipo.'}
-          {soyLiderDiseno && ' También puedes eliminar cuentas del equipo.'}
-          {' '}Haz clic en una persona para ver o cambiar sus roles.
+            ? 'Como líder, puedes otorgar o quitar roles técnicos desde la ficha de cada persona. Solo el Líder de Diseño puede otorgar roles de líder o de Desarrollador.'
+            : 'Haz clic en una persona para ver su ficha.'}
+          {soyLiderDiseno && ' También puedes eliminar cuentas y editar fecha de cumpleaños/ingreso de cualquiera.'}
         </p>
       </div>
 
-      <div className="flex items-center gap-2 mb-4">
-        <label className="text-xs font-semibold text-navy-500">Filtrar por rol:</label>
-        <select
-          value={filtroRol}
-          onChange={(e) => setFiltroRol(e.target.value)}
-          className="text-sm rounded-lg border border-navy-300 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-lime-400"
-        >
-          <option value="todos">Todos ({directorio.length})</option>
-          {ALL_ROLE_DEFS.map((role) => {
-            const cantidad = directorio.filter((u) => u.roles.includes(role.key)).length;
-            return (
-              <option key={role.key} value={role.key}>{role.label} ({cantidad})</option>
-            );
-          })}
-        </select>
-      </div>
-
-      <div className="space-y-3">
-        {directorioFiltrado.map((u) => {
-          const expandido = expandedUserId === u.id;
+      <div className="space-y-8">
+        {EQUIPO_CATEGORIAS.map((cat) => {
+          const personas = directorio.filter((u) => u.roles.some((r) => cat.roles.includes(r)));
+          const CatIcon = cat.icon;
           return (
-            <div key={u.id} className="bg-white border border-navy-200 rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between gap-3 p-4">
-                <button
-                  onClick={() => setExpandedUserId(expandido ? null : u.id)}
-                  className="flex items-center gap-3 min-w-0 flex-1 text-left"
-                >
-                  <Avatar name={u.nombre} foto={u.foto} />
-                  <div className="min-w-0">
-                    <p className="font-semibold text-navy-800 truncate">{u.nombre}{u.id === perfil.id ? ' (tú)' : ''}</p>
-                    <p className="text-xs text-navy-400 truncate">{rolesLabel(u)}</p>
-                  </div>
-                </button>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {soyLiderDiseno && u.id !== perfil.id && (
-                    confirmingUserId === u.id ? (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-navy-500 whitespace-nowrap">¿Eliminar a {u.nombre.split(' ')[0]}?</span>
-                        <button
-                          onClick={() => handleDelete(u.id)}
-                          disabled={deletingUserId === u.id}
-                          className="text-xs font-bold bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-2 py-1 rounded-md transition-colors"
-                        >
-                          Sí, eliminar
-                        </button>
-                        <button onClick={() => setConfirmingUserId(null)} className="text-xs text-navy-400 hover:text-navy-600 px-1.5">
-                          Cancelar
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setConfirmingUserId(u.id)}
-                        title="Eliminar usuario"
-                        className="text-navy-300 hover:text-red-500 p-1"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )
-                  )}
-                  <button
-                    onClick={() => setExpandedUserId(expandido ? null : u.id)}
-                    title={expandido ? 'Ocultar roles' : 'Ver y asignar roles'}
-                    className="text-navy-400 hover:text-navy-600 p-1"
-                  >
-                    {expandido ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                  </button>
-                </div>
+            <div key={cat.id}>
+              <div className="flex items-center gap-2 mb-3">
+                <CatIcon className="w-4 h-4 text-navy-500" />
+                <h2 className="text-sm font-bold uppercase tracking-wide text-navy-600">{cat.label}</h2>
+                <span className="text-xs text-navy-400">({personas.length})</span>
               </div>
-              {expandido && (
-                <div className="px-4 pb-4 pt-1 border-t border-navy-100">
-                  <div className="flex flex-wrap gap-1.5">
-                    {ALL_ROLE_DEFS.map((role) => {
-                      const tieneRol = u.roles.includes(role.key);
-                      const cargando = pending === `${u.id}:${role.key}`;
-                      const puedeAsignarEste = canAssignRole(perfil, role.key);
-                      const RoleIcon = role.icon;
-                      return (
-                        <button
-                          key={role.key}
-                          disabled={!puedeAsignarEste || cargando}
-                          title={!puedeAsignarEste ? 'Solo el Líder de Diseño (o un Desarrollador) puede asignar este rol' : undefined}
-                          onClick={() => handleToggle(u.id, role.key, tieneRol)}
-                          className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
-                            tieneRol ? 'bg-lime-100 text-lime-800 border-lime-300' : 'bg-navy-50 text-navy-400 border-navy-200'
-                          } ${puedeAsignarEste ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'} ${cargando ? 'opacity-50' : ''}`}
-                        >
-                          <RoleIcon className="w-3 h-3" />
-                          {role.label}
-                        </button>
-                      );
-                    })}
-                  </div>
+              {personas.length === 0 ? (
+                <p className="text-sm text-navy-300 italic mb-2">Nadie en esta categoría todavía.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {personas.map((u) => (
+                    <button
+                      key={u.id}
+                      onClick={() => onOpenPerson(u.id)}
+                      className="flex items-center gap-3 bg-white hover:bg-navy-50 border border-navy-200 rounded-lg p-3 text-left transition-colors"
+                    >
+                      <Avatar name={u.nombre} foto={u.foto} />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-navy-800 truncate text-sm">{u.nombre}{u.id === perfil.id ? ' (tú)' : ''}</p>
+                        <p className="text-xs text-navy-400 truncate">{rolesLabel(u)}</p>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-navy-300 shrink-0" />
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
           );
         })}
-        {directorioFiltrado.length === 0 && <p className="text-sm text-navy-400 italic text-center py-8">Nadie tiene este rol todavía.</p>}
       </div>
     </div>
   );
+}
+
+/* Envoltorio de la pestaña "Equipo": decide si mostrar la lista por          */
+/* categorías o la ficha de una persona en particular.                      */
+function EquipoView({ directorio, perfil, projects, selectedPersonId, onOpenPerson, onBackToList, onToggleRole, onDeleteUser, onUpdatePersonaInfo, onOpenProject }) {
+  const persona = selectedPersonId ? directorio.find((u) => u.id === selectedPersonId) : null;
+  if (persona) {
+    return (
+      <PersonProfileView
+        persona={persona}
+        perfil={perfil}
+        projects={projects}
+        onBack={onBackToList}
+        onToggleRole={onToggleRole}
+        onDeleteUser={onDeleteUser}
+        onUpdatePersonaInfo={onUpdatePersonaInfo}
+        onOpenProject={onOpenProject}
+      />
+    );
+  }
+  return <TeamCategoriesView directorio={directorio} perfil={perfil} onOpenPerson={onOpenPerson} />;
 }
 
 /* ============================================================================
@@ -4958,6 +5131,7 @@ export default function App() {
   const [view, setViewState] = useState('dashboard');
   const [previousView, setPreviousView] = useState('dashboard');
   const [selectedId, setSelectedId] = useState(null);
+  const [selectedPersonId, setSelectedPersonId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
 
   // Sesión de Supabase
@@ -5074,10 +5248,12 @@ export default function App() {
   function setView(v) {
     setViewState(v);
     setSelectedId(null);
+    setSelectedPersonId(null);
   }
   function openProject(id) {
     setPreviousView(view === 'detalle' ? previousView : view);
     setSelectedId(id);
+    setSelectedPersonId(null);
     setViewState('detalle');
   }
   function goBack() {
@@ -5260,6 +5436,15 @@ export default function App() {
     setShowProfileEdit(false);
     if (eraNuevo) loadSharedData(p.id);
   }
+  async function handleUpdatePersonaInfo(userId, patch) {
+    setDirectorio((prev) => prev.map((u) => (u.id === userId ? { ...u, ...patch } : u)));
+    if (userId === perfil.id) setPerfil((prev) => ({ ...prev, ...patch }));
+    const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
+    if (error) {
+      console.error('Error actualizando datos de la persona:', error);
+      alert('No se pudo guardar este dato. Detalle: ' + error.message);
+    }
+  }
   async function handleToggleRole(userId, roleKey, tieneRol) {
     try {
       if (tieneRol) {
@@ -5389,7 +5574,20 @@ export default function App() {
             mostrarFiltroInversionista
           />
         )}
-        {view === 'equipo' && <TeamRolesView directorio={directorio} perfil={perfil} onToggleRole={handleToggleRole} onDeleteUser={handleDeleteUser} />}
+        {view === 'equipo' && (
+          <EquipoView
+            directorio={directorio}
+            perfil={perfil}
+            projects={projects}
+            selectedPersonId={selectedPersonId}
+            onOpenPerson={(id) => setSelectedPersonId(id)}
+            onBackToList={() => setSelectedPersonId(null)}
+            onToggleRole={handleToggleRole}
+            onDeleteUser={handleDeleteUser}
+            onUpdatePersonaInfo={handleUpdatePersonaInfo}
+            onOpenProject={openProject}
+          />
+        )}
         {view === 'instructivos' && (
           <InstructivosView
             carpetas={carpetas}

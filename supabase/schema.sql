@@ -12,6 +12,8 @@ create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   nombre text not null,
   foto_url text,
+  fecha_cumpleanos date,
+  fecha_ingreso date,
   created_at timestamptz default now()
 );
 
@@ -229,6 +231,17 @@ create policy "Crear mi propio perfil" on profiles
   for insert with check (auth.uid() = id);
 create policy "Editar mi propio perfil" on profiles
   for update using (auth.uid() = id);
+-- El Líder de Diseño (o un Desarrollador) también puede editar el perfil de
+-- cualquier persona — lo necesita para poner fecha de cumpleaños/ingreso
+-- desde la ficha de esa persona en "Equipo".
+create policy "Lider de diseno edita cualquier perfil" on profiles
+  for update using (
+    exists (
+      select 1 from user_roles ur
+      where ur.user_id = auth.uid()
+      and ur.role_key in ('lider_diseno','desarrollador')
+    )
+  );
 -- Solo el Líder de Diseño puede eliminar cuentas de otras personas.
 create policy "Solo lider de diseno elimina perfiles" on profiles
   for delete using (
