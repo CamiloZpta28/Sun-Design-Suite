@@ -1744,12 +1744,26 @@ function LuminariasPreview({ datos }) {
     isoPt(-groundHalfW, groundHalfD, groundZ, ox, oy),
   ]);
 
-  // Los 3 puntos de la base que nos importan para las cotas: la esquina más
-  // cercana (donde se juntan los dos bordes visibles) y sus dos vecinas.
-  const nearBottom = isoPt(halfW, halfD, bodyZ0, ox, oy);
-  const frontLeftBottom = isoPt(-halfW, halfD, bodyZ0, ox, oy);
-  const rightBottom = isoPt(halfW, -halfD, bodyZ0, ox, oy);
-  const dimOffset = 16;
+  // Los puntos reales de la base que nos importan: la esquina más cercana
+  // (donde se juntan los dos bordes visibles) y sus dos vecinas.
+  const nearBottomModel = [halfW, halfD];
+  const frontLeftModel = [-halfW, halfD];
+  const rightModel = [halfW, -halfD];
+  const nearBottomPt = isoPt(nearBottomModel[0], nearBottomModel[1], bodyZ0, ox, oy);
+  const frontLeftPt = isoPt(frontLeftModel[0], frontLeftModel[1], bodyZ0, ox, oy);
+  const rightPt = isoPt(rightModel[0], rightModel[1], bodyZ0, ox, oy);
+
+  // Cada cota se dibuja PARALELA a su propio borde, desplazada hacia afuera
+  // en el eje del modelo correspondiente (no en pantalla) — así una queda
+  // "hacia el frente" (ancho) y la otra "hacia la derecha" (profundo), sin
+  // que sus etiquetas choquen entre sí.
+  const dimPush = 22;
+  const anchoP1 = isoPt(frontLeftModel[0], frontLeftModel[1] + dimPush, bodyZ0, ox, oy);
+  const anchoP2 = isoPt(nearBottomModel[0], nearBottomModel[1] + dimPush, bodyZ0, ox, oy);
+  const profP1 = isoPt(nearBottomModel[0] + dimPush, nearBottomModel[1], bodyZ0, ox, oy);
+  const profP2 = isoPt(rightModel[0] + dimPush, rightModel[1], bodyZ0, ox, oy);
+  const anchoLabel = isoPt((frontLeftModel[0] + nearBottomModel[0]) / 2, frontLeftModel[1] + dimPush + 10, bodyZ0, ox, oy);
+  const profLabel = isoPt(nearBottomModel[0] + dimPush + 10, (nearBottomModel[1] + rightModel[1]) / 2, bodyZ0, ox, oy);
 
   // Cota de altura, con la esquina superior/inferior derecha del cuerpo.
   const [rightTopX, rightTopY] = isoPt(halfW, -halfD, bodyZ1, ox, oy);
@@ -1764,36 +1778,22 @@ function LuminariasPreview({ datos }) {
       {/* Nivel de terreno natural: un plano que atraviesa el cuerpo */}
       <polygon points={groundPlane} fill="none" stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
       <text x={groundLeftX - 4} y={groundLeftY + 3} textAnchor="end" fontSize="8" fill="#6487C4" fontFamily="monospace">N.T.N</text>
-      {/* Cota de ancho: sobre el borde frontal-izquierdo de la base */}
+      {/* Cota de ancho: paralela al borde frontal-izquierdo, desplazada "hacia el frente" */}
       <g stroke="#152644" strokeWidth="1">
-        <line x1={frontLeftBottom[0]} y1={frontLeftBottom[1] + 6} x2={frontLeftBottom[0]} y2={frontLeftBottom[1] + dimOffset + 4} />
-        <line x1={nearBottom[0]} y1={nearBottom[1] + 6} x2={nearBottom[0]} y2={nearBottom[1] + dimOffset + 4} />
-        <line x1={frontLeftBottom[0]} y1={frontLeftBottom[1] + dimOffset} x2={nearBottom[0]} y2={nearBottom[1] + dimOffset} />
+        <line x1={frontLeftPt[0]} y1={frontLeftPt[1]} x2={anchoP1[0]} y2={anchoP1[1]} />
+        <line x1={nearBottomPt[0]} y1={nearBottomPt[1]} x2={anchoP2[0]} y2={anchoP2[1]} />
+        <line x1={anchoP1[0]} y1={anchoP1[1]} x2={anchoP2[0]} y2={anchoP2[1]} />
       </g>
-      <text
-        x={(frontLeftBottom[0] + nearBottom[0]) / 2}
-        y={(frontLeftBottom[1] + nearBottom[1]) / 2 + dimOffset + 12}
-        textAnchor="middle"
-        fontSize="9.5"
-        fontWeight="600"
-        fill="#152644"
-      >
+      <text x={anchoLabel[0]} y={anchoLabel[1]} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="#152644">
         {ancho || '—'} m
       </text>
-      {/* Cota de profundo: sobre el borde frontal-derecho de la base */}
+      {/* Cota de profundo: paralela al borde frontal-derecho, desplazada "hacia la derecha" */}
       <g stroke="#152644" strokeWidth="1">
-        <line x1={rightBottom[0]} y1={rightBottom[1] + 6} x2={rightBottom[0]} y2={rightBottom[1] + dimOffset + 4} />
-        <line x1={nearBottom[0]} y1={nearBottom[1] + 6} x2={nearBottom[0]} y2={nearBottom[1] + dimOffset + 4} />
-        <line x1={rightBottom[0]} y1={rightBottom[1] + dimOffset} x2={nearBottom[0]} y2={nearBottom[1] + dimOffset} />
+        <line x1={nearBottomPt[0]} y1={nearBottomPt[1]} x2={profP1[0]} y2={profP1[1]} />
+        <line x1={rightPt[0]} y1={rightPt[1]} x2={profP2[0]} y2={profP2[1]} />
+        <line x1={profP1[0]} y1={profP1[1]} x2={profP2[0]} y2={profP2[1]} />
       </g>
-      <text
-        x={(rightBottom[0] + nearBottom[0]) / 2}
-        y={(rightBottom[1] + nearBottom[1]) / 2 + dimOffset + 12}
-        textAnchor="middle"
-        fontSize="9.5"
-        fontWeight="600"
-        fill="#152644"
-      >
+      <text x={profLabel[0]} y={profLabel[1]} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="#152644">
         {profundo || '—'} m
       </text>
       {/* Cota de altura total */}
