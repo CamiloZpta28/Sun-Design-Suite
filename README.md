@@ -41,7 +41,8 @@ Sigue los pasos en orden. No necesitas experiencia previa con Supabase.
 > `supabase/migration_historial_categoria.sql` y
 > `supabase/migration_inversionistas.sql` y
 > `supabase/migration_paises.sql` y
-> `supabase/migration_guardado_parcial.sql`. Cada uno agrega
+> `supabase/migration_guardado_parcial.sql` y
+> `supabase/migration_proveedores.sql`. Cada uno agrega
 > solo lo nuevo sin tocar lo que ya tenías. Si no recuerdas si ya corriste
 > alguno, no pasa nada por intentarlo de nuevo: en el peor caso te marcará
 > un error de "ya existe", que puedes ignorar.
@@ -165,6 +166,23 @@ ingeniero. Cada persona:
 ---
 
 ## Notas y siguientes pasos
+
+- **Bloque 1 de la macro-actualización** (torta, Drive, roles, proveedor,
+  General):
+  - La torta de Control Documental ahora muestra dos métricas en el
+    centro: % de APC (como antes) y % de Entregado, debajo, en violeta.
+  - Nuevo botón "Carpeta" en la Hoja de Vida del proyecto: si el proyecto
+    tiene un link de Drive guardado, lo abre en pestaña nueva; si no,
+    te lleva a la pestaña General para que lo agregues ahí.
+  - Nuevos campos en General: "Propietario de predio", "Teléfono de
+    propietario" y "Carpeta de Drive (URL)".
+  - Se eliminó el rol "Ing. Mecánico" de los roles asignables en Equipo
+    (la pestaña técnica "Mecánica" del proyecto sigue intacta — son cosas
+    distintas: una es un rol de persona, la otra es una especialidad de
+    datos técnicos).
+  - Nuevo campo "Proveedor" en Mecánica, con el mismo mecanismo de
+    Inversionistas/País (lista compartida en Supabase + "Agregar nuevo
+    proveedor…"). Viene con Zentrack, TRINA y Antai por defecto.
 
 - **Edición simultánea (importante, léelo antes de desplegar)**: antes,
   cada guardado reescribía la fila COMPLETA del proyecto con lo que el

@@ -41,7 +41,6 @@ const ROLES = [
   { key: 'hidraulico', label: 'Ing. Hidráulico', icon: Droplets },
   { key: 'estructural', label: 'Ing. Estructural', icon: Building2 },
   { key: 'electrico', label: 'Ing. Eléctrico', icon: Zap },
-  { key: 'mecanico', label: 'Ing. Mecánico', icon: Cog },
   { key: 'geotecnico', label: 'Ing. Geotécnico', icon: Mountain },
   { key: 'delineante', label: 'Delineante', icon: PenTool },
 ];
@@ -205,11 +204,14 @@ const SCHEMA = [
       { key: 'inversionista', label: 'Inversionista', type: 'inversionista' },
       { key: 'numero_minigranja', label: 'Número de minigranja (ej. 215)', type: 'text' },
       { key: 'numero_predio', label: 'Número de predio (ej. 1)', type: 'text' },
+      { key: 'propietario_predio', label: 'Propietario de predio', type: 'text' },
+      { key: 'telefono_propietario', label: 'Teléfono de propietario', type: 'text' },
       { key: 'magna_sirgas', label: 'Coord. MAGNA-SIRGAS (Bogotá)', type: 'text' },
       { key: 'lat_long', label: 'Coordenadas Lat/Long', type: 'text' },
       { key: 'altitud', label: 'Altitud (m.s.n.m.)', type: 'text' },
       { key: 'fecha_inicio', label: 'Fecha de Inicio', type: 'date' },
       { key: 'fecha_entrega', label: 'Fecha de Entrega', type: 'date' },
+      { key: 'drive_url', label: 'Carpeta de Drive (URL)', type: 'text' },
     ],
   },
   {
@@ -231,6 +233,7 @@ const SCHEMA = [
     fields: [
       { key: 'numero_mesas', label: 'Número de mesas', type: 'text' },
       { key: 'tipo_mesas', label: 'Tipo de mesas', type: 'select', opciones: ['Tracker', 'Mesa fija'] },
+      { key: 'proveedor', label: 'Proveedor', type: 'proveedor' },
       { key: 'config_mesas', label: 'Configuración de las mesas', type: 'text' },
       { key: 'hincas_por_mesa', label: 'Hincas por mesa', type: 'text' },
       {
@@ -543,6 +546,14 @@ function formatDate(iso) {
   return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+/* Antepone https:// si a la URL le falta el protocolo (típico cuando         */
+/* alguien pega solo "drive.google.com/..." sin más).                        */
+function normalizeUrl(url) {
+  const limpio = (url || '').trim();
+  if (!limpio) return '';
+  return /^https?:\/\//i.test(limpio) ? limpio : `https://${limpio}`;
+}
+
 function formatDateTime(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -727,7 +738,7 @@ const INITIAL_PROJECTS = [
     id: 'proj-1',
     nombre: 'Minigranja Solar Guacarí 5MW',
     estado: 'activo',
-    equipo: { civil: [], hidraulico: '', estructural: '', electrico: [], mecanico: '', geotecnico: '', delineante: [] },
+    equipo: { civil: [], hidraulico: '', estructural: '', electrico: [], geotecnico: '', delineante: [] },
     archivos: [],
     notas: [
       { id: 'nota-1-1', texto: 'Terreno con pendiente suave hacia el costado sur, cercano a canal de riego existente.', autor: 'Sistema', fecha: '2025-03-12T14:30:00.000Z' },
@@ -758,7 +769,7 @@ const INITIAL_PROJECTS = [
     id: 'proj-2',
     nombre: 'Minigranja El Espinal 3MW',
     estado: 'activo',
-    equipo: { civil: [], hidraulico: '', estructural: '', electrico: [], mecanico: '', geotecnico: '', delineante: [] },
+    equipo: { civil: [], hidraulico: '', estructural: '', electrico: [], geotecnico: '', delineante: [] },
     archivos: [],
     notas: [],
     documentos: {},
@@ -776,7 +787,7 @@ const INITIAL_PROJECTS = [
     id: 'proj-3',
     nombre: 'Solar Montería 8MW',
     estado: 'pausa',
-    equipo: { civil: [], hidraulico: '', estructural: '', electrico: [], mecanico: '', geotecnico: '', delineante: [] },
+    equipo: { civil: [], hidraulico: '', estructural: '', electrico: [], geotecnico: '', delineante: [] },
     archivos: [],
     notas: [
       { id: 'nota-3-1', texto: 'Proyecto en pausa por ajustes en el cierre financiero.', autor: 'Sistema', fecha: '2025-09-15T09:00:00.000Z' },
@@ -1324,6 +1335,19 @@ function PaisPicker({ value, paises, onChange, onAddNew }) {
   );
 }
 
+function ProveedorPicker({ value, proveedores, onChange, onAddNew }) {
+  return (
+    <AddableSelect
+      value={value}
+      opciones={proveedores}
+      onChange={onChange}
+      onAddNew={onAddNew}
+      placeholderNuevo="Nombre del nuevo proveedor"
+      etiquetaAgregar="+ Agregar nuevo proveedor…"
+    />
+  );
+}
+
 /* Resistencias de concreto más usadas + opción de escribir otra, compartida  */
 /* por TODAS las cimentaciones (shelter, inversores, cerramiento, portón,     */
 /* luminarias, CCTV, postes) — sin valor por defecto a propósito, para no     */
@@ -1482,7 +1506,7 @@ function CimentacionPreview({ forma, v, sobresale }) {
   );
 }
 
-function FieldRenderer({ field, value, editMode, onChange, siblingData, inversionistas, onAddInversionista, paises, onAddPais }) {
+function FieldRenderer({ field, value, editMode, onChange, siblingData, inversionistas, onAddInversionista, paises, onAddPais, proveedores, onAddProveedor }) {
   if (field.type === 'departamento') {
     if (!editMode) return <ReadOnlyValue label={field.label} value={value} mono={false} />;
     return (
@@ -1541,6 +1565,16 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
       <div className="py-1">
         <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
         <PaisPicker value={value} paises={paises || []} onChange={onChange} onAddNew={onAddPais} />
+      </div>
+    );
+  }
+
+  if (field.type === 'proveedor') {
+    if (!editMode) return <ReadOnlyValue label={field.label} value={value} mono={false} />;
+    return (
+      <div className="py-1">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
+        <ProveedorPicker value={value} proveedores={proveedores || []} onChange={onChange} onAddNew={onAddProveedor} />
       </div>
     );
   }
@@ -1838,6 +1872,7 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
 
 function SectionFieldsGrid({
   section, data, editMode, onFieldChange, inversionistas, onAddInversionista, paises, onAddPais,
+  proveedores, onAddProveedor,
   structureType, focusFieldKey, onFocusHandled,
 }) {
   const [grupoAbierto, setGrupoAbierto] = useState(false);
@@ -1925,6 +1960,8 @@ function SectionFieldsGrid({
               onAddInversionista={onAddInversionista}
               paises={paises}
               onAddPais={onAddPais}
+              proveedores={proveedores}
+              onAddProveedor={onAddProveedor}
             />
           </div>
           );
@@ -2331,6 +2368,8 @@ function ProgresoDonut({ conteoPorEstado, total }) {
 
   const aprobados = conteoPorEstado['Aprobado para construcción (APC)'] || 0;
   const pct = totalSeguido === 0 ? 0 : Math.round((aprobados / totalSeguido) * 100);
+  const entregados = conteoPorEstado['Entregado'] || 0;
+  const pctEntregado = totalSeguido === 0 ? 0 : Math.round((entregados / totalSeguido) * 100);
 
   return (
     <div className="flex items-center gap-4 flex-wrap">
@@ -2342,8 +2381,10 @@ function ProgresoDonut({ conteoPorEstado, total }) {
             <path key={s.estado} d={s.d} fill={s.color} stroke="white" strokeWidth="1.5" />
           ))
         )}
-        <text x={cx} y={cy - 3} textAnchor="middle" fontSize="17" fontWeight="700" fill="#152644">{pct}%</text>
-        <text x={cx} y={cy + 12} textAnchor="middle" fontSize="8" fill="#6487C4" fontFamily="monospace">APC</text>
+        <text x={cx} y={cy - 11} textAnchor="middle" fontSize="16" fontWeight="700" fill="#152644">{pct}%</text>
+        <text x={cx} y={cy + 2} textAnchor="middle" fontSize="7" fill="#6487C4" fontFamily="monospace">APC</text>
+        <text x={cx} y={cy + 17} textAnchor="middle" fontSize="13" fontWeight="700" fill="#8B5CF6">{pctEntregado}%</text>
+        <text x={cx} y={cy + 27} textAnchor="middle" fontSize="6.5" fill="#8B5CF6" fontFamily="monospace">ENTREGADO</text>
       </svg>
       <div className="space-y-1">
         {DOC_ESTADOS.filter((estado) => conteoPorEstado[estado] > 0).map((estado) => (
@@ -3672,7 +3713,7 @@ function HistorialPanel({ historial, loading, onRefresh }) {
   );
 }
 
-function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, perfil, inversionistas, onAddInversionista, paises, onAddPais }) {
+function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, perfil, inversionistas, onAddInversionista, paises, onAddPais, proveedores, onAddProveedor }) {
   const [activeTab, setActiveTab] = useState(SCHEMA[0].id);
   const [editMode, setEditMode] = useState(false);
   const [draftData, setDraftData] = useState(null);
@@ -3928,6 +3969,25 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
               ) : (
                 <StatusBadge estado={project.estado} />
               )}
+              <button
+                onClick={() => {
+                  const url = project.data.general?.drive_url;
+                  if (url) {
+                    window.open(normalizeUrl(url), '_blank', 'noopener,noreferrer');
+                  } else {
+                    setActiveTab('general');
+                    if (puedeEditarContenido) setEditMode(true);
+                  }
+                }}
+                title={project.data.general?.drive_url ? 'Abrir carpeta de Drive' : 'Agrega el link de Drive en la pestaña General'}
+                className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-md transition-colors ${
+                  project.data.general?.drive_url
+                    ? 'bg-nashville-500 hover:bg-nashville-600 text-white'
+                    : 'bg-navy-700 hover:bg-navy-600 text-navy-300'
+                }`}
+              >
+                <Folder className="w-3.5 h-3.5" /> Carpeta
+              </button>
               <button onClick={() => window.print()} className="flex items-center gap-1.5 bg-lime-500 hover:bg-lime-600 text-navy-900 text-xs font-bold px-3 py-1.5 rounded-md transition-colors">
                 <Printer className="w-3.5 h-3.5" /> Exportar / Imprimir
               </button>
@@ -4133,6 +4193,8 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
                   onAddInversionista={onAddInversionista}
                   paises={paises}
                   onAddPais={onAddPais}
+                  proveedores={proveedores}
+                  onAddProveedor={onAddProveedor}
                   structureType={getStructureType(project)}
                   focusFieldKey={focusFieldKey}
                   onFocusHandled={() => setFocusFieldKey(null)}
@@ -4779,6 +4841,7 @@ export default function App() {
   const [videos, setVideos] = useState([]);
   const [inversionistas, setInversionistas] = useState([]);
   const [paises, setPaises] = useState([]);
+  const [proveedores, setProveedores] = useState([]);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   const [view, setViewState] = useState('dashboard');
@@ -4881,6 +4944,17 @@ export default function App() {
       setPaises(['Colombia']);
     } else {
       setPaises(paisRows.map((r) => r.nombre));
+    }
+
+    const { data: provRows } = await supabase.from('proveedores').select('*').order('created_at', { ascending: true });
+    if (!provRows || provRows.length === 0) {
+      const semillaProv = ['Zentrack', 'TRINA', 'Antai'];
+      await supabase.from('proveedores').insert(semillaProv.map((nombre) => ({ nombre }))).then(({ error }) => {
+        if (error) console.error('Error creando proveedores semilla:', error);
+      });
+      setProveedores(semillaProv);
+    } else {
+      setProveedores(provRows.map((r) => r.nombre));
     }
 
     setDataLoaded(true);
@@ -5015,6 +5089,14 @@ export default function App() {
     setPaises((prev) => (prev.includes(limpio) ? prev : [...prev, limpio]));
     supabase.from('paises').upsert({ nombre: limpio }).then(({ error }) => {
       if (error) console.error('Error creando país:', error);
+    });
+  }
+  function handleAddProveedor(nombre) {
+    const limpio = nombre.trim();
+    if (!limpio) return;
+    setProveedores((prev) => (prev.includes(limpio) ? prev : [...prev, limpio]));
+    supabase.from('proveedores').upsert({ nombre: limpio }).then(({ error }) => {
+      if (error) console.error('Error creando proveedor:', error);
     });
   }
   function handleAddCarpeta(nombre) {
@@ -5221,6 +5303,8 @@ export default function App() {
             onAddInversionista={handleAddInversionista}
             paises={paises}
             onAddPais={handleAddPais}
+            proveedores={proveedores}
+            onAddProveedor={handleAddProveedor}
           />
         )}
       </main>
