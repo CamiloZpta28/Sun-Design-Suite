@@ -3245,17 +3245,28 @@ function Dashboard({ projects, misProyectos, onNewProject, openProject, setView,
   );
 }
 
-function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, directorio }) {
+function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, directorio, archivarFinalizados = false, mostrarFiltroInversionista = false }) {
   const [search, setSearch] = useState('');
   const [estadoFiltro, setEstadoFiltro] = useState('todos');
+  const [inversionistaFiltro, setInversionistaFiltro] = useState('todos');
+  const [mostrarArchivados, setMostrarArchivados] = useState(false);
 
-  const filtered = projects.filter((p) => {
+  const activos = archivarFinalizados ? projects.filter((p) => p.estado !== 'finalizado') : projects;
+  const archivados = archivarFinalizados ? projects.filter((p) => p.estado === 'finalizado') : [];
+  const pool = archivarFinalizados && mostrarArchivados ? archivados : activos;
+
+  const inversionistasDisponibles = mostrarFiltroInversionista
+    ? [...new Set(pool.map((p) => p.data.general?.inversionista).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'))
+    : [];
+
+  const filtered = pool.filter((p) => {
     const general = p.data.general;
     const codigo = buildProjectCode(general);
     const haystack = `${p.nombre} ${general.municipio || ''} ${general.departamento || ''} ${codigo}`.toLowerCase();
     const matchSearch = haystack.includes(search.toLowerCase());
     const matchEstado = estadoFiltro === 'todos' || p.estado === estadoFiltro;
-    return matchSearch && matchEstado;
+    const matchInversionista = inversionistaFiltro === 'todos' || (general.inversionista || '') === inversionistaFiltro;
+    return matchSearch && matchEstado && matchInversionista;
   });
 
   return (
@@ -3270,7 +3281,28 @@ function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, dire
         </button>
       </div>
 
-      <div className="flex items-center gap-3 my-6">
+      {archivarFinalizados && (
+        <div className="flex items-center gap-2 mt-4">
+          <button
+            onClick={() => setMostrarArchivados(false)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+              !mostrarArchivados ? 'bg-navy-800 text-white border-navy-800' : 'bg-white text-navy-500 border-navy-300 hover:border-navy-400'
+            }`}
+          >
+            Activos ({activos.length})
+          </button>
+          <button
+            onClick={() => setMostrarArchivados(true)}
+            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+              mostrarArchivados ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-navy-500 border-navy-300 hover:border-navy-400'
+            }`}
+          >
+            <PartyPopper className="w-3.5 h-3.5" /> Finalizados ({archivados.length})
+          </button>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 my-6 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
             <Search className="w-4 h-4 text-navy-400" />
@@ -3282,17 +3314,31 @@ function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, dire
             className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-navy-300 focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
           />
         </div>
-        <select
-          value={estadoFiltro}
-          onChange={(e) => setEstadoFiltro(e.target.value)}
-          className="text-sm rounded-lg border border-navy-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-lime-400"
-        >
-          <option value="todos">Todos los estados</option>
-          <option value="activo">Activo</option>
-          <option value="pausa">En Pausa</option>
-          <option value="inactivo">Inactivo</option>
-        <option value="finalizado">Finalizado</option>
-        </select>
+        {!mostrarArchivados && (
+          <select
+            value={estadoFiltro}
+            onChange={(e) => setEstadoFiltro(e.target.value)}
+            className="text-sm rounded-lg border border-navy-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-lime-400"
+          >
+            <option value="todos">Todos los estados</option>
+            <option value="activo">Activo</option>
+            <option value="pausa">En Pausa</option>
+            <option value="inactivo">Inactivo</option>
+            {!archivarFinalizados && <option value="finalizado">Finalizado</option>}
+          </select>
+        )}
+        {mostrarFiltroInversionista && (
+          <select
+            value={inversionistaFiltro}
+            onChange={(e) => setInversionistaFiltro(e.target.value)}
+            className="text-sm rounded-lg border border-navy-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-lime-400"
+          >
+            <option value="todos">Todos los inversionistas</option>
+            {inversionistasDisponibles.map((inv) => (
+              <option key={inv} value={inv}>{inv}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -3303,7 +3349,9 @@ function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, dire
       {filtered.length === 0 && (
         <div className="text-center py-16 text-navy-400">
           <FolderKanban className="w-10 h-10 mx-auto mb-3 opacity-40" />
-          <p className="text-sm">No se encontraron proyectos con esos filtros.</p>
+          <p className="text-sm">
+            {mostrarArchivados ? 'No hay proyectos finalizados con esos filtros.' : 'No se encontraron proyectos con esos filtros.'}
+          </p>
         </div>
       )}
     </div>
@@ -5337,6 +5385,8 @@ export default function App() {
             onOpen={openProject}
             onNewProject={() => setShowCreate(true)}
             directorio={directorio}
+            archivarFinalizados
+            mostrarFiltroInversionista
           />
         )}
         {view === 'equipo' && <TeamRolesView directorio={directorio} perfil={perfil} onToggleRole={handleToggleRole} onDeleteUser={handleDeleteUser} />}
