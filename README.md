@@ -168,6 +168,31 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Optimización para móvil**: el menú lateral ya no se queda fijo
+  ocupando la pantalla en celulares — ahora es un panel que se abre con
+  el botón de menú (☰) arriba a la izquierda, con fondo oscuro para
+  cerrarlo tocando afuera, y se cierra solo al navegar a otra sección. En
+  pantallas de escritorio (`md` en adelante) se comporta exactamente
+  igual que antes, siempre visible. También reduje el margen de las
+  páginas en pantallas chicas y ajusté varios encabezados para que sus
+  botones/controles se acomoden en más de una fila en vez de
+  desbordarse. No es una reescritura completa para móvil — es la parte
+  que hacía la app literalmente inutilizable (el menú tapando todo);
+  formularios y tablas grandes puntuales pueden necesitar más ajuste con
+  el uso real.
+- **Proyecto duplicado**: al crear un proyecto, si el par (N.° de
+  minigranja, N.° de predio) ya existe en otro proyecto, aparece una
+  alerta con el nombre de ese proyecto y no se puede crear el duplicado.
+- **Pestaña "Archivos" eliminada** de cada proyecto (botón, contenido, y
+  la sección correspondiente en la hoja de vida imprimible). Si algún
+  proyecto ya tenía archivos adjuntos, ese dato queda igual en la base de
+  datos, simplemente ya no se muestra en ningún lado.
+- **"Dim. cimentación postes" → "Dim. cimentación postes MT"**, ahora
+  cilíndrica (como Cerramiento) en vez de rectangular. Si algún proyecto
+  ya tenía datos ahí con la forma anterior, hay que volver a digitarlos.
+- **Resistencia del concreto**: se agregó "28 MPa" entre 24 y 31 en todos
+  los campos que usan ese selector (cimentaciones de Estructural).
+
 - **Bloque 5 de la macro-actualización — cierra la lista** (resumen por
   inversionista): nueva pestaña "Resumen por Inversionista" en el menú.
   Agrupa todos los proyectos por inversionista y para cada uno muestra:

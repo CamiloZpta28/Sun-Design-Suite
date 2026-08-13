@@ -6,7 +6,7 @@ import {
   Users, ExternalLink, Check, FileText, UploadCloud, XCircle, ClipboardList,
   Loader2, RefreshCw, LogOut, ShieldCheck, Lock, History, ClipboardCheck, StickyNote, UserCog,
   Folder, FolderPlus, ChevronDown, ChevronRight, PlayCircle, Video, Code2,
-  Bold, Italic, Underline, List, PartyPopper, MessageSquare, PieChart,
+  Bold, Italic, Underline, List, PartyPopper, MessageSquare, PieChart, AlertTriangle, Menu,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import logoMark from './assets/logo-s-mark.png';
@@ -294,7 +294,7 @@ const SCHEMA = [
       { key: 'dim_ciment_porton', label: 'Dim. cimentación portón', type: 'cimentacion', forma: 'zapata_pedestal', sobresale: 0 },
       { key: 'dim_ciment_luminarias', label: 'Dim. cimentación luminarias', type: 'cimentacion', forma: 'rectangular', sobresale: 0.1 },
       { key: 'dim_ciment_cctv', label: 'Dim. cimentación CCTV', type: 'cimentacion', forma: 'rectangular', sobresale: 0.05 },
-      { key: 'dim_ciment_postes', label: 'Dim. cimentación postes', type: 'cimentacion', forma: 'rectangular', sobresale: 0.05 },
+      { key: 'dim_ciment_postes', label: 'Dim. cimentación postes MT', type: 'cimentacion', forma: 'cilindrica', sobresale: 0.05 },
       catalogSchemaField('tipo_galvanizado', 'METAL', 'GALVANIZADO', 'Tipo de galvanizado'),
       { key: 'esquema_puntado', label: 'Esquema de puntado', type: 'text' },
       { key: 'espec_aceros_pernos', label: 'Especificaciones de aceros y pernos', type: 'text' },
@@ -1405,7 +1405,7 @@ function ProveedorPicker({ value, proveedores, onChange, onAddNew }) {
 /* por TODAS las cimentaciones (shelter, inversores, cerramiento, portón,     */
 /* luminarias, CCTV, postes) — sin valor por defecto a propósito, para no     */
 /* afectar especialidades fuera del alcance de esta funcionalidad.            */
-const RESISTENCIA_OPCIONES = ['21 MPa', '24 MPa', '31 MPa'];
+const RESISTENCIA_OPCIONES = ['21 MPa', '24 MPa', '28 MPa', '31 MPa'];
 function ResistenciaSelect({ value, onChange, className }) {
   return (
     <SelectOrOtro
@@ -2130,58 +2130,6 @@ function TitleCell({ label, value, custom, span }) {
         <div className="mt-1">{custom}</div>
       ) : (
         <p className="text-sm font-mono text-navy-700 mt-0.5 truncate">{value || 'N/A'}</p>
-      )}
-    </div>
-  );
-}
-
-function AttachmentsPanel({ archivos, onAdd, onRemove, canEdit = true }) {
-  return (
-    <div>
-      {canEdit ? (
-        <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-navy-300 rounded-xl py-8 cursor-pointer hover:border-lime-400 hover:bg-lime-50 transition-colors mb-5">
-          <UploadCloud className="w-7 h-7 text-navy-400" />
-          <p className="text-sm text-navy-500">
-            <span className="font-semibold text-lime-600">Haz clic para adjuntar</span> planos o documentos
-          </p>
-          <p className="text-xs text-navy-400">Por ahora solo se guarda el nombre del archivo (sin subir el contenido)</p>
-          <input
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files.length) onAdd(e.target.files);
-              e.target.value = '';
-            }}
-          />
-        </label>
-      ) : (
-        <p className="flex items-center gap-1.5 text-xs text-navy-400 mb-5">
-          <Lock className="w-3.5 h-3.5" /> Solo el equipo asignado a este proyecto puede adjuntar o eliminar documentos.
-        </p>
-      )}
-
-      {archivos.length === 0 ? (
-        <p className="text-sm text-navy-400 italic text-center py-4">Aún no se han adjuntado documentos a este proyecto.</p>
-      ) : (
-        <div className="space-y-2">
-          {archivos.map((file) => (
-            <div key={file.id} className="flex items-center justify-between bg-navy-50 border border-navy-200 rounded-lg px-4 py-2.5">
-              <div className="flex items-center gap-3 min-w-0">
-                <FileText className="w-4 h-4 text-navy-400 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-navy-700 truncate">{file.nombre}</p>
-                  <p className="text-xs text-navy-400">{formatBytes(file.tamano)} · Subido el {formatDate(file.fecha)}</p>
-                </div>
-              </div>
-              {canEdit && (
-                <button onClick={() => onRemove(file.id)} className="text-navy-300 hover:text-red-500 shrink-0 ml-3">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
       )}
     </div>
   );
@@ -3040,17 +2988,6 @@ function PrintableReport({ project }) {
         );
       })()}
 
-      <h2 className="text-sm font-bold uppercase tracking-wide text-navy-600 mb-2 border-b border-navy-300 pb-1">Archivos Adjuntos</h2>
-      {project.archivos.length === 0 ? (
-        <p className="text-sm text-navy-400 italic">Sin documentos adjuntos.</p>
-      ) : (
-        <ul className="text-sm space-y-1 list-disc pl-5">
-          {project.archivos.map((f) => (
-            <li key={f.id}>{f.nombre} — {formatBytes(f.tamano)} ({formatDate(f.fecha)})</li>
-          ))}
-        </ul>
-      )}
-
       <p className="text-xs text-navy-400 mt-10 pt-4 border-t border-navy-200">
         Documento generado automáticamente por Sun Design Suite. Uso interno del equipo de diseño.
       </p>
@@ -3253,7 +3190,7 @@ function LoadingScreen({ mensaje = 'Cargando…' }) {
 /* ============================================================================
    7. NAVEGACIÓN Y LAYOUT
    ============================================================================ */
-function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLogout }) {
+function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLogout, mobileOpen, onCloseMobile }) {
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { key: 'mis', label: 'Mis Proyectos', icon: FolderKanban },
@@ -3265,80 +3202,93 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
   ];
 
   return (
-    <aside className="no-print w-64 shrink-0 bg-navy-900 text-navy-200 flex flex-col h-screen sticky top-0">
-      <div className="px-5 py-6 border-b border-navy-800 flex items-center gap-2.5">
-        <div className="w-9 h-9 rounded-lg bg-lime-300 flex items-center justify-center shrink-0">
-          <img src={logoMark} alt="" className="w-5 h-5 object-contain" />
-        </div>
-        <div>
-          <p className="text-white font-bold leading-tight">Sun Design Suite</p>
-          <p className="text-xs text-navy-300 tracking-wide">Minigranjas Fotovoltaicas</p>
-        </div>
-      </div>
-
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const active = view === item.key;
-          return (
-            <button
-              key={item.key}
-              onClick={() => setView(item.key)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 min-h-10 rounded-lg text-sm font-medium leading-tight transition-colors border-l-2 ${
-                active ? 'bg-navy-800 text-white border-lime-500' : 'text-navy-300 border-transparent hover:bg-navy-800 hover:text-white'
-              }`}
-            >
-              <Icon className="w-4 h-4 shrink-0" />
-              <span className="flex-1 text-left">{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className="px-6 pb-4">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-navy-300">Resumen</p>
-          <button onClick={onRefresh} title="Actualizar datos compartidos" className="text-navy-300 hover:text-white">
-            <RefreshCw className="w-3.5 h-3.5" />
+    <>
+      {/* Fondo oscuro detrás del menú en móvil — clic para cerrar. Nunca aparece en escritorio. */}
+      {mobileOpen && (
+        <div className="no-print fixed inset-0 bg-navy-900/60 z-30 md:hidden" onClick={onCloseMobile} />
+      )}
+      <aside
+        className={`no-print w-64 shrink-0 bg-navy-900 text-navy-200 flex flex-col h-screen fixed md:sticky top-0 left-0 z-40 transition-transform duration-200 md:translate-x-0 ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="px-5 py-6 border-b border-navy-800 flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-lg bg-lime-300 flex items-center justify-center shrink-0">
+            <img src={logoMark} alt="" className="w-5 h-5 object-contain" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-white font-bold leading-tight">Sun Design Suite</p>
+            <p className="text-xs text-navy-300 tracking-wide">Minigranjas Fotovoltaicas</p>
+          </div>
+          <button onClick={onCloseMobile} className="md:hidden text-navy-300 hover:text-white shrink-0" title="Cerrar menú">
+            <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          <div className="bg-navy-800 rounded-md py-1.5 text-center">
-            <p className="text-emerald-400 text-sm font-bold">{stats.activo}</p>
-            <p className="text-xs text-navy-300">Activos</p>
-          </div>
-          <div className="bg-navy-800 rounded-md py-1.5 text-center">
-            <p className="text-yellow-400 text-sm font-bold">{stats.pausa}</p>
-            <p className="text-xs text-navy-300">Pausa</p>
-          </div>
-          <div className="bg-navy-800 rounded-md py-1.5 text-center">
-            <p className="text-red-400 text-sm font-bold">{stats.inactivo}</p>
-            <p className="text-xs text-navy-300">Inact.</p>
-          </div>
-          <div className="bg-navy-800 rounded-md py-1.5 text-center">
-            <p className="text-violet-400 text-sm font-bold">{stats.finalizado}</p>
-            <p className="text-xs text-navy-300">Final.</p>
-          </div>
-        </div>
-      </div>
 
-      <div className="p-4 border-t border-navy-800 flex items-center gap-3">
-        <Avatar name={perfil.nombre} foto={perfil.foto} />
-        <div className="min-w-0 flex-1">
-          <p className="text-white text-sm font-semibold truncate">{perfil.nombre}</p>
-          <p className="text-navy-300 text-xs truncate flex items-center gap-1">
-            {isLeader(perfil) && <ShieldCheck className="w-3 h-3 text-lime-400 shrink-0" />}
-            {rolesLabel(perfil)}
-          </p>
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = view === item.key;
+            return (
+              <button
+                key={item.key}
+                onClick={() => setView(item.key)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 min-h-10 rounded-lg text-sm font-medium leading-tight transition-colors border-l-2 ${
+                  active ? 'bg-navy-800 text-white border-lime-500' : 'text-navy-300 border-transparent hover:bg-navy-800 hover:text-white'
+                }`}
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                <span className="flex-1 text-left">{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="px-6 pb-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-navy-300">Resumen</p>
+            <button onClick={onRefresh} title="Actualizar datos compartidos" className="text-navy-300 hover:text-white">
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            <div className="bg-navy-800 rounded-md py-1.5 text-center">
+              <p className="text-emerald-400 text-sm font-bold">{stats.activo}</p>
+              <p className="text-xs text-navy-300">Activos</p>
+            </div>
+            <div className="bg-navy-800 rounded-md py-1.5 text-center">
+              <p className="text-yellow-400 text-sm font-bold">{stats.pausa}</p>
+              <p className="text-xs text-navy-300">Pausa</p>
+            </div>
+            <div className="bg-navy-800 rounded-md py-1.5 text-center">
+              <p className="text-red-400 text-sm font-bold">{stats.inactivo}</p>
+              <p className="text-xs text-navy-300">Inact.</p>
+            </div>
+            <div className="bg-navy-800 rounded-md py-1.5 text-center">
+              <p className="text-violet-400 text-sm font-bold">{stats.finalizado}</p>
+              <p className="text-xs text-navy-300">Final.</p>
+            </div>
+          </div>
         </div>
-        <button onClick={onEditProfile} title="Editar mi perfil" className="text-navy-300 hover:text-white shrink-0">
-          <Pencil className="w-3.5 h-3.5" />
-        </button>
-        <button onClick={onLogout} title="Cerrar sesión" className="text-navy-300 hover:text-red-400 shrink-0">
-          <LogOut className="w-3.5 h-3.5" />
-        </button>
-      </div>
-    </aside>
+
+        <div className="p-4 border-t border-navy-800 flex items-center gap-3">
+          <Avatar name={perfil.nombre} foto={perfil.foto} />
+          <div className="min-w-0 flex-1">
+            <p className="text-white text-sm font-semibold truncate">{perfil.nombre}</p>
+            <p className="text-navy-300 text-xs truncate flex items-center gap-1">
+              {isLeader(perfil) && <ShieldCheck className="w-3 h-3 text-lime-400 shrink-0" />}
+              {rolesLabel(perfil)}
+            </p>
+          </div>
+          <button onClick={onEditProfile} title="Editar mi perfil" className="text-navy-300 hover:text-white shrink-0">
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={onLogout} title="Cerrar sesión" className="text-navy-300 hover:text-red-400 shrink-0">
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }
 
@@ -3395,8 +3345,8 @@ function Dashboard({ projects, misProyectos, onNewProject, openProject, setView,
   const primerNombre = (perfil.nombre || '').split(' ')[0];
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-4 md:p-8 max-w-6xl mx-auto">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-8">
         <div className="flex items-center gap-3">
           <Avatar name={perfil.nombre} foto={perfil.foto} size="lg" />
           <div>
@@ -3458,7 +3408,7 @@ function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, dire
   });
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-4 md:p-8 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-2">
         <div>
           <h1 className="text-2xl font-bold text-navy-800">{title}</h1>
@@ -3645,7 +3595,7 @@ function ResumenInversionistasView({ projects, onOpenProject }) {
   const inversionistasOrdenados = [...grupos.keys()].sort((a, b) => a.localeCompare(b, 'es'));
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-4 md:p-8 max-w-6xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-navy-800">Resumen por Inversionista</h1>
         <p className="text-navy-500 text-sm mt-1">Progreso de Control Documental y estado de proyectos, agrupado por inversionista. No incluye proyectos finalizados.</p>
@@ -3755,7 +3705,7 @@ function EquipoField({ role, valor, directorio, onChange, readOnly }) {
   return <EquipoSelect role={role} valorActual={valor} directorio={directorio} onChange={onChange} readOnly={readOnly} />;
 }
 
-function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionistas, onAddInversionista, paises, onAddPais }) {
+function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionistas, onAddInversionista, paises, onAddPais, projects }) {
   const puedeGestionar = isLeader(perfil);
   const [form, setForm] = useState({
     nombre: '',
@@ -3778,9 +3728,19 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionista
     setForm((prev) => ({ ...prev, equipo: { ...prev.equipo, [roleKey]: val } }));
   }
 
+  // Un mismo par (N.° de minigranja, N.° de predio) identifica un único
+  // proyecto real — si ya existe uno con esos dos datos, es el mismo
+  // proyecto y no se debe volver a crear.
+  const minigranja = form.general.numero_minigranja.trim();
+  const predio = form.general.numero_predio.trim();
+  const duplicado = minigranja && predio
+    ? projects.find((p) => (p.data.general.numero_minigranja || '').trim() === minigranja && (p.data.general.numero_predio || '').trim() === predio)
+    : null;
+
   function submit(e) {
     e.preventDefault();
     if (!form.nombre.trim()) return;
+    if (duplicado) return;
     const data = emptySchemaData();
     data.general = { ...data.general, ...form.general };
     onCreate({
@@ -3893,6 +3853,12 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionista
                 <input value={form.general.numero_predio} onChange={(e) => setGeneral('numero_predio', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm font-mono" />
               </div>
             </div>
+            {duplicado && (
+              <p className="flex items-start gap-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-2">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                Ya existe un proyecto con esta minigranja y predio: <strong>{projectDisplayName(duplicado)}</strong>. No se puede crear un duplicado — si es el mismo proyecto, ábrelo desde el listado en vez de crear uno nuevo.
+              </p>
+            )}
           </div>
 
           {puedeGestionar ? (
@@ -3938,7 +3904,11 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionista
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-navy-600 hover:bg-navy-100 rounded-lg">
               Cancelar
             </button>
-            <button type="submit" className="px-4 py-2 text-sm font-semibold bg-lime-500 hover:bg-lime-600 text-navy-900 rounded-lg shadow-sm">
+            <button
+              type="submit"
+              disabled={!!duplicado}
+              className="px-4 py-2 text-sm font-semibold bg-lime-500 hover:bg-lime-600 disabled:bg-navy-200 disabled:text-navy-400 disabled:cursor-not-allowed text-navy-900 rounded-lg shadow-sm"
+            >
               Crear Proyecto
             </button>
           </div>
@@ -4247,35 +4217,6 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
       () => supabase.rpc('merge_project_equipo_role', { p_id: project.id, p_role: roleKey, p_value: nombre })
     );
   }
-  function handleAddFiles(fileList) {
-    const nuevos = Array.from(fileList).map((f) => ({
-      id: makeId('file'),
-      nombre: f.name,
-      tipo: f.type || 'Documento',
-      tamano: f.size,
-      fecha: new Date().toISOString().slice(0, 10),
-    }));
-    const nombres = nuevos.map((f) => f.nombre).join(', ');
-    updateProject(
-      project.id,
-      (p) => ({ ...p, archivos: [...p.archivos, ...nuevos] }),
-      `Adjuntó archivo(s): ${nombres}`,
-      'archivos',
-      () => supabase.rpc('append_project_archivos', { p_id: project.id, p_nuevos: nuevos })
-    );
-    setHistorial(null);
-  }
-  function removeFile(fileId) {
-    const archivo = project.archivos.find((f) => f.id === fileId);
-    updateProject(
-      project.id,
-      (p) => ({ ...p, archivos: p.archivos.filter((f) => f.id !== fileId) }),
-      archivo ? `Eliminó el archivo: ${archivo.nombre}` : 'Eliminó un archivo',
-      'archivos',
-      () => supabase.rpc('remove_project_archivo', { p_id: project.id, p_archivo_id: fileId })
-    );
-    setHistorial(null);
-  }
   function handleAddNota(texto) {
     const nueva = { id: makeId('nota'), texto, autor: perfil.nombre, fecha: new Date().toISOString() };
     const resumen = texto.length > 80 ? `${texto.slice(0, 80)}…` : texto;
@@ -4325,18 +4266,18 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
   return (
     <div className="max-w-6xl mx-auto">
       {showConfetti && <Confetti />}
-      <div className="no-print p-8">
+      <div className="no-print p-4 md:p-8">
         <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-navy-500 hover:text-navy-700 mb-6">
           <ChevronLeft className="w-4 h-4" /> Volver al listado
         </button>
 
         <div className="bg-white border-2 border-navy-800 rounded-lg overflow-hidden mb-6">
-          <div className="flex items-center justify-between bg-navy-800 px-5 py-3">
+          <div className="flex items-center justify-between flex-wrap gap-2 bg-navy-800 px-5 py-3">
             <div className="flex items-center gap-2">
-              <ClipboardList className="w-4 h-4 text-lime-400" />
+              <ClipboardList className="w-4 h-4 text-lime-400 shrink-0" />
               <p className="text-white font-bold text-sm tracking-wide">HOJA DE VIDA DEL PROYECTO</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {puedeGestionar ? (
                 <select
                   value={project.estado}
@@ -4559,14 +4500,6 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
               <StickyNote className="w-4 h-4" /> Notas {project.notas && project.notas.length > 0 && `(${project.notas.length})`}
             </button>
             <button
-              onClick={() => setActiveTab('archivos')}
-              className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                activeTab === 'archivos' ? 'border-lime-500 text-lime-600 bg-lime-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
-              }`}
-            >
-              <Paperclip className="w-4 h-4" /> Archivos {project.archivos.length > 0 && `(${project.archivos.length})`}
-            </button>
-            <button
               onClick={() => setActiveTab('historial')}
               className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
                 activeTab === 'historial' ? 'border-lime-500 text-lime-600 bg-lime-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
@@ -4577,7 +4510,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
           </div>
 
           <div className="p-6">
-            {activeTab !== 'archivos' && activeTab !== 'historial' && activeTab !== 'documentos' && activeTab !== 'notas' && activeTab !== 'notas_tecnicas' && activeSection && (
+            {activeTab !== 'historial' && activeTab !== 'documentos' && activeTab !== 'notas' && activeTab !== 'notas_tecnicas' && activeSection && (
               <>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs text-navy-400">Campos de la especialidad · {activeSection.label}</p>
@@ -4616,9 +4549,6 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
                   onFocusHandled={() => setFocusFieldKey(null)}
                 />
               </>
-            )}
-            {activeTab === 'archivos' && (
-              <AttachmentsPanel archivos={project.archivos} onAdd={handleAddFiles} onRemove={removeFile} canEdit={puedeEditarContenido} />
             )}
             {activeTab === 'documentos' && (
               <DocumentControlPanel
@@ -4676,8 +4606,8 @@ function LinksView({ links, onAdd, onUpdate, onRemove }) {
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-4 md:p-8 max-w-4xl mx-auto">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-navy-800">Enlaces de Interés</h1>
           <p className="text-navy-500 text-sm mt-1">Recursos y herramientas de consulta para el equipo de diseño</p>
@@ -4964,7 +4894,7 @@ function InstructivosView({ carpetas, videos, onAddCarpeta, onUpdateCarpeta, onD
   const gruposCarpeta = carpetas.map((c) => ({ carpeta: c, videos: videos.filter((v) => v.carpeta_id === c.id) }));
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-4 md:p-8 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-navy-800">Instructivos</h1>
@@ -5164,7 +5094,7 @@ function PersonProfileView({ persona, perfil, projects, onBack, onToggleRole, on
   const proyectosAsignados = projects.filter((p) => equipoNombres(p.equipo).includes(persona.nombre));
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-4 md:p-8 max-w-4xl mx-auto">
       <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-navy-500 hover:text-navy-700 mb-6">
         <ChevronLeft className="w-4 h-4" /> Volver a Equipo
       </button>
@@ -5294,7 +5224,7 @@ function TeamCategoriesView({ directorio, perfil, onOpenPerson }) {
   const soyLiderDiseno = isDesignLeader(perfil);
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-4 md:p-8 max-w-4xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-navy-800">Equipo</h1>
         <p className="text-navy-500 text-sm mt-1">
@@ -5388,6 +5318,7 @@ export default function App() {
   const [previousView, setPreviousView] = useState('dashboard');
   const [selectedId, setSelectedId] = useState(null);
   const [selectedPersonId, setSelectedPersonId] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
 
   // Sesión de Supabase
@@ -5505,12 +5436,14 @@ export default function App() {
     setViewState(v);
     setSelectedId(null);
     setSelectedPersonId(null);
+    setSidebarOpen(false);
   }
   function openProject(id) {
     setPreviousView(view === 'detalle' ? previousView : view);
     setSelectedId(id);
     setSelectedPersonId(null);
     setViewState('detalle');
+    setSidebarOpen(false);
   }
   function goBack() {
     setViewState(previousView);
@@ -5794,9 +5727,20 @@ export default function App() {
         onEditProfile={() => setShowProfileEdit(true)}
         onRefresh={handleRefresh}
         onLogout={handleLogout}
+        mobileOpen={sidebarOpen}
+        onCloseMobile={() => setSidebarOpen(false)}
       />
 
-      <main className="app-main flex-1 overflow-y-auto">
+      <main className="app-main flex-1 overflow-y-auto overflow-x-hidden min-w-0">
+        <div className="no-print md:hidden sticky top-0 z-20 flex items-center gap-3 bg-navy-900 px-4 py-3">
+          <button onClick={() => setSidebarOpen(true)} className="text-white p-1" title="Abrir menú">
+            <Menu className="w-6 h-6" />
+          </button>
+          <div className="w-7 h-7 rounded-md bg-lime-300 flex items-center justify-center shrink-0">
+            <img src={logoMark} alt="" className="w-4 h-4 object-contain" />
+          </div>
+          <p className="text-white font-bold text-sm">Sun Design Suite</p>
+        </div>
         {view === 'dashboard' && (
           <Dashboard
             projects={projects}
@@ -5889,6 +5833,7 @@ export default function App() {
           onAddInversionista={handleAddInversionista}
           paises={paises}
           onAddPais={handleAddPais}
+          projects={projects}
         />
       )}
       {showProfileEdit && <ProfileGate initial={perfil} userId={perfil.id} onSaved={handleProfileSaved} onCancel={() => setShowProfileEdit(false)} />}
