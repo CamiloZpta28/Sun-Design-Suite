@@ -1497,7 +1497,7 @@ function calcularEstribos({ altura, ancho, profundo, separacion, calibre }) {
   const profundoNum = parseFloat(profundo);
   const separacionNum = parseFloat(separacion);
   if (!info || !alturaNum || !anchoNum || !profundoNum || !separacionNum) return null;
-  const cantidad = Math.ceil(alturaNum / separacionNum) + 1;
+  const cantidad = Math.ceil((alturaNum - 2 * RECUBRIMIENTO_CIMENTACION) / separacionNum);
   const longitud = 2 * (anchoNum + profundoNum - 4 * RECUBRIMIENTO_CIMENTACION) + 2 * info.gancho;
   const pesoEstribo = longitud * info.peso;
   const pesoPedestal = pesoEstribo * cantidad;
@@ -2431,8 +2431,8 @@ function CamarasVistas({ datos }) {
 const INV_VB_W = 260;
 const INV_VB_H = 210;
 const INV_M2PX = 55;
-const INV_CSS_SIZE = 'w-52 h-44';
-const INV_REF_CSS_SIZE = 'w-40 h-40';
+const INV_CSS_SIZE = 'w-72 h-60';
+const INV_REF_CSS_SIZE = 'w-56 h-56';
 
 /* Isométrico del conjunto: solado corrido + 2 pedestales + losa encima,      */
 /* con cotas de la losa (ancho/largo/espesor) y de un pedestal (ancho/       */
@@ -2473,16 +2473,37 @@ function InversoresIsometrico({ datos }) {
   const losaZ1 = bodyZ1 + lEspesorPx;
 
   const ox = INV_VB_W / 2;
-  const oy = 20 + Math.max(halfProf, lLargoPx / 2) + losaZ1;
+  const oy = 24 + Math.max(halfProf, lLargoPx / 2) + losaZ1;
 
   const soladoMedioX = (pAnchoPx + pSepPx) / 2 + halfPed + 8;
 
-  const [rightTopX, rightTopY] = isoPt(centroX + halfPed, -halfProf, bodyZ1, ox, oy);
-  const [rightBotX, rightBotY] = isoPt(centroX + halfPed, -halfProf, bodyZ0, ox, oy);
-  const [losaTopX, losaTopY] = isoPt(lAnchoPx / 2, -lLargoPx / 2, losaZ1, ox, oy);
-  const [losaBotX, losaBotY] = isoPt(lAnchoPx / 2, -lLargoPx / 2, bodyZ1, ox, oy);
-  const [losaFrontLeftX, losaFrontLeftY] = isoPt(-lAnchoPx / 2, lLargoPx / 2, losaZ1, ox, oy);
-  const [losaFrontRightX, losaFrontRightY] = isoPt(lAnchoPx / 2, lLargoPx / 2, losaZ1, ox, oy);
+  // Altura del pedestal: esquina trasera-izquierda, hacia la izquierda —
+  // en el lado OPUESTO a las cotas de ancho/largo de la losa, para que
+  // nunca se crucen aunque la losa sea más grande que los pedestales.
+  const [leftTopX, leftTopY] = isoPt(-centroX - halfPed, -halfProf, bodyZ1, ox, oy);
+  const [leftBotX, leftBotY] = isoPt(-centroX - halfPed, -halfProf, bodyZ0, ox, oy);
+
+  // Espesor de la losa: también a la izquierda, pero con más separación
+  // (offset mayor) para no encimarse con la cota de altura.
+  const [espTopX, espTopY] = isoPt(-lAnchoPx / 2, lLargoPx / 2, losaZ1, ox, oy);
+  const [espBotX, espBotY] = isoPt(-lAnchoPx / 2, lLargoPx / 2, bodyZ1, ox, oy);
+
+  // Ancho y largo de la losa: paralelos a cada borde visible de su base
+  // (mismo criterio que usamos en Luminarias/Cámaras), desplazados hacia
+  // afuera para no chocar con los pedestales dibujados debajo.
+  const dimPushLosa = 30;
+  const losaNearModel = [lAnchoPx / 2, lLargoPx / 2];
+  const losaFrontLeftModel = [-lAnchoPx / 2, lLargoPx / 2];
+  const losaRightModel = [lAnchoPx / 2, -lLargoPx / 2];
+  const losaNearPt = isoPt(losaNearModel[0], losaNearModel[1], losaZ1, ox, oy);
+  const losaFrontLeftPt = isoPt(losaFrontLeftModel[0], losaFrontLeftModel[1], losaZ1, ox, oy);
+  const losaRightPt = isoPt(losaRightModel[0], losaRightModel[1], losaZ1, ox, oy);
+  const lAnchoP1 = isoPt(losaFrontLeftModel[0], losaFrontLeftModel[1] + dimPushLosa, losaZ1, ox, oy);
+  const lAnchoP2 = isoPt(losaNearModel[0], losaNearModel[1] + dimPushLosa, losaZ1, ox, oy);
+  const lLargoP1 = isoPt(losaNearModel[0] + dimPushLosa, losaNearModel[1], losaZ1, ox, oy);
+  const lLargoP2 = isoPt(losaRightModel[0] + dimPushLosa, losaRightModel[1], losaZ1, ox, oy);
+  const lAnchoLabel = isoPt((losaFrontLeftModel[0] + losaNearModel[0]) / 2, losaFrontLeftModel[1] + dimPushLosa + 14, losaZ1, ox, oy);
+  const lLargoLabel = isoPt(losaNearModel[0] + dimPushLosa + 14, (losaNearModel[1] + losaRightModel[1]) / 2, losaZ1, ox, oy);
 
   return (
     <svg viewBox={`0 0 ${INV_VB_W} ${INV_VB_H}`} className={INV_CSS_SIZE}>
@@ -2494,30 +2515,41 @@ function InversoresIsometrico({ datos }) {
       <IsoBoxLineArt x0={centroX - halfPed} y0={-halfProf} w={pAnchoPx} d={pProfundoPx} z0={bodyZ0} z1={bodyZ1} ox={ox} oy={oy} />
       {/* Losa encima de ambos */}
       <IsoBoxLineArt x0={-lAnchoPx / 2} y0={-lLargoPx / 2} w={lAnchoPx} d={lLargoPx} z0={bodyZ1} z1={losaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
-      {/* Cota de altura del pedestal (a la derecha) */}
+      {/* Cota de altura del pedestal (a la izquierda) */}
       <g stroke="#152644" strokeWidth="1">
-        <line x1={rightTopX + 20} y1={rightTopY} x2={rightBotX + 20} y2={rightBotY} />
-        <line x1={rightTopX + 16} y1={rightTopY} x2={rightTopX + 24} y2={rightTopY} />
-        <line x1={rightBotX + 16} y1={rightBotY} x2={rightBotX + 24} y2={rightBotY} />
+        <line x1={leftTopX - 20} y1={leftTopY} x2={leftBotX - 20} y2={leftBotY} />
+        <line x1={leftTopX - 16} y1={leftTopY} x2={leftTopX - 24} y2={leftTopY} />
+        <line x1={leftBotX - 16} y1={leftBotY} x2={leftBotX - 24} y2={leftBotY} />
       </g>
-      <text x={rightTopX + 30} y={(rightTopY + rightBotY) / 2} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${rightTopX + 30}, ${(rightTopY + rightBotY) / 2})`}>
+      <text x={leftTopX - 30} y={(leftTopY + leftBotY) / 2} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${leftTopX - 30}, ${(leftTopY + leftBotY) / 2})`}>
         {pAltura ? pAltura.toFixed(2) : '—'} m
       </text>
-      {/* Cota de espesor de losa (a la derecha, más arriba) */}
+      {/* Cota de espesor de losa (frente-izquierda, más separada hacia la izquierda) */}
       <g stroke="#3C64AA" strokeWidth="1">
-        <line x1={losaTopX + 20} y1={losaTopY} x2={losaBotX + 20} y2={losaBotY} />
-        <line x1={losaTopX + 16} y1={losaTopY} x2={losaTopX + 24} y2={losaTopY} />
-        <line x1={losaBotX + 16} y1={losaBotY} x2={losaBotX + 24} y2={losaBotY} />
+        <line x1={espTopX - 42} y1={espTopY} x2={espBotX - 42} y2={espBotY} />
+        <line x1={espTopX - 38} y1={espTopY} x2={espTopX - 46} y2={espTopY} />
+        <line x1={espBotX - 38} y1={espBotY} x2={espBotX - 46} y2={espBotY} />
       </g>
-      <text x={losaTopX + 30} y={(losaTopY + losaBotY) / 2} textAnchor="middle" fontSize="8" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${losaTopX + 30}, ${(losaTopY + losaBotY) / 2})`}>
+      <text x={espTopX - 52} y={(espTopY + espBotY) / 2} textAnchor="middle" fontSize="8" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${espTopX - 52}, ${(espTopY + espBotY) / 2})`}>
         {lEspesor ? lEspesor.toFixed(2) : '—'} m
       </text>
-      {/* Cotas de ancho y largo de la losa (borde frontal) */}
+      {/* Cota de ancho de losa: paralela a su borde frontal-izquierdo */}
       <g stroke="#3C64AA" strokeWidth="1">
-        <line x1={losaFrontLeftX} y1={losaFrontLeftY + 12} x2={losaFrontRightX} y2={losaFrontRightY + 12} />
+        <line x1={losaFrontLeftPt[0]} y1={losaFrontLeftPt[1]} x2={lAnchoP1[0]} y2={lAnchoP1[1]} />
+        <line x1={losaNearPt[0]} y1={losaNearPt[1]} x2={lAnchoP2[0]} y2={lAnchoP2[1]} />
+        <line x1={lAnchoP1[0]} y1={lAnchoP1[1]} x2={lAnchoP2[0]} y2={lAnchoP2[1]} />
       </g>
-      <text x={(losaFrontLeftX + losaFrontRightX) / 2} y={(losaFrontLeftY + losaFrontRightY) / 2 + 24} textAnchor="middle" fontSize="8" fontWeight="600" fill="#3C64AA">
-        Losa {lAncho || '—'} × {lLargo || '—'} m
+      <text x={lAnchoLabel[0]} y={lAnchoLabel[1]} textAnchor="middle" fontSize="8" fontWeight="600" fill="#3C64AA">
+        {lAncho || '—'} m
+      </text>
+      {/* Cota de largo de losa: paralela a su borde frontal-derecho */}
+      <g stroke="#3C64AA" strokeWidth="1">
+        <line x1={losaNearPt[0]} y1={losaNearPt[1]} x2={lLargoP1[0]} y2={lLargoP1[1]} />
+        <line x1={losaRightPt[0]} y1={losaRightPt[1]} x2={lLargoP2[0]} y2={lLargoP2[1]} />
+        <line x1={lLargoP1[0]} y1={lLargoP1[1]} x2={lLargoP2[0]} y2={lLargoP2[1]} />
+      </g>
+      <text x={lLargoLabel[0]} y={lLargoLabel[1]} textAnchor="middle" fontSize="8" fontWeight="600" fill="#3C64AA">
+        {lLargo || '—'} m
       </text>
     </svg>
   );
@@ -2535,42 +2567,66 @@ function InversoresRefuerzoElevacion({ datos }) {
   const pAncho = parseFloat(p.ancho) || 0.3;
   const altura = (parseFloat(p.desplante) || 0) + (parseFloat(p.sobresaliente) || 0);
   const cantidadBarras = Math.max(2, parseInt(b.cantidad, 10) || 2);
+  const ganchosBarra = parseFloat(b.ganchos) || 0;
+  const infoBarra = BARRA_ACERO[b.calibre];
   const estribos = calcularEstribos({ altura, ancho: p.ancho, profundo: p.profundo, separacion: e.separacion, calibre: e.calibre });
   const cantidadEstribos = estribos ? estribos.cantidad : 0;
+  const separacionM = parseFloat(e.separacion) || 0;
 
-  const w = clamp(pAncho * 110, 40, 90);
-  const h = clamp((altura || 0.5) * 110, 70, 150);
-  const x0 = INV_REF_CSS_SIZE ? 0 : 0;
-  const cx = 80;
-  const topY = 20;
+  const w = clamp(pAncho * 130, 45, 100);
+  const h = clamp((altura || 0.5) * 130, 90, 190);
+  const cx = 90;
+  const topY = 24;
   const botY = topY + h;
-  const recubPx = 6;
+  const recubPx = 7;
+  const escala = altura > 0 ? h / altura : 130;
+  const ganchoPx = infoBarra ? clamp(infoBarra.gancho * escala, 7, 13) : 10;
 
+  // En una vista posterior/elevación, las barras que comparten la misma
+  // posición "x" (una al frente, otra atrás) se dibujan como UNA sola línea
+  // — por eso solo se ven la mitad de las barras totales (redondeando
+  // hacia arriba), no las 4 de un arreglo típico en las esquinas.
+  const posicionesVisibles = Math.max(1, Math.ceil(cantidadBarras / 2));
   const barX = [];
-  for (let i = 0; i < cantidadBarras; i++) {
-    const frac = cantidadBarras === 1 ? 0.5 : i / (cantidadBarras - 1);
+  for (let i = 0; i < posicionesVisibles; i++) {
+    const frac = posicionesVisibles === 1 ? 0.5 : i / (posicionesVisibles - 1);
     barX.push(cx - w / 2 + recubPx + frac * (w - 2 * recubPx));
   }
+
+  // Los estribos se dibujan con la separación real (a escala), así la
+  // cantidad que se ve corresponde a la cantidad real calculada — no una
+  // cantidad pareja inventada.
+  const separacionPx = separacionM > 0 ? separacionM * escala : h / Math.max(cantidadEstribos, 1);
   const estriboY = [];
-  const nEstribosDibujar = Math.min(cantidadEstribos || 6, 12);
-  for (let i = 0; i < nEstribosDibujar; i++) {
-    const frac = nEstribosDibujar === 1 ? 0.5 : i / (nEstribosDibujar - 1);
-    estriboY.push(topY + recubPx + frac * (h - 2 * recubPx));
+  for (let i = 0; i < cantidadEstribos; i++) {
+    const y = botY - recubPx - i * separacionPx;
+    if (y < topY + recubPx) break;
+    estriboY.push(y);
   }
 
+  const ganchosLabel = ganchosBarra > 0 ? 'L'.repeat(Math.min(ganchosBarra, 2)) : '';
+  const ganchoLongitud = infoBarra ? infoBarra.gancho : null;
+
   return (
-    <svg viewBox="0 0 160 195" className={INV_REF_CSS_SIZE}>
+    <svg viewBox="0 0 180 230" className={INV_REF_CSS_SIZE}>
       <rect x={cx - w / 2} y={topY} width={w} height={h} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
       {estriboY.map((y, i) => (
         <rect key={i} x={cx - w / 2 + recubPx} y={y - 2} width={w - 2 * recubPx} height="4" fill="none" stroke="#2563EB" strokeWidth="1" />
       ))}
-      {barX.map((x, i) => (
-        <line key={i} x1={x} y1={topY + 3} x2={x} y2={botY - 3} stroke="#059669" strokeWidth="1.6" />
-      ))}
-      <text x={cx} y={topY - 6} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#059669">
-        {cantidadBarras}{b.calibre || '#—'} CONTINUAS
+      {barX.map((x, i) => {
+        const dir = 1; // todos los ganchos hacia el mismo lado, para que nunca se crucen entre sí
+        return (
+          <g key={i}>
+            <line x1={x} y1={topY + 2} x2={x} y2={botY - 2} stroke="#059669" strokeWidth="1.6" />
+            {ganchosBarra >= 1 && <line x1={x} y1={botY - 2} x2={x + dir * ganchoPx} y2={botY - 2} stroke="#059669" strokeWidth="1.6" />}
+            {ganchosBarra >= 2 && <line x1={x} y1={topY + 2} x2={x + dir * ganchoPx} y2={topY + 2} stroke="#059669" strokeWidth="1.6" />}
+          </g>
+        );
+      })}
+      <text x={cx} y={topY - 8} textAnchor="middle" fontSize="8" fontWeight="600" fill="#059669">
+        {cantidadBarras}{b.calibre || '#—'} {ganchosLabel}{ganchoLongitud !== null ? ganchoLongitud.toFixed(2) : ''}
       </text>
-      <text x={cx + w / 2 + 6} y={(topY + botY) / 2} fontSize="7.5" fontWeight="600" fill="#2563EB" transform={`rotate(90, ${cx + w / 2 + 6}, ${(topY + botY) / 2})`} textAnchor="middle">
+      <text x={cx + w / 2 + 8} y={(topY + botY) / 2} fontSize="8" fontWeight="600" fill="#2563EB" transform={`rotate(90, ${cx + w / 2 + 8}, ${(topY + botY) / 2})`} textAnchor="middle">
         {cantidadEstribos || '—'} E{e.calibre || '#—'} @{e.separacion || '—'}
       </text>
     </svg>
@@ -2593,6 +2649,15 @@ function InversoresRefuerzoCorte({ datos }) {
     <svg viewBox="0 0 160 160" className={INV_REF_CSS_SIZE}>
       <rect x={cx - w / 2} y={cy - d / 2} width={w} height={d} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
       <rect x={cx - w / 2 + recubPx} y={cy - d / 2 + recubPx} width={w - 2 * recubPx} height={d - 2 * recubPx} fill="none" stroke="#2563EB" strokeWidth="1.2" />
+      {/* Gancho del estribo: la marca diagonal típica del doblez, como en el plano de referencia */}
+      <line
+        x1={cx - (w / 2 - recubPx) * 0.55}
+        y1={cy + (d / 2 - recubPx) * 0.55}
+        x2={cx + (w / 2 - recubPx) * 0.25}
+        y2={cy - (d / 2 - recubPx) * 0.25}
+        stroke="#2563EB"
+        strokeWidth="1.3"
+      />
       {[[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy], i) => (
         <circle key={i} cx={cx + sx * (w / 2 - recubPx)} cy={cy + sy * (d / 2 - recubPx)} r="2.6" fill="#059669" />
       ))}
@@ -2789,15 +2854,15 @@ function InversoresForm({ plantilla, onCancel, onSave, mallas, onAddMalla }) {
           <p className="text-xs font-bold uppercase tracking-wide text-navy-600 mb-3">Barras longitudinales (por pedestal)</p>
           <div className="grid grid-cols-3 gap-3 mb-3">
             <div>
-              <label className="block text-xs text-navy-500 mb-1">N.° de barras</label>
+              <label className="block text-xs text-navy-500 mb-1 min-h-[2rem]">N.° de barras</label>
               <input value={datos.barras.cantidad} onChange={(e) => setGrupo('barras', 'cantidad', e.target.value)} placeholder="4" className={cellInput} />
             </div>
             <div>
-              <label className="block text-xs text-navy-500 mb-1">Calibre</label>
+              <label className="block text-xs text-navy-500 mb-1 min-h-[2rem]">Calibre</label>
               <CalibreSelect value={datos.barras.calibre} onChange={(val) => setGrupo('barras', 'calibre', val)} className={cellInput} />
             </div>
             <div>
-              <label className="block text-xs text-navy-500 mb-1">N.° de ganchos por barra</label>
+              <label className="block text-xs text-navy-500 mb-1 min-h-[2rem]">N.° de ganchos</label>
               <input value={datos.barras.ganchos} onChange={(e) => setGrupo('barras', 'ganchos', e.target.value)} placeholder="1" className={cellInput} />
             </div>
           </div>

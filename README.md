@@ -169,6 +169,34 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Correcciones a Inversores** (después de tu primer feedback):
+  - **Fórmula de estribos corregida**: ahora es (altura − 2×recubrimiento) /
+    separación, tal como la corregiste. Ya no lleva el "+1" que tenía antes.
+  - **Dibujos más grandes** en las 4 vistas.
+  - **Cotas de la losa reorganizadas** para que nunca se crucen entre sí:
+    altura del pedestal y espesor de losa quedaron a la izquierda, ancho y
+    largo de la losa a la derecha (antes coincidían en el mismo lado y se
+    encimaban cuando la losa era más grande que los pedestales). Verifiqué
+    esto con las medidas exactas de tu ejemplo (1.40 × 1.55 m) antes de
+    entregarlo.
+  - **Elevación del refuerzo repensada**: ahora solo se dibujan
+    ⌈N.° de barras / 2⌉ líneas (2 para un arreglo típico de 4 en las
+    esquinas, ya que en una vista posterior las barras de adelante y atrás
+    caen en la misma posición); se agregaron los ganchos a 90° en los
+    extremos (según el N.° de ganchos que hayas puesto); y la cantidad de
+    estribos dibujada ahora corresponde exactamente a la calculada, con su
+    separación real a escala (antes se limitaba a un máximo arbitrario de
+    12 repartidos parejo).
+  - **Nueva nomenclatura**: "4#4 LLb" en vez de "4#4 CONTINUAS" — la "L" se
+    repite una vez por cada gancho que tenga la barra, seguida de la
+    longitud de gancho de ese calibre.
+  - **Corte transversal**: se agregó la marca diagonal del gancho del
+    estribo, como en tu imagen de referencia.
+  - **Alineación de campos**: en "Barras longitudinales" los tres cuadros
+    de texto ya quedan en la misma fila — el problema era que una
+    etiqueta más larga se partía en dos líneas y desalineaba todo, así que
+    la acorté y les di una altura mínima pareja a las tres.
+
 - **Inversores, cuarto tipo de Cimentaciones construido — el más grande
   hasta ahora**: 2 pedestales iguales + 1 losa con malla electrosoldada, con
   despiece de acero completo (barras longitudinales + estribos) y cálculo
