@@ -1457,7 +1457,9 @@ const CIMENTACION_TIPOS = [
   { id: 'luminarias', label: 'Luminarias', icon: Lightbulb, disponible: true },
   { id: 'camaras', label: 'Cámaras', icon: Video, disponible: true },
   { id: 'inversores', label: 'Inversores', icon: Zap, disponible: true },
-  { id: 'cerramiento', label: 'Cerramiento', icon: Building2, disponible: false },
+  { id: 'cerramiento_postes', label: 'Cerramiento · Postes', icon: CircleDot, disponible: true },
+  { id: 'cerramiento_porton', label: 'Cerramiento · Portón', icon: Building2, disponible: true },
+  { id: 'cerramiento_paso_fauna', label: 'Cerramiento · Paso de fauna', icon: Home, disponible: true },
   { id: 'shelter', label: 'Shelter', icon: Home, disponible: false },
 ];
 
@@ -1547,6 +1549,92 @@ function calcularEstribos({ altura, ancho, profundo, separacion, calibre }) {
   const pesoEstribo = longitud * info.peso;
   const pesoPedestal = pesoEstribo * cantidad;
   return { cantidad, longitud, pesoEstribo, pesoPedestal, pesoTotal: pesoPedestal * 2 };
+}
+
+/* Parrilla de acero de la zapata del Portón: barras en las dos direcciones, */
+/* cada una con 2 ganchos hacia arriba. La CANTIDAD ya no se digita — se     */
+/* calcula sola con la misma fórmula que diste: techo[(x−2a)/b)], SIN +1.   */
+/* Convención: las barras "longitudinales" corren a lo largo de "largo" y   */
+/* se reparten a lo ANCHO de la zapata; las "transversales" corren a lo     */
+/* ancho y se reparten a lo LARGO. Cada barra lleva 2 ganchos (uno en cada  */
+/* extremo, apuntando hacia arriba).                                        */
+function calcularParrillaZapata({ ancho, largo, longitudinal, transversal }) {
+  const anchoNum = parseFloat(ancho);
+  const largoNum = parseFloat(largo);
+  const resultado = {};
+
+  const infoLong = BARRA_ACERO[longitudinal?.calibre];
+  const sepLong = parseFloat(longitudinal?.separacion);
+  if (anchoNum && largoNum && infoLong && sepLong) {
+    const cantidad = Math.ceil((anchoNum - 2 * RECUBRIMIENTO_CIMENTACION) / sepLong);
+    const longitudBarra = largoNum - 2 * RECUBRIMIENTO_CIMENTACION + 2 * infoLong.gancho;
+    const pesoBarra = longitudBarra * infoLong.peso;
+    resultado.longitudinal = { cantidad, longitud: longitudBarra, pesoBarra, pesoTotal: pesoBarra * cantidad };
+  }
+
+  const infoTrans = BARRA_ACERO[transversal?.calibre];
+  const sepTrans = parseFloat(transversal?.separacion);
+  if (anchoNum && largoNum && infoTrans && sepTrans) {
+    const cantidad = Math.ceil((largoNum - 2 * RECUBRIMIENTO_CIMENTACION) / sepTrans);
+    const longitudBarra = anchoNum - 2 * RECUBRIMIENTO_CIMENTACION + 2 * infoTrans.gancho;
+    const pesoBarra = longitudBarra * infoTrans.peso;
+    resultado.transversal = { cantidad, longitud: longitudBarra, pesoBarra, pesoTotal: pesoBarra * cantidad };
+  }
+
+  return resultado;
+}
+
+/* Barras longitudinales de la viga de amarre: 8 piezas en total (4 líneas —  */
+/* 2 arriba, 2 abajo en las esquinas de la sección — cada línea formada por  */
+/* 2 piezas traslapadas a la mitad del recorrido). El acero va de centro a   */
+/* centro de zapata, por eso cada pieza mide (separación + traslapo)/2. El   */
+/* traslapo sale de la tabla NSR-10 según calibre y resistencia.            */
+function calcularBarrasVigaAmarre({ separacionCentros, calibre, resistencia }) {
+  const info = BARRA_ACERO[calibre];
+  const separacion = parseFloat(separacionCentros);
+  const traslapo = obtenerTraslapo(calibre, resistencia);
+  if (!info || !separacion || traslapo === null) return null;
+  const longitudPieza = separacion / 2 + traslapo / 2;
+  const pesoPieza = longitudPieza * info.peso;
+  const piezasTotales = 8; // 4 líneas × 2 piezas traslapadas cada una
+  return { traslapo, longitudPieza, pesoPieza, piezas: piezasTotales, pesoTotal: pesoPieza * piezasTotales };
+}
+
+/* Volúmenes combinados de TODO el conjunto Portón (2 zapatas + viga que las */
+/* une + 2 pedestales encima). El pedestal no aporta a excavación ni a      */
+/* solado — su tramo enterrado ya queda dentro de la excavación/solado de   */
+/* la zapata; solo aporta su propio concreto (la parte que sobresale de la  */
+/* zapata).                                                                  */
+function calcularVolumenesPorton({ zapata, viga, pedestal, separacionZapatas, desplante, espesorSolado }) {
+  const zAncho = parseFloat(zapata.ancho) || 0;
+  const zLargo = parseFloat(zapata.largo) || 0;
+  const zEspesor = parseFloat(zapata.espesor) || 0;
+  const vAncho = parseFloat(viga.ancho) || 0;
+  const vAlto = parseFloat(viga.alto) || 0;
+  const pAncho = parseFloat(pedestal.ancho) || 0;
+  const pProfundo = parseFloat(pedestal.profundo) || 0;
+  const pAltura = parseFloat(pedestal.altura) || 0;
+  const separacion = parseFloat(separacionZapatas) || 0;
+  const desp = parseFloat(desplante) || 0;
+  const esp = parseFloat(espesorSolado) || 0;
+  if (!zAncho || !zLargo || !separacion) return null;
+
+  const distanciaCarasInternas = Math.max(0, separacion - zLargo);
+  const longitudViga = separacion - zLargo; // la viga corre entre las caras internas de las zapatas
+
+  const concretoZapatas = zAncho * zLargo * zEspesor * 2;
+  const concretoViga = longitudViga > 0 ? vAncho * vAlto * longitudViga : 0;
+  const concretoPedestales = pAncho * pProfundo * pAltura * 2;
+
+  const huellaConjunto = zAncho * zLargo * 2 + distanciaCarasInternas * vAncho;
+  const profundidad = desp + esp;
+
+  return {
+    concreto: concretoZapatas + concretoViga + concretoPedestales,
+    excavacion: huellaConjunto * profundidad,
+    solado: huellaConjunto * esp,
+    longitudViga,
+  };
 }
 
 /* Volúmenes (concreto, excavación, solado) de un elemento CILÍNDRICO         */
@@ -3139,6 +3227,617 @@ function InversoresForm({ plantilla, onCancel, onSave, mallas, onAddMalla }) {
   );
 }
 
+/* ============================================================ */
+/* PASO DE FAUNA — bloque simple de concreto, sin acero.          */
+/* ============================================================ */
+const FAUNA_VB_W = 200;
+const FAUNA_VB_H = 195;
+const FAUNA_M2PX = 90;
+const FAUNA_CSS_SIZE = 'w-56 h-56';
+
+function PasoFaunaPreview({ datos }) {
+  const ancho = parseFloat(datos.ancho) || 0;
+  const profundo = parseFloat(datos.profundo) || 0;
+  const alto = parseFloat(datos.alto) || 0;
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const anchoPx = clamp((ancho || 0.4) * FAUNA_M2PX, 30, 90);
+  const profundoPx = clamp((profundo || 0.2) * FAUNA_M2PX, 20, 70);
+  const altoPx = clamp((alto || 0.2) * FAUNA_M2PX, 20, 80);
+  const halfW = anchoPx / 2;
+  const halfD = profundoPx / 2;
+  const ox = FAUNA_VB_W / 2;
+  const oy = 30 + halfW + altoPx;
+
+  const nearBottomModel = [halfW, halfD];
+  const frontLeftModel = [-halfW, halfD];
+  const rightModel = [halfW, -halfD];
+  const nearBottomPt = isoPt(nearBottomModel[0], nearBottomModel[1], 0, ox, oy);
+  const frontLeftPt = isoPt(frontLeftModel[0], frontLeftModel[1], 0, ox, oy);
+  const rightPt = isoPt(rightModel[0], rightModel[1], 0, ox, oy);
+  const dimPush = 22;
+  const anchoP1 = isoPt(frontLeftModel[0], frontLeftModel[1] + dimPush, 0, ox, oy);
+  const anchoP2 = isoPt(nearBottomModel[0], nearBottomModel[1] + dimPush, 0, ox, oy);
+  const profP1 = isoPt(nearBottomModel[0] + dimPush, nearBottomModel[1], 0, ox, oy);
+  const profP2 = isoPt(rightModel[0] + dimPush, rightModel[1], 0, ox, oy);
+  const anchoLabel = isoPt((frontLeftModel[0] + nearBottomModel[0]) / 2, frontLeftModel[1] + dimPush + 16, 0, ox, oy);
+  const profLabel = isoPt(nearBottomModel[0] + dimPush + 16, (nearBottomModel[1] + rightModel[1]) / 2, 0, ox, oy);
+  const [topX, topY] = isoPt(halfW, -halfD, altoPx, ox, oy);
+  const [botX, botY] = isoPt(halfW, -halfD, 0, ox, oy);
+
+  return (
+    <svg viewBox={`0 0 ${FAUNA_VB_W} ${FAUNA_VB_H}`} className={FAUNA_CSS_SIZE}>
+      <IsoBoxLineArt x0={-halfW} y0={-halfD} w={anchoPx} d={profundoPx} z0={0} z1={altoPx} ox={ox} oy={oy} />
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={frontLeftPt[0]} y1={frontLeftPt[1]} x2={anchoP1[0]} y2={anchoP1[1]} />
+        <line x1={nearBottomPt[0]} y1={nearBottomPt[1]} x2={anchoP2[0]} y2={anchoP2[1]} />
+        <line x1={anchoP1[0]} y1={anchoP1[1]} x2={anchoP2[0]} y2={anchoP2[1]} />
+      </g>
+      <text x={anchoLabel[0]} y={anchoLabel[1]} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="#152644">{ancho || '—'} m</text>
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={nearBottomPt[0]} y1={nearBottomPt[1]} x2={profP1[0]} y2={profP1[1]} />
+        <line x1={rightPt[0]} y1={rightPt[1]} x2={profP2[0]} y2={profP2[1]} />
+        <line x1={profP1[0]} y1={profP1[1]} x2={profP2[0]} y2={profP2[1]} />
+      </g>
+      <text x={profLabel[0]} y={profLabel[1]} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="#152644">{profundo || '—'} m</text>
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={topX + 20} y1={topY} x2={botX + 20} y2={botY} />
+        <line x1={topX + 16} y1={topY} x2={topX + 24} y2={topY} />
+        <line x1={botX + 16} y1={botY} x2={botX + 24} y2={botY} />
+      </g>
+      <text x={topX + 30} y={(topY + botY) / 2} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${topX + 30}, ${(topY + botY) / 2})`}>
+        {alto || '—'} m
+      </text>
+    </svg>
+  );
+}
+
+function PasoFaunaForm({ plantilla, onCancel, onSave }) {
+  const [nombre, setNombre] = useState(plantilla?.nombre || '');
+  const [datos, setDatos] = useState(plantilla?.datos || { ancho: '', profundo: '', alto: '' });
+
+  function set(key, val) {
+    setDatos((prev) => ({ ...prev, [key]: val }));
+  }
+
+  const ancho = parseFloat(datos.ancho) || 0;
+  const profundo = parseFloat(datos.profundo) || 0;
+  const alto = parseFloat(datos.alto) || 0;
+  const volumenes = ancho && profundo && alto
+    ? { concreto: ancho * profundo * alto, excavacion: ancho * profundo * alto, solado: 0 }
+    : null;
+  const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+
+  function submit(e) {
+    e.preventDefault();
+    if (!nombre.trim()) return;
+    onSave(nombre.trim(), datos);
+  }
+
+  return (
+    <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
+      <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
+        {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Cerramiento · Paso de fauna
+      </p>
+      <div className="flex items-start gap-6 flex-wrap">
+        <div className="flex justify-center bg-navy-50 rounded-lg p-3 shrink-0 w-fit mx-auto">
+          <PasoFaunaPreview datos={datos} />
+        </div>
+        <div className="flex-1 space-y-3" style={{ minWidth: 240 }}>
+          <div>
+            <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre de la plantilla</label>
+            <input
+              autoFocus
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              placeholder="Ej. Paso de fauna Tipo 1"
+              className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Base / Ancho (m)</label>
+              <input value={datos.ancho} onChange={(e) => set('ancho', e.target.value)} placeholder="0.40" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Profundo (m)</label>
+              <input value={datos.profundo} onChange={(e) => set('profundo', e.target.value)} placeholder="0.20" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Alto (m)</label>
+              <input value={datos.alto} onChange={(e) => set('alto', e.target.value)} placeholder="0.20" className={cellInput} />
+            </div>
+          </div>
+          <p className="text-xs text-navy-400 italic">
+            Bloque macizo sin acero — la excavación es igual al volumen de concreto (no lleva solado aparte).
+          </p>
+          <div className="flex gap-2 pt-2">
+            <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700 px-3 py-2">
+              Cancelar
+            </button>
+            <button type="submit" className="bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2 rounded-lg">
+              Guardar plantilla
+            </button>
+          </div>
+        </div>
+      </div>
+      <ResumenVolumenes volumenes={volumenes} />
+    </form>
+  );
+}
+
+/* ============================================================ */
+/* PORTÓN — 2 zapatas + viga de amarre + 2 pedestales.             */
+/* ============================================================ */
+const PORTON_VB_W = 300;
+const PORTON_VB_H = 220;
+const PORTON_M2PX = 45;
+const PORTON_CSS_SIZE = 'w-72 h-56';
+const PORTON_PLANTA_CSS_SIZE = 'w-56 h-56';
+
+/* Isométrico del conjunto: 2 zapatas + viga que las une + 2 pedestales      */
+/* encima. No dibuja el acero (demasiado detalle para una sola vista) — el  */
+/* despiece se documenta con números en el formulario.                     */
+function PortonIsometrico({ datos }) {
+  const z = datos.zapata || {};
+  const v = datos.viga || {};
+  const p = datos.pedestal || {};
+  const clamp = (v_, min, max) => Math.max(min, Math.min(max, v_));
+
+  const zAncho = parseFloat(z.ancho) || 0;
+  const zLargo = parseFloat(z.largo) || 0;
+  const zEspesor = parseFloat(z.espesor) || 0;
+  const vAncho = parseFloat(v.ancho) || 0;
+  const vAlto = parseFloat(v.alto) || 0;
+  const pAncho = parseFloat(p.ancho) || 0;
+  const pProfundo = parseFloat(p.profundo) || 0;
+  const pAltura = parseFloat(p.altura) || 0;
+  const separacion = parseFloat(datos.separacion_zapatas) || 0;
+
+  const zAnchoPx = clamp((zAncho || 1) * PORTON_M2PX, 30, 70);
+  const zLargoPx = clamp((zLargo || 1) * PORTON_M2PX, 30, 70);
+  const zEspesorPx = clamp((zEspesor || 0.35) * PORTON_M2PX, 8, 22);
+  const sepPx = clamp((separacion || 5) * PORTON_M2PX, 90, 210);
+  const pAnchoPx = clamp((pAncho || 0.4) * PORTON_M2PX, 14, 34);
+  const pProfundoPx = clamp((pProfundo || 0.4) * PORTON_M2PX, 14, 34);
+  const pAlturaPx = clamp((pAltura || 1) * PORTON_M2PX, 30, 75);
+  const vAnchoPx = clamp((vAncho || 0.3) * PORTON_M2PX, 10, 20);
+  const vAltoPx = clamp((vAlto || 0.35) * PORTON_M2PX, 10, 22);
+
+  const halfZ = zLargoPx / 2;
+  const halfZAncho = zAnchoPx / 2;
+  const centroX = sepPx / 2;
+  const bodyZ0 = zEspesorPx;
+  const bodyZ1 = zEspesorPx + pAlturaPx;
+
+  const ox = PORTON_VB_W / 2;
+  const oy = 24 + Math.max(halfZAncho, 40) + bodyZ1;
+
+  return (
+    <svg viewBox={`0 0 ${PORTON_VB_W} ${PORTON_VB_H}`} className={PORTON_CSS_SIZE}>
+      {/* Zapata izquierda */}
+      <IsoBoxLineArt x0={-centroX - halfZ} y0={-halfZAncho} w={zLargoPx} d={zAnchoPx} z0={0} z1={zEspesorPx} ox={ox} oy={oy} />
+      {/* Zapata derecha */}
+      <IsoBoxLineArt x0={centroX - halfZ} y0={-halfZAncho} w={zLargoPx} d={zAnchoPx} z0={0} z1={zEspesorPx} ox={ox} oy={oy} />
+      {/* Viga de amarre entre las dos, centrada en el eje */}
+      <IsoBoxLineArt x0={-centroX + halfZ} y0={-vAnchoPx / 2} w={(centroX - halfZ) * 2} d={vAnchoPx} z0={zEspesorPx - vAltoPx} z1={zEspesorPx} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
+      {/* Pedestal izquierdo */}
+      <IsoBoxLineArt x0={-centroX - pAnchoPx / 2} y0={-pProfundoPx / 2} w={pAnchoPx} d={pProfundoPx} z0={bodyZ0} z1={bodyZ1} ox={ox} oy={oy} />
+      {/* Pedestal derecho */}
+      <IsoBoxLineArt x0={centroX - pAnchoPx / 2} y0={-pProfundoPx / 2} w={pAnchoPx} d={pProfundoPx} z0={bodyZ0} z1={bodyZ1} ox={ox} oy={oy} />
+      <text x={ox} y={PORTON_VB_H - 8} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">
+        Separación entre zapatas (centro a centro): {separacion || '—'} m
+      </text>
+    </svg>
+  );
+}
+
+/* Planta de UNA zapata (las dos son iguales) con la parrilla de acero en    */
+/* las dos direcciones — cada barra con sus 2 ganchos hacia arriba          */
+/* representados como un punto en cada extremo.                            */
+function PortonZapataPlanta({ datos }) {
+  const z = datos.zapata || {};
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const ancho = parseFloat(z.ancho) || 0;
+  const largo = parseFloat(z.largo) || 0;
+  const w = clamp((ancho || 1) * 90, 60, 140);
+  const d = clamp((largo || 1) * 90, 60, 140);
+  const cx = 100, cy = 90;
+  const recubPx = 6;
+
+  const parrilla = calcularParrillaZapata({
+    ancho: z.ancho,
+    largo: z.largo,
+    longitudinal: z.parrilla_longitudinal,
+    transversal: z.parrilla_transversal,
+  });
+  const nLong = Math.min(parrilla.longitudinal?.cantidad || 3, 10);
+  const nTrans = Math.min(parrilla.transversal?.cantidad || 3, 10);
+
+  return (
+    <svg viewBox="0 0 200 210" className={PORTON_PLANTA_CSS_SIZE}>
+      <rect x={cx - w / 2} y={cy - d / 2} width={w} height={d} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      {/* Barras longitudinales: corren verticalmente en el dibujo (a lo largo de "largo"), repartidas en el ancho */}
+      {Array.from({ length: nLong }, (_, i) => {
+        const frac = nLong === 1 ? 0.5 : i / (nLong - 1);
+        const x = cx - w / 2 + recubPx + frac * (w - 2 * recubPx);
+        return <line key={`l${i}`} x1={x} y1={cy - d / 2 + recubPx} x2={x} y2={cy + d / 2 - recubPx} stroke="#059669" strokeWidth="1.3" />;
+      })}
+      {/* Barras transversales: corren horizontalmente (a lo largo de "ancho"), repartidas a lo largo */}
+      {Array.from({ length: nTrans }, (_, i) => {
+        const frac = nTrans === 1 ? 0.5 : i / (nTrans - 1);
+        const y = cy - d / 2 + recubPx + frac * (d - 2 * recubPx);
+        return <line key={`t${i}`} x1={cx - w / 2 + recubPx} y1={y} x2={cx + w / 2 - recubPx} y2={y} stroke="#2563EB" strokeWidth="1.3" />;
+      })}
+      <text x={cx} y={cy - d / 2 - 10} textAnchor="middle" fontSize="8" fontWeight="600" fill="#059669">
+        {parrilla.longitudinal ? `${parrilla.longitudinal.cantidad}${z.parrilla_longitudinal?.calibre || '#—'} @${z.parrilla_longitudinal?.separacion || '—'}` : 'Long. —'}
+      </text>
+      <text x={cx + w / 2 + 8} y={cy} textAnchor="middle" fontSize="8" fontWeight="600" fill="#2563EB" transform={`rotate(90, ${cx + w / 2 + 8}, ${cy})`}>
+        {parrilla.transversal ? `${parrilla.transversal.cantidad}${z.parrilla_transversal?.calibre || '#—'} @${z.parrilla_transversal?.separacion || '—'}` : 'Trans. —'}
+      </text>
+      <text x={cx} y={cy + d / 2 + 22} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">
+        Zapata {ancho || '—'} × {largo || '—'} m
+      </text>
+    </svg>
+  );
+}
+
+function PortonVistas({ datos }) {
+  return (
+    <div className="flex flex-wrap gap-4 justify-center">
+      <div className="text-center">
+        <PortonIsometrico datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Isométrico del conjunto</p>
+      </div>
+      <div className="text-center">
+        <PortonZapataPlanta datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Planta de una zapata (son iguales)</p>
+      </div>
+    </div>
+  );
+}
+
+function PortonForm({ plantilla, onCancel, onSave }) {
+  const [nombre, setNombre] = useState(plantilla?.nombre || '');
+  const [datos, setDatos] = useState(
+    plantilla?.datos || {
+      zapata: {
+        ancho: '', largo: '', espesor: '',
+        parrilla_longitudinal: { calibre: '', separacion: '' },
+        parrilla_transversal: { calibre: '', separacion: '' },
+      },
+      viga: {
+        ancho: '', alto: '',
+        barras: { calibre: '' },
+        estribos: { calibre: '', separacion: '' },
+      },
+      pedestal: {
+        ancho: '', profundo: '', altura: '', empotramiento_zapata: '',
+        barras: { cantidad: '', calibre: '', ganchos: '1' },
+        estribos: { calibre: '', separacion: '' },
+      },
+      separacion_zapatas: '',
+      desplante: '',
+      espesor_solado: '',
+      resistencia: '',
+    }
+  );
+
+  function set(key, val) {
+    setDatos((prev) => ({ ...prev, [key]: val }));
+  }
+  function setGrupo(grupo, key, val) {
+    setDatos((prev) => ({ ...prev, [grupo]: { ...prev[grupo], [key]: val } }));
+  }
+  function setSubgrupo(grupo, subgrupo, key, val) {
+    setDatos((prev) => ({ ...prev, [grupo]: { ...prev[grupo], [subgrupo]: { ...prev[grupo][subgrupo], [key]: val } } }));
+  }
+
+  const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+
+  const parrilla = calcularParrillaZapata({
+    ancho: datos.zapata.ancho,
+    largo: datos.zapata.largo,
+    longitudinal: datos.zapata.parrilla_longitudinal,
+    transversal: datos.zapata.parrilla_transversal,
+  });
+  const vigaBarras = calcularBarrasVigaAmarre({
+    separacionCentros: datos.separacion_zapatas,
+    calibre: datos.viga.barras.calibre,
+    resistencia: datos.resistencia,
+  });
+  const longitudViga = (parseFloat(datos.separacion_zapatas) || 0) - (parseFloat(datos.zapata.largo) || 0);
+  const vigaEstribos = calcularEstribos({
+    altura: longitudViga > 0 ? longitudViga : undefined,
+    ancho: datos.viga.ancho,
+    profundo: datos.viga.alto,
+    separacion: datos.viga.estribos.separacion,
+    calibre: datos.viga.estribos.calibre,
+  });
+  const alturaTotalPedestal = (parseFloat(datos.pedestal.altura) || 0) + (parseFloat(datos.pedestal.empotramiento_zapata) || 0);
+  const pedestalLongitudinales = calcularLongitudinales({
+    altura: alturaTotalPedestal || undefined,
+    cantidad: datos.pedestal.barras.cantidad,
+    calibre: datos.pedestal.barras.calibre,
+    ganchos: datos.pedestal.barras.ganchos,
+  });
+  const pedestalEstribos = calcularEstribos({
+    altura: alturaTotalPedestal || undefined,
+    ancho: datos.pedestal.ancho,
+    profundo: datos.pedestal.profundo,
+    separacion: datos.pedestal.estribos.separacion,
+    calibre: datos.pedestal.estribos.calibre,
+  });
+  const volumenes = calcularVolumenesPorton({
+    zapata: datos.zapata,
+    viga: datos.viga,
+    pedestal: datos.pedestal,
+    separacionZapatas: datos.separacion_zapatas,
+    desplante: datos.desplante,
+    espesorSolado: datos.espesor_solado,
+  });
+
+  const pesoTotalAcero =
+    (parrilla.longitudinal?.pesoTotal || 0) * 2 + // ×2 porque son 2 zapatas iguales
+    (parrilla.transversal?.pesoTotal || 0) * 2 +
+    (vigaBarras?.pesoTotal || 0) +
+    (vigaEstribos?.pesoTotal ? vigaEstribos.pesoEstribo * vigaEstribos.cantidad : 0) +
+    (pedestalLongitudinales?.pesoTotal || 0) +
+    (pedestalEstribos?.pesoTotal || 0);
+
+  function submit(e) {
+    e.preventDefault();
+    if (!nombre.trim()) return;
+    onSave(nombre.trim(), datos);
+  }
+
+  return (
+    <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
+      <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
+        {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Cerramiento · Portón
+      </p>
+
+      <div className="flex justify-center bg-navy-50 rounded-lg p-3 mb-5 w-fit mx-auto">
+        <PortonVistas datos={datos} />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre de la plantilla</label>
+          <input
+            autoFocus
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Ej. Portón Tipo 1"
+            className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Resistencia del concreto</label>
+          <ResistenciaSelect value={datos.resistencia} onChange={(val) => set('resistencia', val)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
+          <p className="text-xs text-navy-400 mt-1">Se usa para buscar el traslapo de la viga en la tabla NSR-10 (solo cubre 21/28/35 MPa).</p>
+        </div>
+      </div>
+
+      <div className="border border-navy-200 rounded-lg p-4 mb-4">
+        <p className="text-xs font-bold uppercase tracking-wide text-navy-600 mb-3">Datos compartidos del conjunto</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Separación entre zapatas (centro a centro, m)</label>
+            <input value={datos.separacion_zapatas} onChange={(e) => set('separacion_zapatas', e.target.value)} placeholder="5.27" className={cellInput} />
+          </div>
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Profundidad de desplante (m)</label>
+            <input value={datos.desplante} onChange={(e) => set('desplante', e.target.value)} placeholder="1.15" className={cellInput} />
+          </div>
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Espesor de solado (m)</label>
+            <input value={datos.espesor_solado} onChange={(e) => set('espesor_solado', e.target.value)} placeholder="0.05" className={cellInput} />
+          </div>
+        </div>
+        <p className="text-xs text-navy-400 mt-2 italic">
+          Estos 3 valores son de todo el conjunto (zapatas + viga) — la excavación se calcula con la huella completa (2 zapatas + el tramo de la viga entre ellas) por (desplante + espesor de solado).
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Zapata */}
+        <div className="border border-navy-200 rounded-lg p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-navy-600 mb-3">Zapata (2 iguales)</p>
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Ancho (m)</label>
+              <input value={datos.zapata.ancho} onChange={(e) => setGrupo('zapata', 'ancho', e.target.value)} placeholder="1.00" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Largo (m)</label>
+              <input value={datos.zapata.largo} onChange={(e) => setGrupo('zapata', 'largo', e.target.value)} placeholder="1.00" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Espesor (m)</label>
+              <input value={datos.zapata.espesor} onChange={(e) => setGrupo('zapata', 'espesor', e.target.value)} placeholder="0.35" className={cellInput} />
+            </div>
+          </div>
+          <p className="text-xs text-navy-400 mb-2">"Largo" es la dirección a lo largo del eje de la viga.</p>
+
+          <p className="text-xs font-semibold text-navy-600 mb-2">Parrilla — dirección longitudinal (corre a lo largo de "Largo")</p>
+          <div className="grid grid-cols-2 gap-3 mb-2">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Calibre</label>
+              <CalibreSelect value={datos.zapata.parrilla_longitudinal.calibre} onChange={(val) => setSubgrupo('zapata', 'parrilla_longitudinal', 'calibre', val)} className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Separación (m)</label>
+              <input value={datos.zapata.parrilla_longitudinal.separacion} onChange={(e) => setSubgrupo('zapata', 'parrilla_longitudinal', 'separacion', e.target.value)} placeholder="0.12" className={cellInput} />
+            </div>
+          </div>
+          {parrilla.longitudinal ? (
+            <p className="text-xs text-navy-500 mb-3">
+              → <span className="font-mono font-semibold text-navy-700">{parrilla.longitudinal.cantidad}</span> barras de{' '}
+              <span className="font-mono font-semibold text-navy-700">{parrilla.longitudinal.longitud.toFixed(2)} m</span> c/u (2 ganchos arriba) — {parrilla.longitudinal.pesoTotal.toFixed(2)} kg por zapata
+            </p>
+          ) : (
+            <p className="text-xs text-navy-300 italic mb-3">Completa ancho, largo, calibre y separación.</p>
+          )}
+
+          <p className="text-xs font-semibold text-navy-600 mb-2">Parrilla — dirección transversal (corre a lo largo de "Ancho")</p>
+          <div className="grid grid-cols-2 gap-3 mb-2">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Calibre</label>
+              <CalibreSelect value={datos.zapata.parrilla_transversal.calibre} onChange={(val) => setSubgrupo('zapata', 'parrilla_transversal', 'calibre', val)} className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Separación (m)</label>
+              <input value={datos.zapata.parrilla_transversal.separacion} onChange={(e) => setSubgrupo('zapata', 'parrilla_transversal', 'separacion', e.target.value)} placeholder="0.24" className={cellInput} />
+            </div>
+          </div>
+          {parrilla.transversal ? (
+            <p className="text-xs text-navy-500">
+              → <span className="font-mono font-semibold text-navy-700">{parrilla.transversal.cantidad}</span> barras de{' '}
+              <span className="font-mono font-semibold text-navy-700">{parrilla.transversal.longitud.toFixed(2)} m</span> c/u (2 ganchos arriba) — {parrilla.transversal.pesoTotal.toFixed(2)} kg por zapata
+            </p>
+          ) : (
+            <p className="text-xs text-navy-300 italic">Completa ancho, largo, calibre y separación.</p>
+          )}
+        </div>
+
+        {/* Viga de amarre */}
+        <div className="border border-navy-200 rounded-lg p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-navy-600 mb-3">Viga de amarre</p>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Ancho de sección (m)</label>
+              <input value={datos.viga.ancho} onChange={(e) => setGrupo('viga', 'ancho', e.target.value)} placeholder="0.30" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Alto de sección (m)</label>
+              <input value={datos.viga.alto} onChange={(e) => setGrupo('viga', 'alto', e.target.value)} placeholder="0.35" className={cellInput} />
+            </div>
+          </div>
+          <p className="text-xs text-navy-400 mb-3">
+            Longitud (entre caras internas de las zapatas): <span className="font-mono text-navy-600">{longitudViga > 0 ? longitudViga.toFixed(2) : '—'} m</span>
+          </p>
+          <p className="text-xs font-semibold text-navy-600 mb-2">Barras longitudinales (8 en total: 4 líneas traslapadas en pares)</p>
+          <div className="mb-2">
+            <label className="block text-xs text-navy-500 mb-1">Calibre</label>
+            <CalibreSelect value={datos.viga.barras.calibre} onChange={(val) => setSubgrupo('viga', 'barras', 'calibre', val)} className={cellInput} />
+          </div>
+          {vigaBarras ? (
+            <p className="text-xs text-navy-500 mb-3">
+              → Traslapo de <span className="font-mono font-semibold text-navy-700">{vigaBarras.traslapo.toFixed(2)} m</span> · cada pieza mide{' '}
+              <span className="font-mono font-semibold text-navy-700">{vigaBarras.longitudPieza.toFixed(2)} m</span> · {vigaBarras.piezas} piezas — {vigaBarras.pesoTotal.toFixed(2)} kg en total
+            </p>
+          ) : (
+            <p className="text-xs text-navy-300 italic mb-3">Completa separación entre zapatas, resistencia y calibre.</p>
+          )}
+          <p className="text-xs font-semibold text-navy-600 mb-2">Estribos</p>
+          <div className="grid grid-cols-2 gap-3 mb-2">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Calibre</label>
+              <CalibreSelect value={datos.viga.estribos.calibre} onChange={(val) => setSubgrupo('viga', 'estribos', 'calibre', val)} className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Separación (m)</label>
+              <input value={datos.viga.estribos.separacion} onChange={(e) => setSubgrupo('viga', 'estribos', 'separacion', e.target.value)} placeholder="0.15" className={cellInput} />
+            </div>
+          </div>
+          {vigaEstribos ? (
+            <p className="text-xs text-navy-500">
+              → <span className="font-mono font-semibold text-navy-700">{vigaEstribos.cantidad}</span> estribos de{' '}
+              <span className="font-mono font-semibold text-navy-700">{vigaEstribos.longitud.toFixed(2)} m</span> c/u — {(vigaEstribos.pesoEstribo * vigaEstribos.cantidad).toFixed(2)} kg en total
+            </p>
+          ) : (
+            <p className="text-xs text-navy-300 italic">Completa ancho, alto, separación y calibre.</p>
+          )}
+        </div>
+
+        {/* Pedestal */}
+        <div className="border border-navy-200 rounded-lg p-4 lg:col-span-2">
+          <p className="text-xs font-bold uppercase tracking-wide text-navy-600 mb-3">Pedestal (2 iguales, van sobre la zapata)</p>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-3">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Ancho (m)</label>
+              <input value={datos.pedestal.ancho} onChange={(e) => setGrupo('pedestal', 'ancho', e.target.value)} placeholder="0.40" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Profundo (m)</label>
+              <input value={datos.pedestal.profundo} onChange={(e) => setGrupo('pedestal', 'profundo', e.target.value)} placeholder="0.40" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Altura sobre la zapata (m)</label>
+              <input value={datos.pedestal.altura} onChange={(e) => setGrupo('pedestal', 'altura', e.target.value)} placeholder="1.10" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Empotramiento en zapata (m)</label>
+              <input value={datos.pedestal.empotramiento_zapata} onChange={(e) => setGrupo('pedestal', 'empotramiento_zapata', e.target.value)} placeholder="0.30" className={cellInput} />
+            </div>
+          </div>
+          <p className="text-xs text-navy-400 mb-3 italic">
+            El pedestal se apoya ENCIMA de la zapata — no tiene solado propio ni cuenta aparte en la excavación. El "empotramiento" es solo para saber hasta dónde llega el acero dentro de la zapata.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-semibold text-navy-600 mb-2">Barras longitudinales</p>
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                <div>
+                  <label className="block text-xs text-navy-500 mb-1">N.° barras</label>
+                  <input value={datos.pedestal.barras.cantidad} onChange={(e) => setSubgrupo('pedestal', 'barras', 'cantidad', e.target.value)} placeholder="4" className={cellInput} />
+                </div>
+                <div>
+                  <label className="block text-xs text-navy-500 mb-1">Calibre</label>
+                  <CalibreSelect value={datos.pedestal.barras.calibre} onChange={(val) => setSubgrupo('pedestal', 'barras', 'calibre', val)} className={cellInput} />
+                </div>
+                <div>
+                  <label className="block text-xs text-navy-500 mb-1">N.° ganchos</label>
+                  <input value={datos.pedestal.barras.ganchos} onChange={(e) => setSubgrupo('pedestal', 'barras', 'ganchos', e.target.value)} placeholder="1" className={cellInput} />
+                </div>
+              </div>
+              {pedestalLongitudinales ? (
+                <p className="text-xs text-navy-500">
+                  → <span className="font-mono font-semibold text-navy-700">{pedestalLongitudinales.longitud.toFixed(2)} m</span> c/u — {pedestalLongitudinales.pesoTotal.toFixed(2)} kg (2 pedestales)
+                </p>
+              ) : (
+                <p className="text-xs text-navy-300 italic">Completa altura, empotramiento, cantidad y calibre.</p>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-navy-600 mb-2">Estribos</p>
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <div>
+                  <label className="block text-xs text-navy-500 mb-1">Calibre</label>
+                  <CalibreSelect value={datos.pedestal.estribos.calibre} onChange={(val) => setSubgrupo('pedestal', 'estribos', 'calibre', val)} className={cellInput} />
+                </div>
+                <div>
+                  <label className="block text-xs text-navy-500 mb-1">Separación (m)</label>
+                  <input value={datos.pedestal.estribos.separacion} onChange={(e) => setSubgrupo('pedestal', 'estribos', 'separacion', e.target.value)} placeholder="0.15" className={cellInput} />
+                </div>
+              </div>
+              {pedestalEstribos ? (
+                <p className="text-xs text-navy-500">
+                  → <span className="font-mono font-semibold text-navy-700">{pedestalEstribos.cantidad}</span> estribos de{' '}
+                  <span className="font-mono font-semibold text-navy-700">{pedestalEstribos.longitud.toFixed(2)} m</span> — {pedestalEstribos.pesoTotal.toFixed(2)} kg (2 pedestales)
+                </p>
+              ) : (
+                <p className="text-xs text-navy-300 italic">Completa altura, empotramiento, dimensiones, separación y calibre.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ResumenVolumenes volumenes={volumenes} pesoAcero={pesoTotalAcero > 0 ? pesoTotalAcero : undefined} />
+
+      <div className="flex gap-2 pt-4">
+        <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700 px-3 py-2">
+          Cancelar
+        </button>
+        <button type="submit" className="bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2 rounded-lg">
+          Guardar plantilla
+        </button>
+      </div>
+    </form>
+  );
+}
+
 /* Registro por tipo: qué formulario/vista/resumen usar en la lista según el */
 /* tipo de cimentación activo. Se va llenando a medida que construimos cada  */
 /* uno — los que faltan simplemente no aparecen aquí (CimentacionesView ya   */
@@ -3168,6 +3867,21 @@ const CIMENTACION_COMPONENTES = {
       return `Losa ${l.ancho || '—'}×${l.largo || '—'} m · Pedestales ${p.ancho || '—'}×${p.profundo || '—'} m`;
     },
   },
+  cerramiento_postes: {
+    Form: PostesMtForm,
+    Preview: PostesMtPreview,
+    resumen: (d) => `Ø ${d.diametro || '—'} m · ${((parseFloat(d.desplante) || 0) + (parseFloat(d.sobresaliente) || 0)).toFixed(2)} m`,
+  },
+  cerramiento_porton: {
+    Form: PortonForm,
+    Preview: PortonIsometrico,
+    resumen: (d) => `Zapatas ${d.zapata?.ancho || '—'}×${d.zapata?.largo || '—'} m · Separación ${d.separacion_zapatas || '—'} m`,
+  },
+  cerramiento_paso_fauna: {
+    Form: PasoFaunaForm,
+    Preview: PasoFaunaPreview,
+    resumen: (d) => `${d.ancho || '—'} × ${d.profundo || '—'} × ${d.alto || '—'} m`,
+  },
 };
 
 /* Vista principal de "Cimentaciones": elige el tipo (6 en total, hoy solo   */
@@ -3188,6 +3902,11 @@ const FORMULAS_REFERENCIA = [
   { titulo: 'Volumen de solado', formula: 'solado = área de la sección × espesor de solado' },
   { titulo: 'Inversores — volumen de excavación', formula: 'excavación = área de UN pedestal × (desplante + espesor de solado) × 2 — la losa no se excava, va sobre el nivel de terreno natural' },
   { titulo: 'Traslapo de barras (viga de amarre, Cerramiento)', formula: 'se busca en la tabla de traslapos por calibre y resistencia del concreto (NSR-10, redondeada hacia arriba al múltiplo de 0.05m más cercano) — no es una fórmula, es una tabla' },
+  { titulo: 'Cantidad de barras de la parrilla (zapata del Portón)', formula: 'cantidad = techo[ (dimensión perpendicular − 2×recubrimiento) / separación ]  —  SIN sumar 1' },
+  { titulo: 'Longitud de barra de la parrilla', formula: 'longitud = dimensión paralela − 2×recubrimiento + 2×gancho del calibre (2 ganchos, uno en cada extremo, hacia arriba)' },
+  { titulo: 'Pieza de barra longitudinal (viga de amarre)', formula: 'longitud de cada pieza = (separación entre zapatas + traslapo) / 2  —  8 piezas en total (4 líneas × 2 piezas traslapadas)' },
+  { titulo: 'Longitud de barra del pedestal (Portón, sobre zapata)', formula: 'longitud = (altura sobre la zapata + empotramiento en la zapata) − 2×recubrimiento + (N.° de ganchos × gancho del calibre)' },
+  { titulo: 'Volumen de excavación del conjunto Portón', formula: 'excavación = [2×(ancho×largo de zapata) + (separación entre zapatas − largo de zapata)×ancho de la viga] × (desplante + espesor de solado) — el pedestal no aporta, ya queda incluido' },
 ];
 
 /* "Puerta trasera": solo el rol Desarrollador puede ver y editar estos       */

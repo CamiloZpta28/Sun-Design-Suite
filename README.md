@@ -169,6 +169,49 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Cerramiento completo — las 3 plantillas separadas, como pediste**:
+  - **Cerramiento · Postes**: reutiliza EXACTAMENTE el mismo código de
+    Postes MT (cilíndrico, sin acero) — no hay nada nuevo que mantener por
+    separado, cualquier mejora futura a Postes MT aplica aquí también.
+  - **Cerramiento · Paso de fauna**: bloque macizo sin acero (base,
+    profundo, alto). La excavación es igual al volumen de concreto (no
+    tiene solado aparte, tal como lo describiste).
+  - **Cerramiento · Portón** (la parte grande) — Zapata + Viga de amarre +
+    Pedestal, con la parrilla y el traslapo calculados solos, no digitados:
+    - **Parrilla de la zapata**: ya no se digita la cantidad de barras —
+      se calcula con techo[(x−2a)/b] en cada dirección, tal como lo
+      corregiste. Cada barra lleva 2 ganchos hacia arriba.
+    - **Traslapo de la viga**: usa la tabla NSR-10 que me diste, buscada
+      por calibre y la resistencia del concreto de la plantilla (por eso
+      recuperamos ese campo). Las 8 barras longitudinales se arman como 4
+      líneas × 2 piezas traslapadas cada una, cada pieza midiendo
+      (separación entre zapatas + traslapo) / 2.
+    - **Excavación combinada**: huella de las 2 zapatas + el tramo de la
+      viga entre sus caras internas, todo multiplicado por (desplante +
+      espesor de solado) — exactamente la fórmula que diste. El pedestal
+      no aporta nada aparte.
+    - **Verifiqué todas las fórmulas a mano** (fuera del código, con
+      números de ejemplo) antes de confiar en la implementación.
+  - **Dos decisiones de ingeniería que tomé por mi cuenta — avísame si no
+    eran así**:
+    1. Para el pedestal del Portón, separé "altura sobre la zapata"
+       (su propio concreto, lo único que suma al volumen de concreto) de
+       "empotramiento en zapata" (un campo nuevo, solo para el cálculo de
+       longitud de la barra — no suma concreto ni excavación, porque ese
+       tramo ya es concreto de la zapata). Me pareció la forma de evitar
+       contar ese concreto dos veces.
+    2. El traslapo de las piezas de la viga lo puse a la mitad del
+       recorrido (cada pieza cubre la mitad de la separación entre
+       zapatas más medio traslapo) — tu Excel mostraba piezas de largos
+       distintos (no partidas a la mitad), así que si tienes una
+       convención específica de dónde debe caer el empalme, dime y lo
+       ajusto.
+  - **Previsualización**: por el tamaño de esta plantilla, dejé 2 vistas
+    (isométrico del conjunto completo, y la planta de una zapata con su
+    parrilla) en vez de las 3-4 vistas de los tipos anteriores — si
+    quieres que agregue una vista del corte de la viga o del pedestal,
+    dímelo y la sumo.
+
 - **Cerramiento — Fase 1 completa** (base compartida, antes de construir
   Zapata+Viga+Pedestal del Portón):
   - **Tabla de ganchos corregida**: #3=0.10, #4=0.20, #5=0.25, #6=0.30 m.
