@@ -1403,6 +1403,19 @@ function ProveedorPicker({ value, proveedores, onChange, onAddNew }) {
   );
 }
 
+function MallaPicker({ value, mallas, onChange, onAddNew }) {
+  return (
+    <AddableSelect
+      value={value}
+      opciones={mallas}
+      onChange={onChange}
+      onAddNew={onAddNew}
+      placeholderNuevo="Nombre del nuevo tipo de malla"
+      etiquetaAgregar="+ Agregar nuevo tipo de malla…"
+    />
+  );
+}
+
 /* Resistencias de concreto más usadas + opción de escribir otra, compartida  */
 /* por TODAS las cimentaciones (shelter, inversores, cerramiento, portón,     */
 /* luminarias, CCTV, postes) — sin valor por defecto a propósito, para no     */
@@ -1420,6 +1433,21 @@ function ResistenciaSelect({ value, onChange, className }) {
   );
 }
 
+/* Calibre de barra de refuerzo. Las 4 opciones con datos conocidos de       */
+/* gancho/peso (ver BARRA_ACERO) + "otro" para casos fuera de tabla — en ese */
+/* caso los cálculos de peso simplemente no se pueden hacer (se muestra —). */
+function CalibreSelect({ value, onChange, className }) {
+  return (
+    <SelectOrOtro
+      value={value}
+      opciones={CALIBRES_DISPONIBLES}
+      onChange={onChange}
+      className={className}
+      placeholder="Ej. #4"
+    />
+  );
+}
+
 /* Los 6 tipos de cimentación de la sección "Cimentaciones" (plantillas       */
 /* reutilizables entre proyectos), ordenados de menos a más complejo. Se van  */
 /* construyendo de a uno — "disponible: false" muestra un aviso de "muy      */
@@ -1428,10 +1456,53 @@ const CIMENTACION_TIPOS = [
   { id: 'postes_mt', label: 'Postes MT', icon: CircleDot, disponible: true },
   { id: 'luminarias', label: 'Luminarias', icon: Lightbulb, disponible: true },
   { id: 'camaras', label: 'Cámaras', icon: Video, disponible: true },
-  { id: 'inversores', label: 'Inversores', icon: Zap, disponible: false },
+  { id: 'inversores', label: 'Inversores', icon: Zap, disponible: true },
   { id: 'cerramiento', label: 'Cerramiento', icon: Building2, disponible: false },
   { id: 'shelter', label: 'Shelter', icon: Home, disponible: false },
 ];
+
+/* Parámetros fijos de acero de refuerzo para TODAS las cimentaciones:        */
+/* recubrimiento siempre 7.5cm, y por calibre — longitud de gancho estándar  */
+/* y peso por metro (usados para calcular longitudes y pesos de barras).     */
+const RECUBRIMIENTO_CIMENTACION = 0.075;
+const BARRA_ACERO = {
+  '#3': { gancho: 0.10, peso: 0.56 },
+  '#4': { gancho: 0.15, peso: 0.994 },
+  '#5': { gancho: 0.20, peso: 1.552 },
+  '#6': { gancho: 0.25, peso: 2.235 },
+};
+const CALIBRES_DISPONIBLES = Object.keys(BARRA_ACERO);
+
+/* Barras longitudinales de un pedestal: longitud = altura - 2×recubrimiento */
+/* + (N.° de ganchos × longitud de gancho de ese calibre). Devuelve null si  */
+/* falta algún dato o el calibre no está en la tabla (ej. "Otro").          */
+function calcularLongitudinales({ altura, cantidad, calibre, ganchos }) {
+  const info = BARRA_ACERO[calibre];
+  const alturaNum = parseFloat(altura);
+  const cantidadNum = parseFloat(cantidad);
+  const ganchosNum = parseFloat(ganchos) || 0;
+  if (!info || !alturaNum || !cantidadNum) return null;
+  const longitud = alturaNum - 2 * RECUBRIMIENTO_CIMENTACION + ganchosNum * info.gancho;
+  const pesoBarra = longitud * info.peso;
+  const pesoPedestal = pesoBarra * cantidadNum;
+  return { longitud, pesoBarra, pesoPedestal, pesoTotal: pesoPedestal * 2, cantidad: cantidadNum };
+}
+
+/* Estribos de un pedestal: cantidad = altura/separación + 1 (redondeando    */
+/* hacia arriba). Longitud = 2×(ancho+profundo−4×recubrimiento) + 2×gancho.  */
+function calcularEstribos({ altura, ancho, profundo, separacion, calibre }) {
+  const info = BARRA_ACERO[calibre];
+  const alturaNum = parseFloat(altura);
+  const anchoNum = parseFloat(ancho);
+  const profundoNum = parseFloat(profundo);
+  const separacionNum = parseFloat(separacion);
+  if (!info || !alturaNum || !anchoNum || !profundoNum || !separacionNum) return null;
+  const cantidad = Math.ceil(alturaNum / separacionNum) + 1;
+  const longitud = 2 * (anchoNum + profundoNum - 4 * RECUBRIMIENTO_CIMENTACION) + 2 * info.gancho;
+  const pesoEstribo = longitud * info.peso;
+  const pesoPedestal = pesoEstribo * cantidad;
+  return { cantidad, longitud, pesoEstribo, pesoPedestal, pesoTotal: pesoPedestal * 2 };
+}
 
 /* Lienzo y escala COMPARTIDOS por las 3 vistas de Postes MT, para que se     */
 /* vean alineadas entre sí (mismo tamaño en pantalla = mismo tamaño real).   */
@@ -2353,6 +2424,441 @@ function CamarasVistas({ datos }) {
   );
 }
 
+/* ============================================================ */
+/* INVERSORES — 2 pedestales rectangulares iguales + 1 losa con  */
+/* malla electrosoldada, con despiece de acero (barras + estribos). */
+/* ============================================================ */
+const INV_VB_W = 260;
+const INV_VB_H = 210;
+const INV_M2PX = 55;
+const INV_CSS_SIZE = 'w-52 h-44';
+const INV_REF_CSS_SIZE = 'w-40 h-40';
+
+/* Isométrico del conjunto: solado corrido + 2 pedestales + losa encima,      */
+/* con cotas de la losa (ancho/largo/espesor) y de un pedestal (ancho/       */
+/* profundo/altura) — igual estilo de líneas que los demás tipos.           */
+function InversoresIsometrico({ datos }) {
+  const p = datos.pedestal || {};
+  const l = datos.losa || {};
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+  const pAncho = parseFloat(p.ancho) || 0;
+  const pProfundo = parseFloat(p.profundo) || 0;
+  const pDesplante = parseFloat(p.desplante) || 0;
+  const pSobresaliente = parseFloat(p.sobresaliente) || 0;
+  const pSolado = parseFloat(p.espesor_solado) || 0;
+  const pSeparacion = parseFloat(p.separacion) || 0;
+  const pAltura = pDesplante + pSobresaliente;
+
+  const lAncho = parseFloat(l.ancho) || 0;
+  const lLargo = parseFloat(l.largo) || 0;
+  const lEspesor = parseFloat(l.espesor) || 0;
+
+  const pAnchoPx = clamp((pAncho || 0.3) * INV_M2PX, 18, 45);
+  const pProfundoPx = clamp((pProfundo || 0.3) * INV_M2PX, 18, 45);
+  const pAlturaPx = clamp((pAltura || 0.5) * INV_M2PX, 40, 85);
+  const pSoladoPx = clamp((pSolado || 0.05) * INV_M2PX, 4, 9);
+  const pSepPx = clamp((pSeparacion || 0.6) * INV_M2PX, 20, 90);
+
+  const lAnchoPx = clamp((lAncho || 1.6) * INV_M2PX, pAnchoPx * 2 + pSepPx, 190);
+  const lLargoPx = clamp((lLargo || 1.0) * INV_M2PX, pProfundoPx + 20, 110);
+  const lEspesorPx = clamp((lEspesor || 0.15) * INV_M2PX, 6, 16);
+
+  const halfPed = pAnchoPx / 2;
+  const halfProf = pProfundoPx / 2;
+  const centroX = (pAnchoPx + pSepPx) / 2;
+
+  const bodyZ0 = pSoladoPx;
+  const bodyZ1 = pSoladoPx + pAlturaPx;
+  const losaZ1 = bodyZ1 + lEspesorPx;
+
+  const ox = INV_VB_W / 2;
+  const oy = 20 + Math.max(halfProf, lLargoPx / 2) + losaZ1;
+
+  const soladoMedioX = (pAnchoPx + pSepPx) / 2 + halfPed + 8;
+
+  const [rightTopX, rightTopY] = isoPt(centroX + halfPed, -halfProf, bodyZ1, ox, oy);
+  const [rightBotX, rightBotY] = isoPt(centroX + halfPed, -halfProf, bodyZ0, ox, oy);
+  const [losaTopX, losaTopY] = isoPt(lAnchoPx / 2, -lLargoPx / 2, losaZ1, ox, oy);
+  const [losaBotX, losaBotY] = isoPt(lAnchoPx / 2, -lLargoPx / 2, bodyZ1, ox, oy);
+  const [losaFrontLeftX, losaFrontLeftY] = isoPt(-lAnchoPx / 2, lLargoPx / 2, losaZ1, ox, oy);
+  const [losaFrontRightX, losaFrontRightY] = isoPt(lAnchoPx / 2, lLargoPx / 2, losaZ1, ox, oy);
+
+  return (
+    <svg viewBox={`0 0 ${INV_VB_W} ${INV_VB_H}`} className={INV_CSS_SIZE}>
+      {/* Solado corrido bajo los dos pedestales */}
+      <IsoBoxLineArt x0={-soladoMedioX} y0={-halfProf - 8} w={soladoMedioX * 2} d={pProfundoPx + 16} z0={0} z1={pSoladoPx} ox={ox} oy={oy} />
+      {/* Pedestal izquierdo */}
+      <IsoBoxLineArt x0={-centroX - halfPed} y0={-halfProf} w={pAnchoPx} d={pProfundoPx} z0={bodyZ0} z1={bodyZ1} ox={ox} oy={oy} />
+      {/* Pedestal derecho */}
+      <IsoBoxLineArt x0={centroX - halfPed} y0={-halfProf} w={pAnchoPx} d={pProfundoPx} z0={bodyZ0} z1={bodyZ1} ox={ox} oy={oy} />
+      {/* Losa encima de ambos */}
+      <IsoBoxLineArt x0={-lAnchoPx / 2} y0={-lLargoPx / 2} w={lAnchoPx} d={lLargoPx} z0={bodyZ1} z1={losaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
+      {/* Cota de altura del pedestal (a la derecha) */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={rightTopX + 20} y1={rightTopY} x2={rightBotX + 20} y2={rightBotY} />
+        <line x1={rightTopX + 16} y1={rightTopY} x2={rightTopX + 24} y2={rightTopY} />
+        <line x1={rightBotX + 16} y1={rightBotY} x2={rightBotX + 24} y2={rightBotY} />
+      </g>
+      <text x={rightTopX + 30} y={(rightTopY + rightBotY) / 2} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${rightTopX + 30}, ${(rightTopY + rightBotY) / 2})`}>
+        {pAltura ? pAltura.toFixed(2) : '—'} m
+      </text>
+      {/* Cota de espesor de losa (a la derecha, más arriba) */}
+      <g stroke="#3C64AA" strokeWidth="1">
+        <line x1={losaTopX + 20} y1={losaTopY} x2={losaBotX + 20} y2={losaBotY} />
+        <line x1={losaTopX + 16} y1={losaTopY} x2={losaTopX + 24} y2={losaTopY} />
+        <line x1={losaBotX + 16} y1={losaBotY} x2={losaBotX + 24} y2={losaBotY} />
+      </g>
+      <text x={losaTopX + 30} y={(losaTopY + losaBotY) / 2} textAnchor="middle" fontSize="8" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${losaTopX + 30}, ${(losaTopY + losaBotY) / 2})`}>
+        {lEspesor ? lEspesor.toFixed(2) : '—'} m
+      </text>
+      {/* Cotas de ancho y largo de la losa (borde frontal) */}
+      <g stroke="#3C64AA" strokeWidth="1">
+        <line x1={losaFrontLeftX} y1={losaFrontLeftY + 12} x2={losaFrontRightX} y2={losaFrontRightY + 12} />
+      </g>
+      <text x={(losaFrontLeftX + losaFrontRightX) / 2} y={(losaFrontLeftY + losaFrontRightY) / 2 + 24} textAnchor="middle" fontSize="8" fontWeight="600" fill="#3C64AA">
+        Losa {lAncho || '—'} × {lLargo || '—'} m
+      </text>
+    </svg>
+  );
+}
+
+/* Elevación ("Vista Posterior") del despiece de acero de UN pedestal        */
+/* (los dos son iguales): barras longitudinales verticales + estribos       */
+/* horizontales, con las etiquetas típicas de un plano de despiece.        */
+function InversoresRefuerzoElevacion({ datos }) {
+  const p = datos.pedestal || {};
+  const b = datos.barras || {};
+  const e = datos.estribos || {};
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+  const pAncho = parseFloat(p.ancho) || 0.3;
+  const altura = (parseFloat(p.desplante) || 0) + (parseFloat(p.sobresaliente) || 0);
+  const cantidadBarras = Math.max(2, parseInt(b.cantidad, 10) || 2);
+  const estribos = calcularEstribos({ altura, ancho: p.ancho, profundo: p.profundo, separacion: e.separacion, calibre: e.calibre });
+  const cantidadEstribos = estribos ? estribos.cantidad : 0;
+
+  const w = clamp(pAncho * 110, 40, 90);
+  const h = clamp((altura || 0.5) * 110, 70, 150);
+  const x0 = INV_REF_CSS_SIZE ? 0 : 0;
+  const cx = 80;
+  const topY = 20;
+  const botY = topY + h;
+  const recubPx = 6;
+
+  const barX = [];
+  for (let i = 0; i < cantidadBarras; i++) {
+    const frac = cantidadBarras === 1 ? 0.5 : i / (cantidadBarras - 1);
+    barX.push(cx - w / 2 + recubPx + frac * (w - 2 * recubPx));
+  }
+  const estriboY = [];
+  const nEstribosDibujar = Math.min(cantidadEstribos || 6, 12);
+  for (let i = 0; i < nEstribosDibujar; i++) {
+    const frac = nEstribosDibujar === 1 ? 0.5 : i / (nEstribosDibujar - 1);
+    estriboY.push(topY + recubPx + frac * (h - 2 * recubPx));
+  }
+
+  return (
+    <svg viewBox="0 0 160 195" className={INV_REF_CSS_SIZE}>
+      <rect x={cx - w / 2} y={topY} width={w} height={h} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      {estriboY.map((y, i) => (
+        <rect key={i} x={cx - w / 2 + recubPx} y={y - 2} width={w - 2 * recubPx} height="4" fill="none" stroke="#2563EB" strokeWidth="1" />
+      ))}
+      {barX.map((x, i) => (
+        <line key={i} x1={x} y1={topY + 3} x2={x} y2={botY - 3} stroke="#059669" strokeWidth="1.6" />
+      ))}
+      <text x={cx} y={topY - 6} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#059669">
+        {cantidadBarras}{b.calibre || '#—'} CONTINUAS
+      </text>
+      <text x={cx + w / 2 + 6} y={(topY + botY) / 2} fontSize="7.5" fontWeight="600" fill="#2563EB" transform={`rotate(90, ${cx + w / 2 + 6}, ${(topY + botY) / 2})`} textAnchor="middle">
+        {cantidadEstribos || '—'} E{e.calibre || '#—'} @{e.separacion || '—'}
+      </text>
+    </svg>
+  );
+}
+
+/* Corte transversal (planta) del pedestal: el estribo como un rectángulo    */
+/* inscrito, con las 4 barras de esquina.                                   */
+function InversoresRefuerzoCorte({ datos }) {
+  const p = datos.pedestal || {};
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const pAncho = parseFloat(p.ancho) || 0.3;
+  const pProfundo = parseFloat(p.profundo) || 0.3;
+  const w = clamp(pAncho * 130, 40, 100);
+  const d = clamp(pProfundo * 130, 40, 100);
+  const cx = 80, cy = 75;
+  const recubPx = 7;
+
+  return (
+    <svg viewBox="0 0 160 160" className={INV_REF_CSS_SIZE}>
+      <rect x={cx - w / 2} y={cy - d / 2} width={w} height={d} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      <rect x={cx - w / 2 + recubPx} y={cy - d / 2 + recubPx} width={w - 2 * recubPx} height={d - 2 * recubPx} fill="none" stroke="#2563EB" strokeWidth="1.2" />
+      {[[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy], i) => (
+        <circle key={i} cx={cx + sx * (w / 2 - recubPx)} cy={cy + sy * (d / 2 - recubPx)} r="2.6" fill="#059669" />
+      ))}
+      <text x={cx} y={cy + d / 2 + 16} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644">
+        {pAncho || '—'} × {pProfundo || '—'} m
+      </text>
+    </svg>
+  );
+}
+
+/* Planta de la losa con la malla electrosoldada representada como una       */
+/* cuadrícula simple, etiquetada con el tipo elegido.                       */
+function InversoresLosaPlanta({ datos }) {
+  const l = datos.losa || {};
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const ancho = parseFloat(l.ancho) || 0;
+  const largo = parseFloat(l.largo) || 0;
+  const w = clamp((ancho || 1.6) * 60, 60, 140);
+  const d = clamp((largo || 1.0) * 60, 50, 100);
+  const cx = 90, cy = 75;
+  const cols = 5, rows = 4;
+
+  return (
+    <svg viewBox="0 0 180 160" className={INV_REF_CSS_SIZE}>
+      <rect x={cx - w / 2} y={cy - d / 2} width={w} height={d} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      {Array.from({ length: cols - 1 }, (_, i) => (
+        <line key={`v${i}`} x1={cx - w / 2 + ((i + 1) * w) / cols} y1={cy - d / 2} x2={cx - w / 2 + ((i + 1) * w) / cols} y2={cy + d / 2} stroke="#2563EB" strokeWidth="0.6" />
+      ))}
+      {Array.from({ length: rows - 1 }, (_, i) => (
+        <line key={`h${i}`} x1={cx - w / 2} y1={cy - d / 2 + ((i + 1) * d) / rows} x2={cx + w / 2} y2={cy - d / 2 + ((i + 1) * d) / rows} stroke="#2563EB" strokeWidth="0.6" />
+      ))}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx - w / 2} y1={cy + d / 2 + 12} x2={cx + w / 2} y2={cy + d / 2 + 12} />
+      </g>
+      <text x={cx} y={cy + d / 2 + 24} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644">
+        {ancho || '—'} × {largo || '—'} m
+      </text>
+      <text x={cx} y={cy - d / 2 - 8} textAnchor="middle" fontSize="8" fontWeight="600" fill="#2563EB">
+        Malla {l.malla || '—'}
+      </text>
+    </svg>
+  );
+}
+
+/* Junta las 4 vistas de Inversores (isométrico general + las 3 de despiece  */
+/* de acero) con sus etiquetas.                                            */
+function InversoresVistas({ datos }) {
+  return (
+    <div className="flex flex-wrap gap-4 justify-center">
+      <div className="text-center">
+        <InversoresIsometrico datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Isométrico del conjunto</p>
+      </div>
+      <div className="text-center">
+        <InversoresRefuerzoElevacion datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Refuerzo · vista posterior</p>
+      </div>
+      <div className="text-center">
+        <InversoresRefuerzoCorte datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Refuerzo · corte transversal</p>
+      </div>
+      <div className="text-center">
+        <InversoresLosaPlanta datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Losa · planta con malla</p>
+      </div>
+    </div>
+  );
+}
+
+/* Fila de resumen numérico (longitud/peso) dentro de la tabla de despiece.  */
+function FilaResumenAcero({ label, valor }) {
+  return (
+    <div className="flex items-center justify-between text-xs py-1 border-b border-navy-100 last:border-0">
+      <span className="text-navy-500">{label}</span>
+      <span className="font-mono font-semibold text-navy-700">{valor}</span>
+    </div>
+  );
+}
+
+/* Formulario de crear/editar una plantilla de Inversores: 2 pedestales      */
+/* iguales (con su despiece de barras + estribos) y 1 losa con malla.      */
+function InversoresForm({ plantilla, onCancel, onSave, mallas, onAddMalla }) {
+  const [nombre, setNombre] = useState(plantilla?.nombre || '');
+  const [datos, setDatos] = useState(
+    plantilla?.datos || {
+      pedestal: { ancho: '', profundo: '', desplante: '', sobresaliente: '', espesor_solado: '', separacion: '' },
+      barras: { cantidad: '', calibre: '', ganchos: '1' },
+      estribos: { calibre: '', separacion: '' },
+      losa: { ancho: '', largo: '', espesor: '', malla: '' },
+    }
+  );
+
+  function setGrupo(grupo, key, val) {
+    setDatos((prev) => ({ ...prev, [grupo]: { ...prev[grupo], [key]: val } }));
+  }
+
+  const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+  const alturaPedestal = (parseFloat(datos.pedestal.desplante) || 0) + (parseFloat(datos.pedestal.sobresaliente) || 0);
+  const longitudinales = calcularLongitudinales({ altura: alturaPedestal, cantidad: datos.barras.cantidad, calibre: datos.barras.calibre, ganchos: datos.barras.ganchos });
+  const estribos = calcularEstribos({ altura: alturaPedestal, ancho: datos.pedestal.ancho, profundo: datos.pedestal.profundo, separacion: datos.estribos.separacion, calibre: datos.estribos.calibre });
+  const pesoTotalAcero = (longitudinales?.pesoTotal || 0) + (estribos?.pesoTotal || 0);
+
+  function submit(e) {
+    e.preventDefault();
+    if (!nombre.trim()) return;
+    onSave(nombre.trim(), datos);
+  }
+
+  return (
+    <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
+      <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
+        {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Inversores
+      </p>
+
+      <div className="flex justify-center bg-navy-50 rounded-lg p-3 mb-5">
+        <InversoresVistas datos={datos} />
+      </div>
+
+      <div>
+        <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre de la plantilla</label>
+        <input
+          autoFocus
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          placeholder="Ej. Inversores Tipo 1"
+          className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm mb-4"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Pedestales */}
+        <div className="border border-navy-200 rounded-lg p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-navy-600 mb-3">Pedestales (2 iguales)</p>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Ancho (m)</label>
+              <input value={datos.pedestal.ancho} onChange={(e) => setGrupo('pedestal', 'ancho', e.target.value)} placeholder="0.30" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Profundo (m)</label>
+              <input value={datos.pedestal.profundo} onChange={(e) => setGrupo('pedestal', 'profundo', e.target.value)} placeholder="0.30" className={cellInput} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Long. de desplante (m)</label>
+              <input value={datos.pedestal.desplante} onChange={(e) => setGrupo('pedestal', 'desplante', e.target.value)} placeholder="0.60" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Long. sobresaliente (m)</label>
+              <input value={datos.pedestal.sobresaliente} onChange={(e) => setGrupo('pedestal', 'sobresaliente', e.target.value)} placeholder="0.30" className={cellInput} />
+            </div>
+          </div>
+          <p className="text-xs text-navy-400 mb-3">
+            Altura total: <span className="font-mono text-navy-600">{alturaPedestal.toFixed(2)} m</span> (desplante + sobresaliente)
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Espesor de solado (m)</label>
+              <input value={datos.pedestal.espesor_solado} onChange={(e) => setGrupo('pedestal', 'espesor_solado', e.target.value)} placeholder="0.05" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Separación entre pedestales (m)</label>
+              <input value={datos.pedestal.separacion} onChange={(e) => setGrupo('pedestal', 'separacion', e.target.value)} placeholder="0.60" className={cellInput} />
+            </div>
+          </div>
+        </div>
+
+        {/* Losa */}
+        <div className="border border-navy-200 rounded-lg p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-navy-600 mb-3">Losa</p>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Ancho (m)</label>
+              <input value={datos.losa.ancho} onChange={(e) => setGrupo('losa', 'ancho', e.target.value)} placeholder="1.60" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Largo (m)</label>
+              <input value={datos.losa.largo} onChange={(e) => setGrupo('losa', 'largo', e.target.value)} placeholder="1.00" className={cellInput} />
+            </div>
+          </div>
+          <div className="mb-3">
+            <label className="block text-xs text-navy-500 mb-1">Espesor (m)</label>
+            <input value={datos.losa.espesor} onChange={(e) => setGrupo('losa', 'espesor', e.target.value)} placeholder="0.15" className={cellInput} />
+          </div>
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Tipo de malla electrosoldada</label>
+            <MallaPicker value={datos.losa.malla} mallas={mallas || []} onChange={(val) => setGrupo('losa', 'malla', val)} onAddNew={onAddMalla} />
+          </div>
+        </div>
+
+        {/* Barras longitudinales */}
+        <div className="border border-navy-200 rounded-lg p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-navy-600 mb-3">Barras longitudinales (por pedestal)</p>
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">N.° de barras</label>
+              <input value={datos.barras.cantidad} onChange={(e) => setGrupo('barras', 'cantidad', e.target.value)} placeholder="4" className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Calibre</label>
+              <CalibreSelect value={datos.barras.calibre} onChange={(val) => setGrupo('barras', 'calibre', val)} className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">N.° de ganchos por barra</label>
+              <input value={datos.barras.ganchos} onChange={(e) => setGrupo('barras', 'ganchos', e.target.value)} placeholder="1" className={cellInput} />
+            </div>
+          </div>
+          {longitudinales ? (
+            <div className="bg-navy-50 rounded-lg px-3 py-2">
+              <FilaResumenAcero label="Longitud por barra" valor={`${longitudinales.longitud.toFixed(2)} m`} />
+              <FilaResumenAcero label="Peso por barra" valor={`${longitudinales.pesoBarra.toFixed(2)} kg`} />
+              <FilaResumenAcero label="Peso por pedestal" valor={`${longitudinales.pesoPedestal.toFixed(2)} kg`} />
+              <FilaResumenAcero label="Peso total (2 pedestales)" valor={`${longitudinales.pesoTotal.toFixed(2)} kg`} />
+            </div>
+          ) : (
+            <p className="text-xs text-navy-300 italic">Completa altura, cantidad y calibre para calcular.</p>
+          )}
+        </div>
+
+        {/* Estribos */}
+        <div className="border border-navy-200 rounded-lg p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-navy-600 mb-3">Estribos (por pedestal)</p>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Calibre</label>
+              <CalibreSelect value={datos.estribos.calibre} onChange={(val) => setGrupo('estribos', 'calibre', val)} className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Separación (m)</label>
+              <input value={datos.estribos.separacion} onChange={(e) => setGrupo('estribos', 'separacion', e.target.value)} placeholder="0.15" className={cellInput} />
+            </div>
+          </div>
+          {estribos ? (
+            <div className="bg-navy-50 rounded-lg px-3 py-2">
+              <FilaResumenAcero label="Cantidad por pedestal" valor={`${estribos.cantidad}`} />
+              <FilaResumenAcero label="Longitud por estribo" valor={`${estribos.longitud.toFixed(2)} m`} />
+              <FilaResumenAcero label="Peso por estribo" valor={`${estribos.pesoEstribo.toFixed(2)} kg`} />
+              <FilaResumenAcero label="Peso por pedestal" valor={`${estribos.pesoPedestal.toFixed(2)} kg`} />
+              <FilaResumenAcero label="Peso total (2 pedestales)" valor={`${estribos.pesoTotal.toFixed(2)} kg`} />
+            </div>
+          ) : (
+            <p className="text-xs text-navy-300 italic">Completa altura, dimensiones, separación y calibre para calcular.</p>
+          )}
+        </div>
+      </div>
+
+      {(longitudinales || estribos) && (
+        <div className="mt-4 bg-lime-50 border border-lime-200 rounded-lg px-4 py-3 flex items-center justify-between">
+          <span className="text-sm font-semibold text-navy-700">Peso total de acero de la cimentación</span>
+          <span className="font-mono font-bold text-navy-800">{pesoTotalAcero.toFixed(2)} kg</span>
+        </div>
+      )}
+
+      <div className="flex gap-2 pt-4">
+        <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700 px-3 py-2">
+          Cancelar
+        </button>
+        <button type="submit" className="bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2 rounded-lg">
+          Guardar plantilla
+        </button>
+      </div>
+    </form>
+  );
+}
+
 const CIMENTACION_COMPONENTES = {
   postes_mt: {
     Form: PostesMtForm,
@@ -2369,12 +2875,21 @@ const CIMENTACION_COMPONENTES = {
     Preview: CamarasPreview,
     resumen: (d) => `${d.ancho || '—'} × ${d.profundo || '—'} m · ${((parseFloat(d.desplante) || 0) + (parseFloat(d.sobresaliente) || 0)).toFixed(2)} m`,
   },
+  inversores: {
+    Form: InversoresForm,
+    Preview: InversoresIsometrico,
+    resumen: (d) => {
+      const p = d.pedestal || {};
+      const l = d.losa || {};
+      return `Losa ${l.ancho || '—'}×${l.largo || '—'} m · Pedestales ${p.ancho || '—'}×${p.profundo || '—'} m`;
+    },
+  },
 };
 
 /* Vista principal de "Cimentaciones": elige el tipo (6 en total, hoy solo   */
 /* Postes MT está construido) y administra sus plantillas (crear, editar,   */
 /* eliminar). Las que no están listas muestran un aviso de "muy pronto".    */
-function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete }) {
+function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete, mallas, onAddMalla }) {
   const [tipoActivo, setTipoActivo] = useState('postes_mt');
   const [creando, setCreando] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
@@ -2446,6 +2961,8 @@ function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete }) {
                 else onAdd(tipoActivo, nombre, datos);
                 cerrarFormulario();
               }}
+              mallas={mallas}
+              onAddMalla={onAddMalla}
             />
           )}
 
@@ -6514,6 +7031,7 @@ export default function App() {
   const [paises, setPaises] = useState([]);
   const [proveedores, setProveedores] = useState([]);
   const [plantillasCimentacion, setPlantillasCimentacion] = useState([]);
+  const [mallas, setMallas] = useState([]);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   const [view, setViewState] = useState('dashboard');
@@ -6633,6 +7151,16 @@ export default function App() {
 
     const { data: plantillaRows } = await supabase.from('cimentacion_plantillas').select('*').order('created_at', { ascending: true });
     setPlantillasCimentacion((plantillaRows || []).map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {} })));
+
+    const { data: mallaRows } = await supabase.from('mallas').select('*').order('created_at', { ascending: true });
+    if (!mallaRows || mallaRows.length === 0) {
+      await supabase.from('mallas').insert({ nombre: 'D84' }).then(({ error }) => {
+        if (error) console.error('Error creando malla semilla:', error);
+      });
+      setMallas(['D84']);
+    } else {
+      setMallas(mallaRows.map((r) => r.nombre));
+    }
 
     setDataLoaded(true);
   }
@@ -6778,6 +7306,14 @@ export default function App() {
     setProveedores((prev) => (prev.includes(limpio) ? prev : [...prev, limpio]));
     supabase.from('proveedores').upsert({ nombre: limpio }).then(({ error }) => {
       if (error) console.error('Error creando proveedor:', error);
+    });
+  }
+  function handleAddMalla(nombre) {
+    const limpio = nombre.trim();
+    if (!limpio) return;
+    setMallas((prev) => (prev.includes(limpio) ? prev : [...prev, limpio]));
+    supabase.from('mallas').upsert({ nombre: limpio }).then(({ error }) => {
+      if (error) console.error('Error creando malla:', error);
     });
   }
   function handleAddPlantillaCimentacion(tipo, nombre, datos) {
@@ -7024,6 +7560,8 @@ export default function App() {
             onAdd={handleAddPlantillaCimentacion}
             onUpdate={handleUpdatePlantillaCimentacion}
             onDelete={handleDeletePlantillaCimentacion}
+            mallas={mallas}
+            onAddMalla={handleAddMalla}
           />
         )}
         {view === 'equipo' && (

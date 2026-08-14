@@ -205,6 +205,14 @@ create table if not exists cimentacion_plantillas (
   updated_at timestamptz default now()
 );
 
+-- Lista de tipos de malla electrosoldada disponibles en el selector de la
+-- losa de Inversores (y de cualquier otra cimentación que use malla más
+-- adelante). Empieza con D84; cualquiera puede agregar otra.
+create table if not exists mallas (
+  nombre text primary key,
+  created_at timestamptz default now()
+);
+
 -- Roles de cada persona (puede tener varios a la vez, ej. Líder Civil +
 -- Ing. Civil). Solo un líder puede otorgar o quitar roles — ver políticas
 -- más abajo. Es una tabla aparte (no una columna en "profiles") para poder
@@ -339,6 +347,12 @@ create policy "Editar plantillas de cimentacion" on cimentacion_plantillas
   for update using (auth.role() = 'authenticated');
 create policy "Eliminar plantillas de cimentacion" on cimentacion_plantillas
   for delete using (auth.role() = 'authenticated');
+
+alter table mallas enable row level security;
+create policy "Lectura de mallas" on mallas
+  for select using (auth.role() = 'authenticated');
+create policy "Crear mallas" on mallas
+  for insert with check (auth.role() = 'authenticated');
 
 alter table activity_log enable row level security;
 

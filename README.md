@@ -169,6 +169,38 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Inversores, cuarto tipo de Cimentaciones construido — el más grande
+  hasta ahora**: 2 pedestales iguales + 1 losa con malla electrosoldada, con
+  despiece de acero completo (barras longitudinales + estribos) y cálculo
+  automático de longitudes y pesos.
+  - **Parámetros de acero fijos, como definiste**: recubrimiento siempre
+    7.5cm; gancho y peso por metro según calibre (#3: 10cm/0.56kg,
+    #4: 15cm/0.994kg, #5: 20cm/1.552kg, #6: 25cm/2.235kg). Viven en una
+    tabla central (`BARRA_ACERO`) que cualquier cimentación futura puede
+    reutilizar sin repetir los números.
+  - **Cálculos**: longitud de barra = altura − 2×recubrimiento + (N.° de
+    ganchos × gancho del calibre); cantidad de estribos = ⌈altura /
+    separación⌉ + 1 (redondeado hacia arriba); longitud de estribo =
+    2×(ancho+profundo−4×recubrimiento) + 2×gancho. Con esto se calcula
+    peso por barra/estribo, por pedestal, y total de la cimentación
+    (multiplicando por 2, ya que los pedestales son iguales).
+  - **Dos decisiones que tomé por mi cuenta, avísame si no eran así**:
+    (1) agregué un campo "N.° de ganchos por barra" (con 1 como sugerencia)
+    porque tu fórmula necesita saber cuántos ganchos tiene cada barra para
+    sumarlos, y no lo habías especificado; (2) agregué "Separación entre
+    pedestales" como campo nuevo, porque sin ese dato no se puede dibujar
+    el conjunto — no estaba en tu lista original pero es necesario para la
+    previsualización.
+  - **Previsualización**: 4 vistas — isométrico del conjunto (losa + los 2
+    pedestales, con cotas), elevación del despiece de un pedestal (barras
+    verdes + estribos azules, con las etiquetas típicas tipo
+    "4#4 CONTINUAS" / "7 E#3 @0.15"), corte transversal (con las 4 barras
+    de esquina y el estribo), y la planta de la losa con la malla. Verifiqué
+    cada una por separado antes de entregarte esto.
+  - **Tipo de malla**: nueva lista compartida (como proveedores/países),
+    empieza con "D84" y cualquiera puede agregar otras. Necesita la
+    migración `supabase/migration_mallas.sql`.
+
 - **Corrección urgente — página en blanco**: al duplicar Luminarias para
   crear Cámaras, corté el bloque de código un poco antes de tiempo y
   `CamarasForm` quedó usado pero nunca definido. Esto no lo detecta
