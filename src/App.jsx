@@ -1504,12 +1504,102 @@ function calcularEstribos({ altura, ancho, profundo, separacion, calibre }) {
   return { cantidad, longitud, pesoEstribo, pesoPedestal, pesoTotal: pesoPedestal * 2 };
 }
 
+/* Volúmenes (concreto, excavación, solado) de un elemento CILÍNDRICO         */
+/* (Postes MT): concreto = área × altura total; excavación = área ×          */
+/* desplante (solo la parte enterrada); solado = área × su espesor. El       */
+/* solado tiene la MISMA sección que el elemento (sin sobresalir).          */
+function calcularVolumenesCilindro({ diametro, desplante, sobresaliente, espesorSolado }) {
+  const d = parseFloat(diametro) || 0;
+  const desp = parseFloat(desplante) || 0;
+  const sobre = parseFloat(sobresaliente) || 0;
+  const esp = parseFloat(espesorSolado) || 0;
+  if (!d) return null;
+  const areaSeccion = Math.PI * (d / 2) * (d / 2);
+  const alturaTotal = desp + sobre;
+  return {
+    areaSeccion,
+    concreto: areaSeccion * alturaTotal,
+    excavacion: areaSeccion * desp,
+    solado: areaSeccion * esp,
+  };
+}
+
+/* Lo mismo, pero para un elemento de sección RECTANGULAR (Luminarias,       */
+/* Cámaras, y los pedestales de Inversores).                                 */
+function calcularVolumenesPrisma({ ancho, profundo, desplante, sobresaliente, espesorSolado }) {
+  const a = parseFloat(ancho) || 0;
+  const p = parseFloat(profundo) || 0;
+  const desp = parseFloat(desplante) || 0;
+  const sobre = parseFloat(sobresaliente) || 0;
+  const esp = parseFloat(espesorSolado) || 0;
+  if (!a || !p) return null;
+  const areaSeccion = a * p;
+  const alturaTotal = desp + sobre;
+  return {
+    areaSeccion,
+    concreto: areaSeccion * alturaTotal,
+    excavacion: areaSeccion * desp,
+    solado: areaSeccion * esp,
+  };
+}
+
+/* Panel de resumen de volúmenes (concreto, excavación, solado), reutilizado */
+/* en todas las plantillas de cimentación.                                  */
+/* Volúmenes de Inversores: 2 pedestales iguales + 1 losa. La losa va sobre  */
+/* el nivel de terreno natural, así que NO cuenta en la excavación — esa    */
+/* solo se calcula con los pedestales.                                      */
+function calcularVolumenesInversores({ pedestal, losa }) {
+  const pAncho = parseFloat(pedestal.ancho) || 0;
+  const pProfundo = parseFloat(pedestal.profundo) || 0;
+  const desplante = parseFloat(pedestal.desplante) || 0;
+  const sobresaliente = parseFloat(pedestal.sobresaliente) || 0;
+  const espSolado = parseFloat(pedestal.espesor_solado) || 0;
+  const lAncho = parseFloat(losa.ancho) || 0;
+  const lLargo = parseFloat(losa.largo) || 0;
+  const lEspesor = parseFloat(losa.espesor) || 0;
+  if (!pAncho || !pProfundo) return null;
+
+  const areaPedestal = pAncho * pProfundo;
+  const alturaPedestal = desplante + sobresaliente;
+  const volConcretoPedestales = areaPedestal * alturaPedestal * 2;
+  const volConcretoLosa = lAncho && lLargo && lEspesor ? lAncho * lLargo * lEspesor : 0;
+
+  return {
+    concreto: volConcretoPedestales + volConcretoLosa,
+    excavacion: areaPedestal * desplante * 2, // solo los pedestales — la losa no se excava
+    solado: areaPedestal * espSolado * 2,
+  };
+}
+
+function ResumenVolumenes({ volumenes, titulo = 'Cantidades de obra' }) {
+  if (!volumenes) return null;
+  return (
+    <div className="mt-4 bg-lime-50 border border-lime-200 rounded-lg px-4 py-3">
+      <p className="text-sm font-semibold text-navy-700 mb-2">{titulo}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="flex items-center justify-between sm:block">
+          <span className="text-xs text-navy-500">Volumen de concreto</span>
+          <span className="font-mono font-bold text-navy-800 sm:block">{volumenes.concreto.toFixed(3)} m³</span>
+        </div>
+        <div className="flex items-center justify-between sm:block">
+          <span className="text-xs text-navy-500">Volumen de excavación</span>
+          <span className="font-mono font-bold text-navy-800 sm:block">{volumenes.excavacion.toFixed(3)} m³</span>
+        </div>
+        <div className="flex items-center justify-between sm:block">
+          <span className="text-xs text-navy-500">Volumen de solado</span>
+          <span className="font-mono font-bold text-navy-800 sm:block">{volumenes.solado.toFixed(3)} m³</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* Lienzo y escala COMPARTIDOS por las 3 vistas de Postes MT, para que se     */
 /* vean alineadas entre sí (mismo tamaño en pantalla = mismo tamaño real).   */
 const POSTE_VB_W = 200;
 const POSTE_VB_H = 195;
 const POSTE_M2PX = 80;
-const POSTE_CSS_SIZE = 'w-40 h-40';
+const POSTE_CSS_SIZE = 'w-56 h-56';
 
 /* Dibujo tipo plano técnico (líneas negras, sin relleno de color) de un      */
 /* poste MT: cilindro + solado de limpieza (mismo cilindro, más corto) +     */
@@ -1540,12 +1630,11 @@ function PostesMtPreview({ datos }) {
 
   return (
     <svg viewBox={`0 0 ${POSTE_VB_W} ${POSTE_VB_H}`} className={POSTE_CSS_SIZE}>
-      {/* Solado de limpieza: mismo cilindro, un poco más ancho y corto */}
+      {/* Solado de limpieza: misma huella (mismo diámetro), solo más corto */}
       <g>
-        <line x1={cx - rx - 6} y1={botY} x2={cx - rx - 6} y2={soladoBotY} stroke="#152644" strokeWidth="1.1" />
-        <line x1={cx + rx + 6} y1={botY} x2={cx + rx + 6} y2={soladoBotY} stroke="#152644" strokeWidth="1.1" />
-        <ellipse cx={cx} cy={soladoBotY} rx={rx + 6} ry={ry + 2} fill="#F6F7F9" stroke="#152644" strokeWidth="1.1" />
-        <ellipse cx={cx} cy={botY} rx={rx + 6} ry={ry + 2} fill="#F6F7F9" stroke="#152644" strokeWidth="1.1" />
+        <line x1={cx - rx} y1={botY} x2={cx - rx} y2={soladoBotY} stroke="#152644" strokeWidth="1.1" />
+        <line x1={cx + rx} y1={botY} x2={cx + rx} y2={soladoBotY} stroke="#152644" strokeWidth="1.1" />
+        <ellipse cx={cx} cy={soladoBotY} rx={rx} ry={ry} fill="#F6F7F9" stroke="#152644" strokeWidth="1.1" />
       </g>
       {/* Cuerpo del cilindro (poste) */}
       <line x1={cx - rx} y1={topY} x2={cx - rx} y2={botY} stroke="#152644" strokeWidth="1.3" />
@@ -1702,6 +1791,7 @@ function PostesMtForm({ plantilla, onCancel, onSave }) {
   }
 
   const altura = (parseFloat(datos.desplante) || 0) + (parseFloat(datos.sobresaliente) || 0);
+  const volumenes = calcularVolumenesCilindro(datos);
   const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
 
   function submit(e) {
@@ -1761,6 +1851,7 @@ function PostesMtForm({ plantilla, onCancel, onSave }) {
           </div>
         </div>
       </div>
+      <ResumenVolumenes volumenes={volumenes} />
     </form>
   );
 }
@@ -1771,7 +1862,7 @@ function PostesMtForm({ plantilla, onCancel, onSave }) {
 const LUMI_VB_W = 200;
 const LUMI_VB_H = 195;
 const LUMI_M2PX = 80;
-const LUMI_CSS_SIZE = 'w-40 h-40';
+const LUMI_CSS_SIZE = 'w-56 h-56';
 
 /* Isométrico de una cimentación de sección rectangular (o cuadrada, si       */
 /* ancho = profundo): caja + solado (misma forma, un poco más ancha y corta) */
@@ -1802,8 +1893,8 @@ function LuminariasPreview({ datos }) {
   const ox = LUMI_VB_W / 2;
   const oy = 18 + Math.max(halfW, halfD) + bodyZ1;
 
-  const soladoHalfW = halfW + 6;
-  const soladoHalfD = halfD + 6;
+  const soladoHalfW = halfW;
+  const soladoHalfD = halfD;
   const groundHalfW = halfW + 16;
   const groundHalfD = halfD + 16;
 
@@ -2021,6 +2112,7 @@ function LuminariasForm({ plantilla, onCancel, onSave }) {
   }
 
   const altura = (parseFloat(datos.desplante) || 0) + (parseFloat(datos.sobresaliente) || 0);
+  const volumenes = calcularVolumenesPrisma(datos);
   const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
 
   function submit(e) {
@@ -2087,6 +2179,7 @@ function LuminariasForm({ plantilla, onCancel, onSave }) {
           </div>
         </div>
       </div>
+      <ResumenVolumenes volumenes={volumenes} />
     </form>
   );
 }
@@ -2105,6 +2198,7 @@ function CamarasForm({ plantilla, onCancel, onSave }) {
   }
 
   const altura = (parseFloat(datos.desplante) || 0) + (parseFloat(datos.sobresaliente) || 0);
+  const volumenes = calcularVolumenesPrisma(datos);
   const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
 
   function submit(e) {
@@ -2171,14 +2265,11 @@ function CamarasForm({ plantilla, onCancel, onSave }) {
           </div>
         </div>
       </div>
+      <ResumenVolumenes volumenes={volumenes} />
     </form>
   );
 }
 
-/* Registro por tipo: qué formulario/vista/resumen usar en la lista según el */
-/* tipo de cimentación activo. Se va llenando a medida que construimos cada  */
-/* uno — los que faltan simplemente no aparecen aquí (CimentacionesView ya   */
-/* filtra por "disponible" antes de llegar a este punto).                   */
 /* ============================================================ */
 /* CÁMARAS (CCTV) — misma estructura que Luminarias, sección       */
 /* rectangular/cuadrada.                                            */
@@ -2187,7 +2278,7 @@ function CamarasForm({ plantilla, onCancel, onSave }) {
 const CAM_VB_W = 200;
 const CAM_VB_H = 195;
 const CAM_M2PX = 80;
-const CAM_CSS_SIZE = 'w-40 h-40';
+const CAM_CSS_SIZE = 'w-56 h-56';
 
 /* Isométrico de una cimentación de sección rectangular (o cuadrada, si       */
 /* ancho = profundo): caja + solado (misma forma, un poco más ancha y corta) */
@@ -2218,8 +2309,8 @@ function CamarasPreview({ datos }) {
   const ox = CAM_VB_W / 2;
   const oy = 18 + Math.max(halfW, halfD) + bodyZ1;
 
-  const soladoHalfW = halfW + 6;
-  const soladoHalfD = halfD + 6;
+  const soladoHalfW = halfW;
+  const soladoHalfD = halfD;
   const groundHalfW = halfW + 16;
   const groundHalfD = halfD + 16;
 
@@ -2814,6 +2905,7 @@ function InversoresForm({ plantilla, onCancel, onSave, mallas, onAddMalla }) {
   const longitudinales = calcularLongitudinales({ altura: alturaPedestal, cantidad: datos.barras.cantidad, calibre: datos.barras.calibre, ganchos: datos.barras.ganchos });
   const estribos = calcularEstribos({ altura: alturaPedestal, ancho: datos.pedestal.ancho, profundo: datos.pedestal.profundo, separacion: datos.estribos.separacion, calibre: datos.estribos.calibre });
   const pesoTotalAcero = (longitudinales?.pesoTotal || 0) + (estribos?.pesoTotal || 0);
+  const volumenes = calcularVolumenesInversores(datos);
 
   function submit(e) {
     e.preventDefault();
@@ -2966,6 +3058,7 @@ function InversoresForm({ plantilla, onCancel, onSave, mallas, onAddMalla }) {
           <span className="font-mono font-bold text-navy-800">{pesoTotalAcero.toFixed(2)} kg</span>
         </div>
       )}
+      <ResumenVolumenes volumenes={volumenes} />
 
       <div className="flex gap-2 pt-4">
         <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700 px-3 py-2">
@@ -2979,6 +3072,10 @@ function InversoresForm({ plantilla, onCancel, onSave, mallas, onAddMalla }) {
   );
 }
 
+/* Registro por tipo: qué formulario/vista/resumen usar en la lista según el */
+/* tipo de cimentación activo. Se va llenando a medida que construimos cada  */
+/* uno — los que faltan simplemente no aparecen aquí (CimentacionesView ya   */
+/* filtra por "disponible" antes de llegar a este punto).                   */
 const CIMENTACION_COMPONENTES = {
   postes_mt: {
     Form: PostesMtForm,

@@ -169,6 +169,29 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Mejoras a Postes MT, Luminarias y Cámaras (regresando antes de seguir
+  con Cerramiento)**:
+  - **Dibujos más grandes**, mismo tamaño que usamos para Inversores.
+  - **Solado corregido**: ya no sobresale de la cimentación — comparte
+    exactamente la misma huella (mismo diámetro en Postes MT, mismo
+    ancho×profundo en Luminarias/Cámaras). Antes tenía un margen extra que
+    lo hacía ver como un "collar" más ancho.
+  - **Cálculo de volúmenes (concreto, excavación, solado)** — nuevo panel
+    "Cantidades de obra" en los 4 formularios que ya existen:
+    - Postes MT y las secciones rectangulares (Luminarias, Cámaras,
+      pedestales de Inversores): concreto = área de la sección × altura
+      total; excavación = área × **desplante** (no la altura total, ya que
+      solo se excava la parte enterrada); solado = área × su espesor.
+    - Inversores es un caso especial: el concreto suma los 2 pedestales
+      más la losa, pero la **excavación solo cuenta los pedestales** — la
+      losa va sobre el nivel de terreno natural, así que no requiere
+      excavación, tal como me confirmaste.
+    - Verifiqué las fórmulas con números concretos a mano (fuera del
+      código) antes de confiar en la implementación en React.
+  - De paso encontré y corregí un comentario que había quedado mal
+    ubicado en el código de Cámaras desde una edición anterior (no
+    afectaba el funcionamiento, solo la documentación interna).
+
 - **Segunda ronda de correcciones a Inversores**:
   - **Isométrico reorganizado**: ancho y largo de la losa ahora van arriba
     (usando la esquina trasera, la que queda más alta en la proyección),
