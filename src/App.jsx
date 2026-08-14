@@ -1508,11 +1508,11 @@ function calcularEstribos({ altura, ancho, profundo, separacion, calibre }) {
 /* (Postes MT): concreto = área × altura total; excavación = área ×          */
 /* desplante (solo la parte enterrada); solado = área × su espesor. El       */
 /* solado tiene la MISMA sección que el elemento (sin sobresalir).          */
-function calcularVolumenesCilindro({ diametro, desplante, sobresaliente, espesorSolado }) {
+function calcularVolumenesCilindro({ diametro, desplante, sobresaliente, espesor_solado }) {
   const d = parseFloat(diametro) || 0;
   const desp = parseFloat(desplante) || 0;
   const sobre = parseFloat(sobresaliente) || 0;
-  const esp = parseFloat(espesorSolado) || 0;
+  const esp = parseFloat(espesor_solado) || 0;
   if (!d) return null;
   const areaSeccion = Math.PI * (d / 2) * (d / 2);
   const alturaTotal = desp + sobre;
@@ -1526,12 +1526,12 @@ function calcularVolumenesCilindro({ diametro, desplante, sobresaliente, espesor
 
 /* Lo mismo, pero para un elemento de sección RECTANGULAR (Luminarias,       */
 /* Cámaras, y los pedestales de Inversores).                                 */
-function calcularVolumenesPrisma({ ancho, profundo, desplante, sobresaliente, espesorSolado }) {
+function calcularVolumenesPrisma({ ancho, profundo, desplante, sobresaliente, espesor_solado }) {
   const a = parseFloat(ancho) || 0;
   const p = parseFloat(profundo) || 0;
   const desp = parseFloat(desplante) || 0;
   const sobre = parseFloat(sobresaliente) || 0;
-  const esp = parseFloat(espesorSolado) || 0;
+  const esp = parseFloat(espesor_solado) || 0;
   if (!a || !p) return null;
   const areaSeccion = a * p;
   const alturaTotal = desp + sobre;
@@ -1706,7 +1706,7 @@ function PostesMtSeccionLongitudinal({ datos }) {
   return (
     <svg viewBox={`0 0 ${POSTE_VB_W} ${POSTE_VB_H}`} className={POSTE_CSS_SIZE}>
       {/* Solado */}
-      <rect x={cx - anchoPx / 2 - 6} y={botY} width={anchoPx + 12} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      <rect x={cx - anchoPx / 2} y={botY} width={anchoPx} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
       {/* Cuerpo (vista frontal) */}
       <rect x={cx - anchoPx / 2} y={topY} width={anchoPx} height={alturaPx} fill="white" stroke="#152644" strokeWidth="1.3" />
       {/* Nivel de terreno natural (línea recta: aquí sí es correcto, es una vista plana) */}
@@ -2007,7 +2007,7 @@ function LuminariasSeccionLongitudinal({ datos }) {
 
   return (
     <svg viewBox={`0 0 ${LUMI_VB_W} ${LUMI_VB_H}`} className={LUMI_CSS_SIZE}>
-      <rect x={cx - anchoPx / 2 - 6} y={botY} width={anchoPx + 12} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      <rect x={cx - anchoPx / 2} y={botY} width={anchoPx} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
       <rect x={cx - anchoPx / 2} y={topY} width={anchoPx} height={alturaPx} fill="white" stroke="#152644" strokeWidth="1.3" />
       <line x1={cx - anchoPx / 2 - 20} y1={groundY} x2={cx + anchoPx / 2 + 20} y2={groundY} stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
       <text x={cx - anchoPx / 2 - 22} y={groundY + 3} textAnchor="end" fontSize="7.5" fill="#6487C4" fontFamily="monospace">N.T.N</text>
@@ -2423,7 +2423,7 @@ function CamarasSeccionLongitudinal({ datos }) {
 
   return (
     <svg viewBox={`0 0 ${CAM_VB_W} ${CAM_VB_H}`} className={CAM_CSS_SIZE}>
-      <rect x={cx - anchoPx / 2 - 6} y={botY} width={anchoPx + 12} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      <rect x={cx - anchoPx / 2} y={botY} width={anchoPx} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
       <rect x={cx - anchoPx / 2} y={topY} width={anchoPx} height={alturaPx} fill="white" stroke="#152644" strokeWidth="1.3" />
       <line x1={cx - anchoPx / 2 - 20} y1={groundY} x2={cx + anchoPx / 2 + 20} y2={groundY} stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
       <text x={cx - anchoPx / 2 - 22} y={groundY + 3} textAnchor="end" fontSize="7.5" fill="#6487C4" fontFamily="monospace">N.T.N</text>
@@ -2572,7 +2572,6 @@ function InversoresIsometrico({ datos }) {
   const ox = INV_VB_W / 2;
   const oy = 55 + Math.max(halfProf, lLargoPx / 2) + losaZ1;
 
-  const soladoMedioX = (pAnchoPx + pSepPx) / 2 + halfPed + 8;
 
   // Altura del pedestal: esquina trasera-derecha, hacia la derecha.
   const [rightTopX, rightTopY] = isoPt(centroX + halfPed, -halfProf, bodyZ1, ox, oy);
@@ -2601,8 +2600,9 @@ function InversoresIsometrico({ datos }) {
 
   return (
     <svg viewBox={`0 0 ${INV_VB_W} ${INV_VB_H}`} className={INV_CSS_SIZE}>
-      {/* Solado corrido bajo los dos pedestales */}
-      <IsoBoxLineArt x0={-soladoMedioX} y0={-halfProf - 8} w={soladoMedioX * 2} d={pProfundoPx + 16} z0={0} z1={pSoladoPx} ox={ox} oy={oy} />
+      {/* Solado: uno por cada pedestal, con su misma huella (no una franja continua) */}
+      <IsoBoxLineArt x0={-centroX - halfPed} y0={-halfProf} w={pAnchoPx} d={pProfundoPx} z0={0} z1={pSoladoPx} ox={ox} oy={oy} />
+      <IsoBoxLineArt x0={centroX - halfPed} y0={-halfProf} w={pAnchoPx} d={pProfundoPx} z0={0} z1={pSoladoPx} ox={ox} oy={oy} />
       {/* Pedestal izquierdo */}
       <IsoBoxLineArt x0={-centroX - halfPed} y0={-halfProf} w={pAnchoPx} d={pProfundoPx} z0={bodyZ0} z1={bodyZ1} ox={ox} oy={oy} />
       {/* Pedestal derecho */}

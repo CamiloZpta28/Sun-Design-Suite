@@ -169,6 +169,27 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Bug real encontrado y corregido — volumen de solado en 0**: tenías
+  razón, no era un problema de la fórmula sino de los nombres. Las
+  funciones de cálculo esperaban un dato llamado `espesorSolado`
+  (camelCase), pero el campo real que guardan los formularios se llama
+  `espesor_solado` (con guion bajo) — así que siempre leían "vacío" y el
+  volumen de solado daba 0.000 sin importar qué escribieras. Ya está
+  corregido en Postes MT, Luminarias y Cámaras; lo verifiqué con tus
+  mismos números exactos (0.30 m de diámetro, 0.05 m de espesor) y ahora
+  sí da 0.003534 m³, igual a tu calculadora.
+  - La fórmula en sí (que confirmé la vez pasada) siempre estuvo bien —
+    el problema nunca fue el cálculo matemático, sino que nunca le estaba
+    llegando el dato correcto.
+- **Solado en sección longitudinal**: la corrección de "misma huella" que
+  hice la vez pasada solo había quedado aplicada en la vista isométrica.
+  Ya está corregida también en la sección longitudinal, para Postes MT,
+  Luminarias y Cámaras.
+- **Inversores: solado separado por pedestal**: antes se dibujaba como
+  una sola franja corrida bajo ambos pedestales; ahora cada pedestal tiene
+  su propio solado independiente, con su misma huella — lo verifiqué
+  renderizando el resultado antes de entregarlo.
+
 - **Ajustes rápidos a Cimentaciones**:
   - **Previsualización centrada de verdad** en Postes MT, Luminarias y
     Cámaras: la caja gris que envuelve las 3 vistas ahora usa
