@@ -169,6 +169,24 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Segunda ronda de correcciones a Inversores**:
+  - **Isométrico reorganizado**: ancho y largo de la losa ahora van arriba
+    (usando la esquina trasera, la que queda más alta en la proyección),
+    altura del pedestal a la derecha, espesor de losa a la izquierda.
+    Verifiqué que las 4 cotas ya no se crucen en ningún caso.
+  - **Vista posterior corregida**: los estribos ahora quedan centrados en
+    la altura (antes se acumulaban hacia abajo); los ganchos de las barras
+    vuelven a apuntar hacia el centro (como se doblan de verdad), pero
+    ahora con un largo que se ajusta para que nunca se crucen entre sí sin
+    importar la separación entre barras. Se agregaron las cotas de ancho y
+    altura, paralelas a sus bordes.
+  - **Corte transversal**: ahora se ven los 2 ganchos del estribo (antes
+    sin querer los dibujaba sobre la misma diagonal, así que se veían como
+    uno solo) y se agregaron las cotas de ancho y profundo.
+  - **Planta de la losa**: se agregaron las cotas de ancho y largo por
+    separado, paralelas a sus bordes (antes solo había un texto combinado
+    sin líneas de cota).
+
 - **Correcciones a Inversores** (después de tu primer feedback):
   - **Fórmula de estribos corregida**: ahora es (altura − 2×recubrimiento) /
     separación, tal como la corregiste. Ya no lleva el "+1" que tenía antes.
