@@ -213,6 +213,17 @@ create table if not exists mallas (
   created_at timestamptz default now()
 );
 
+-- Constantes de ingeniería usadas en los cálculos de acero de las
+-- cimentaciones (recubrimiento, ganchos y pesos por calibre, traslapos por
+-- calibre/resistencia). Una sola fila global ('global'), editable solo por
+-- el rol Desarrollador desde la "puerta trasera" de Cimentaciones — así se
+-- pueden corregir sin necesitar un despliegue nuevo de la app.
+create table if not exists parametros_ingenieria (
+  id text primary key default 'global',
+  datos jsonb not null default '{}'::jsonb,
+  updated_at timestamptz default now()
+);
+
 -- Roles de cada persona (puede tener varios a la vez, ej. Líder Civil +
 -- Ing. Civil). Solo un líder puede otorgar o quitar roles — ver políticas
 -- más abajo. Es una tabla aparte (no una columna en "profiles") para poder
@@ -354,6 +365,18 @@ create policy "Lectura de mallas" on mallas
 create policy "Crear mallas" on mallas
   for insert with check (auth.role() = 'authenticated');
 
+alter table parametros_ingenieria enable row level security;
+create policy "Lectura de parametros de ingenieria" on parametros_ingenieria
+  for select using (auth.role() = 'authenticated');
+create policy "Solo desarrollador edita parametros de ingenieria (insert)" on parametros_ingenieria
+  for insert with check (
+    exists (select 1 from user_roles ur where ur.user_id = auth.uid() and ur.role_key = 'desarrollador')
+  );
+create policy "Solo desarrollador edita parametros de ingenieria (update)" on parametros_ingenieria
+  for update using (
+    exists (select 1 from user_roles ur where ur.user_id = auth.uid() and ur.role_key = 'desarrollador')
+  );
+
 alter table activity_log enable row level security;
 
 create policy "Lectura de historial" on activity_log
@@ -438,3 +461,22 @@ create policy "Usuarios autenticados pueden subir su foto"
 create policy "Usuarios autenticados pueden reemplazar su foto"
   on storage.objects for update
   using (bucket_id = 'avatars' and auth.role() = 'authenticated');
+
+-- ---------- Parámetros de ingeniería (recubrimiento, ganchos, pesos, traslapos) ----------
+
+insert into parametros_ingenieria (id, datos) values ('global', '{
+  "recubrimiento": 0.075,
+  "barras": {
+    "#3": { "gancho": 0.10, "peso": 0.56 },
+    "#4": { "gancho": 0.20, "peso": 0.994 },
+    "#5": { "gancho": 0.25, "peso": 1.552 },
+    "#6": { "gancho": 0.30, "peso": 2.235 }
+  },
+  "traslapos": {
+    "#3": { "21 MPa": 0.55, "28 MPa": 0.50, "35 MPa": 0.45 },
+    "#4": { "21 MPa": 0.75, "28 MPa": 0.65, "35 MPa": 0.60 },
+    "#5": { "21 MPa": 0.95, "28 MPa": 0.80, "35 MPa": 0.70 },
+    "#6": { "21 MPa": 1.10, "28 MPa": 0.95, "35 MPa": 0.85 }
+  }
+}'::jsonb)
+on conflict (id) do nothing;

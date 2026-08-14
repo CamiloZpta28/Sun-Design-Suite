@@ -7,7 +7,7 @@ import {
   Loader2, RefreshCw, LogOut, ShieldCheck, Lock, History, ClipboardCheck, StickyNote, UserCog,
   Folder, FolderPlus, ChevronDown, ChevronRight, PlayCircle, Video, Code2,
   Bold, Italic, Underline, List, PartyPopper, MessageSquare, PieChart, AlertTriangle, Menu, UserPlus, Boxes,
-  CircleDot, Lightbulb, Home,
+  CircleDot, Lightbulb, Home, Wrench, KeyRound,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import logoMark from './assets/logo-s-mark.png';
@@ -1420,7 +1420,7 @@ function MallaPicker({ value, mallas, onChange, onAddNew }) {
 /* por TODAS las cimentaciones (shelter, inversores, cerramiento, portón,     */
 /* luminarias, CCTV, postes) — sin valor por defecto a propósito, para no     */
 /* afectar especialidades fuera del alcance de esta funcionalidad.            */
-const RESISTENCIA_OPCIONES = ['21 MPa', '24 MPa', '28 MPa', '31 MPa'];
+const RESISTENCIA_OPCIONES = ['21 MPa', '24 MPa', '28 MPa', '31 MPa', '35 MPa'];
 function ResistenciaSelect({ value, onChange, className }) {
   return (
     <SelectOrOtro
@@ -1464,14 +1464,59 @@ const CIMENTACION_TIPOS = [
 /* Parámetros fijos de acero de refuerzo para TODAS las cimentaciones:        */
 /* recubrimiento siempre 7.5cm, y por calibre — longitud de gancho estándar  */
 /* y peso por metro (usados para calcular longitudes y pesos de barras).     */
-const RECUBRIMIENTO_CIMENTACION = 0.075;
+/* Estas son las constantes de acero POR DEFECTO (usadas si el desarrollador */
+/* aún no ha guardado sus propios valores en Supabase — ver                 */
+/* "aplicarParametrosIngenieria" más abajo, que sobreescribe su CONTENIDO   */
+/* en tiempo real cuando cargan los datos reales). "let" en el recubrimiento */
+/* y mutación de los objetos (no reasignación) es justamente para que TODO  */
+/* el código que ya usa estas constantes vea el valor actualizado sin tener */
+/* que tocar cada función que las usa.                                     */
+let RECUBRIMIENTO_CIMENTACION = 0.075;
 const BARRA_ACERO = {
   '#3': { gancho: 0.10, peso: 0.56 },
-  '#4': { gancho: 0.15, peso: 0.994 },
-  '#5': { gancho: 0.20, peso: 1.552 },
-  '#6': { gancho: 0.25, peso: 2.235 },
+  '#4': { gancho: 0.20, peso: 0.994 },
+  '#5': { gancho: 0.25, peso: 1.552 },
+  '#6': { gancho: 0.30, peso: 2.235 },
+};
+/* Traslapos tipo B a tensión (NSR-10), por calibre y resistencia del        */
+/* concreto — ya redondeados hacia arriba al múltiplo de 0.05 m más         */
+/* cercano. Solo cubre 21/28/35 MPa (los valores de la tabla oficial); si    */
+/* la plantilla usa otra resistencia, el traslapo simplemente no se puede   */
+/* calcular (se muestra "—").                                               */
+const TRASLAPO_TABLE = {
+  '#3': { '21 MPa': 0.55, '28 MPa': 0.50, '35 MPa': 0.45 },
+  '#4': { '21 MPa': 0.75, '28 MPa': 0.65, '35 MPa': 0.60 },
+  '#5': { '21 MPa': 0.95, '28 MPa': 0.80, '35 MPa': 0.70 },
+  '#6': { '21 MPa': 1.10, '28 MPa': 0.95, '35 MPa': 0.85 },
 };
 const CALIBRES_DISPONIBLES = Object.keys(BARRA_ACERO);
+
+/* Sobreescribe el CONTENIDO (no la referencia) de las constantes de acero   */
+/* con lo que el desarrollador haya guardado en Supabase — así todo el      */
+/* código que ya las usa (calcularLongitudinales, calcularEstribos, etc.)   */
+/* ve el valor actualizado sin necesidad de tocar cada función.            */
+function aplicarParametrosIngenieria(datos) {
+  if (!datos) return;
+  if (typeof datos.recubrimiento === 'number') RECUBRIMIENTO_CIMENTACION = datos.recubrimiento;
+  if (datos.barras) {
+    Object.keys(BARRA_ACERO).forEach((k) => delete BARRA_ACERO[k]);
+    Object.assign(BARRA_ACERO, datos.barras);
+  }
+  if (datos.traslapos) {
+    Object.keys(TRASLAPO_TABLE).forEach((k) => delete TRASLAPO_TABLE[k]);
+    Object.assign(TRASLAPO_TABLE, datos.traslapos);
+  }
+}
+
+/* Traslapo (m) para el calibre y resistencia dados, o null si no hay dato   */
+/* en la tabla para esa combinación (resistencia fuera de 21/28/35 MPa, o    */
+/* "Otro").                                                                  */
+function obtenerTraslapo(calibre, resistencia) {
+  const fila = TRASLAPO_TABLE[calibre];
+  if (!fila) return null;
+  const valor = fila[resistencia];
+  return typeof valor === 'number' ? valor : null;
+}
 
 /* Barras longitudinales de un pedestal: longitud = altura - 2×recubrimiento */
 /* + (N.° de ganchos × longitud de gancho de ese calibre). Devuelve null si  */
@@ -1519,7 +1564,7 @@ function calcularVolumenesCilindro({ diametro, desplante, sobresaliente, espesor
   return {
     areaSeccion,
     concreto: areaSeccion * alturaTotal,
-    excavacion: areaSeccion * desp,
+    excavacion: areaSeccion * (desp + esp), // la excavación llega hasta el fondo del solado, no solo el desplante
     solado: areaSeccion * esp,
   };
 }
@@ -1538,7 +1583,7 @@ function calcularVolumenesPrisma({ ancho, profundo, desplante, sobresaliente, es
   return {
     areaSeccion,
     concreto: areaSeccion * alturaTotal,
-    excavacion: areaSeccion * desp,
+    excavacion: areaSeccion * (desp + esp), // la excavación llega hasta el fondo del solado, no solo el desplante
     solado: areaSeccion * esp,
   };
 }
@@ -1566,7 +1611,7 @@ function calcularVolumenesInversores({ pedestal, losa }) {
 
   return {
     concreto: volConcretoPedestales + volConcretoLosa,
-    excavacion: areaPedestal * desplante * 2, // solo los pedestales — la losa no se excava
+    excavacion: areaPedestal * (desplante + espSolado) * 2, // solo los pedestales (hasta el fondo del solado) — la losa no se excava
     solado: areaPedestal * espSolado * 2,
   };
 }
@@ -1789,7 +1834,7 @@ function PostesMtVistas({ datos }) {
 function PostesMtForm({ plantilla, onCancel, onSave }) {
   const [nombre, setNombre] = useState(plantilla?.nombre || '');
   const [datos, setDatos] = useState(
-    plantilla?.datos || { diametro: '', desplante: '', sobresaliente: '', espesor_solado: '' }
+    plantilla?.datos || { diametro: '', desplante: '', sobresaliente: '', espesor_solado: '', resistencia: '' }
   );
 
   function set(key, val) {
@@ -1846,6 +1891,10 @@ function PostesMtForm({ plantilla, onCancel, onSave }) {
           <div>
             <label className="block text-xs text-navy-500 mb-1">Espesor de solado (m)</label>
             <input value={datos.espesor_solado} onChange={(e) => set('espesor_solado', e.target.value)} placeholder="0.05" className={cellInput} />
+          </div>
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Resistencia del concreto</label>
+            <ResistenciaSelect value={datos.resistencia} onChange={(val) => set('resistencia', val)} className={cellInput} />
           </div>
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700 px-3 py-2">
@@ -2110,7 +2159,7 @@ function LuminariasVistas({ datos }) {
 function LuminariasForm({ plantilla, onCancel, onSave }) {
   const [nombre, setNombre] = useState(plantilla?.nombre || '');
   const [datos, setDatos] = useState(
-    plantilla?.datos || { ancho: '', profundo: '', desplante: '', sobresaliente: '', espesor_solado: '' }
+    plantilla?.datos || { ancho: '', profundo: '', desplante: '', sobresaliente: '', espesor_solado: '', resistencia: '' }
   );
 
   function set(key, val) {
@@ -2175,6 +2224,10 @@ function LuminariasForm({ plantilla, onCancel, onSave }) {
             <label className="block text-xs text-navy-500 mb-1">Espesor de solado (m)</label>
             <input value={datos.espesor_solado} onChange={(e) => set('espesor_solado', e.target.value)} placeholder="0.05" className={cellInput} />
           </div>
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Resistencia del concreto</label>
+            <ResistenciaSelect value={datos.resistencia} onChange={(val) => set('resistencia', val)} className={cellInput} />
+          </div>
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700 px-3 py-2">
               Cancelar
@@ -2196,7 +2249,7 @@ function LuminariasForm({ plantilla, onCancel, onSave }) {
 function CamarasForm({ plantilla, onCancel, onSave }) {
   const [nombre, setNombre] = useState(plantilla?.nombre || '');
   const [datos, setDatos] = useState(
-    plantilla?.datos || { ancho: '', profundo: '', desplante: '', sobresaliente: '', espesor_solado: '' }
+    plantilla?.datos || { ancho: '', profundo: '', desplante: '', sobresaliente: '', espesor_solado: '', resistencia: '' }
   );
 
   function set(key, val) {
@@ -2260,6 +2313,10 @@ function CamarasForm({ plantilla, onCancel, onSave }) {
           <div>
             <label className="block text-xs text-navy-500 mb-1">Espesor de solado (m)</label>
             <input value={datos.espesor_solado} onChange={(e) => set('espesor_solado', e.target.value)} placeholder="0.05" className={cellInput} />
+          </div>
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Resistencia del concreto</label>
+            <ResistenciaSelect value={datos.resistencia} onChange={(val) => set('resistencia', val)} className={cellInput} />
           </div>
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700 px-3 py-2">
@@ -2899,9 +2956,13 @@ function InversoresForm({ plantilla, onCancel, onSave, mallas, onAddMalla }) {
       barras: { cantidad: '', calibre: '', ganchos: '1' },
       estribos: { calibre: '', separacion: '' },
       losa: { ancho: '', largo: '', espesor: '', malla: '' },
+      resistencia: '',
     }
   );
 
+  function set(key, val) {
+    setDatos((prev) => ({ ...prev, [key]: val }));
+  }
   function setGrupo(grupo, key, val) {
     setDatos((prev) => ({ ...prev, [grupo]: { ...prev[grupo], [key]: val } }));
   }
@@ -2929,15 +2990,21 @@ function InversoresForm({ plantilla, onCancel, onSave, mallas, onAddMalla }) {
         <InversoresVistas datos={datos} />
       </div>
 
-      <div>
-        <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre de la plantilla</label>
-        <input
-          autoFocus
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          placeholder="Ej. Inversores Tipo 1"
-          className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm mb-4"
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre de la plantilla</label>
+          <input
+            autoFocus
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Ej. Inversores Tipo 1"
+            className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Resistencia del concreto</label>
+          <ResistenciaSelect value={datos.resistencia} onChange={(val) => set('resistencia', val)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -3106,11 +3173,161 @@ const CIMENTACION_COMPONENTES = {
 /* Vista principal de "Cimentaciones": elige el tipo (6 en total, hoy solo   */
 /* Postes MT está construido) y administra sus plantillas (crear, editar,   */
 /* eliminar). Las que no están listas muestran un aviso de "muy pronto".    */
-function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete, mallas, onAddMalla }) {
+/* Lista de fórmulas usadas en Cimentaciones, en texto plano — parte de la   */
+/* "puerta trasera" de solo lectura para que un Desarrollador pueda          */
+/* auditarlas sin tener que leer el código fuente. Se va ampliando a medida */
+/* que se agregan más tipos de cimentación.                                */
+const FORMULAS_REFERENCIA = [
+  { titulo: 'Longitud de barra longitudinal (pedestales)', formula: 'longitud = altura − 2×recubrimiento + (N.° de ganchos × gancho del calibre)' },
+  { titulo: 'Peso de una barra', formula: 'peso = longitud × peso por metro del calibre' },
+  { titulo: 'Cantidad de estribos (pedestales)', formula: 'cantidad = techo[ (altura − 2×recubrimiento) / separación ]' },
+  { titulo: 'Longitud de un estribo', formula: 'longitud = 2×(ancho + profundo − 4×recubrimiento) + 2×gancho del calibre' },
+  { titulo: 'Volumen de concreto — sección circular (Postes MT)', formula: 'concreto = π×(diámetro/2)² × (desplante + sobresaliente)' },
+  { titulo: 'Volumen de concreto — sección rectangular (Luminarias, Cámaras, pedestales)', formula: 'concreto = ancho × profundo × (desplante + sobresaliente)' },
+  { titulo: 'Volumen de excavación', formula: 'excavación = área de la sección × (desplante + espesor de solado)' },
+  { titulo: 'Volumen de solado', formula: 'solado = área de la sección × espesor de solado' },
+  { titulo: 'Inversores — volumen de excavación', formula: 'excavación = área de UN pedestal × (desplante + espesor de solado) × 2 — la losa no se excava, va sobre el nivel de terreno natural' },
+  { titulo: 'Traslapo de barras (viga de amarre, Cerramiento)', formula: 'se busca en la tabla de traslapos por calibre y resistencia del concreto (NSR-10, redondeada hacia arriba al múltiplo de 0.05m más cercano) — no es una fórmula, es una tabla' },
+];
+
+/* "Puerta trasera": solo el rol Desarrollador puede ver y editar estos       */
+/* números (recubrimiento, gancho/peso por calibre, traslapos), y ver         */
+/* (sin poder editar) las fórmulas que los combinan. Los números se guardan  */
+/* en Supabase y se aplican de inmediato en toda la app sin necesitar un      */
+/* despliegue nuevo.                                                         */
+function ParametrosIngenieriaView({ parametros, onGuardar }) {
+  const [recubrimiento, setRecubrimiento] = useState(String(parametros.recubrimiento));
+  const [barras, setBarras] = useState(() => JSON.parse(JSON.stringify(parametros.barras)));
+  const [traslapos, setTraslapos] = useState(() => JSON.parse(JSON.stringify(parametros.traslapos)));
+  const [guardando, setGuardando] = useState(false);
+  const [guardado, setGuardado] = useState(false);
+
+  const resistenciasTraslapo = ['21 MPa', '28 MPa', '35 MPa'];
+  const cellInput = 'w-full rounded-md border border-navy-300 px-2 py-1.5 text-sm font-mono text-center focus:outline-none focus:ring-2 focus:ring-lime-400';
+
+  function setBarraCampo(calibre, campo, val) {
+    setBarras((prev) => ({ ...prev, [calibre]: { ...prev[calibre], [campo]: val } }));
+  }
+  function setTraslapoCampo(calibre, resistencia, val) {
+    setTraslapos((prev) => ({ ...prev, [calibre]: { ...(prev[calibre] || {}), [resistencia]: val } }));
+  }
+
+  async function guardar() {
+    setGuardando(true);
+    const datosLimpios = {
+      recubrimiento: parseFloat(recubrimiento) || 0,
+      barras: Object.fromEntries(Object.entries(barras).map(([cal, v]) => [cal, { gancho: parseFloat(v.gancho) || 0, peso: parseFloat(v.peso) || 0 }])),
+      traslapos: Object.fromEntries(
+        Object.entries(traslapos).map(([cal, v]) => [cal, Object.fromEntries(Object.entries(v).map(([r, val]) => [r, parseFloat(val) || 0]))])
+      ),
+    };
+    await onGuardar(datosLimpios);
+    setGuardando(false);
+    setGuardado(true);
+    setTimeout(() => setGuardado(false), 2000);
+  }
+
+  return (
+    <div className="p-4 md:p-8 max-w-4xl mx-auto">
+      <div className="mb-6 flex items-center gap-2">
+        <KeyRound className="w-5 h-5 text-lime-600 shrink-0" />
+        <div>
+          <h1 className="text-2xl font-bold text-navy-800">Parámetros de Ingeniería</h1>
+          <p className="text-navy-500 text-sm">
+            Solo visible para el rol Desarrollador. Estos valores alimentan todos los cálculos de acero de Cimentaciones.
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-white border border-navy-200 rounded-xl p-5 mb-5">
+        <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-3">Recubrimiento (m)</p>
+        <input value={recubrimiento} onChange={(e) => setRecubrimiento(e.target.value)} className={`${cellInput} max-w-[140px]`} />
+        <p className="text-xs text-navy-400 mt-1">Se usa igual en todas las cimentaciones (postes, zapatas, vigas, pedestales, estribos).</p>
+      </div>
+
+      <div className="bg-white border border-navy-200 rounded-xl p-5 mb-5 overflow-x-auto">
+        <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-3">Gancho y peso por calibre</p>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-xs text-navy-400 text-left">
+              <th className="pb-2 pr-3">Calibre</th>
+              <th className="pb-2 pr-3">Gancho (m)</th>
+              <th className="pb-2">Peso (kg/m)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.keys(barras).map((cal) => (
+              <tr key={cal}>
+                <td className="py-1 pr-3 font-mono font-semibold text-navy-700">{cal}</td>
+                <td className="py-1 pr-3 w-32">
+                  <input value={barras[cal].gancho} onChange={(e) => setBarraCampo(cal, 'gancho', e.target.value)} className={cellInput} />
+                </td>
+                <td className="py-1 w-32">
+                  <input value={barras[cal].peso} onChange={(e) => setBarraCampo(cal, 'peso', e.target.value)} className={cellInput} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="bg-white border border-navy-200 rounded-xl p-5 mb-5 overflow-x-auto">
+        <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-1">Traslapos (m) por calibre y resistencia</p>
+        <p className="text-xs text-navy-400 mb-3">Tabla de traslapos tipo B a tensión (NSR-10). Solo cubre 21/28/35 MPa.</p>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-xs text-navy-400 text-left">
+              <th className="pb-2 pr-3">Calibre</th>
+              {resistenciasTraslapo.map((r) => (
+                <th key={r} className="pb-2 pr-3">{r}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Object.keys(barras).map((cal) => (
+              <tr key={cal}>
+                <td className="py-1 pr-3 font-mono font-semibold text-navy-700">{cal}</td>
+                {resistenciasTraslapo.map((r) => (
+                  <td key={r} className="py-1 pr-3 w-28">
+                    <input value={traslapos[cal]?.[r] ?? ''} onChange={(e) => setTraslapoCampo(cal, r, e.target.value)} className={cellInput} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <button
+        onClick={guardar}
+        disabled={guardando}
+        className="bg-lime-500 hover:bg-lime-600 disabled:opacity-60 text-navy-900 font-semibold text-sm px-5 py-2.5 rounded-lg mb-8 transition-colors"
+      >
+        {guardando ? 'Guardando…' : guardado ? '✓ Guardado' : 'Guardar cambios'}
+      </button>
+
+      <div className="bg-navy-50 border border-navy-200 rounded-xl p-5">
+        <p className="text-sm font-bold text-navy-700 mb-1">Fórmulas usadas (solo lectura)</p>
+        <p className="text-xs text-navy-400 mb-3">Para corregir una fórmula (no solo un número) hay que pedir un cambio de código — esto es solo para verificarlas.</p>
+        <div className="space-y-3">
+          {FORMULAS_REFERENCIA.map((f, i) => (
+            <div key={i} className="border-b border-navy-200 pb-2.5 last:border-0">
+              <p className="text-xs font-semibold text-navy-700 mb-0.5">{f.titulo}</p>
+              <p className="text-xs font-mono text-navy-600">{f.formula}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete, mallas, onAddMalla, perfil, parametrosIngenieria, onGuardarParametros }) {
   const [tipoActivo, setTipoActivo] = useState('postes_mt');
   const [creando, setCreando] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
   const [confirmandoId, setConfirmandoId] = useState(null);
+  const [mostrandoParametros, setMostrandoParametros] = useState(false);
 
   const tipoDef = CIMENTACION_TIPOS.find((t) => t.id === tipoActivo);
   const plantillasDelTipo = plantillas.filter((p) => p.tipo === tipoActivo);
@@ -3121,13 +3338,37 @@ function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete, mallas, onAd
     setEditandoId(null);
   }
 
+  if (mostrandoParametros) {
+    return (
+      <div>
+        <div className="px-4 md:px-8 pt-4 md:pt-8 max-w-4xl mx-auto">
+          <button onClick={() => setMostrandoParametros(false)} className="flex items-center gap-1.5 text-sm text-navy-500 hover:text-navy-700 mb-2">
+            <ChevronLeft className="w-4 h-4" /> Volver a Cimentaciones
+          </button>
+        </div>
+        <ParametrosIngenieriaView parametros={parametrosIngenieria} onGuardar={onGuardarParametros} />
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-navy-800">Cimentaciones</h1>
-        <p className="text-navy-500 text-sm mt-1">
-          Plantillas reutilizables de dimensiones y despiece — se crean una vez y se usan en cualquier proyecto sin volver a digitarlas.
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-navy-800">Cimentaciones</h1>
+          <p className="text-navy-500 text-sm mt-1">
+            Plantillas reutilizables de dimensiones y despiece — se crean una vez y se usan en cualquier proyecto sin volver a digitarlas.
+          </p>
+        </div>
+        {isDeveloper(perfil) && (
+          <button
+            onClick={() => setMostrandoParametros(true)}
+            title="Solo Desarrollador: ver y editar los números que alimentan los cálculos de acero"
+            className="flex items-center gap-1.5 text-xs font-semibold text-navy-400 hover:text-navy-600 border border-navy-200 hover:border-navy-300 rounded-lg px-3 py-2 shrink-0"
+          >
+            <Wrench className="w-3.5 h-3.5" /> Parámetros de ingeniería
+          </button>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
@@ -7249,6 +7490,7 @@ export default function App() {
   const [proveedores, setProveedores] = useState([]);
   const [plantillasCimentacion, setPlantillasCimentacion] = useState([]);
   const [mallas, setMallas] = useState([]);
+  const [parametrosIngenieria, setParametrosIngenieria] = useState({ recubrimiento: RECUBRIMIENTO_CIMENTACION, barras: BARRA_ACERO, traslapos: TRASLAPO_TABLE });
   const [dataLoaded, setDataLoaded] = useState(false);
 
   const [view, setViewState] = useState('dashboard');
@@ -7377,6 +7619,22 @@ export default function App() {
       setMallas(['D84']);
     } else {
       setMallas(mallaRows.map((r) => r.nombre));
+    }
+
+    // Si la tabla aún no existe (falta correr la migración), seguimos con
+    // los valores por defecto que ya trae el código — sin tronar la carga.
+    try {
+      const { data: paramRow, error: paramError } = await supabase.from('parametros_ingenieria').select('*').eq('id', 'global').maybeSingle();
+      if (!paramError && paramRow?.datos) {
+        aplicarParametrosIngenieria(paramRow.datos);
+        setParametrosIngenieria({
+          recubrimiento: RECUBRIMIENTO_CIMENTACION,
+          barras: { ...BARRA_ACERO },
+          traslapos: { ...TRASLAPO_TABLE },
+        });
+      }
+    } catch (e) {
+      console.error('No se pudieron cargar los parámetros de ingeniería (¿falta correr la migración?):', e);
     }
 
     setDataLoaded(true);
@@ -7532,6 +7790,19 @@ export default function App() {
     supabase.from('mallas').upsert({ nombre: limpio }).then(({ error }) => {
       if (error) console.error('Error creando malla:', error);
     });
+  }
+  async function handleGuardarParametrosIngenieria(nuevosDatos) {
+    aplicarParametrosIngenieria(nuevosDatos);
+    setParametrosIngenieria({
+      recubrimiento: RECUBRIMIENTO_CIMENTACION,
+      barras: { ...BARRA_ACERO },
+      traslapos: { ...TRASLAPO_TABLE },
+    });
+    const { error } = await supabase.from('parametros_ingenieria').upsert({ id: 'global', datos: nuevosDatos, updated_at: new Date().toISOString() });
+    if (error) {
+      console.error('Error guardando parámetros de ingeniería:', error);
+      alert('No se pudieron guardar los parámetros en el servidor (¿tienes rol Desarrollador y corriste la migración?). Detalle: ' + error.message);
+    }
   }
   function handleAddPlantillaCimentacion(tipo, nombre, datos) {
     const nueva = { id: makeId('cim'), tipo, nombre, datos };
@@ -7779,6 +8050,9 @@ export default function App() {
             onDelete={handleDeletePlantillaCimentacion}
             mallas={mallas}
             onAddMalla={handleAddMalla}
+            perfil={perfil}
+            parametrosIngenieria={parametrosIngenieria}
+            onGuardarParametros={handleGuardarParametrosIngenieria}
           />
         )}
         {view === 'equipo' && (

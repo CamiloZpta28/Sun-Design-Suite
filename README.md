@@ -169,6 +169,31 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Cerramiento — Fase 1 completa** (base compartida, antes de construir
+  Zapata+Viga+Pedestal del Portón):
+  - **Tabla de ganchos corregida**: #3=0.10, #4=0.20, #5=0.25, #6=0.30 m.
+  - **Tabla de traslapos** (NSR-10, tipo B a tensión) por calibre y
+    resistencia — verificada contra tu imagen, coincide exactamente
+    (ej. #3 @ 21MPa = 0.55m).
+  - **Excavación corregida en TODAS las cimentaciones existentes**: ahora
+    usa (desplante + espesor de solado), no solo desplante — Postes MT,
+    Luminarias, Cámaras e Inversores.
+  - **"Resistencia del concreto" recuperada** en las 4 plantillas
+    existentes, y agregada la opción "35 MPa" (la necesita la tabla de
+    traslapos).
+  - **Puerta trasera** (`Wrench` en la esquina de Cimentaciones, visible
+    solo para el rol Desarrollador — no Líder de Diseño): permite ver y
+    editar recubrimiento, gancho/peso por calibre, y traslapos, guardados
+    en Supabase y aplicados de inmediato sin necesitar un despliegue
+    nuevo. Debajo, una lista de las fórmulas en texto plano, de solo
+    lectura (para corregir una fórmula en sí — no solo un número — toca
+    pedir un cambio de código).
+  - **Necesita migración**: `supabase/migration_parametros_ingenieria.sql`.
+  - **Siguiente paso**: construir Zapata + Viga de amarre + Pedestal del
+    Portón, con la parrilla de acero calculada (no digitada), el traslapo
+    de la viga según la tabla, y la excavación combinada de todo el
+    conjunto, tal como lo definiste.
+
 - **Bug real encontrado y corregido — volumen de solado en 0**: tenías
   razón, no era un problema de la fórmula sino de los nombres. Las
   funciones de cálculo esperaban un dato llamado `espesorSolado`
