@@ -169,6 +169,24 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Ajustes rápidos a Cimentaciones**:
+  - **Previsualización centrada de verdad** en Postes MT, Luminarias y
+    Cámaras: la caja gris que envuelve las 3 vistas ahora usa
+    `width: fit-content`, así que siempre mide exactamente lo que ocupan
+    los dibujos — antes, en ciertos anchos de pantalla, la caja podía
+    quedar más ancha de lo necesario y el contenido se veía pegado a la
+    izquierda en vez de centrado.
+  - **Fórmula de solado**: la revisé a fondo y **ya estaba correcta** —
+    `Math.PI * (d/2) * (d/2)` es matemáticamente lo mismo que
+    `π×(D²/4)`, y en el caso rectangular ya usábamos `ancho × profundo`.
+    No hice ningún cambio ahí porque no encontré ningún error; si notas
+    algún número que no cuadre, avísame con el caso puntual (medidas y
+    resultado esperado) y lo reviso de nuevo.
+  - **Peso de acero dentro de "Cantidades de obra"**: en Inversores, el
+    peso total de acero ya no aparece en un recuadro aparte — ahora es una
+    columna más dentro del mismo panel de "Cantidades de obra", junto a
+    concreto, excavación y solado.
+
 - **Mejoras a Postes MT, Luminarias y Cámaras (regresando antes de seguir
   con Cerramiento)**:
   - **Dibujos más grandes**, mismo tamaño que usamos para Inversores.

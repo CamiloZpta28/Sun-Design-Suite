@@ -1571,12 +1571,12 @@ function calcularVolumenesInversores({ pedestal, losa }) {
   };
 }
 
-function ResumenVolumenes({ volumenes, titulo = 'Cantidades de obra' }) {
+function ResumenVolumenes({ volumenes, pesoAcero, titulo = 'Cantidades de obra' }) {
   if (!volumenes) return null;
   return (
     <div className="mt-4 bg-lime-50 border border-lime-200 rounded-lg px-4 py-3">
       <p className="text-sm font-semibold text-navy-700 mb-2">{titulo}</p>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <div className={pesoAcero !== undefined ? 'grid grid-cols-1 sm:grid-cols-4 gap-2' : 'grid grid-cols-1 sm:grid-cols-3 gap-2'}>
         <div className="flex items-center justify-between sm:block">
           <span className="text-xs text-navy-500">Volumen de concreto</span>
           <span className="font-mono font-bold text-navy-800 sm:block">{volumenes.concreto.toFixed(3)} m³</span>
@@ -1589,6 +1589,12 @@ function ResumenVolumenes({ volumenes, titulo = 'Cantidades de obra' }) {
           <span className="text-xs text-navy-500">Volumen de solado</span>
           <span className="font-mono font-bold text-navy-800 sm:block">{volumenes.solado.toFixed(3)} m³</span>
         </div>
+        {pesoAcero !== undefined && (
+          <div className="flex items-center justify-between sm:block">
+            <span className="text-xs text-navy-500">Peso de acero</span>
+            <span className="font-mono font-bold text-navy-800 sm:block">{pesoAcero.toFixed(2)} kg</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1806,7 +1812,7 @@ function PostesMtForm({ plantilla, onCancel, onSave }) {
         {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Postes MT
       </p>
       <div className="flex items-start gap-6 flex-wrap">
-        <div className="flex justify-center bg-navy-50 rounded-lg p-3 shrink-0">
+        <div className="flex justify-center bg-navy-50 rounded-lg p-3 shrink-0 w-fit mx-auto">
           <PostesMtVistas datos={datos} />
         </div>
         <div className="flex-1 space-y-3" style={{ minWidth: 240 }}>
@@ -2127,7 +2133,7 @@ function LuminariasForm({ plantilla, onCancel, onSave }) {
         {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Luminarias
       </p>
       <div className="flex items-start gap-6 flex-wrap">
-        <div className="flex justify-center bg-navy-50 rounded-lg p-3 shrink-0">
+        <div className="flex justify-center bg-navy-50 rounded-lg p-3 shrink-0 w-fit mx-auto">
           <LuminariasVistas datos={datos} />
         </div>
         <div className="flex-1 space-y-3" style={{ minWidth: 240 }}>
@@ -2213,7 +2219,7 @@ function CamarasForm({ plantilla, onCancel, onSave }) {
         {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Cámaras
       </p>
       <div className="flex items-start gap-6 flex-wrap">
-        <div className="flex justify-center bg-navy-50 rounded-lg p-3 shrink-0">
+        <div className="flex justify-center bg-navy-50 rounded-lg p-3 shrink-0 w-fit mx-auto">
           <CamarasVistas datos={datos} />
         </div>
         <div className="flex-1 space-y-3" style={{ minWidth: 240 }}>
@@ -2919,7 +2925,7 @@ function InversoresForm({ plantilla, onCancel, onSave, mallas, onAddMalla }) {
         {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Inversores
       </p>
 
-      <div className="flex justify-center bg-navy-50 rounded-lg p-3 mb-5">
+      <div className="flex justify-center bg-navy-50 rounded-lg p-3 mb-5 w-fit mx-auto">
         <InversoresVistas datos={datos} />
       </div>
 
@@ -3052,13 +3058,7 @@ function InversoresForm({ plantilla, onCancel, onSave, mallas, onAddMalla }) {
         </div>
       </div>
 
-      {(longitudinales || estribos) && (
-        <div className="mt-4 bg-lime-50 border border-lime-200 rounded-lg px-4 py-3 flex items-center justify-between">
-          <span className="text-sm font-semibold text-navy-700">Peso total de acero de la cimentación</span>
-          <span className="font-mono font-bold text-navy-800">{pesoTotalAcero.toFixed(2)} kg</span>
-        </div>
-      )}
-      <ResumenVolumenes volumenes={volumenes} />
+      <ResumenVolumenes volumenes={volumenes} pesoAcero={(longitudinales || estribos) ? pesoTotalAcero : undefined} />
 
       <div className="flex gap-2 pt-4">
         <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700 px-3 py-2">
