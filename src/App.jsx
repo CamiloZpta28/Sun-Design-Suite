@@ -4603,30 +4603,51 @@ function CTIsometrico({ datos }) {
   const ox = CT_VB_W / 2;
   const oy = 30 + halfLargo + pedestalZ1;
 
-  // Las 4 esquinas, en coordenadas de centro de pedestal
-  const esquinas = [
-    [-halfAncho, -halfLargo],
-    [halfAncho, -halfLargo],
-    [halfAncho, halfLargo],
-    [-halfAncho, halfLargo],
-  ];
+  // Las 4 esquinas: "superior" es la más al fondo en la proyección, "inferior"
+  // la más al frente, y las otras dos son las "laterales".
+  const pSuperior = [-halfAncho, -halfLargo];
+  const pLateralA = [halfAncho, -halfLargo];
+  const pInferior = [halfAncho, halfLargo];
+  const pLateralB = [-halfAncho, halfLargo];
+
+  const pedestalBox = ([ex, ey], key) => (
+    <IsoBoxLineArt key={key} x0={ex - pAnchoPx / 2} y0={ey - pProfundoPx / 2} w={pAnchoPx} d={pProfundoPx} z0={pedestalZ0} z1={pedestalZ1} ox={ox} oy={oy} />
+  );
+  // Viga "corta" @ y=-halfLargo: une pSuperior con pLateralA
+  const vigaSuperiorCorta = (
+    <IsoBoxLineArt x0={-halfAncho + pAnchoPx / 2} y0={-halfLargo - vAnchoPx / 2} w={anchoPx - pAnchoPx} d={vAnchoPx} z0={vigaZ0} z1={vigaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
+  );
+  // Viga "larga" @ x=-halfAncho: une pSuperior con pLateralB
+  const vigaSuperiorLarga = (
+    <IsoBoxLineArt x0={-halfAncho - vAnchoPx / 2} y0={-halfLargo + pProfundoPx / 2} w={vAnchoPx} d={largoPx - pProfundoPx} z0={vigaZ0} z1={vigaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
+  );
+  // Viga "larga" @ x=+halfAncho: une pLateralA con pInferior
+  const vigaInferiorLarga = (
+    <IsoBoxLineArt x0={halfAncho - vAnchoPx / 2} y0={-halfLargo + pProfundoPx / 2} w={vAnchoPx} d={largoPx - pProfundoPx} z0={vigaZ0} z1={vigaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
+  );
+  // Viga "corta" @ y=+halfLargo: une pLateralB con pInferior
+  const vigaInferiorCorta = (
+    <IsoBoxLineArt x0={-halfAncho + pAnchoPx / 2} y0={halfLargo - vAnchoPx / 2} w={anchoPx - pAnchoPx} d={vAnchoPx} z0={vigaZ0} z1={vigaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
+  );
 
   return (
     <svg viewBox={`0 0 ${CT_VB_W} ${CT_VB_H}`} className={CT_CSS_SIZE}>
       {/* Solado bajo cada pedestal */}
-      {esquinas.map(([ex, ey], i) => (
+      {[pSuperior, pLateralA, pInferior, pLateralB].map(([ex, ey], i) => (
         <IsoBoxLineArt key={`sol${i}`} x0={ex - pAnchoPx / 2} y0={ey - pProfundoPx / 2} w={pAnchoPx} d={pProfundoPx} z0={soladoZ0} z1={soladoZ1} ox={ox} oy={oy} />
       ))}
-      {/* Vigas cortas (conectan esquinas del mismo lado "ancho", corriendo en X) */}
-      <IsoBoxLineArt x0={-halfAncho + pAnchoPx / 2} y0={-halfLargo - vAnchoPx / 2} w={anchoPx - pAnchoPx} d={vAnchoPx} z0={vigaZ0} z1={vigaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
-      <IsoBoxLineArt x0={-halfAncho + pAnchoPx / 2} y0={halfLargo - vAnchoPx / 2} w={anchoPx - pAnchoPx} d={vAnchoPx} z0={vigaZ0} z1={vigaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
-      {/* Vigas largas (conectan esquinas del mismo lado "largo", corriendo en Y) */}
-      <IsoBoxLineArt x0={-halfAncho - vAnchoPx / 2} y0={-halfLargo + pProfundoPx / 2} w={vAnchoPx} d={largoPx - pProfundoPx} z0={vigaZ0} z1={vigaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
-      <IsoBoxLineArt x0={halfAncho - vAnchoPx / 2} y0={-halfLargo + pProfundoPx / 2} w={vAnchoPx} d={largoPx - pProfundoPx} z0={vigaZ0} z1={vigaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
-      {/* Los 4 pedestales, dibujados AL FINAL para que tapen los extremos de las vigas */}
-      {esquinas.map(([ex, ey], i) => (
-        <IsoBoxLineArt key={`ped${i}`} x0={ex - pAnchoPx / 2} y0={ey - pProfundoPx / 2} w={pAnchoPx} d={pProfundoPx} z0={pedestalZ0} z1={pedestalZ1} ox={ox} oy={oy} />
-      ))}
+      {/* Orden de atrás hacia adelante, tal como se ve en la proyección:      */}
+      {/* pedestal superior → 2 vigas superiores → 2 pedestales laterales →   */}
+      {/* 2 vigas inferiores → pedestal inferior. Así cada pedestal tapa el   */}
+      {/* extremo de la viga que le llega desde "atrás".                     */}
+      {pedestalBox(pSuperior, 'ped-superior')}
+      {vigaSuperiorCorta}
+      {vigaSuperiorLarga}
+      {pedestalBox(pLateralA, 'ped-lateral-a')}
+      {pedestalBox(pLateralB, 'ped-lateral-b')}
+      {vigaInferiorLarga}
+      {vigaInferiorCorta}
+      {pedestalBox(pInferior, 'ped-inferior')}
       <text x={ox} y={CT_VB_H - 10} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">
         {anchoCT || '—'} × {largoCT || '—'} m (centro a centro) · Altura pedestal {alturaPedestal ? alturaPedestal.toFixed(2) : '—'} m
       </text>
@@ -4851,7 +4872,7 @@ function CTForm({ plantilla, onCancel, onSave }) {
             </div>
           </div>
           <p className="text-xs font-semibold text-navy-600 mb-2">Barras longitudinales (continuas, sin traslapo — de cara externa a cara externa de pedestales)</p>
-          <div className="grid grid-cols-2 gap-3 mb-2">
+          <div className="grid grid-cols-3 gap-3 mb-3">
             <div>
               <label className="block text-xs text-navy-500 mb-1">N.° de barras</label>
               <input value={datos.viga.barras.cantidad} onChange={(e) => setSubgrupo('viga', 'barras', 'cantidad', e.target.value)} placeholder="6" className={cellInput} />
@@ -4860,10 +4881,10 @@ function CTForm({ plantilla, onCancel, onSave }) {
               <label className="block text-xs text-navy-500 mb-1">Calibre</label>
               <CalibreSelect value={datos.viga.barras.calibre} onChange={(val) => setSubgrupo('viga', 'barras', 'calibre', val)} className={cellInput} />
             </div>
-          </div>
-          <div className="mb-3">
-            <label className="block text-xs text-navy-500 mb-1">N.° de ganchos por barra</label>
-            <input value={datos.viga.barras.ganchos} onChange={(e) => setSubgrupo('viga', 'barras', 'ganchos', e.target.value)} placeholder="1" className={`${cellInput} max-w-[120px]`} />
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">N.° de ganchos</label>
+              <input value={datos.viga.barras.ganchos} onChange={(e) => setSubgrupo('viga', 'barras', 'ganchos', e.target.value)} placeholder="1" className={cellInput} />
+            </div>
           </div>
           {vigaLarga && vigaCorta ? (
             <div className="bg-navy-50 rounded-lg px-3 py-2 mb-3">
@@ -4897,6 +4918,17 @@ function CTForm({ plantilla, onCancel, onSave }) {
         </div>
       </div>
 
+      {pesoTotalAcero > 0 && (
+        <div className="mt-4 bg-white border border-navy-200 rounded-lg px-4 py-3">
+          <p className="text-sm font-semibold text-navy-700 mb-2">Peso de acero por elemento</p>
+          <FilaResumenAcero label="Pedestales — barras longitudinales (4)" valor={`${((pedestalLongitudinales?.pesoTotal || 0) * 4).toFixed(2)} kg`} />
+          <FilaResumenAcero label="Pedestales — estribos (4)" valor={`${((pedestalEstribos?.pesoTotal || 0) * 4).toFixed(2)} kg`} />
+          <FilaResumenAcero label="Vigas largas — barras longitudinales (2)" valor={`${((vigaLarga?.pesoTotal || 0) * 2).toFixed(2)} kg`} />
+          <FilaResumenAcero label="Vigas largas — estribos (2)" valor={`${(vigaLargaEstribos ? vigaLargaEstribos.pesoEstribo * vigaLargaEstribos.cantidad * 2 : 0).toFixed(2)} kg`} />
+          <FilaResumenAcero label="Vigas cortas — barras longitudinales (2)" valor={`${((vigaCorta?.pesoTotal || 0) * 2).toFixed(2)} kg`} />
+          <FilaResumenAcero label="Vigas cortas — estribos (2)" valor={`${(vigaCortaEstribos ? vigaCortaEstribos.pesoEstribo * vigaCortaEstribos.cantidad * 2 : 0).toFixed(2)} kg`} />
+        </div>
+      )}
       <ResumenVolumenes volumenes={volumenes} pesoAcero={pesoTotalAcero > 0 ? pesoTotalAcero : undefined} />
 
       <div className="flex gap-2 pt-4">
@@ -4926,21 +4958,81 @@ function TrampaAceitePreview({ datos }) {
   const ancho = parseFloat(datos.ancho) || 0;
   const profundo = parseFloat(datos.profundo) || 0;
   const alto = parseFloat(datos.alto) || 0;
+  const espesorPared = parseFloat(datos.espesor_pared) || 0;
+  const espesorLosa = parseFloat(datos.espesor_losa) || 0;
   const espesorSolado = parseFloat(datos.espesor_solado) || 0;
 
   const anchoPx = clamp((ancho || 1.5) * TRAMPA_M2PX, 50, 110);
   const profundoPx = clamp((profundo || 1.2) * TRAMPA_M2PX, 40, 100);
   const altoPx = clamp((alto || 0.85) * TRAMPA_M2PX, 30, 80);
+  const espesorParedPx = clamp((espesorPared || 0.15) * TRAMPA_M2PX, 6, 18);
+  const espesorLosaPx = clamp((espesorLosa || 0.15) * TRAMPA_M2PX, 5, 16);
   const soladoPx = clamp((espesorSolado || 0.05) * TRAMPA_M2PX, 4, 9);
+
   const halfW = anchoPx / 2;
   const halfD = profundoPx / 2;
+  const innerHalfW = Math.max(4, halfW - espesorParedPx);
+  const innerHalfD = Math.max(4, halfD - espesorParedPx);
   const ox = TRAMPA_VB_W / 2;
   const oy = 26 + halfW + altoPx + soladoPx;
 
+  const wallZ0 = soladoPx;
+  const wallZ1 = soladoPx + altoPx;
+  const pisoZ = soladoPx + espesorLosaPx; // fondo del hueco = parte de arriba de la losa
+
+  // Anillo superior (marco): rectángulo exterior menos el interior — se
+  // dibuja como UN solo path con dos subrutas y fill-rule "evenodd" para
+  // que el interior quede realmente hueco (se ve lo que hay detrás/debajo).
+  const topOuter = [
+    isoPt(-halfW, -halfD, wallZ1, ox, oy), isoPt(halfW, -halfD, wallZ1, ox, oy),
+    isoPt(halfW, halfD, wallZ1, ox, oy), isoPt(-halfW, halfD, wallZ1, ox, oy),
+  ];
+  const topInner = [
+    isoPt(-innerHalfW, -innerHalfD, wallZ1, ox, oy), isoPt(innerHalfW, -innerHalfD, wallZ1, ox, oy),
+    isoPt(innerHalfW, innerHalfD, wallZ1, ox, oy), isoPt(-innerHalfW, innerHalfD, wallZ1, ox, oy),
+  ];
+  const ringPath = `M ${topOuter.map((p) => p.join(',')).join(' L ')} Z M ${topInner.map((p) => p.join(',')).join(' L ')} Z`;
+
+  // Paredes interiores visibles a través del hueco (las del lado "lejano",
+  // cuya cara interior mira hacia el espectador) + el piso de la losa al fondo.
+  const innerWallA = poly([
+    isoPt(-innerHalfW, -innerHalfD, wallZ1, ox, oy), isoPt(-innerHalfW, innerHalfD, wallZ1, ox, oy),
+    isoPt(-innerHalfW, innerHalfD, pisoZ, ox, oy), isoPt(-innerHalfW, -innerHalfD, pisoZ, ox, oy),
+  ]);
+  const innerWallB = poly([
+    isoPt(-innerHalfW, -innerHalfD, wallZ1, ox, oy), isoPt(innerHalfW, -innerHalfD, wallZ1, ox, oy),
+    isoPt(innerHalfW, -innerHalfD, pisoZ, ox, oy), isoPt(-innerHalfW, -innerHalfD, pisoZ, ox, oy),
+  ]);
+  const pisoInterior = poly([
+    isoPt(-innerHalfW, -innerHalfD, pisoZ, ox, oy), isoPt(innerHalfW, -innerHalfD, pisoZ, ox, oy),
+    isoPt(innerHalfW, innerHalfD, pisoZ, ox, oy), isoPt(-innerHalfW, innerHalfD, pisoZ, ox, oy),
+  ]);
+
+  // Caras exteriores de las paredes (derecha e izquierda, sin cara superior —
+  // esa la reemplaza el "marco" con el hueco real).
+  const outerRight = poly([
+    isoPt(halfW, -halfD, wallZ1, ox, oy), isoPt(halfW, halfD, wallZ1, ox, oy),
+    isoPt(halfW, halfD, wallZ0, ox, oy), isoPt(halfW, -halfD, wallZ0, ox, oy),
+  ]);
+  const outerLeft = poly([
+    isoPt(-halfW, halfD, wallZ1, ox, oy), isoPt(halfW, halfD, wallZ1, ox, oy),
+    isoPt(halfW, halfD, wallZ0, ox, oy), isoPt(-halfW, halfD, wallZ0, ox, oy),
+  ]);
+
   return (
     <svg viewBox={`0 0 ${TRAMPA_VB_W} ${TRAMPA_VB_H}`} className={TRAMPA_CSS_SIZE}>
+      {/* Solado bajo toda la trampa */}
       <IsoBoxLineArt x0={-halfW} y0={-halfD} w={anchoPx} d={profundoPx} z0={0} z1={soladoPx} ox={ox} oy={oy} />
-      <IsoBoxLineArt x0={-halfW} y0={-halfD} w={anchoPx} d={profundoPx} z0={soladoPx} z1={soladoPx + altoPx} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#F6F7F9" />
+      {/* Caras exteriores de las paredes */}
+      <polygon points={outerRight} fill="#F6F7F9" stroke="#152644" strokeWidth="1.1" />
+      <polygon points={outerLeft} fill="#F6F7F9" stroke="#152644" strokeWidth="1.1" />
+      {/* Piso de la losa, visible al fondo del hueco */}
+      <polygon points={pisoInterior} fill="#DCE3EC" stroke="#152644" strokeWidth="1" />
+      {/* Paredes interiores visibles a través de la abertura */}
+      <polygon points={innerWallA} fill="#EAF1FF" stroke="#152644" strokeWidth="1" />
+      <polygon points={innerWallB} fill="#EAF1FF" stroke="#152644" strokeWidth="1" />
+      {/* Marco superior (el espesor de pared visto desde arriba), con el hueco real en el medio */}
+      <path d={ringPath} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" fillRule="evenodd" />
       <text x={ox} y={TRAMPA_VB_H - 12} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">
         {ancho || '—'} × {profundo || '—'} × {alto || '—'} m
       </text>
@@ -5078,7 +5170,7 @@ function TrampaAceiteForm({ plantilla, onCancel, onSave }) {
         </div>
         <div className="border border-navy-200 rounded-lg p-4">
           <p className="text-xs font-bold uppercase tracking-wide text-navy-600 mb-1">U · lado largo</p>
-          <p className="text-xs text-navy-400 mb-3">Patas suben por las paredes largas; se reparte a lo largo.</p>
+          <p className="text-xs text-navy-400 mb-3">Se reparten a lo largo.</p>
           <div className="grid grid-cols-2 gap-2 mb-2">
             <div>
               <label className="block text-xs text-navy-500 mb-1">Calibre</label>
@@ -5100,7 +5192,7 @@ function TrampaAceiteForm({ plantilla, onCancel, onSave }) {
         </div>
         <div className="border border-navy-200 rounded-lg p-4">
           <p className="text-xs font-bold uppercase tracking-wide text-navy-600 mb-1">U · lado corto</p>
-          <p className="text-xs text-navy-400 mb-3">Patas suben por las paredes cortas; se reparte a lo ancho.</p>
+          <p className="text-xs text-navy-400 mb-3">Se reparten a lo ancho.</p>
           <div className="grid grid-cols-2 gap-2 mb-2">
             <div>
               <label className="block text-xs text-navy-500 mb-1">Calibre</label>

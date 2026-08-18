@@ -169,6 +169,27 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Correcciones a Shelter antes de seguir con las 9 vistas**:
+  - **Peso de acero del pedestal**: la información por campo ya estaba
+    (la viste en tu captura), lo que realmente faltaba era el panel
+    consolidado "Peso de acero por elemento" que sí tiene Portón — ya lo
+    agregué al CT también.
+  - **Campos de barras longitudinales de la viga alineados**: N.° de
+    barras, Calibre y N.° de ganchos ahora van en una sola fila de 3
+    columnas, igual que en el pedestal.
+  - **Orden del isométrico del CT corregido**: ahora sigue exactamente tu
+    secuencia (pedestal superior → 2 vigas superiores → 2 pedestales
+    laterales → 2 vigas inferiores → pedestal inferior). Verifiqué el
+    resultado renderizándolo antes de entregarlo.
+  - **Trampa de aceite ahora se ve como un tanque hueco**, no un bloque
+    macizo — con el marco superior mostrando el espesor real de pared, un
+    hueco de verdad en el medio (usando una sola figura con regla
+    "evenodd" para el hueco), las paredes interiores visibles a través de
+    la abertura, y el piso de la losa al fondo. Lo comparé contra tu
+    imagen de referencia antes de darlo por bueno.
+  - **Descripciones de las U simplificadas**: "Se reparten a lo largo" /
+    "Se reparten a lo ancho".
+
 - **Shelter — Fase 1: cálculos y formulario completos** (las 9 vistas del
   CT quedan para la siguiente ronda):
   - **Centro de Transformación**: 4 pedestales iguales + 4 vigas (2 largas
