@@ -4068,7 +4068,8 @@ function PortonForm({ plantilla, onCancel, onSave }) {
     separacion: datos.viga?.estribos?.separacion,
     calibre: datos.viga?.estribos?.calibre,
   });
-  const alturaTotalPedestal = (parseFloat(datos.pedestal.altura) || 0) + (parseFloat(datos.pedestal.empotramiento_zapata) || 0);
+  const alturaPedestal = Math.max(0, (parseFloat(datos.desplante) || 0) - (parseFloat(datos.zapata?.espesor) || 0));
+  const alturaTotalPedestal = alturaPedestal + (parseFloat(datos.pedestal.empotramiento_zapata) || 0);
   const pedestalLongitudinales = calcularLongitudinales({
     altura: alturaTotalPedestal || undefined,
     cantidad: datos.pedestal?.barras?.cantidad,

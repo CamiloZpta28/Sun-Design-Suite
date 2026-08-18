@@ -169,6 +169,32 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **La pantalla en blanco de Portón — encontrada la causa real esta vez.**
+  Mi corrección anterior (rellenar campos faltantes en plantillas viejas)
+  era necesaria pero no era la causa completa — por eso seguía pasando
+  incluso al crear una plantilla nueva. El problema real: al mover el
+  cálculo de la altura del pedestal (ahora se saca sola de "desplante −
+  espesor de zapata"), dejé una variable con un nombre en el texto que
+  se muestra en pantalla (`alturaPedestal`) que nunca llegué a declarar
+  — el cálculo real vivía en otra variable con un nombre parecido
+  (`alturaTotalPedestal`). Eso revienta la app apenas se intenta pintar
+  el formulario, tanto al crear como al editar, y como es un choque real
+  de React sin manejo de errores, tumba toda la página — por eso ni el
+  botón "atrás" respondía.
+  - **Hasta ahora no había podido pescar este tipo de error** porque mi
+    prueba de humo solo confirmaba que el código cargara sin errores de
+    referencia a nivel de módulo — nunca llegaba a renderizar el
+    formulario de verdad. Esta vez monté React de verdad en un DOM
+    simulado (usando exactamente el mismo React que usa la app, evitando
+    mezclar dos copias) y rendericé el formulario en 3 escenarios:
+    crear una plantilla nueva, editar una plantilla vieja incompleta, y
+    editar una plantilla completa con todos los campos llenos. Los tres
+    ya renderizan sin ningún error de consola, y confirmé que el resumen
+    de acero y de volúmenes sí aparecen con los números calculados.
+  - Voy a dejar este tipo de prueba (renderizar el formulario de verdad,
+    no solo cargar el módulo) como parte de mi rutina de validación para
+    cualquier cambio futuro a formularios grandes como este.
+
 - **Corrección urgente — página en blanco al editar Portón**: la causa
   real era que varias funciones (de cálculo y del formulario) leían
   campos como `datos.viga.barras.ganchos` o `datos.pedestal.estribos.calibre`
