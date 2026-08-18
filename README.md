@@ -169,6 +169,37 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Shelter — Fase 1: cálculos y formulario completos** (las 9 vistas del
+  CT quedan para la siguiente ronda):
+  - **Centro de Transformación**: 4 pedestales iguales + 4 vigas (2 largas
+    + 2 cortas) sin zapata. Altura de pedestal = desplante + sobresaliente
+    (el N.T.N. coincide con la parte de arriba de la viga, como
+    confirmaste). Barras de las vigas continuas (sin traslapo), calculadas
+    de cara externa a cara externa de pedestales — verifiqué a mano que la
+    fórmula da longitud = separación_centros + dimensión_del_pedestal_en_
+    esa_misma_dirección. Solo los pedestales se excavan (las vigas quedan
+    al nivel del terreno natural, igual que la losa de Inversores).
+  - **Trampa de aceite**: caja de concreto (4 paredes + losa, sin tapa),
+    con anillos horizontales (misma fórmula que los estribos, gancho a
+    180° en ambos extremos, perímetro centrado en el espesor de pared) y
+    2 tipos de "U" verticales (lado largo y lado corto), cada una con la
+    misma fórmula de conteo que la parrilla de la zapata del Portón.
+  - **Isométrico del CT**: con 4 esquinas, la relación de profundidad ya
+    no es tan simple como en el Portón (2 esquinas). Usé una regla más
+    general — dibujar las 4 vigas primero y los 4 pedestales después —
+    porque en las esquinas, el pedestal SIEMPRE tapa el extremo de la
+    viga que llega a él, sin importar el ángulo. Lo verifiqué renderizando
+    el resultado antes de entregarlo.
+  - **Validé los 5 escenarios más riesgosos** (crear CT nuevo, editar CT
+    completo, editar CT con datos viejos incompletos, crear trampa nueva,
+    editar trampa completa) renderizando el formulario de verdad — ninguno
+    generó ningún error, aprendiendo de los incidentes anteriores.
+  - **Pendiente**: las 9 vistas técnicas del CT que pediste (planta,
+    elevación larga, elevación corta, corte/posterior de viga y de
+    pedestal) — por ahora el CT solo tiene el isométrico. Además falta
+    una vista de la trampa de aceite con su despiece de acero (anillos +
+    U). Estas vistas van en la siguiente entrega.
+
 - **Última vuelta a la posición de la viga, ambas verificadas extrayendo
   el SVG real**:
   - **Isométrico**: mi corrección anterior (dibujar la viga antes que las
