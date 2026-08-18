@@ -169,6 +169,45 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Ronda grande de correcciones a Portón** (11 puntos de tu feedback):
+  1. **Viga solapada con la zapata** — bug real encontrado: la fórmula de
+     su posición vertical se volvía negativa. Ahora arranca desde la parte
+     de arriba de la zapata, sin chocar. Verifiqué el resultado
+     renderizándolo antes de entregarlo.
+  2. **Solado agregado** en el isométrico y la elevación (bajo cada zapata
+     y bajo el tramo de la viga), y también en Paso de fauna.
+  3. **Nivel de terreno natural corregido** — ahora cruza a la altura de
+     la parte de ARRIBA de los pedestales, no al nivel de la zapata/viga.
+  4. **Corte del pedestal con 8 barras** (4 esquinas + 4 a mitad de lado)
+     — construí una función que reparte cualquier cantidad de barras
+     alrededor del perímetro, reutilizable para el futuro.
+  5. **Vista posterior del pedestal con 3 barras visibles** (no 4) —
+     encontré el bug real: usaba techo(cantidad/2) en vez de calcular las
+     posiciones X realmente únicas según cómo se reparten las barras en el
+     perímetro. Los estribos ya estaban parejos en el código (verifiqué la
+     fórmula a mano); si los sigues viendo en pares avísame con más
+     detalle.
+  6. **Vista posterior de la viga más grande** — le di su propio tamaño,
+     mucho más ancho que las demás vistas, para que se lean los datos.
+  7. **Cotas paralelas agregadas** en las vistas que faltaban: isométrico,
+     elevación, corte de pedestal, corte de viga, y las dos vistas
+     posteriores.
+  8. **Ganchos de la viga**: agregué el campo "N.° de ganchos por pieza" —
+     antes no se tenían en cuenta. Van en el extremo que ancla en la
+     zapata (no en el del traslapo, que usa el solape en vez de un gancho).
+  9. **Altura del pedestal ahora se calcula sola**: desplante − espesor de
+     zapata, en vez de digitarse aparte — ya no hay dos números que
+     puedan contradecirse entre sí.
+  10. **Peso de acero por elemento**: nuevo desglose (zapata longitudinal,
+      zapata transversal, viga barras, viga estribos, pedestal barras,
+      pedestal estribos), además del total ya existente.
+  11. **Paso de fauna ahora sí lleva solado**, con su propio campo y la
+      excavación corregida.
+  - **Un incidente en el camino**: al reescribir la vista posterior de la
+    viga borré por accidente su propia firma, dejando el cuerpo de la
+    función huérfano. Lo detecté de inmediato revisando antes de seguir
+    (como ya es costumbre) y reconstruí la función completa.
+
 - **Empalmes de la viga de amarre corregidos**: ya no se parten a la mitad
   — van a tercios, con el de las barras de arriba en 1/3 y el de las de
   abajo en 2/3 (nunca en el mismo tercio), tal como lo corregiste. Cada

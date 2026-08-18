@@ -1595,13 +1595,15 @@ function calcularParrillaZapata({ ancho, largo, longitudinal, transversal }) {
 /* sección con dos empalmes encimados. Con esto, cada línea (2 arriba +      */
 /* 2 abajo = 4 líneas) queda formada por UNA pieza corta (≈L/3) y UNA pieza  */
 /* larga (≈2L/3), cada una con medio traslapo de más para poder solaparse.  */
-function calcularBarrasVigaAmarre({ separacionCentros, calibre, resistencia }) {
+function calcularBarrasVigaAmarre({ separacionCentros, calibre, resistencia, ganchos }) {
   const info = BARRA_ACERO[calibre];
   const L = parseFloat(separacionCentros);
   const traslapo = obtenerTraslapo(calibre, resistencia);
+  const ganchosNum = parseFloat(ganchos) || 0;
   if (!info || !L || traslapo === null) return null;
-  const piezaCorta = L / 3 + traslapo / 2;
-  const piezaLarga = (2 * L) / 3 + traslapo / 2;
+  const extraGancho = ganchosNum * info.gancho; // el gancho va en el extremo que ancla en la zapata, no en el del traslapo
+  const piezaCorta = L / 3 + traslapo / 2 + extraGancho;
+  const piezaLarga = (2 * L) / 3 + traslapo / 2 + extraGancho;
   const pesoCorta = piezaCorta * info.peso;
   const pesoLarga = piezaLarga * info.peso;
   // 4 líneas (2 arriba + 2 abajo), cada una con 1 pieza corta + 1 larga = 8 piezas en total.
@@ -1629,9 +1631,9 @@ function calcularVolumenesPorton({ zapata, viga, pedestal, separacionZapatas, de
   const vAlto = parseFloat(viga.alto) || 0;
   const pAncho = parseFloat(pedestal.ancho) || 0;
   const pProfundo = parseFloat(pedestal.profundo) || 0;
-  const pAltura = parseFloat(pedestal.altura) || 0;
-  const separacion = parseFloat(separacionZapatas) || 0;
   const desp = parseFloat(desplante) || 0;
+  const pAltura = Math.max(0, desp - zEspesor); // altura del pedestal = desplante − espesor de zapata
+  const separacion = parseFloat(separacionZapatas) || 0;
   const esp = parseFloat(espesorSolado) || 0;
   if (!zAncho || !zLargo || !separacion) return null;
 
@@ -3255,34 +3257,37 @@ function PasoFaunaPreview({ datos }) {
   const ancho = parseFloat(datos.ancho) || 0;
   const profundo = parseFloat(datos.profundo) || 0;
   const alto = parseFloat(datos.alto) || 0;
+  const espesorSolado = parseFloat(datos.espesor_solado) || 0;
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
   const anchoPx = clamp((ancho || 0.4) * FAUNA_M2PX, 30, 90);
   const profundoPx = clamp((profundo || 0.2) * FAUNA_M2PX, 20, 70);
   const altoPx = clamp((alto || 0.2) * FAUNA_M2PX, 20, 80);
+  const soladoPx = clamp((espesorSolado || 0.05) * FAUNA_M2PX, 4, 9);
   const halfW = anchoPx / 2;
   const halfD = profundoPx / 2;
   const ox = FAUNA_VB_W / 2;
-  const oy = 30 + halfW + altoPx;
+  const oy = 30 + halfW + altoPx + soladoPx;
 
   const nearBottomModel = [halfW, halfD];
   const frontLeftModel = [-halfW, halfD];
   const rightModel = [halfW, -halfD];
-  const nearBottomPt = isoPt(nearBottomModel[0], nearBottomModel[1], 0, ox, oy);
-  const frontLeftPt = isoPt(frontLeftModel[0], frontLeftModel[1], 0, ox, oy);
-  const rightPt = isoPt(rightModel[0], rightModel[1], 0, ox, oy);
+  const nearBottomPt = isoPt(nearBottomModel[0], nearBottomModel[1], soladoPx, ox, oy);
+  const frontLeftPt = isoPt(frontLeftModel[0], frontLeftModel[1], soladoPx, ox, oy);
+  const rightPt = isoPt(rightModel[0], rightModel[1], soladoPx, ox, oy);
   const dimPush = 22;
-  const anchoP1 = isoPt(frontLeftModel[0], frontLeftModel[1] + dimPush, 0, ox, oy);
-  const anchoP2 = isoPt(nearBottomModel[0], nearBottomModel[1] + dimPush, 0, ox, oy);
-  const profP1 = isoPt(nearBottomModel[0] + dimPush, nearBottomModel[1], 0, ox, oy);
-  const profP2 = isoPt(rightModel[0] + dimPush, rightModel[1], 0, ox, oy);
-  const anchoLabel = isoPt((frontLeftModel[0] + nearBottomModel[0]) / 2, frontLeftModel[1] + dimPush + 16, 0, ox, oy);
-  const profLabel = isoPt(nearBottomModel[0] + dimPush + 16, (nearBottomModel[1] + rightModel[1]) / 2, 0, ox, oy);
-  const [topX, topY] = isoPt(halfW, -halfD, altoPx, ox, oy);
-  const [botX, botY] = isoPt(halfW, -halfD, 0, ox, oy);
+  const anchoP1 = isoPt(frontLeftModel[0], frontLeftModel[1] + dimPush, soladoPx, ox, oy);
+  const anchoP2 = isoPt(nearBottomModel[0], nearBottomModel[1] + dimPush, soladoPx, ox, oy);
+  const profP1 = isoPt(nearBottomModel[0] + dimPush, nearBottomModel[1], soladoPx, ox, oy);
+  const profP2 = isoPt(rightModel[0] + dimPush, rightModel[1], soladoPx, ox, oy);
+  const anchoLabel = isoPt((frontLeftModel[0] + nearBottomModel[0]) / 2, frontLeftModel[1] + dimPush + 16, soladoPx, ox, oy);
+  const profLabel = isoPt(nearBottomModel[0] + dimPush + 16, (nearBottomModel[1] + rightModel[1]) / 2, soladoPx, ox, oy);
+  const [topX, topY] = isoPt(halfW, -halfD, soladoPx + altoPx, ox, oy);
+  const [botX, botY] = isoPt(halfW, -halfD, soladoPx, ox, oy);
 
   return (
     <svg viewBox={`0 0 ${FAUNA_VB_W} ${FAUNA_VB_H}`} className={FAUNA_CSS_SIZE}>
-      <IsoBoxLineArt x0={-halfW} y0={-halfD} w={anchoPx} d={profundoPx} z0={0} z1={altoPx} ox={ox} oy={oy} />
+      <IsoBoxLineArt x0={-halfW} y0={-halfD} w={anchoPx} d={profundoPx} z0={0} z1={soladoPx} ox={ox} oy={oy} />
+      <IsoBoxLineArt x0={-halfW} y0={-halfD} w={anchoPx} d={profundoPx} z0={soladoPx} z1={soladoPx + altoPx} ox={ox} oy={oy} />
       <g stroke="#152644" strokeWidth="1">
         <line x1={frontLeftPt[0]} y1={frontLeftPt[1]} x2={anchoP1[0]} y2={anchoP1[1]} />
         <line x1={nearBottomPt[0]} y1={nearBottomPt[1]} x2={anchoP2[0]} y2={anchoP2[1]} />
@@ -3309,7 +3314,7 @@ function PasoFaunaPreview({ datos }) {
 
 function PasoFaunaForm({ plantilla, onCancel, onSave }) {
   const [nombre, setNombre] = useState(plantilla?.nombre || '');
-  const [datos, setDatos] = useState(plantilla?.datos || { ancho: '', profundo: '', alto: '' });
+  const [datos, setDatos] = useState(plantilla?.datos || { ancho: '', profundo: '', alto: '', espesor_solado: '' });
 
   function set(key, val) {
     setDatos((prev) => ({ ...prev, [key]: val }));
@@ -3318,8 +3323,9 @@ function PasoFaunaForm({ plantilla, onCancel, onSave }) {
   const ancho = parseFloat(datos.ancho) || 0;
   const profundo = parseFloat(datos.profundo) || 0;
   const alto = parseFloat(datos.alto) || 0;
+  const espesorSolado = parseFloat(datos.espesor_solado) || 0;
   const volumenes = ancho && profundo && alto
-    ? { concreto: ancho * profundo * alto, excavacion: ancho * profundo * alto, solado: 0 }
+    ? { concreto: ancho * profundo * alto, excavacion: ancho * profundo * (alto + espesorSolado), solado: ancho * profundo * espesorSolado }
     : null;
   const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
 
@@ -3363,8 +3369,12 @@ function PasoFaunaForm({ plantilla, onCancel, onSave }) {
               <input value={datos.alto} onChange={(e) => set('alto', e.target.value)} placeholder="0.20" className={cellInput} />
             </div>
           </div>
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Espesor de solado (m)</label>
+            <input value={datos.espesor_solado} onChange={(e) => set('espesor_solado', e.target.value)} placeholder="0.05" className={cellInput} />
+          </div>
           <p className="text-xs text-navy-400 italic">
-            Bloque macizo sin acero — la excavación es igual al volumen de concreto (no lleva solado aparte).
+            Bloque macizo sin acero — la excavación usa el alto más el espesor de solado.
           </p>
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700 px-3 py-2">
@@ -3389,6 +3399,7 @@ const PORTON_VB_H = 220;
 const PORTON_M2PX = 45;
 const PORTON_CSS_SIZE = 'w-72 h-56';
 const PORTON_PLANTA_CSS_SIZE = 'w-56 h-56';
+const PORTON_VIGA_ELEV_CSS_SIZE = 'w-[26rem] h-40';
 
 /* Isométrico del conjunto: 2 zapatas + viga que las une + 2 pedestales      */
 /* encima. No dibuja el acero (demasiado detalle para una sola vista) — el  */
@@ -3406,42 +3417,106 @@ function PortonIsometrico({ datos }) {
   const vAlto = parseFloat(v.alto) || 0;
   const pAncho = parseFloat(p.ancho) || 0;
   const pProfundo = parseFloat(p.profundo) || 0;
-  const pAltura = parseFloat(p.altura) || 0;
+  const desplante = parseFloat(datos.desplante) || 0;
+  const pAltura = Math.max(0, desplante - zEspesor); // desplante − espesor de zapata
+  const espesorSolado = parseFloat(datos.espesor_solado) || 0;
   const separacion = parseFloat(datos.separacion_zapatas) || 0;
 
   const zAnchoPx = clamp((zAncho || 1) * PORTON_M2PX, 30, 70);
   const zLargoPx = clamp((zLargo || 1) * PORTON_M2PX, 30, 70);
   const zEspesorPx = clamp((zEspesor || 0.35) * PORTON_M2PX, 8, 22);
+  const soladoPx = clamp((espesorSolado || 0.05) * PORTON_M2PX, 4, 9);
   const sepPx = clamp((separacion || 5) * PORTON_M2PX, 90, 210);
   const pAnchoPx = clamp((pAncho || 0.4) * PORTON_M2PX, 14, 34);
   const pProfundoPx = clamp((pProfundo || 0.4) * PORTON_M2PX, 14, 34);
-  const pAlturaPx = clamp((pAltura || 1) * PORTON_M2PX, 30, 75);
+  const pAlturaPx = clamp((pAltura || 0.7) * PORTON_M2PX, 25, 70);
   const vAnchoPx = clamp((vAncho || 0.3) * PORTON_M2PX, 10, 20);
   const vAltoPx = clamp((vAlto || 0.35) * PORTON_M2PX, 10, 22);
 
   const halfZ = zLargoPx / 2;
   const halfZAncho = zAnchoPx / 2;
   const centroX = sepPx / 2;
-  const bodyZ0 = zEspesorPx;
-  const bodyZ1 = zEspesorPx + pAlturaPx;
+  // z=0 es el fondo del solado. La zapata va encima del solado; la viga y el
+  // pedestal arrancan juntos desde la parte de ARRIBA de la zapata.
+  const zapataZ0 = soladoPx;
+  const zapataZ1 = soladoPx + zEspesorPx;
+  const vigaZ0 = zapataZ1;
+  const vigaZ1 = zapataZ1 + vAltoPx;
+  const pedestalZ0 = zapataZ1;
+  const pedestalZ1 = zapataZ1 + pAlturaPx;
+  const ntnZ = pedestalZ1; // el N.T.N. queda en la parte de ARRIBA del pedestal
 
   const ox = PORTON_VB_W / 2;
-  const oy = 24 + Math.max(halfZAncho, 40) + bodyZ1;
+  const oy = 30 + Math.max(halfZAncho, 40) + pedestalZ1;
+
+  const distanciaCarasInternas = Math.max(0, sepPx - zLargoPx);
+
+  // Cota de separación entre zapatas (arriba, paralela al eje longitudinal)
+  const dimPushArriba = 22;
+  const [sepP1X, sepP1Y] = isoPt(-centroX, -halfZAncho - dimPushArriba, zapataZ1, ox, oy);
+  const [sepP2X, sepP2Y] = isoPt(centroX, -halfZAncho - dimPushArriba, zapataZ1, ox, oy);
+
+  // Cota de altura del pedestal (derecha)
+  const [alturaTopX, alturaTopY] = isoPt(centroX + pAnchoPx / 2, -pProfundoPx / 2, pedestalZ1, ox, oy);
+  const [alturaBotX, alturaBotY] = isoPt(centroX + pAnchoPx / 2, -pProfundoPx / 2, zapataZ1, ox, oy);
 
   return (
     <svg viewBox={`0 0 ${PORTON_VB_W} ${PORTON_VB_H}`} className={PORTON_CSS_SIZE}>
-      {/* Zapata izquierda */}
-      <IsoBoxLineArt x0={-centroX - halfZ} y0={-halfZAncho} w={zLargoPx} d={zAnchoPx} z0={0} z1={zEspesorPx} ox={ox} oy={oy} />
-      {/* Zapata derecha */}
-      <IsoBoxLineArt x0={centroX - halfZ} y0={-halfZAncho} w={zLargoPx} d={zAnchoPx} z0={0} z1={zEspesorPx} ox={ox} oy={oy} />
-      {/* Viga de amarre entre las dos, centrada en el eje */}
-      <IsoBoxLineArt x0={-centroX + halfZ} y0={-vAnchoPx / 2} w={(centroX - halfZ) * 2} d={vAnchoPx} z0={zEspesorPx - vAltoPx} z1={zEspesorPx} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
-      {/* Pedestal izquierdo */}
-      <IsoBoxLineArt x0={-centroX - pAnchoPx / 2} y0={-pProfundoPx / 2} w={pAnchoPx} d={pProfundoPx} z0={bodyZ0} z1={bodyZ1} ox={ox} oy={oy} />
-      {/* Pedestal derecho */}
-      <IsoBoxLineArt x0={centroX - pAnchoPx / 2} y0={-pProfundoPx / 2} w={pAnchoPx} d={pProfundoPx} z0={bodyZ0} z1={bodyZ1} ox={ox} oy={oy} />
-      <text x={ox} y={PORTON_VB_H - 8} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">
-        Separación entre zapatas (centro a centro): {separacion || '—'} m
+      {/* Solado bajo cada zapata (misma huella) */}
+      <IsoBoxLineArt x0={-centroX - halfZ} y0={-halfZAncho} w={zLargoPx} d={zAnchoPx} z0={0} z1={soladoPx} ox={ox} oy={oy} />
+      <IsoBoxLineArt x0={centroX - halfZ} y0={-halfZAncho} w={zLargoPx} d={zAnchoPx} z0={0} z1={soladoPx} ox={ox} oy={oy} />
+      {/* Solado bajo el tramo de la viga, uniendo los dos anteriores */}
+      {distanciaCarasInternas > 0 && (
+        <IsoBoxLineArt x0={-centroX + halfZ} y0={-vAnchoPx / 2} w={distanciaCarasInternas} d={vAnchoPx} z0={0} z1={soladoPx} ox={ox} oy={oy} />
+      )}
+      {/* Zapata izquierda y derecha */}
+      <IsoBoxLineArt x0={-centroX - halfZ} y0={-halfZAncho} w={zLargoPx} d={zAnchoPx} z0={zapataZ0} z1={zapataZ1} ox={ox} oy={oy} />
+      <IsoBoxLineArt x0={centroX - halfZ} y0={-halfZAncho} w={zLargoPx} d={zAnchoPx} z0={zapataZ0} z1={zapataZ1} ox={ox} oy={oy} />
+      {/* Viga de amarre, arrancando desde la parte de arriba de la zapata */}
+      {distanciaCarasInternas > 0 && (
+        <IsoBoxLineArt x0={-centroX + halfZ} y0={-vAnchoPx / 2} w={distanciaCarasInternas} d={vAnchoPx} z0={vigaZ0} z1={vigaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
+      )}
+      {/* Pedestales, también arrancando desde la parte de arriba de la zapata */}
+      <IsoBoxLineArt x0={-centroX - pAnchoPx / 2} y0={-pProfundoPx / 2} w={pAnchoPx} d={pProfundoPx} z0={pedestalZ0} z1={pedestalZ1} ox={ox} oy={oy} />
+      <IsoBoxLineArt x0={centroX - pAnchoPx / 2} y0={-pProfundoPx / 2} w={pAnchoPx} d={pProfundoPx} z0={pedestalZ0} z1={pedestalZ1} ox={ox} oy={oy} />
+      {/* Nivel de terreno natural: un plano a la altura de la PARTE DE ARRIBA de los pedestales */}
+      <polygon
+        points={poly([
+          isoPt(-centroX - pAnchoPx / 2 - 16, -halfZAncho - 20, ntnZ, ox, oy),
+          isoPt(centroX + pAnchoPx / 2 + 16, -halfZAncho - 20, ntnZ, ox, oy),
+          isoPt(centroX + pAnchoPx / 2 + 16, halfZAncho + 20, ntnZ, ox, oy),
+          isoPt(-centroX - pAnchoPx / 2 - 16, halfZAncho + 20, ntnZ, ox, oy),
+        ])}
+        fill="none"
+        stroke="#6487C4"
+        strokeWidth="1"
+        strokeDasharray="4 3"
+      />
+      <text
+        x={isoPt(-centroX - pAnchoPx / 2 - 16, -halfZAncho - 20, ntnZ, ox, oy)[0] - 4}
+        y={isoPt(-centroX - pAnchoPx / 2 - 16, -halfZAncho - 20, ntnZ, ox, oy)[1] + 3}
+        textAnchor="end"
+        fontSize="7.5"
+        fill="#6487C4"
+        fontFamily="monospace"
+      >
+        N.T.N
+      </text>
+      {/* Cota de separación entre zapatas, arriba, paralela al eje */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={sepP1X} y1={sepP1Y} x2={sepP2X} y2={sepP2Y} />
+      </g>
+      <text x={(sepP1X + sepP2X) / 2} y={(sepP1Y + sepP2Y) / 2 - 8} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644">
+        Separación (centro a centro): {separacion || '—'} m
+      </text>
+      {/* Cota de altura del pedestal, a la derecha, paralela a su borde */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={alturaTopX + 18} y1={alturaTopY} x2={alturaBotX + 18} y2={alturaBotY} />
+        <line x1={alturaTopX + 14} y1={alturaTopY} x2={alturaTopX + 22} y2={alturaTopY} />
+        <line x1={alturaBotX + 14} y1={alturaBotY} x2={alturaBotX + 22} y2={alturaBotY} />
+      </g>
+      <text x={alturaTopX + 28} y={(alturaTopY + alturaBotY) / 2} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${alturaTopX + 28}, ${(alturaTopY + alturaBotY) / 2})`}>
+        {pAltura > 0 ? pAltura.toFixed(2) : '—'} m
       </text>
     </svg>
   );
@@ -3548,36 +3623,69 @@ function PortonElevacion({ datos }) {
   const zEspesor = parseFloat(z.espesor) || 0;
   const vAlto = parseFloat(v.alto) || 0;
   const pAncho = parseFloat(p.ancho) || 0;
-  const pAltura = parseFloat(p.altura) || 0;
+  const desplante = parseFloat(datos.desplante) || 0;
+  const pAltura = Math.max(0, desplante - zEspesor);
+  const espesorSolado = parseFloat(datos.espesor_solado) || 0;
   const separacion = parseFloat(datos.separacion_zapatas) || 0;
 
   const scale = 30;
   const zLargoPx = clamp((zLargo || 1) * scale, 26, 55);
   const zEspesorPx = clamp((zEspesor || 0.35) * scale, 8, 18);
+  const soladoPx = clamp((espesorSolado || 0.05) * scale, 4, 9);
   const vAltoPx = clamp((vAlto || 0.35) * scale, 8, 18);
   const pAnchoPx = clamp((pAncho || 0.4) * scale, 16, 30);
-  const pAlturaPx = clamp((pAltura || 1) * scale, 30, 75);
+  const pAlturaPx = clamp((pAltura || 0.7) * scale, 25, 70);
   const sepPx = clamp((separacion || 5) * scale, 110, 220);
 
   const cx = 150;
-  const groundY = 150;
-  const zTopY = groundY - zEspesorPx;
-  const vTopY = zTopY - vAltoPx;
-  const pTopY = zTopY - pAlturaPx;
+  const groundY = 40; // N.T.N. — a la altura de la parte de ARRIBA de los pedestales
+  const pBotY = groundY + pAlturaPx; // = parte de arriba de la zapata
+  const zBotY = pBotY + zEspesorPx; // = parte de abajo de la zapata
+  const soladoBotY = zBotY + soladoPx;
   const x1 = cx - sepPx / 2;
   const x2 = cx + sepPx / 2;
 
   return (
-    <svg viewBox="0 0 300 200" className={PORTON_CSS_SIZE}>
+    <svg viewBox="0 0 300 210" className={PORTON_CSS_SIZE}>
       <line x1={x1 - 30} y1={groundY} x2={x2 + 30} y2={groundY} stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
       <text x={x1 - 34} y={groundY - 4} textAnchor="end" fontSize="7.5" fill="#6487C4" fontFamily="monospace">N.T.N</text>
-      <rect x={x1 - zLargoPx / 2} y={zTopY} width={zLargoPx} height={zEspesorPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
-      <rect x={x2 - zLargoPx / 2} y={zTopY} width={zLargoPx} height={zEspesorPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
-      {x2 - x1 > 0 && <rect x={x1} y={vTopY} width={x2 - x1} height={vAltoPx} fill="#EAF1FF" stroke="#152644" strokeWidth="1.2" />}
-      <rect x={x1 - pAnchoPx / 2} y={pTopY} width={pAnchoPx} height={Math.max(zTopY - pTopY, 0)} fill="white" stroke="#152644" strokeWidth="1.3" />
-      <rect x={x2 - pAnchoPx / 2} y={pTopY} width={pAnchoPx} height={Math.max(zTopY - pTopY, 0)} fill="white" stroke="#152644" strokeWidth="1.3" />
-      <text x={cx} y={groundY + 20} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">
-        Separación {separacion || '—'} m
+      {/* Solado bajo cada zapata y bajo el tramo de la viga */}
+      <rect x={x1 - zLargoPx / 2} y={zBotY} width={zLargoPx} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1" />
+      <rect x={x2 - zLargoPx / 2} y={zBotY} width={zLargoPx} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1" />
+      {/* Zapatas */}
+      <rect x={x1 - zLargoPx / 2} y={pBotY} width={zLargoPx} height={zEspesorPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      <rect x={x2 - zLargoPx / 2} y={pBotY} width={zLargoPx} height={zEspesorPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      {/* Viga, arrancando desde la parte de arriba de la zapata */}
+      {x2 - x1 > 0 && <rect x={x1} y={pBotY - vAltoPx} width={x2 - x1} height={vAltoPx} fill="#EAF1FF" stroke="#152644" strokeWidth="1.2" />}
+      {/* Pedestales */}
+      <rect x={x1 - pAnchoPx / 2} y={groundY} width={pAnchoPx} height={pAlturaPx} fill="white" stroke="#152644" strokeWidth="1.3" />
+      <rect x={x2 - pAnchoPx / 2} y={groundY} width={pAnchoPx} height={pAlturaPx} fill="white" stroke="#152644" strokeWidth="1.3" />
+      {/* Cota de separación, arriba */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={x1} y1={groundY - 14} x2={x2} y2={groundY - 14} />
+        <line x1={x1} y1={groundY - 18} x2={x1} y2={groundY - 10} />
+        <line x1={x2} y1={groundY - 18} x2={x2} y2={groundY - 10} />
+      </g>
+      <text x={cx} y={groundY - 22} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644">
+        Separación (centro a centro): {separacion || '—'} m
+      </text>
+      {/* Cota de altura del pedestal, a la izquierda */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={x1 - pAnchoPx / 2 - 14} y1={groundY} x2={x1 - pAnchoPx / 2 - 14} y2={pBotY} />
+        <line x1={x1 - pAnchoPx / 2 - 10} y1={groundY} x2={x1 - pAnchoPx / 2 - 18} y2={groundY} />
+        <line x1={x1 - pAnchoPx / 2 - 10} y1={pBotY} x2={x1 - pAnchoPx / 2 - 18} y2={pBotY} />
+      </g>
+      <text x={x1 - pAnchoPx / 2 - 24} y={(groundY + pBotY) / 2} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${x1 - pAnchoPx / 2 - 24}, ${(groundY + pBotY) / 2})`}>
+        {pAltura > 0 ? pAltura.toFixed(2) : '—'} m
+      </text>
+      {/* Cota de espesor de zapata, a la derecha */}
+      <g stroke="#3C64AA" strokeWidth="1">
+        <line x1={x2 + zLargoPx / 2 + 14} y1={pBotY} x2={x2 + zLargoPx / 2 + 14} y2={zBotY} />
+        <line x1={x2 + zLargoPx / 2 + 10} y1={pBotY} x2={x2 + zLargoPx / 2 + 18} y2={pBotY} />
+        <line x1={x2 + zLargoPx / 2 + 10} y1={zBotY} x2={x2 + zLargoPx / 2 + 18} y2={zBotY} />
+      </g>
+      <text x={x2 + zLargoPx / 2 + 24} y={(pBotY + zBotY) / 2} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${x2 + zLargoPx / 2 + 24}, ${(pBotY + zBotY) / 2})`}>
+        {zEspesor || '—'} m
       </text>
     </svg>
   );
@@ -3585,15 +3693,44 @@ function PortonElevacion({ datos }) {
 
 /* Corte transversal del pedestal (planta): estribo con sus 2 ganchos y las  */
 /* barras de esquina — igual criterio que en Inversores.                    */
+/* Reparte "cantidad" barras alrededor del perímetro de un rectángulo：      */
+/* siempre 4 en las esquinas, y las que sobren repartidas parejo entre los  */
+/* 4 lados (ej. cantidad=8 → 4 esquinas + 1 a la mitad de cada lado).       */
+function puntosPerimetroRectangulo(halfW, halfD, cantidad) {
+  const puntos = [
+    [-halfW, -halfD], [halfW, -halfD], [halfW, halfD], [-halfW, halfD],
+  ];
+  const extra = Math.max(0, cantidad - 4);
+  const porLado = Math.floor(extra / 4);
+  const restante = extra % 4;
+  const lados = [
+    { fijo: 'y', valor: -halfD, min: -halfW, max: halfW }, // lado superior
+    { fijo: 'x', valor: halfW, min: -halfD, max: halfD }, // lado derecho
+    { fijo: 'y', valor: halfD, min: halfW, max: -halfW }, // lado inferior (invertido)
+    { fijo: 'x', valor: -halfW, min: halfD, max: -halfD }, // lado izquierdo (invertido)
+  ];
+  lados.forEach((lado, li) => {
+    const n = porLado + (li < restante ? 1 : 0);
+    for (let i = 1; i <= n; i++) {
+      const frac = i / (n + 1);
+      const val = lado.min + frac * (lado.max - lado.min);
+      puntos.push(lado.fijo === 'y' ? [val, lado.valor] : [lado.valor, val]);
+    }
+  });
+  return puntos;
+}
+
 function PortonPedestalCorte({ datos }) {
   const p = datos.pedestal || {};
   const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
   const pAncho = parseFloat(p.ancho) || 0.4;
   const pProfundo = parseFloat(p.profundo) || 0.4;
+  const cantidad = Math.max(4, parseInt(p.barras?.cantidad, 10) || 4);
   const w = clamp(pAncho * 130, 40, 100);
   const d = clamp(pProfundo * 130, 40, 100);
   const cx = 85, cy = 80;
   const recubPx = 7;
+  const puntos = puntosPerimetroRectangulo(w / 2 - recubPx, d / 2 - recubPx, cantidad);
 
   return (
     <svg viewBox="0 0 180 190" className={PORTON_PLANTA_CSS_SIZE}>
@@ -3601,12 +3738,21 @@ function PortonPedestalCorte({ datos }) {
       <rect x={cx - w / 2 + recubPx} y={cy - d / 2 + recubPx} width={w - 2 * recubPx} height={d - 2 * recubPx} fill="none" stroke="#2563EB" strokeWidth="1.2" />
       <line x1={cx - (w / 2 - recubPx) * 0.6} y1={cy + (d / 2 - recubPx) * 0.6} x2={cx - (w / 2 - recubPx) * 0.15} y2={cy + (d / 2 - recubPx) * 0.15} stroke="#2563EB" strokeWidth="1.3" />
       <line x1={cx - (w / 2 - recubPx) * 0.6} y1={cy - (d / 2 - recubPx) * 0.6} x2={cx - (w / 2 - recubPx) * 0.15} y2={cy - (d / 2 - recubPx) * 0.15} stroke="#2563EB" strokeWidth="1.3" />
-      {[[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy], i) => (
-        <circle key={i} cx={cx + sx * (w / 2 - recubPx)} cy={cy + sy * (d / 2 - recubPx)} r="2.6" fill="#059669" />
+      {puntos.map(([px, py], i) => (
+        <circle key={i} cx={cx + px} cy={cy + py} r="2.6" fill="#059669" />
       ))}
-      <text x={cx} y={cy + d / 2 + 16} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644">
-        {pAncho || '—'} × {pProfundo || '—'} m
-      </text>
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx - w / 2} y1={cy + d / 2 + 14} x2={cx + w / 2} y2={cy + d / 2 + 14} />
+        <line x1={cx - w / 2} y1={cy + d / 2 + 10} x2={cx - w / 2} y2={cy + d / 2 + 18} />
+        <line x1={cx + w / 2} y1={cy + d / 2 + 10} x2={cx + w / 2} y2={cy + d / 2 + 18} />
+      </g>
+      <text x={cx} y={cy + d / 2 + 28} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644">{pAncho || '—'} m</text>
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx - w / 2 - 14} y1={cy - d / 2} x2={cx - w / 2 - 14} y2={cy + d / 2} />
+        <line x1={cx - w / 2 - 10} y1={cy - d / 2} x2={cx - w / 2 - 18} y2={cy - d / 2} />
+        <line x1={cx - w / 2 - 10} y1={cy + d / 2} x2={cx - w / 2 - 18} y2={cy + d / 2} />
+      </g>
+      <text x={cx - w / 2 - 24} y={cy} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${cx - w / 2 - 24}, ${cy})`}>{pProfundo || '—'} m</text>
     </svg>
   );
 }
@@ -3620,8 +3766,9 @@ function PortonPedestalElevacion({ datos }) {
   const p = datos.pedestal || {};
   const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
   const pAncho = parseFloat(p.ancho) || 0.4;
-  const alturaTotal = (parseFloat(p.altura) || 0) + (parseFloat(p.empotramiento_zapata) || 0);
-  const cantidadBarras = Math.max(2, parseInt(p.barras.cantidad, 10) || 2);
+  const pProfundo = parseFloat(p.profundo) || 0.4;
+  const alturaTotal = Math.max(0, (parseFloat(datos.desplante) || 0) - (parseFloat(datos.zapata?.espesor) || 0)) + (parseFloat(p.empotramiento_zapata) || 0);
+  const cantidadBarras = Math.max(4, parseInt(p.barras.cantidad, 10) || 4);
   const ganchosBarra = parseFloat(p.barras.ganchos) || 0;
   const infoBarra = BARRA_ACERO[p.barras.calibre];
   const estribos = calcularEstribos({ altura: alturaTotal, ancho: p.ancho, profundo: p.profundo, separacion: p.estribos.separacion, calibre: p.estribos.calibre });
@@ -3633,12 +3780,13 @@ function PortonPedestalElevacion({ datos }) {
   const cx = 90, topY = 30, botY = topY + h, recubPx = 7;
   const escala = alturaTotal > 0 ? h / alturaTotal : 130;
 
-  const posicionesVisibles = Math.max(1, Math.ceil(cantidadBarras / 2));
-  const barX = [];
-  for (let i = 0; i < posicionesVisibles; i++) {
-    const frac = posicionesVisibles === 1 ? 0.5 : i / (posicionesVisibles - 1);
-    barX.push(cx - w / 2 + recubPx + frac * (w - 2 * recubPx));
-  }
+  // Las posiciones visibles en una elevación son las X ÚNICAS de las barras
+  // repartidas en el perímetro — no la mitad de la cantidad total. Con 8
+  // barras (4 esquinas + 4 a mitad de lado), solo hay 3 X distintas:
+  // izquierda, centro (las de los lados frontal/posterior caen ahí) y derecha.
+  const puntos = puntosPerimetroRectangulo(1, pProfundo / pAncho || 1, cantidadBarras);
+  const xUnicas = Array.from(new Set(puntos.map(([px]) => Math.round(px * 1000) / 1000))).sort((a, b) => a - b);
+  const barX = xUnicas.map((frac) => cx + (frac * (w - 2 * recubPx)) / 2);
   const distanciaEntreBarras = barX.length > 1 ? barX[barX.length - 1] - barX[0] : w;
   const ganchoMaximoSinChoque = (distanciaEntreBarras / 2) * 0.6;
   const ganchoPx = infoBarra ? clamp(Math.min(infoBarra.gancho * escala, ganchoMaximoSinChoque), 5, 13) : Math.min(10, ganchoMaximoSinChoque);
@@ -3674,6 +3822,14 @@ function PortonPedestalElevacion({ datos }) {
       <text x={cx + w / 2 + 8} y={(topY + botY) / 2} fontSize="8" fontWeight="600" fill="#2563EB" transform={`rotate(90, ${cx + w / 2 + 8}, ${(topY + botY) / 2})`} textAnchor="middle">
         {cantidadEstribos || '—'} E{p.estribos.calibre || '#—'} @{p.estribos.separacion || '—'}
       </text>
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx - w / 2 - 16} y1={topY} x2={cx - w / 2 - 16} y2={botY} />
+        <line x1={cx - w / 2 - 12} y1={topY} x2={cx - w / 2 - 20} y2={topY} />
+        <line x1={cx - w / 2 - 12} y1={botY} x2={cx - w / 2 - 20} y2={botY} />
+      </g>
+      <text x={cx - w / 2 - 26} y={(topY + botY) / 2} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${cx - w / 2 - 26}, ${(topY + botY) / 2})`}>
+        {alturaTotal ? alturaTotal.toFixed(2) : '—'} m
+      </text>
     </svg>
   );
 }
@@ -3688,7 +3844,7 @@ function PortonVigaCorte({ datos }) {
   const vAlto = parseFloat(v.alto) || 0.35;
   const w = clamp(vAncho * 150, 40, 110);
   const d = clamp(vAlto * 150, 40, 110);
-  const cx = 90, cy = 85;
+  const cx = 90, cy = 80;
   const recubPx = 7;
 
   return (
@@ -3700,18 +3856,28 @@ function PortonVigaCorte({ datos }) {
       {[[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy], i) => (
         <circle key={i} cx={cx + sx * (w / 2 - recubPx)} cy={cy + sy * (d / 2 - recubPx)} r="2.6" fill="#059669" />
       ))}
-      <text x={cx} y={cy + d / 2 + 16} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644">
-        {vAncho || '—'} × {vAlto || '—'} m
-      </text>
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx - w / 2} y1={cy + d / 2 + 14} x2={cx + w / 2} y2={cy + d / 2 + 14} />
+        <line x1={cx - w / 2} y1={cy + d / 2 + 10} x2={cx - w / 2} y2={cy + d / 2 + 18} />
+        <line x1={cx + w / 2} y1={cy + d / 2 + 10} x2={cx + w / 2} y2={cy + d / 2 + 18} />
+      </g>
+      <text x={cx} y={cy + d / 2 + 28} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644">{vAncho || '—'} m</text>
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx - w / 2 - 14} y1={cy - d / 2} x2={cx - w / 2 - 14} y2={cy + d / 2} />
+        <line x1={cx - w / 2 - 10} y1={cy - d / 2} x2={cx - w / 2 - 18} y2={cy - d / 2} />
+        <line x1={cx - w / 2 - 10} y1={cy + d / 2} x2={cx - w / 2 - 18} y2={cy + d / 2} />
+      </g>
+      <text x={cx - w / 2 - 24} y={cy} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${cx - w / 2 - 24}, ${cy})`}>{vAlto || '—'} m</text>
     </svg>
   );
 }
 
+
 /* Vista posterior (elevación) de la viga a lo largo de su longitud: la      */
 /* línea de arriba y la de abajo (cada una representa las 2 barras de esa    */
 /* capa, que en elevación se ven encimadas) con la marca del traslapo en su  */
-/* tercio correspondiente (arriba en L/3, abajo en 2L/3), y los estribos     */
-/* repartidos con su separación real.                                       */
+/* tercio correspondiente (arriba en L/3, abajo en 2L/3), los ganchos en el  */
+/* extremo que ancla en cada zapata, y los estribos con su separación real.  */
 function PortonVigaElevacion({ datos }) {
   const v = datos.viga || {};
   const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
@@ -3720,12 +3886,15 @@ function PortonVigaElevacion({ datos }) {
   const separacionEstribos = parseFloat(v.estribos.separacion) || 0;
   const estribos = calcularEstribos({ altura: longitudViga > 0 ? longitudViga : undefined, ancho: v.ancho, profundo: v.alto, separacion: v.estribos.separacion, calibre: v.estribos.calibre });
   const cantidadEstribos = estribos ? estribos.cantidad : 0;
+  const ganchosBarra = parseFloat(v.barras?.ganchos) || 0;
+  const infoBarra = BARRA_ACERO[v.barras?.calibre];
 
-  const w = clamp((longitudViga || 5) * 26, 160, 260);
-  const h = clamp(vAlto * 130, 30, 60);
-  const cx = 150, topY = 40, leftX = cx - w / 2, rightX = cx + w / 2, botY = topY + h;
+  const w = clamp((longitudViga || 5) * 40, 260, 420);
+  const h = clamp(vAlto * 160, 40, 75);
+  const cx = 220, topY = 50, leftX = cx - w / 2, rightX = cx + w / 2, botY = topY + h;
   const recubPx = 6;
-  const escala = longitudViga > 0 ? w / longitudViga : 26;
+  const escala = longitudViga > 0 ? w / longitudViga : 40;
+  const ganchoPx = infoBarra ? clamp(infoBarra.gancho * escala, 8, 18) : 12;
 
   const estriboX = [];
   if (cantidadEstribos > 0) {
@@ -3741,23 +3910,31 @@ function PortonVigaElevacion({ datos }) {
   const tercio2 = leftX + (2 * w) / 3;
 
   return (
-    <svg viewBox="0 0 300 130" className={PORTON_PLANTA_CSS_SIZE}>
+    <svg viewBox="0 0 440 170" className={PORTON_VIGA_ELEV_CSS_SIZE}>
       <rect x={leftX} y={topY} width={w} height={h} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
       {estriboX.map((x, i) => (
         <rect key={i} x={x - 2} y={topY + recubPx} width="4" height={h - 2 * recubPx} fill="none" stroke="#2563EB" strokeWidth="1" />
       ))}
-      {/* Barra superior, con el empalme marcado en L/3 */}
+      {/* Barra superior: gancho a la izquierda (ancla en la zapata), empalme marcado en L/3 */}
       <line x1={leftX + 3} y1={topY + recubPx} x2={rightX - 3} y2={topY + recubPx} stroke="#059669" strokeWidth="1.6" />
-      <circle cx={tercio1} cy={topY + recubPx} r="2.4" fill="white" stroke="#059669" strokeWidth="1.2" />
-      <text x={tercio1} y={topY - 4} textAnchor="middle" fontSize="6.5" fill="#059669">empalme 1/3</text>
-      {/* Barra inferior, con el empalme marcado en 2L/3 */}
+      {ganchosBarra >= 1 && <line x1={leftX + 3} y1={topY + recubPx} x2={leftX + 3} y2={topY + recubPx + ganchoPx} stroke="#059669" strokeWidth="1.6" />}
+      <circle cx={tercio1} cy={topY + recubPx} r="2.8" fill="white" stroke="#059669" strokeWidth="1.3" />
+      <text x={tercio1} y={topY - 6} textAnchor="middle" fontSize="8" fontWeight="600" fill="#059669">empalme 1/3</text>
+      {/* Barra inferior: gancho a la derecha (ancla en la otra zapata), empalme marcado en 2L/3 */}
       <line x1={leftX + 3} y1={botY - recubPx} x2={rightX - 3} y2={botY - recubPx} stroke="#059669" strokeWidth="1.6" />
-      <circle cx={tercio2} cy={botY - recubPx} r="2.4" fill="white" stroke="#059669" strokeWidth="1.2" />
-      <text x={tercio2} y={botY + 12} textAnchor="middle" fontSize="6.5" fill="#059669">empalme 2/3</text>
-      <text x={cx} y={topY - 14} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644">
-        Longitud {longitudViga > 0 ? longitudViga.toFixed(2) : '—'} m
+      {ganchosBarra >= 1 && <line x1={rightX - 3} y1={botY - recubPx} x2={rightX - 3} y2={botY - recubPx - ganchoPx} stroke="#059669" strokeWidth="1.6" />}
+      <circle cx={tercio2} cy={botY - recubPx} r="2.8" fill="white" stroke="#059669" strokeWidth="1.3" />
+      <text x={tercio2} y={botY + 16} textAnchor="middle" fontSize="8" fontWeight="600" fill="#059669">empalme 2/3</text>
+      {/* Cota de longitud, arriba */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={leftX} y1={topY - 20} x2={rightX} y2={topY - 20} />
+        <line x1={leftX} y1={topY - 24} x2={leftX} y2={topY - 16} />
+        <line x1={rightX} y1={topY - 24} x2={rightX} y2={topY - 16} />
+      </g>
+      <text x={cx} y={topY - 28} textAnchor="middle" fontSize="9" fontWeight="600" fill="#152644">
+        Longitud (entre caras internas) {longitudViga > 0 ? longitudViga.toFixed(2) : '—'} m
       </text>
-      <text x={cx} y={botY + 24} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#2563EB">
+      <text x={cx} y={botY + 32} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#2563EB">
         {cantidadEstribos || '—'} E{v.estribos.calibre || '#—'} @{v.estribos.separacion || '—'}
       </text>
     </svg>
@@ -3814,7 +3991,7 @@ function PortonForm({ plantilla, onCancel, onSave }) {
       },
       viga: {
         ancho: '', alto: '',
-        barras: { calibre: '' },
+        barras: { calibre: '', ganchos: '1' },
         estribos: { calibre: '', separacion: '' },
       },
       pedestal: {
@@ -3851,6 +4028,7 @@ function PortonForm({ plantilla, onCancel, onSave }) {
     separacionCentros: datos.separacion_zapatas,
     calibre: datos.viga.barras.calibre,
     resistencia: datos.resistencia,
+    ganchos: datos.viga.barras.ganchos,
   });
   const longitudViga = (parseFloat(datos.separacion_zapatas) || 0) - (parseFloat(datos.zapata.largo) || 0);
   const vigaEstribos = calcularEstribos({
@@ -4024,9 +4202,15 @@ function PortonForm({ plantilla, onCancel, onSave }) {
             Longitud (entre caras internas de las zapatas): <span className="font-mono text-navy-600">{longitudViga > 0 ? longitudViga.toFixed(2) : '—'} m</span>
           </p>
           <p className="text-xs font-semibold text-navy-600 mb-2">Barras longitudinales (8 en total: 4 líneas traslapadas en pares)</p>
-          <div className="mb-2">
-            <label className="block text-xs text-navy-500 mb-1">Calibre</label>
-            <CalibreSelect value={datos.viga.barras.calibre} onChange={(val) => setSubgrupo('viga', 'barras', 'calibre', val)} className={cellInput} />
+          <div className="grid grid-cols-2 gap-3 mb-2">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Calibre</label>
+              <CalibreSelect value={datos.viga.barras.calibre} onChange={(val) => setSubgrupo('viga', 'barras', 'calibre', val)} className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">N.° de ganchos por pieza</label>
+              <input value={datos.viga.barras.ganchos} onChange={(e) => setSubgrupo('viga', 'barras', 'ganchos', e.target.value)} placeholder="1" className={cellInput} />
+            </div>
           </div>
           {vigaBarras ? (
             <p className="text-xs text-navy-500 mb-3">
@@ -4071,16 +4255,15 @@ function PortonForm({ plantilla, onCancel, onSave }) {
               <input value={datos.pedestal.profundo} onChange={(e) => setGrupo('pedestal', 'profundo', e.target.value)} placeholder="0.40" className={cellInput} />
             </div>
             <div>
-              <label className="block text-xs text-navy-500 mb-1">Altura sobre la zapata (m)</label>
-              <input value={datos.pedestal.altura} onChange={(e) => setGrupo('pedestal', 'altura', e.target.value)} placeholder="1.10" className={cellInput} />
-            </div>
-            <div>
               <label className="block text-xs text-navy-500 mb-1">Empotramiento en zapata (m)</label>
               <input value={datos.pedestal.empotramiento_zapata} onChange={(e) => setGrupo('pedestal', 'empotramiento_zapata', e.target.value)} placeholder="0.30" className={cellInput} />
             </div>
           </div>
+          <p className="text-xs text-navy-400 mb-3">
+            Altura del pedestal (desplante − espesor de zapata): <span className="font-mono text-navy-600">{alturaPedestal > 0 ? alturaPedestal.toFixed(2) : '—'} m</span>
+          </p>
           <p className="text-xs text-navy-400 mb-3 italic">
-            El pedestal se apoya ENCIMA de la zapata — no tiene solado propio ni cuenta aparte en la excavación. El "empotramiento" es solo para saber hasta dónde llega el acero dentro de la zapata.
+            El pedestal se apoya ENCIMA de la zapata, va enterrado (el nivel de terreno natural queda a la altura de su parte superior) — no tiene solado propio ni cuenta aparte en la excavación. El "empotramiento" es solo para saber hasta dónde llega el acero dentro de la zapata.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -4132,6 +4315,17 @@ function PortonForm({ plantilla, onCancel, onSave }) {
         </div>
       </div>
 
+      {pesoTotalAcero > 0 && (
+        <div className="mt-4 bg-white border border-navy-200 rounded-lg px-4 py-3">
+          <p className="text-sm font-semibold text-navy-700 mb-2">Peso de acero por elemento</p>
+          <FilaResumenAcero label="Zapata — parrilla longitudinal (2 zapatas)" valor={`${((parrilla.longitudinal?.pesoTotal || 0) * 2).toFixed(2)} kg`} />
+          <FilaResumenAcero label="Zapata — parrilla transversal (2 zapatas)" valor={`${((parrilla.transversal?.pesoTotal || 0) * 2).toFixed(2)} kg`} />
+          <FilaResumenAcero label="Viga — barras longitudinales (8 piezas)" valor={`${(vigaBarras?.pesoTotal || 0).toFixed(2)} kg`} />
+          <FilaResumenAcero label="Viga — estribos" valor={`${(vigaEstribos ? vigaEstribos.pesoEstribo * vigaEstribos.cantidad : 0).toFixed(2)} kg`} />
+          <FilaResumenAcero label="Pedestal — barras longitudinales (2 pedestales)" valor={`${(pedestalLongitudinales?.pesoTotal || 0).toFixed(2)} kg`} />
+          <FilaResumenAcero label="Pedestal — estribos (2 pedestales)" valor={`${(pedestalEstribos?.pesoTotal || 0).toFixed(2)} kg`} />
+        </div>
+      )}
       <ResumenVolumenes volumenes={volumenes} pesoAcero={pesoTotalAcero > 0 ? pesoTotalAcero : undefined} />
 
       <div className="flex gap-2 pt-4">
