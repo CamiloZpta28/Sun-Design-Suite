@@ -4810,53 +4810,48 @@ function CTForm({ plantilla, onCancel, onSave }) {
               <input value={datos.pedestal.profundo} onChange={(e) => setGrupo('pedestal', 'profundo', e.target.value)} placeholder="0.30" className={cellInput} />
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <p className="text-xs font-semibold text-navy-600 mb-2">Barras longitudinales</p>
+          <div className="grid grid-cols-3 gap-3 mb-3">
             <div>
-              <p className="text-xs font-semibold text-navy-600 mb-2">Barras longitudinales</p>
-              <div className="grid grid-cols-3 gap-2 mb-2">
-                <div>
-                  <label className="block text-xs text-navy-500 mb-1">N.° barras</label>
-                  <input value={datos.pedestal.barras.cantidad} onChange={(e) => setSubgrupo('pedestal', 'barras', 'cantidad', e.target.value)} placeholder="4" className={cellInput} />
-                </div>
-                <div>
-                  <label className="block text-xs text-navy-500 mb-1">Calibre</label>
-                  <CalibreSelect value={datos.pedestal.barras.calibre} onChange={(val) => setSubgrupo('pedestal', 'barras', 'calibre', val)} className={cellInput} />
-                </div>
-                <div>
-                  <label className="block text-xs text-navy-500 mb-1">N.° ganchos</label>
-                  <input value={datos.pedestal.barras.ganchos} onChange={(e) => setSubgrupo('pedestal', 'barras', 'ganchos', e.target.value)} placeholder="1" className={cellInput} />
-                </div>
-              </div>
-              {pedestalLongitudinales ? (
-                <p className="text-xs text-navy-500">
-                  → <span className="font-mono font-semibold text-navy-700">{pedestalLongitudinales.longitud.toFixed(2)} m</span> c/u — {(pedestalLongitudinales.pesoTotal * 4).toFixed(2)} kg (4 pedestales)
-                </p>
-              ) : (
-                <p className="text-xs text-navy-300 italic">Completa altura, cantidad y calibre.</p>
-              )}
+              <label className="block text-xs text-navy-500 mb-1">N.° barras</label>
+              <input value={datos.pedestal.barras.cantidad} onChange={(e) => setSubgrupo('pedestal', 'barras', 'cantidad', e.target.value)} placeholder="4" className={cellInput} />
             </div>
             <div>
-              <p className="text-xs font-semibold text-navy-600 mb-2">Estribos</p>
-              <div className="grid grid-cols-2 gap-2 mb-2">
-                <div>
-                  <label className="block text-xs text-navy-500 mb-1">Calibre</label>
-                  <CalibreSelect value={datos.pedestal.estribos.calibre} onChange={(val) => setSubgrupo('pedestal', 'estribos', 'calibre', val)} className={cellInput} />
-                </div>
-                <div>
-                  <label className="block text-xs text-navy-500 mb-1">Separación (m)</label>
-                  <input value={datos.pedestal.estribos.separacion} onChange={(e) => setSubgrupo('pedestal', 'estribos', 'separacion', e.target.value)} placeholder="0.15" className={cellInput} />
-                </div>
-              </div>
-              {pedestalEstribos ? (
-                <p className="text-xs text-navy-500">
-                  → <span className="font-mono font-semibold text-navy-700">{pedestalEstribos.cantidad}</span> de{' '}
-                  <span className="font-mono font-semibold text-navy-700">{pedestalEstribos.longitud.toFixed(2)} m</span> — {(pedestalEstribos.pesoTotal * 4).toFixed(2)} kg (4 pedestales)
-                </p>
-              ) : (
-                <p className="text-xs text-navy-300 italic">Completa dimensiones, separación y calibre.</p>
-              )}
+              <label className="block text-xs text-navy-500 mb-1">Calibre</label>
+              <CalibreSelect value={datos.pedestal.barras.calibre} onChange={(val) => setSubgrupo('pedestal', 'barras', 'calibre', val)} className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">N.° ganchos</label>
+              <input value={datos.pedestal.barras.ganchos} onChange={(e) => setSubgrupo('pedestal', 'barras', 'ganchos', e.target.value)} placeholder="1" className={cellInput} />
             </div>
           </div>
+          {pedestalLongitudinales && pedestalEstribos ? (
+            <div className="bg-navy-50 rounded-lg px-3 py-2 mb-3">
+              <FilaResumenAcero label="Pedestales (4) — longitud c/u" valor={`${pedestalLongitudinales.longitud.toFixed(2)} m`} />
+              <FilaResumenAcero label="Pedestales (4) — peso total" valor={`${(pedestalLongitudinales.pesoTotal * 4).toFixed(2)} kg`} />
+            </div>
+          ) : (
+            <p className="text-xs text-navy-300 italic mb-3">Completa altura, cantidad y calibre.</p>
+          )}
+          <p className="text-xs font-semibold text-navy-600 mb-2">Estribos</p>
+          <div className="grid grid-cols-2 gap-3 mb-2">
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Calibre</label>
+              <CalibreSelect value={datos.pedestal.estribos.calibre} onChange={(val) => setSubgrupo('pedestal', 'estribos', 'calibre', val)} className={cellInput} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Separación (m)</label>
+              <input value={datos.pedestal.estribos.separacion} onChange={(e) => setSubgrupo('pedestal', 'estribos', 'separacion', e.target.value)} placeholder="0.15" className={cellInput} />
+            </div>
+          </div>
+          {pedestalEstribos ? (
+            <p className="text-xs text-navy-500">
+              → <span className="font-mono font-semibold text-navy-700">{pedestalEstribos.cantidad}</span> de{' '}
+              <span className="font-mono font-semibold text-navy-700">{pedestalEstribos.longitud.toFixed(2)} m</span> — {(pedestalEstribos.pesoTotal * 4).toFixed(2)} kg (4 pedestales)
+            </p>
+          ) : (
+            <p className="text-xs text-navy-300 italic">Completa dimensiones, separación y calibre.</p>
+          )}
         </div>
 
         <div className="border border-navy-200 rounded-lg p-4">
@@ -4959,14 +4954,12 @@ function TrampaAceitePreview({ datos }) {
   const profundo = parseFloat(datos.profundo) || 0;
   const alto = parseFloat(datos.alto) || 0;
   const espesorPared = parseFloat(datos.espesor_pared) || 0;
-  const espesorLosa = parseFloat(datos.espesor_losa) || 0;
   const espesorSolado = parseFloat(datos.espesor_solado) || 0;
 
   const anchoPx = clamp((ancho || 1.5) * TRAMPA_M2PX, 50, 110);
   const profundoPx = clamp((profundo || 1.2) * TRAMPA_M2PX, 40, 100);
   const altoPx = clamp((alto || 0.85) * TRAMPA_M2PX, 30, 80);
   const espesorParedPx = clamp((espesorPared || 0.15) * TRAMPA_M2PX, 6, 18);
-  const espesorLosaPx = clamp((espesorLosa || 0.15) * TRAMPA_M2PX, 5, 16);
   const soladoPx = clamp((espesorSolado || 0.05) * TRAMPA_M2PX, 4, 9);
 
   const halfW = anchoPx / 2;
@@ -4978,7 +4971,6 @@ function TrampaAceitePreview({ datos }) {
 
   const wallZ0 = soladoPx;
   const wallZ1 = soladoPx + altoPx;
-  const pisoZ = soladoPx + espesorLosaPx; // fondo del hueco = parte de arriba de la losa
 
   // Anillo superior (marco): rectángulo exterior menos el interior — se
   // dibuja como UN solo path con dos subrutas y fill-rule "evenodd" para
@@ -4993,20 +4985,10 @@ function TrampaAceitePreview({ datos }) {
   ];
   const ringPath = `M ${topOuter.map((p) => p.join(',')).join(' L ')} Z M ${topInner.map((p) => p.join(',')).join(' L ')} Z`;
 
-  // Paredes interiores visibles a través del hueco (las del lado "lejano",
-  // cuya cara interior mira hacia el espectador) + el piso de la losa al fondo.
-  const innerWallA = poly([
-    isoPt(-innerHalfW, -innerHalfD, wallZ1, ox, oy), isoPt(-innerHalfW, innerHalfD, wallZ1, ox, oy),
-    isoPt(-innerHalfW, innerHalfD, pisoZ, ox, oy), isoPt(-innerHalfW, -innerHalfD, pisoZ, ox, oy),
-  ]);
-  const innerWallB = poly([
-    isoPt(-innerHalfW, -innerHalfD, wallZ1, ox, oy), isoPt(innerHalfW, -innerHalfD, wallZ1, ox, oy),
-    isoPt(innerHalfW, -innerHalfD, pisoZ, ox, oy), isoPt(-innerHalfW, -innerHalfD, pisoZ, ox, oy),
-  ]);
-  const pisoInterior = poly([
-    isoPt(-innerHalfW, -innerHalfD, pisoZ, ox, oy), isoPt(innerHalfW, -innerHalfD, pisoZ, ox, oy),
-    isoPt(innerHalfW, innerHalfD, pisoZ, ox, oy), isoPt(-innerHalfW, innerHalfD, pisoZ, ox, oy),
-  ]);
+  // Nota: NO se dibuja el interior (paredes internas ni piso de la losa) —
+  // el isométrico solo debe mostrar la caja exterior y la abertura superior
+  // como un hueco (usando fill-rule evenodd en el marco), sin revelar lo
+  // que hay dentro del tanque.
 
   // Caras exteriores de las paredes (derecha e izquierda, sin cara superior —
   // esa la reemplaza el "marco" con el hueco real).
@@ -5021,17 +5003,15 @@ function TrampaAceitePreview({ datos }) {
 
   return (
     <svg viewBox={`0 0 ${TRAMPA_VB_W} ${TRAMPA_VB_H}`} className={TRAMPA_CSS_SIZE}>
-      {/* Solado bajo toda la trampa */}
-      <IsoBoxLineArt x0={-halfW} y0={-halfD} w={anchoPx} d={profundoPx} z0={0} z1={soladoPx} ox={ox} oy={oy} />
+      {/* Solado bajo toda la trampa — sin cara superior (showTop=false):
+          su cara de arriba nunca se ve en un diseño real (queda cubierta por
+          la caja de encima) y, por la proyección isométrica, esa cara podía
+          asomarse (relleno y/o su borde) dentro de la abertura del tanque. */}
+      <IsoBoxLineArt x0={-halfW} y0={-halfD} w={anchoPx} d={profundoPx} z0={0} z1={soladoPx} ox={ox} oy={oy} showTop={false} />
       {/* Caras exteriores de las paredes */}
       <polygon points={outerRight} fill="#F6F7F9" stroke="#152644" strokeWidth="1.1" />
       <polygon points={outerLeft} fill="#F6F7F9" stroke="#152644" strokeWidth="1.1" />
-      {/* Piso de la losa, visible al fondo del hueco */}
-      <polygon points={pisoInterior} fill="#DCE3EC" stroke="#152644" strokeWidth="1" />
-      {/* Paredes interiores visibles a través de la abertura */}
-      <polygon points={innerWallA} fill="#EAF1FF" stroke="#152644" strokeWidth="1" />
-      <polygon points={innerWallB} fill="#EAF1FF" stroke="#152644" strokeWidth="1" />
-      {/* Marco superior (el espesor de pared visto desde arriba), con el hueco real en el medio */}
+      {/* Marco superior (el espesor de pared visto desde arriba), con el hueco real en el medio — sin interior visible */}
       <path d={ringPath} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" fillRule="evenodd" />
       <text x={ox} y={TRAMPA_VB_H - 12} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">
         {ancho || '—'} × {profundo || '—'} × {alto || '—'} m
@@ -5633,7 +5613,7 @@ function IsoBox({ x0, y0, w, d, z0, z1, ox, oy, colors }) {
 }
 /* Misma caja isométrica de arriba, pero en estilo "plano técnico" (líneas    */
 /* azul oscuro, sin relleno de color) — para las plantillas de Cimentaciones. */
-function IsoBoxLineArt({ x0, y0, w, d, z0, z1, ox, oy, fillTop = 'white', fillSide = '#F6F7F9' }) {
+function IsoBoxLineArt({ x0, y0, w, d, z0, z1, ox, oy, fillTop = 'white', fillSide = '#F6F7F9', showTop = true }) {
   const top = [
     isoPt(x0, y0, z1, ox, oy),
     isoPt(x0 + w, y0, z1, ox, oy),
@@ -5656,7 +5636,7 @@ function IsoBoxLineArt({ x0, y0, w, d, z0, z1, ox, oy, fillTop = 'white', fillSi
     <g>
       <polygon points={poly(left)} fill={fillSide} stroke="#152644" strokeWidth="1.1" />
       <polygon points={poly(right)} fill={fillSide} stroke="#152644" strokeWidth="1.1" />
-      <polygon points={poly(top)} fill={fillTop} stroke="#152644" strokeWidth="1.3" />
+      {showTop && <polygon points={poly(top)} fill={fillTop} stroke="#152644" strokeWidth="1.3" />}
     </g>
   );
 }
