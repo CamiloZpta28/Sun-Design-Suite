@@ -3768,12 +3768,12 @@ function PortonPedestalElevacion({ datos }) {
   const pAncho = parseFloat(p.ancho) || 0.4;
   const pProfundo = parseFloat(p.profundo) || 0.4;
   const alturaTotal = Math.max(0, (parseFloat(datos.desplante) || 0) - (parseFloat(datos.zapata?.espesor) || 0)) + (parseFloat(p.empotramiento_zapata) || 0);
-  const cantidadBarras = Math.max(4, parseInt(p.barras.cantidad, 10) || 4);
-  const ganchosBarra = parseFloat(p.barras.ganchos) || 0;
-  const infoBarra = BARRA_ACERO[p.barras.calibre];
-  const estribos = calcularEstribos({ altura: alturaTotal, ancho: p.ancho, profundo: p.profundo, separacion: p.estribos.separacion, calibre: p.estribos.calibre });
+  const cantidadBarras = Math.max(4, parseInt(p.barras?.cantidad, 10) || 4);
+  const ganchosBarra = parseFloat(p.barras?.ganchos) || 0;
+  const infoBarra = BARRA_ACERO[p.barras?.calibre];
+  const estribos = calcularEstribos({ altura: alturaTotal, ancho: p.ancho, profundo: p.profundo, separacion: p.estribos?.separacion, calibre: p.estribos?.calibre });
   const cantidadEstribos = estribos ? estribos.cantidad : 0;
-  const separacionM = parseFloat(p.estribos.separacion) || 0;
+  const separacionM = parseFloat(p.estribos?.separacion) || 0;
 
   const w = clamp(pAncho * 130, 45, 100);
   const h = clamp((alturaTotal || 0.5) * 130, 90, 190);
@@ -3817,10 +3817,10 @@ function PortonPedestalElevacion({ datos }) {
         );
       })}
       <text x={cx} y={topY - 10} textAnchor="middle" fontSize="8" fontWeight="600" fill="#059669">
-        {cantidadBarras}{p.barras.calibre || '#—'} {ganchosLabel}{ganchoLongitud !== null ? ganchoLongitud.toFixed(2) : ''}
+        {cantidadBarras}{p.barras?.calibre || '#—'} {ganchosLabel}{ganchoLongitud !== null ? ganchoLongitud.toFixed(2) : ''}
       </text>
       <text x={cx + w / 2 + 8} y={(topY + botY) / 2} fontSize="8" fontWeight="600" fill="#2563EB" transform={`rotate(90, ${cx + w / 2 + 8}, ${(topY + botY) / 2})`} textAnchor="middle">
-        {cantidadEstribos || '—'} E{p.estribos.calibre || '#—'} @{p.estribos.separacion || '—'}
+        {cantidadEstribos || '—'} E{p.estribos?.calibre || '#—'} @{p.estribos?.separacion || '—'}
       </text>
       <g stroke="#152644" strokeWidth="1">
         <line x1={cx - w / 2 - 16} y1={topY} x2={cx - w / 2 - 16} y2={botY} />
@@ -3883,8 +3883,8 @@ function PortonVigaElevacion({ datos }) {
   const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
   const vAlto = parseFloat(v.alto) || 0.35;
   const longitudViga = (parseFloat(datos.separacion_zapatas) || 0) - (parseFloat(datos.zapata?.largo) || 0);
-  const separacionEstribos = parseFloat(v.estribos.separacion) || 0;
-  const estribos = calcularEstribos({ altura: longitudViga > 0 ? longitudViga : undefined, ancho: v.ancho, profundo: v.alto, separacion: v.estribos.separacion, calibre: v.estribos.calibre });
+  const separacionEstribos = parseFloat(v.estribos?.separacion) || 0;
+  const estribos = calcularEstribos({ altura: longitudViga > 0 ? longitudViga : undefined, ancho: v.ancho, profundo: v.alto, separacion: v.estribos?.separacion, calibre: v.estribos?.calibre });
   const cantidadEstribos = estribos ? estribos.cantidad : 0;
   const ganchosBarra = parseFloat(v.barras?.ganchos) || 0;
   const infoBarra = BARRA_ACERO[v.barras?.calibre];
@@ -3935,7 +3935,7 @@ function PortonVigaElevacion({ datos }) {
         Longitud (entre caras internas) {longitudViga > 0 ? longitudViga.toFixed(2) : '—'} m
       </text>
       <text x={cx} y={botY + 32} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#2563EB">
-        {cantidadEstribos || '—'} E{v.estribos.calibre || '#—'} @{v.estribos.separacion || '—'}
+        {cantidadEstribos || '—'} E{v.estribos?.calibre || '#—'} @{v.estribos?.separacion || '—'}
       </text>
     </svg>
   );
@@ -3980,31 +3980,61 @@ function PortonVistas({ datos }) {
   );
 }
 
+/* Garantiza que TODA la estructura anidada de datos exista, sin importar    */
+/* qué tan vieja sea la plantilla guardada (por ejemplo, si se creó antes   */
+/* de que existiera el campo "ganchos" de la viga, o antes de que la altura */
+/* del pedestal se calculara sola). Sin esto, abrir una plantilla vieja      */
+/* para editarla podía reventar con una pantalla en blanco.                */
+function normalizarDatosPorton(datos) {
+  const base = {
+    zapata: {
+      ancho: '', largo: '', espesor: '',
+      parrilla_longitudinal: { calibre: '', separacion: '' },
+      parrilla_transversal: { calibre: '', separacion: '' },
+    },
+    viga: {
+      ancho: '', alto: '',
+      barras: { calibre: '', ganchos: '1' },
+      estribos: { calibre: '', separacion: '' },
+    },
+    pedestal: {
+      ancho: '', profundo: '', empotramiento_zapata: '',
+      barras: { cantidad: '', calibre: '', ganchos: '1' },
+      estribos: { calibre: '', separacion: '' },
+    },
+    separacion_zapatas: '',
+    desplante: '',
+    espesor_solado: '',
+    resistencia: '',
+  };
+  if (!datos) return base;
+  return {
+    ...base,
+    ...datos,
+    zapata: {
+      ...base.zapata,
+      ...datos.zapata,
+      parrilla_longitudinal: { ...base.zapata.parrilla_longitudinal, ...datos.zapata?.parrilla_longitudinal },
+      parrilla_transversal: { ...base.zapata.parrilla_transversal, ...datos.zapata?.parrilla_transversal },
+    },
+    viga: {
+      ...base.viga,
+      ...datos.viga,
+      barras: { ...base.viga.barras, ...datos.viga?.barras },
+      estribos: { ...base.viga.estribos, ...datos.viga?.estribos },
+    },
+    pedestal: {
+      ...base.pedestal,
+      ...datos.pedestal,
+      barras: { ...base.pedestal.barras, ...datos.pedestal?.barras },
+      estribos: { ...base.pedestal.estribos, ...datos.pedestal?.estribos },
+    },
+  };
+}
+
 function PortonForm({ plantilla, onCancel, onSave }) {
   const [nombre, setNombre] = useState(plantilla?.nombre || '');
-  const [datos, setDatos] = useState(
-    plantilla?.datos || {
-      zapata: {
-        ancho: '', largo: '', espesor: '',
-        parrilla_longitudinal: { calibre: '', separacion: '' },
-        parrilla_transversal: { calibre: '', separacion: '' },
-      },
-      viga: {
-        ancho: '', alto: '',
-        barras: { calibre: '', ganchos: '1' },
-        estribos: { calibre: '', separacion: '' },
-      },
-      pedestal: {
-        ancho: '', profundo: '', altura: '', empotramiento_zapata: '',
-        barras: { cantidad: '', calibre: '', ganchos: '1' },
-        estribos: { calibre: '', separacion: '' },
-      },
-      separacion_zapatas: '',
-      desplante: '',
-      espesor_solado: '',
-      resistencia: '',
-    }
-  );
+  const [datos, setDatos] = useState(() => normalizarDatosPorton(plantilla?.datos));
 
   function set(key, val) {
     setDatos((prev) => ({ ...prev, [key]: val }));
@@ -4021,36 +4051,36 @@ function PortonForm({ plantilla, onCancel, onSave }) {
   const parrilla = calcularParrillaZapata({
     ancho: datos.zapata.ancho,
     largo: datos.zapata.largo,
-    longitudinal: datos.zapata.parrilla_longitudinal,
-    transversal: datos.zapata.parrilla_transversal,
+    longitudinal: datos.zapata?.parrilla_longitudinal,
+    transversal: datos.zapata?.parrilla_transversal,
   });
   const vigaBarras = calcularBarrasVigaAmarre({
     separacionCentros: datos.separacion_zapatas,
-    calibre: datos.viga.barras.calibre,
+    calibre: datos.viga?.barras?.calibre,
     resistencia: datos.resistencia,
-    ganchos: datos.viga.barras.ganchos,
+    ganchos: datos.viga?.barras?.ganchos,
   });
   const longitudViga = (parseFloat(datos.separacion_zapatas) || 0) - (parseFloat(datos.zapata.largo) || 0);
   const vigaEstribos = calcularEstribos({
     altura: longitudViga > 0 ? longitudViga : undefined,
     ancho: datos.viga.ancho,
     profundo: datos.viga.alto,
-    separacion: datos.viga.estribos.separacion,
-    calibre: datos.viga.estribos.calibre,
+    separacion: datos.viga?.estribos?.separacion,
+    calibre: datos.viga?.estribos?.calibre,
   });
   const alturaTotalPedestal = (parseFloat(datos.pedestal.altura) || 0) + (parseFloat(datos.pedestal.empotramiento_zapata) || 0);
   const pedestalLongitudinales = calcularLongitudinales({
     altura: alturaTotalPedestal || undefined,
-    cantidad: datos.pedestal.barras.cantidad,
-    calibre: datos.pedestal.barras.calibre,
-    ganchos: datos.pedestal.barras.ganchos,
+    cantidad: datos.pedestal?.barras?.cantidad,
+    calibre: datos.pedestal?.barras?.calibre,
+    ganchos: datos.pedestal?.barras?.ganchos,
   });
   const pedestalEstribos = calcularEstribos({
     altura: alturaTotalPedestal || undefined,
     ancho: datos.pedestal.ancho,
     profundo: datos.pedestal.profundo,
-    separacion: datos.pedestal.estribos.separacion,
-    calibre: datos.pedestal.estribos.calibre,
+    separacion: datos.pedestal?.estribos?.separacion,
+    calibre: datos.pedestal?.estribos?.calibre,
   });
   const volumenes = calcularVolumenesPorton({
     zapata: datos.zapata,
@@ -8716,6 +8746,28 @@ export default function App() {
 
   const [view, setViewState] = useState('dashboard');
   const [previousView, setPreviousView] = useState('dashboard');
+
+  // Conecta el botón "atrás" del navegador con la navegación de la app: en
+  // vez de salir de la página, vuelve a la vista anterior (Dashboard, Mis
+  // Proyectos, un proyecto abierto, etc.) — igual que esperaría cualquiera
+  // que use las flechas del navegador en cualquier otra página.
+  useEffect(() => {
+    window.history.replaceState({ view: 'dashboard' }, '');
+    function onPopState(e) {
+      if (e.state && e.state.view) {
+        setViewState(e.state.view);
+        setSelectedId(e.state.selectedId || null);
+        setSelectedPersonId(e.state.selectedPersonId || null);
+      } else {
+        setViewState('dashboard');
+        setSelectedId(null);
+        setSelectedPersonId(null);
+      }
+      setSidebarOpen(false);
+    }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
   const [selectedId, setSelectedId] = useState(null);
   const [selectedPersonId, setSelectedPersonId] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -8866,6 +8918,7 @@ export default function App() {
     setSelectedId(null);
     setSelectedPersonId(null);
     setSidebarOpen(false);
+    window.history.pushState({ view: v }, '');
   }
   function openProject(id) {
     setPreviousView(view === 'detalle' ? previousView : view);
@@ -8873,10 +8926,13 @@ export default function App() {
     setSelectedPersonId(null);
     setViewState('detalle');
     setSidebarOpen(false);
+    window.history.pushState({ view: 'detalle', selectedId: id }, '');
   }
   function goBack() {
-    setViewState(previousView);
-    setSelectedId(null);
+    // Deja que el navegador retroceda de verdad — el listener de popstate
+    // ya se encarga de actualizar la vista a partir de ahí, así el botón
+    // "atrás" del navegador y este botón "volver" quedan sincronizados.
+    window.history.back();
   }
 
   async function logActivity(projectId, accion, categoria) {
@@ -8956,6 +9012,7 @@ export default function App() {
       if (selectedId === id) {
         setViewState(previousView);
         setSelectedId(null);
+        window.history.pushState({ view: previousView }, '');
       }
     } catch (e) {
       console.error('Error eliminando proyecto:', e);

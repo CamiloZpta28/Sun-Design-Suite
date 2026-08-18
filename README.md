@@ -169,6 +169,35 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Corrección urgente — página en blanco al editar Portón**: la causa
+  real era que varias funciones (de cálculo y del formulario) leían
+  campos como `datos.viga.barras.ganchos` o `datos.pedestal.estribos.calibre`
+  asumiendo que esa estructura anidada siempre existía completa. Como esos
+  campos se fueron agregando en distintas rondas, una plantilla guardada
+  con una versión anterior del formulario podía no tenerlos todos, y al
+  abrirla para editar, JavaScript revienta al intentar leer una propiedad
+  de "undefined" — pantalla en blanco, sin ningún aviso.
+  - En vez de parchar cada acceso uno por uno, arreglé la causa de raíz:
+    agregué `normalizarDatosPorton()`, que rellena CUALQUIER campo
+    faltante con un valor por defecto vacío al abrir el formulario — así
+    no importa qué tan vieja sea la plantilla, siempre queda con la
+    estructura completa antes de que el resto del código la use.
+  - Verifiqué esto simulando una plantilla vieja incompleta (sin ganchos
+    en la viga, sin estribos en el pedestal, sin parrilla transversal en
+    la zapata) y confirmando que ya no revienta, antes de darlo por
+    resuelto.
+- **Botón "atrás" del navegador**: ya no cierra la página — ahora vuelve a
+  la vista anterior dentro de la app (Dashboard, Mis Proyectos, un
+  proyecto abierto, etc.), igual que en cualquier otra página web. Cada
+  vez que cambias de sección o abres un proyecto, queda registrado en el
+  historial del navegador; el botón "Volver" dentro de un proyecto usa
+  exactamente el mismo mecanismo, así los dos quedan sincronizados.
+  - Por ahora esto cubre la navegación principal (secciones del menú +
+    abrir/cerrar un proyecto). No cubre pasos más internos, como cerrar
+    el formulario de "editar plantilla" dentro de Cimentaciones — si te
+    parece importante que el botón "atrás" también deshaga eso, avísame
+    y lo extiendo.
+
 - **Ronda grande de correcciones a Portón** (11 puntos de tu feedback):
   1. **Viga solapada con la zapata** — bug real encontrado: la fórmula de
      su posición vertical se volvía negativa. Ahora arranca desde la parte
