@@ -3464,13 +3464,15 @@ function PortonIsometrico({ datos }) {
       {distanciaCarasInternas > 0 && (
         <IsoBoxLineArt x0={-centroX + halfZ} y0={-vAnchoPx / 2} w={distanciaCarasInternas} d={vAnchoPx} z0={0} z1={soladoPx} ox={ox} oy={oy} />
       )}
-      {/* Zapata izquierda y derecha */}
-      <IsoBoxLineArt x0={-centroX - halfZ} y0={-halfZAncho} w={zLargoPx} d={zAnchoPx} z0={zapataZ0} z1={zapataZ1} ox={ox} oy={oy} />
-      <IsoBoxLineArt x0={centroX - halfZ} y0={-halfZAncho} w={zLargoPx} d={zAnchoPx} z0={zapataZ0} z1={zapataZ1} ox={ox} oy={oy} />
-      {/* Viga de amarre, arrancando desde la parte de arriba de la zapata */}
+      {/* Viga de amarre, a la misma profundidad que la zapata — se dibuja ANTES */}
+      {/* que las zapatas para que estas la tapen correctamente donde se ven    */}
+      {/* "detrás" (SVG pinta en el orden del código, no por profundidad real). */}
       {distanciaCarasInternas > 0 && (
         <IsoBoxLineArt x0={-centroX + halfZ} y0={-vAnchoPx / 2} w={distanciaCarasInternas} d={vAnchoPx} z0={vigaZ0} z1={vigaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
       )}
+      {/* Zapata izquierda y derecha */}
+      <IsoBoxLineArt x0={-centroX - halfZ} y0={-halfZAncho} w={zLargoPx} d={zAnchoPx} z0={zapataZ0} z1={zapataZ1} ox={ox} oy={oy} />
+      <IsoBoxLineArt x0={centroX - halfZ} y0={-halfZAncho} w={zLargoPx} d={zAnchoPx} z0={zapataZ0} z1={zapataZ1} ox={ox} oy={oy} />
       {/* Pedestales, también arrancando desde la parte de arriba de la zapata */}
       <IsoBoxLineArt x0={-centroX - pAnchoPx / 2} y0={-pProfundoPx / 2} w={pAnchoPx} d={pProfundoPx} z0={pedestalZ0} z1={pedestalZ1} ox={ox} oy={oy} />
       <IsoBoxLineArt x0={centroX - pAnchoPx / 2} y0={-pProfundoPx / 2} w={pAnchoPx} d={pProfundoPx} z0={pedestalZ0} z1={pedestalZ1} ox={ox} oy={oy} />
@@ -3643,8 +3645,8 @@ function PortonElevacion({ datos }) {
       {/* Zapatas */}
       <rect x={x1 - zLargoPx / 2} y={pBotY} width={zLargoPx} height={zEspesorPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
       <rect x={x2 - zLargoPx / 2} y={pBotY} width={zLargoPx} height={zEspesorPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
-      {/* Viga, arrancando desde la parte de arriba de la zapata */}
-      {x2 - x1 > 0 && <rect x={x1} y={pBotY - vAltoPx} width={x2 - x1} height={vAltoPx} fill="#EAF1FF" stroke="#152644" strokeWidth="1.2" />}
+      {/* Viga, a la misma profundidad que la zapata (su base coincide con el fondo de la zapata, justo encima del solado) */}
+      {x2 - x1 > 0 && <rect x={x1} y={zBotY - vAltoPx} width={x2 - x1} height={vAltoPx} fill="#EAF1FF" stroke="#152644" strokeWidth="1.2" />}
       {/* Pedestales */}
       <rect x={x1 - pAnchoPx / 2} y={groundY} width={pAnchoPx} height={pAlturaPx} fill="white" stroke="#152644" strokeWidth="1.3" />
       <rect x={x2 - pAnchoPx / 2} y={groundY} width={pAnchoPx} height={pAlturaPx} fill="white" stroke="#152644" strokeWidth="1.3" />

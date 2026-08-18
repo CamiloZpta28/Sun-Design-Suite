@@ -169,6 +169,21 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Dos ajustes más a la posición de la viga, verificados extrayendo el
+  SVG real**:
+  - **Isométrico — la viga se veía encima de la zapata derecha**: la
+    posición 3D ya estaba bien, pero SVG pinta en el orden en que
+    aparece el código, no según qué tan "cerca" o "lejos" esté algo de
+    verdad — así que aunque la viga debía quedar detrás de la cara
+    visible de la zapata, al dibujarse DESPUÉS se pintaba encima sin
+    importar la profundidad real. La solución fue simplemente cambiar el
+    orden: ahora la viga se dibuja ANTES que las zapatas, así estas la
+    tapan correctamente donde corresponde.
+  - **Elevación del conjunto — la viga no estaba a nivel de desplante**:
+    aquí se me quedó pendiente el mismo ajuste que ya había hecho en el
+    isométrico. Ya está corregido — la base de la viga ahora coincide
+    con el fondo de la zapata, justo encima del solado.
+
 - **Ajustes finos al Portón, verificados extrayendo el SVG real que genera
   cada vista** (no solo revisando el código):
   - **Viga a la misma profundidad que la zapata**: ya no se dibuja encima
