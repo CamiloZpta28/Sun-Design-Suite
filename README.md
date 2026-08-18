@@ -169,6 +169,20 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Última vuelta a la posición de la viga, ambas verificadas extrayendo
+  el SVG real**:
+  - **Isométrico**: mi corrección anterior (dibujar la viga antes que las
+    zapatas) tapaba bien el lado derecho pero dañaba el izquierdo, porque
+    en este ángulo isométrico la relación de profundidad NO es igual en
+    los dos extremos — la zapata izquierda queda "detrás" (la viga debe
+    pasar por encima) y la derecha queda "adelante" (debe tapar a la
+    viga). La solución fue intercalar el orden de dibujo exactamente así:
+    zapata izquierda → viga → zapata derecha.
+  - **Elevación del conjunto**: la viga arrancaba desde el CENTRO de cada
+    zapata (no desde su borde interno), por eso se veía "metida" dentro
+    de ellas. Ahora va justo entre las caras internas, con su propio
+    solado corrido debajo.
+
 - **Dos ajustes más a la posición de la viga, verificados extrayendo el
   SVG real**:
   - **Isométrico — la viga se veía encima de la zapata derecha**: la

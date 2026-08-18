@@ -3464,14 +3464,17 @@ function PortonIsometrico({ datos }) {
       {distanciaCarasInternas > 0 && (
         <IsoBoxLineArt x0={-centroX + halfZ} y0={-vAnchoPx / 2} w={distanciaCarasInternas} d={vAnchoPx} z0={0} z1={soladoPx} ox={ox} oy={oy} />
       )}
-      {/* Viga de amarre, a la misma profundidad que la zapata — se dibuja ANTES */}
-      {/* que las zapatas para que estas la tapen correctamente donde se ven    */}
-      {/* "detrás" (SVG pinta en el orden del código, no por profundidad real). */}
+      {/* Zapata izquierda: se dibuja ANTES que la viga, así la viga queda      */}
+      {/* ENCIMA de ella (visible, la tapa donde se cruzan).                   */}
+      <IsoBoxLineArt x0={-centroX - halfZ} y0={-halfZAncho} w={zLargoPx} d={zAnchoPx} z0={zapataZ0} z1={zapataZ1} ox={ox} oy={oy} />
+      {/* Viga de amarre, a la misma profundidad que las zapatas */}
       {distanciaCarasInternas > 0 && (
         <IsoBoxLineArt x0={-centroX + halfZ} y0={-vAnchoPx / 2} w={distanciaCarasInternas} d={vAnchoPx} z0={vigaZ0} z1={vigaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
       )}
-      {/* Zapata izquierda y derecha */}
-      <IsoBoxLineArt x0={-centroX - halfZ} y0={-halfZAncho} w={zLargoPx} d={zAnchoPx} z0={zapataZ0} z1={zapataZ1} ox={ox} oy={oy} />
+      {/* Zapata derecha: se dibuja DESPUÉS que la viga, así queda ENCIMA y la */}
+      {/* tapa donde se cruzan — esto imita la profundidad real: desde este    */}
+      {/* ángulo isométrico, la zapata izquierda queda "detrás" (la viga pasa  */}
+      {/* por encima) y la derecha queda "adelante" (tapa a la viga).         */}
       <IsoBoxLineArt x0={centroX - halfZ} y0={-halfZAncho} w={zLargoPx} d={zAnchoPx} z0={zapataZ0} z1={zapataZ1} ox={ox} oy={oy} />
       {/* Pedestales, también arrancando desde la parte de arriba de la zapata */}
       <IsoBoxLineArt x0={-centroX - pAnchoPx / 2} y0={-pProfundoPx / 2} w={pAnchoPx} d={pProfundoPx} z0={pedestalZ0} z1={pedestalZ1} ox={ox} oy={oy} />
@@ -3639,14 +3642,29 @@ function PortonElevacion({ datos }) {
     <svg viewBox="0 0 300 210" className={PORTON_CSS_SIZE}>
       <line x1={x1 - 30} y1={groundY} x2={x2 + 30} y2={groundY} stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
       <text x={x1 - 34} y={groundY - 4} textAnchor="end" fontSize="7.5" fill="#6487C4" fontFamily="monospace">N.T.N</text>
-      {/* Solado bajo cada zapata y bajo el tramo de la viga */}
+      {/* Solado bajo cada zapata, y bajo el tramo de la viga entre ellas */}
       <rect x={x1 - zLargoPx / 2} y={zBotY} width={zLargoPx} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1" />
       <rect x={x2 - zLargoPx / 2} y={zBotY} width={zLargoPx} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1" />
+      {x2 - zLargoPx / 2 - (x1 + zLargoPx / 2) > 0 && (
+        <rect x={x1 + zLargoPx / 2} y={zBotY} width={x2 - zLargoPx / 2 - (x1 + zLargoPx / 2)} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1" />
+      )}
       {/* Zapatas */}
       <rect x={x1 - zLargoPx / 2} y={pBotY} width={zLargoPx} height={zEspesorPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
       <rect x={x2 - zLargoPx / 2} y={pBotY} width={zLargoPx} height={zEspesorPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
-      {/* Viga, a la misma profundidad que la zapata (su base coincide con el fondo de la zapata, justo encima del solado) */}
-      {x2 - x1 > 0 && <rect x={x1} y={zBotY - vAltoPx} width={x2 - x1} height={vAltoPx} fill="#EAF1FF" stroke="#152644" strokeWidth="1.2" />}
+      {/* Viga, entre las caras internas de las zapatas (no penetra en ellas), */}
+      {/* a la misma profundidad (su base coincide con el fondo de la zapata, */}
+      {/* justo encima del solado).                                          */}
+      {x2 - zLargoPx / 2 - (x1 + zLargoPx / 2) > 0 && (
+        <rect
+          x={x1 + zLargoPx / 2}
+          y={zBotY - vAltoPx}
+          width={x2 - zLargoPx / 2 - (x1 + zLargoPx / 2)}
+          height={vAltoPx}
+          fill="#EAF1FF"
+          stroke="#152644"
+          strokeWidth="1.2"
+        />
+      )}
       {/* Pedestales */}
       <rect x={x1 - pAnchoPx / 2} y={groundY} width={pAnchoPx} height={pAlturaPx} fill="white" stroke="#152644" strokeWidth="1.3" />
       <rect x={x2 - pAnchoPx / 2} y={groundY} width={pAnchoPx} height={pAlturaPx} fill="white" stroke="#152644" strokeWidth="1.3" />
