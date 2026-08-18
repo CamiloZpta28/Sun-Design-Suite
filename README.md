@@ -169,6 +169,18 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Empalmes de la viga de amarre corregidos**: ya no se parten a la mitad
+  — van a tercios, con el de las barras de arriba en 1/3 y el de las de
+  abajo en 2/3 (nunca en el mismo tercio), tal como lo corregiste. Cada
+  línea (2 arriba + 2 abajo = 4 líneas) queda formada por una pieza corta
+  (≈1/3 de la longitud) y una larga (≈2/3), cada una con medio traslapo de
+  más — 8 piezas en total.
+- **6 vistas nuevas agregadas al Portón** (ya son 8 en total):
+  planta y elevación de todo el conjunto, corte transversal y vista
+  posterior del pedestal, y corte transversal y vista posterior de la
+  viga (esta última con los empalmes marcados exactamente en 1/3 y 2/3,
+  verificado renderizando el resultado antes de entregarlo).
+
 - **Cerramiento completo — las 3 plantillas separadas, como pediste**:
   - **Cerramiento · Postes**: reutiliza EXACTAMENTE el mismo código de
     Postes MT (cilíndrico, sin acero) — no hay nada nuevo que mantener por

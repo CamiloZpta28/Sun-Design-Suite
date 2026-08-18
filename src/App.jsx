@@ -1589,15 +1589,31 @@ function calcularParrillaZapata({ ancho, largo, longitudinal, transversal }) {
 /* 2 piezas traslapadas a la mitad del recorrido). El acero va de centro a   */
 /* centro de zapata, por eso cada pieza mide (separación + traslapo)/2. El   */
 /* traslapo sale de la tabla NSR-10 según calibre y resistencia.            */
+/* Traslapo de las barras superiores/inferiores a TERCIOS del recorrido —    */
+/* no a la mitad — y con el traslapo de arriba y de abajo en tercios         */
+/* distintos (arriba en L/3, abajo en 2L/3) para no debilitar la misma       */
+/* sección con dos empalmes encimados. Con esto, cada línea (2 arriba +      */
+/* 2 abajo = 4 líneas) queda formada por UNA pieza corta (≈L/3) y UNA pieza  */
+/* larga (≈2L/3), cada una con medio traslapo de más para poder solaparse.  */
 function calcularBarrasVigaAmarre({ separacionCentros, calibre, resistencia }) {
   const info = BARRA_ACERO[calibre];
-  const separacion = parseFloat(separacionCentros);
+  const L = parseFloat(separacionCentros);
   const traslapo = obtenerTraslapo(calibre, resistencia);
-  if (!info || !separacion || traslapo === null) return null;
-  const longitudPieza = separacion / 2 + traslapo / 2;
-  const pesoPieza = longitudPieza * info.peso;
-  const piezasTotales = 8; // 4 líneas × 2 piezas traslapadas cada una
-  return { traslapo, longitudPieza, pesoPieza, piezas: piezasTotales, pesoTotal: pesoPieza * piezasTotales };
+  if (!info || !L || traslapo === null) return null;
+  const piezaCorta = L / 3 + traslapo / 2;
+  const piezaLarga = (2 * L) / 3 + traslapo / 2;
+  const pesoCorta = piezaCorta * info.peso;
+  const pesoLarga = piezaLarga * info.peso;
+  // 4 líneas (2 arriba + 2 abajo), cada una con 1 pieza corta + 1 larga = 8 piezas en total.
+  const piezasPorTipo = 4;
+  return {
+    traslapo,
+    piezaCorta,
+    piezaLarga,
+    piezasPorTipo,
+    piezas: piezasPorTipo * 2,
+    pesoTotal: (pesoCorta + pesoLarga) * piezasPorTipo,
+  };
 }
 
 /* Volúmenes combinados de TODO el conjunto Portón (2 zapatas + viga que las */
@@ -3481,6 +3497,273 @@ function PortonZapataPlanta({ datos }) {
   );
 }
 
+/* Vista en planta (desde arriba) de TODO el conjunto: las 2 zapatas y la    */
+/* viga que las une, con la cota de separación entre centros.               */
+function PortonPlanta({ datos }) {
+  const z = datos.zapata || {};
+  const v = datos.viga || {};
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  const zAncho = parseFloat(z.ancho) || 0;
+  const zLargo = parseFloat(z.largo) || 0;
+  const vAncho = parseFloat(v.ancho) || 0;
+  const separacion = parseFloat(datos.separacion_zapatas) || 0;
+
+  const scale = 40;
+  const zAnchoPx = clamp((zAncho || 1) * scale, 30, 70);
+  const zLargoPx = clamp((zLargo || 1) * scale, 30, 70);
+  const vAnchoPx = clamp((vAncho || 0.3) * scale, 6, 16);
+  const sepPx = clamp((separacion || 5) * scale, 110, 220);
+
+  const cx = 150, cy = 100;
+  const x1 = cx - sepPx / 2;
+  const x2 = cx + sepPx / 2;
+
+  return (
+    <svg viewBox="0 0 300 190" className={PORTON_CSS_SIZE}>
+      <rect x={x1 - zLargoPx / 2} y={cy - zAnchoPx / 2} width={zLargoPx} height={zAnchoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      <rect x={x2 - zLargoPx / 2} y={cy - zAnchoPx / 2} width={zLargoPx} height={zAnchoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      {sepPx - zLargoPx > 0 && (
+        <rect x={x1 + zLargoPx / 2} y={cy - vAnchoPx / 2} width={sepPx - zLargoPx} height={vAnchoPx} fill="#EAF1FF" stroke="#152644" strokeWidth="1.2" />
+      )}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={x1} y1={cy - zAnchoPx / 2 - 16} x2={x2} y2={cy - zAnchoPx / 2 - 16} />
+        <line x1={x1} y1={cy - zAnchoPx / 2 - 20} x2={x1} y2={cy - zAnchoPx / 2 - 12} />
+        <line x1={x2} y1={cy - zAnchoPx / 2 - 20} x2={x2} y2={cy - zAnchoPx / 2 - 12} />
+      </g>
+      <text x={cx} y={cy - zAnchoPx / 2 - 26} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">
+        {separacion || '—'} m (centro a centro)
+      </text>
+    </svg>
+  );
+}
+
+/* Vista en elevación (de frente) de TODO el conjunto: las 2 zapatas abajo,  */
+/* la viga entre ellas, y los 2 pedestales subiendo desde cada zapata.      */
+function PortonElevacion({ datos }) {
+  const z = datos.zapata || {};
+  const v = datos.viga || {};
+  const p = datos.pedestal || {};
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  const zLargo = parseFloat(z.largo) || 0;
+  const zEspesor = parseFloat(z.espesor) || 0;
+  const vAlto = parseFloat(v.alto) || 0;
+  const pAncho = parseFloat(p.ancho) || 0;
+  const pAltura = parseFloat(p.altura) || 0;
+  const separacion = parseFloat(datos.separacion_zapatas) || 0;
+
+  const scale = 30;
+  const zLargoPx = clamp((zLargo || 1) * scale, 26, 55);
+  const zEspesorPx = clamp((zEspesor || 0.35) * scale, 8, 18);
+  const vAltoPx = clamp((vAlto || 0.35) * scale, 8, 18);
+  const pAnchoPx = clamp((pAncho || 0.4) * scale, 16, 30);
+  const pAlturaPx = clamp((pAltura || 1) * scale, 30, 75);
+  const sepPx = clamp((separacion || 5) * scale, 110, 220);
+
+  const cx = 150;
+  const groundY = 150;
+  const zTopY = groundY - zEspesorPx;
+  const vTopY = zTopY - vAltoPx;
+  const pTopY = zTopY - pAlturaPx;
+  const x1 = cx - sepPx / 2;
+  const x2 = cx + sepPx / 2;
+
+  return (
+    <svg viewBox="0 0 300 200" className={PORTON_CSS_SIZE}>
+      <line x1={x1 - 30} y1={groundY} x2={x2 + 30} y2={groundY} stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
+      <text x={x1 - 34} y={groundY - 4} textAnchor="end" fontSize="7.5" fill="#6487C4" fontFamily="monospace">N.T.N</text>
+      <rect x={x1 - zLargoPx / 2} y={zTopY} width={zLargoPx} height={zEspesorPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      <rect x={x2 - zLargoPx / 2} y={zTopY} width={zLargoPx} height={zEspesorPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      {x2 - x1 > 0 && <rect x={x1} y={vTopY} width={x2 - x1} height={vAltoPx} fill="#EAF1FF" stroke="#152644" strokeWidth="1.2" />}
+      <rect x={x1 - pAnchoPx / 2} y={pTopY} width={pAnchoPx} height={Math.max(zTopY - pTopY, 0)} fill="white" stroke="#152644" strokeWidth="1.3" />
+      <rect x={x2 - pAnchoPx / 2} y={pTopY} width={pAnchoPx} height={Math.max(zTopY - pTopY, 0)} fill="white" stroke="#152644" strokeWidth="1.3" />
+      <text x={cx} y={groundY + 20} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">
+        Separación {separacion || '—'} m
+      </text>
+    </svg>
+  );
+}
+
+/* Corte transversal del pedestal (planta): estribo con sus 2 ganchos y las  */
+/* barras de esquina — igual criterio que en Inversores.                    */
+function PortonPedestalCorte({ datos }) {
+  const p = datos.pedestal || {};
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  const pAncho = parseFloat(p.ancho) || 0.4;
+  const pProfundo = parseFloat(p.profundo) || 0.4;
+  const w = clamp(pAncho * 130, 40, 100);
+  const d = clamp(pProfundo * 130, 40, 100);
+  const cx = 85, cy = 80;
+  const recubPx = 7;
+
+  return (
+    <svg viewBox="0 0 180 190" className={PORTON_PLANTA_CSS_SIZE}>
+      <rect x={cx - w / 2} y={cy - d / 2} width={w} height={d} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      <rect x={cx - w / 2 + recubPx} y={cy - d / 2 + recubPx} width={w - 2 * recubPx} height={d - 2 * recubPx} fill="none" stroke="#2563EB" strokeWidth="1.2" />
+      <line x1={cx - (w / 2 - recubPx) * 0.6} y1={cy + (d / 2 - recubPx) * 0.6} x2={cx - (w / 2 - recubPx) * 0.15} y2={cy + (d / 2 - recubPx) * 0.15} stroke="#2563EB" strokeWidth="1.3" />
+      <line x1={cx - (w / 2 - recubPx) * 0.6} y1={cy - (d / 2 - recubPx) * 0.6} x2={cx - (w / 2 - recubPx) * 0.15} y2={cy - (d / 2 - recubPx) * 0.15} stroke="#2563EB" strokeWidth="1.3" />
+      {[[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy], i) => (
+        <circle key={i} cx={cx + sx * (w / 2 - recubPx)} cy={cy + sy * (d / 2 - recubPx)} r="2.6" fill="#059669" />
+      ))}
+      <text x={cx} y={cy + d / 2 + 16} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644">
+        {pAncho || '—'} × {pProfundo || '—'} m
+      </text>
+    </svg>
+  );
+}
+
+/* Vista posterior (elevación) del despiece del pedestal: mismo criterio que */
+/* Inversores — solo la mitad de las barras se ven (front+back se encimarían */
+/* en la proyección), con ganchos hacia el centro, estribos centrados y con */
+/* la separación real, y la altura que incluye el empotramiento en la       */
+/* zapata (el acero llega hasta allá, aunque el concreto visible no).      */
+function PortonPedestalElevacion({ datos }) {
+  const p = datos.pedestal || {};
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  const pAncho = parseFloat(p.ancho) || 0.4;
+  const alturaTotal = (parseFloat(p.altura) || 0) + (parseFloat(p.empotramiento_zapata) || 0);
+  const cantidadBarras = Math.max(2, parseInt(p.barras.cantidad, 10) || 2);
+  const ganchosBarra = parseFloat(p.barras.ganchos) || 0;
+  const infoBarra = BARRA_ACERO[p.barras.calibre];
+  const estribos = calcularEstribos({ altura: alturaTotal, ancho: p.ancho, profundo: p.profundo, separacion: p.estribos.separacion, calibre: p.estribos.calibre });
+  const cantidadEstribos = estribos ? estribos.cantidad : 0;
+  const separacionM = parseFloat(p.estribos.separacion) || 0;
+
+  const w = clamp(pAncho * 130, 45, 100);
+  const h = clamp((alturaTotal || 0.5) * 130, 90, 190);
+  const cx = 90, topY = 30, botY = topY + h, recubPx = 7;
+  const escala = alturaTotal > 0 ? h / alturaTotal : 130;
+
+  const posicionesVisibles = Math.max(1, Math.ceil(cantidadBarras / 2));
+  const barX = [];
+  for (let i = 0; i < posicionesVisibles; i++) {
+    const frac = posicionesVisibles === 1 ? 0.5 : i / (posicionesVisibles - 1);
+    barX.push(cx - w / 2 + recubPx + frac * (w - 2 * recubPx));
+  }
+  const distanciaEntreBarras = barX.length > 1 ? barX[barX.length - 1] - barX[0] : w;
+  const ganchoMaximoSinChoque = (distanciaEntreBarras / 2) * 0.6;
+  const ganchoPx = infoBarra ? clamp(Math.min(infoBarra.gancho * escala, ganchoMaximoSinChoque), 5, 13) : Math.min(10, ganchoMaximoSinChoque);
+
+  const separacionPx = separacionM > 0 ? separacionM * escala : (h - 2 * recubPx) / Math.max(cantidadEstribos - 1, 1);
+  const totalSpanEstribos = (cantidadEstribos - 1) * separacionPx;
+  const inicioEstribos = topY + recubPx + Math.max(0, (h - 2 * recubPx - totalSpanEstribos) / 2);
+  const estriboY = [];
+  for (let i = 0; i < cantidadEstribos; i++) estriboY.push(inicioEstribos + i * separacionPx);
+
+  const ganchosLabel = ganchosBarra > 0 ? 'L'.repeat(Math.min(ganchosBarra, 2)) : '';
+  const ganchoLongitud = infoBarra ? infoBarra.gancho : null;
+
+  return (
+    <svg viewBox="0 0 190 250" className={PORTON_PLANTA_CSS_SIZE}>
+      <rect x={cx - w / 2} y={topY} width={w} height={h} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      {estriboY.map((y, i) => (
+        <rect key={i} x={cx - w / 2 + recubPx} y={y - 2} width={w - 2 * recubPx} height="4" fill="none" stroke="#2563EB" strokeWidth="1" />
+      ))}
+      {barX.map((x, i) => {
+        const dir = x < cx ? 1 : x > cx ? -1 : 1;
+        return (
+          <g key={i}>
+            <line x1={x} y1={topY + 2} x2={x} y2={botY - 2} stroke="#059669" strokeWidth="1.6" />
+            {ganchosBarra >= 1 && <line x1={x} y1={botY - 2} x2={x + dir * ganchoPx} y2={botY - 2} stroke="#059669" strokeWidth="1.6" />}
+            {ganchosBarra >= 2 && <line x1={x} y1={topY + 2} x2={x + dir * ganchoPx} y2={topY + 2} stroke="#059669" strokeWidth="1.6" />}
+          </g>
+        );
+      })}
+      <text x={cx} y={topY - 10} textAnchor="middle" fontSize="8" fontWeight="600" fill="#059669">
+        {cantidadBarras}{p.barras.calibre || '#—'} {ganchosLabel}{ganchoLongitud !== null ? ganchoLongitud.toFixed(2) : ''}
+      </text>
+      <text x={cx + w / 2 + 8} y={(topY + botY) / 2} fontSize="8" fontWeight="600" fill="#2563EB" transform={`rotate(90, ${cx + w / 2 + 8}, ${(topY + botY) / 2})`} textAnchor="middle">
+        {cantidadEstribos || '—'} E{p.estribos.calibre || '#—'} @{p.estribos.separacion || '—'}
+      </text>
+    </svg>
+  );
+}
+
+/* Corte transversal de la viga de amarre: 4 barras de esquina (2 arriba +   */
+/* 2 abajo — las que luego se ven "duplicadas" en pares por el traslapo) +  */
+/* el estribo con sus 2 ganchos.                                            */
+function PortonVigaCorte({ datos }) {
+  const v = datos.viga || {};
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  const vAncho = parseFloat(v.ancho) || 0.3;
+  const vAlto = parseFloat(v.alto) || 0.35;
+  const w = clamp(vAncho * 150, 40, 110);
+  const d = clamp(vAlto * 150, 40, 110);
+  const cx = 90, cy = 85;
+  const recubPx = 7;
+
+  return (
+    <svg viewBox="0 0 180 190" className={PORTON_PLANTA_CSS_SIZE}>
+      <rect x={cx - w / 2} y={cy - d / 2} width={w} height={d} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      <rect x={cx - w / 2 + recubPx} y={cy - d / 2 + recubPx} width={w - 2 * recubPx} height={d - 2 * recubPx} fill="none" stroke="#2563EB" strokeWidth="1.2" />
+      <line x1={cx - (w / 2 - recubPx) * 0.6} y1={cy + (d / 2 - recubPx) * 0.6} x2={cx - (w / 2 - recubPx) * 0.15} y2={cy + (d / 2 - recubPx) * 0.15} stroke="#2563EB" strokeWidth="1.3" />
+      <line x1={cx - (w / 2 - recubPx) * 0.6} y1={cy - (d / 2 - recubPx) * 0.6} x2={cx - (w / 2 - recubPx) * 0.15} y2={cy - (d / 2 - recubPx) * 0.15} stroke="#2563EB" strokeWidth="1.3" />
+      {[[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy], i) => (
+        <circle key={i} cx={cx + sx * (w / 2 - recubPx)} cy={cy + sy * (d / 2 - recubPx)} r="2.6" fill="#059669" />
+      ))}
+      <text x={cx} y={cy + d / 2 + 16} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644">
+        {vAncho || '—'} × {vAlto || '—'} m
+      </text>
+    </svg>
+  );
+}
+
+/* Vista posterior (elevación) de la viga a lo largo de su longitud: la      */
+/* línea de arriba y la de abajo (cada una representa las 2 barras de esa    */
+/* capa, que en elevación se ven encimadas) con la marca del traslapo en su  */
+/* tercio correspondiente (arriba en L/3, abajo en 2L/3), y los estribos     */
+/* repartidos con su separación real.                                       */
+function PortonVigaElevacion({ datos }) {
+  const v = datos.viga || {};
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  const vAlto = parseFloat(v.alto) || 0.35;
+  const longitudViga = (parseFloat(datos.separacion_zapatas) || 0) - (parseFloat(datos.zapata?.largo) || 0);
+  const separacionEstribos = parseFloat(v.estribos.separacion) || 0;
+  const estribos = calcularEstribos({ altura: longitudViga > 0 ? longitudViga : undefined, ancho: v.ancho, profundo: v.alto, separacion: v.estribos.separacion, calibre: v.estribos.calibre });
+  const cantidadEstribos = estribos ? estribos.cantidad : 0;
+
+  const w = clamp((longitudViga || 5) * 26, 160, 260);
+  const h = clamp(vAlto * 130, 30, 60);
+  const cx = 150, topY = 40, leftX = cx - w / 2, rightX = cx + w / 2, botY = topY + h;
+  const recubPx = 6;
+  const escala = longitudViga > 0 ? w / longitudViga : 26;
+
+  const estriboX = [];
+  if (cantidadEstribos > 0) {
+    const separacionPx = separacionEstribos > 0 ? separacionEstribos * escala : w / cantidadEstribos;
+    for (let i = 0; i < cantidadEstribos; i++) {
+      const x = leftX + recubPx + i * separacionPx;
+      if (x > rightX - recubPx) break;
+      estriboX.push(x);
+    }
+  }
+
+  const tercio1 = leftX + w / 3;
+  const tercio2 = leftX + (2 * w) / 3;
+
+  return (
+    <svg viewBox="0 0 300 130" className={PORTON_PLANTA_CSS_SIZE}>
+      <rect x={leftX} y={topY} width={w} height={h} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      {estriboX.map((x, i) => (
+        <rect key={i} x={x - 2} y={topY + recubPx} width="4" height={h - 2 * recubPx} fill="none" stroke="#2563EB" strokeWidth="1" />
+      ))}
+      {/* Barra superior, con el empalme marcado en L/3 */}
+      <line x1={leftX + 3} y1={topY + recubPx} x2={rightX - 3} y2={topY + recubPx} stroke="#059669" strokeWidth="1.6" />
+      <circle cx={tercio1} cy={topY + recubPx} r="2.4" fill="white" stroke="#059669" strokeWidth="1.2" />
+      <text x={tercio1} y={topY - 4} textAnchor="middle" fontSize="6.5" fill="#059669">empalme 1/3</text>
+      {/* Barra inferior, con el empalme marcado en 2L/3 */}
+      <line x1={leftX + 3} y1={botY - recubPx} x2={rightX - 3} y2={botY - recubPx} stroke="#059669" strokeWidth="1.6" />
+      <circle cx={tercio2} cy={botY - recubPx} r="2.4" fill="white" stroke="#059669" strokeWidth="1.2" />
+      <text x={tercio2} y={botY + 12} textAnchor="middle" fontSize="6.5" fill="#059669">empalme 2/3</text>
+      <text x={cx} y={topY - 14} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644">
+        Longitud {longitudViga > 0 ? longitudViga.toFixed(2) : '—'} m
+      </text>
+      <text x={cx} y={botY + 24} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#2563EB">
+        {cantidadEstribos || '—'} E{v.estribos.calibre || '#—'} @{v.estribos.separacion || '—'}
+      </text>
+    </svg>
+  );
+}
+
 function PortonVistas({ datos }) {
   return (
     <div className="flex flex-wrap gap-4 justify-center">
@@ -3489,8 +3772,32 @@ function PortonVistas({ datos }) {
         <p className="text-xs text-navy-400 mt-0.5">Isométrico del conjunto</p>
       </div>
       <div className="text-center">
+        <PortonPlanta datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Planta del conjunto</p>
+      </div>
+      <div className="text-center">
+        <PortonElevacion datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Elevación del conjunto</p>
+      </div>
+      <div className="text-center">
         <PortonZapataPlanta datos={datos} />
-        <p className="text-xs text-navy-400 mt-0.5">Planta de una zapata (son iguales)</p>
+        <p className="text-xs text-navy-400 mt-0.5">Sección de zapata (con parrilla)</p>
+      </div>
+      <div className="text-center">
+        <PortonPedestalCorte datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Pedestal · corte transversal</p>
+      </div>
+      <div className="text-center">
+        <PortonPedestalElevacion datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Pedestal · vista posterior</p>
+      </div>
+      <div className="text-center">
+        <PortonVigaCorte datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Viga · corte transversal</p>
+      </div>
+      <div className="text-center">
+        <PortonVigaElevacion datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Viga · vista posterior</p>
       </div>
     </div>
   );
@@ -3723,8 +4030,9 @@ function PortonForm({ plantilla, onCancel, onSave }) {
           </div>
           {vigaBarras ? (
             <p className="text-xs text-navy-500 mb-3">
-              → Traslapo de <span className="font-mono font-semibold text-navy-700">{vigaBarras.traslapo.toFixed(2)} m</span> · cada pieza mide{' '}
-              <span className="font-mono font-semibold text-navy-700">{vigaBarras.longitudPieza.toFixed(2)} m</span> · {vigaBarras.piezas} piezas — {vigaBarras.pesoTotal.toFixed(2)} kg en total
+              → Traslapo de <span className="font-mono font-semibold text-navy-700">{vigaBarras.traslapo.toFixed(2)} m</span> (arriba a 1/3, abajo a 2/3) · pieza corta{' '}
+              <span className="font-mono font-semibold text-navy-700">{vigaBarras.piezaCorta.toFixed(2)} m</span> · pieza larga{' '}
+              <span className="font-mono font-semibold text-navy-700">{vigaBarras.piezaLarga.toFixed(2)} m</span> · {vigaBarras.piezas} piezas en total — {vigaBarras.pesoTotal.toFixed(2)} kg
             </p>
           ) : (
             <p className="text-xs text-navy-300 italic mb-3">Completa separación entre zapatas, resistencia y calibre.</p>
@@ -3904,7 +4212,7 @@ const FORMULAS_REFERENCIA = [
   { titulo: 'Traslapo de barras (viga de amarre, Cerramiento)', formula: 'se busca en la tabla de traslapos por calibre y resistencia del concreto (NSR-10, redondeada hacia arriba al múltiplo de 0.05m más cercano) — no es una fórmula, es una tabla' },
   { titulo: 'Cantidad de barras de la parrilla (zapata del Portón)', formula: 'cantidad = techo[ (dimensión perpendicular − 2×recubrimiento) / separación ]  —  SIN sumar 1' },
   { titulo: 'Longitud de barra de la parrilla', formula: 'longitud = dimensión paralela − 2×recubrimiento + 2×gancho del calibre (2 ganchos, uno en cada extremo, hacia arriba)' },
-  { titulo: 'Pieza de barra longitudinal (viga de amarre)', formula: 'longitud de cada pieza = (separación entre zapatas + traslapo) / 2  —  8 piezas en total (4 líneas × 2 piezas traslapadas)' },
+  { titulo: 'Piezas de barra longitudinal (viga de amarre)', formula: 'traslapo a tercios, no a la mitad — arriba en L/3, abajo en 2L/3 (nunca en el mismo tercio). Pieza corta = L/3 + traslapo/2; pieza larga = 2L/3 + traslapo/2. Cada una de las 4 líneas (2 arriba + 2 abajo) usa 1 pieza corta + 1 larga = 8 piezas en total.' },
   { titulo: 'Longitud de barra del pedestal (Portón, sobre zapata)', formula: 'longitud = (altura sobre la zapata + empotramiento en la zapata) − 2×recubrimiento + (N.° de ganchos × gancho del calibre)' },
   { titulo: 'Volumen de excavación del conjunto Portón', formula: 'excavación = [2×(ancho×largo de zapata) + (separación entre zapatas − largo de zapata)×ancho de la viga] × (desplante + espesor de solado) — el pedestal no aporta, ya queda incluido' },
 ];
