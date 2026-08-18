@@ -4519,6 +4519,8 @@ const CT_VB_W = 320;
 const CT_VB_H = 260;
 const CT_M2PX = 42;
 const CT_CSS_SIZE = 'w-80 h-64';
+const CT_PLANTA_CSS_SIZE = 'w-56 h-56';
+const CT_VIGA_ELEV_CSS_SIZE = 'w-[26rem] h-40';
 
 /* Garantiza que toda la estructura anidada exista, sin importar qué tan     */
 /* vieja sea la plantilla guardada — mismo motivo que en Portón: sin esto,   */
@@ -4655,6 +4657,428 @@ function CTIsometrico({ datos }) {
   );
 }
 
+/* Vista en planta (desde arriba) de TODO el conjunto: los 4 pedestales en   */
+/* las esquinas de un rectángulo ancho×largo (centro a centro) y las 4      */
+/* vigas (2 largas a los lados, 2 cortas arriba/abajo) uniéndolos.          */
+function CTPlanta({ datos }) {
+  const p = datos.pedestal || {};
+  const v = datos.viga || {};
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  const anchoCT = parseFloat(datos.ancho) || 0;
+  const largoCT = parseFloat(datos.largo) || 0;
+  const pAncho = parseFloat(p.ancho) || 0;
+  const pProfundo = parseFloat(p.profundo) || 0;
+  const vAncho = parseFloat(v.ancho) || 0;
+
+  const scale = 40;
+  const anchoPx = clamp((anchoCT || 2) * scale, 90, 170);
+  const largoPx = clamp((largoCT || 3) * scale, 110, 210);
+  const pAnchoPx = clamp((pAncho || 0.3) * scale, 14, 30);
+  const pProfundoPx = clamp((pProfundo || 0.3) * scale, 14, 30);
+  const vAnchoPx = clamp((vAncho || 0.3) * scale, 8, 18);
+
+  const cx = 190, cy = 160;
+  const x1 = cx - anchoPx / 2, x2 = cx + anchoPx / 2;
+  const y1 = cy - largoPx / 2, y2 = cy + largoPx / 2;
+  const tramoHorizontal = Math.max(0, anchoPx - pAnchoPx);
+  const tramoVertical = Math.max(0, largoPx - pProfundoPx);
+
+  return (
+    <svg viewBox="0 0 340 300" className={CT_PLANTA_CSS_SIZE}>
+      {/* Vigas cortas: arriba y abajo, entre las caras internas de los pedestales de ese lado */}
+      {tramoHorizontal > 0 && (
+        <>
+          <rect x={x1 + pAnchoPx / 2} y={y1 - vAnchoPx / 2} width={tramoHorizontal} height={vAnchoPx} fill="#EAF1FF" stroke="#152644" strokeWidth="1.1" />
+          <rect x={x1 + pAnchoPx / 2} y={y2 - vAnchoPx / 2} width={tramoHorizontal} height={vAnchoPx} fill="#EAF1FF" stroke="#152644" strokeWidth="1.1" />
+        </>
+      )}
+      {/* Vigas largas: izquierda y derecha */}
+      {tramoVertical > 0 && (
+        <>
+          <rect x={x1 - vAnchoPx / 2} y={y1 + pProfundoPx / 2} width={vAnchoPx} height={tramoVertical} fill="#EAF1FF" stroke="#152644" strokeWidth="1.1" />
+          <rect x={x2 - vAnchoPx / 2} y={y1 + pProfundoPx / 2} width={vAnchoPx} height={tramoVertical} fill="#EAF1FF" stroke="#152644" strokeWidth="1.1" />
+        </>
+      )}
+      {/* 4 pedestales, en las esquinas */}
+      {[[x1, y1], [x2, y1], [x2, y2], [x1, y2]].map(([px, py], i) => (
+        <rect key={i} x={px - pAnchoPx / 2} y={py - pProfundoPx / 2} width={pAnchoPx} height={pProfundoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      ))}
+      {/* Cota de ancho, arriba */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={x1} y1={y1 - 24} x2={x2} y2={y1 - 24} />
+        <line x1={x1} y1={y1 - 28} x2={x1} y2={y1 - 20} />
+        <line x1={x2} y1={y1 - 28} x2={x2} y2={y1 - 20} />
+      </g>
+      <text x={cx} y={y1 - 32} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">
+        Ancho {anchoCT || '—'} m (centro a centro)
+      </text>
+      {/* Cota de largo, a la izquierda */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={x1 - 24} y1={y1} x2={x1 - 24} y2={y2} />
+        <line x1={x1 - 28} y1={y1} x2={x1 - 20} y2={y1} />
+        <line x1={x1 - 28} y1={y2} x2={x1 - 20} y2={y2} />
+      </g>
+      <text x={x1 - 34} y={(y1 + y2) / 2} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644" transform={`rotate(-90, ${x1 - 34}, ${(y1 + y2) / 2})`}>
+        Largo {largoCT || '—'} m (centro a centro)
+      </text>
+    </svg>
+  );
+}
+
+/* Vista en elevación (de frente) de UN lado del marco: los 2 pedestales de */
+/* ese lado (separados por "largo" o por "ancho", según tipo) unidos por su */
+/* viga correspondiente (larga o corta), que queda justo debajo del N.T.N.  */
+/* — a diferencia del Portón, aquí el pedestal SIGUE subiendo por encima    */
+/* del N.T.N. (el sobresaliente), ya que la altura total es desplante +     */
+/* sobresaliente, SIN restar nada de la viga.                              */
+function CTElevacionLado({ datos, tipo }) {
+  const p = datos.pedestal || {};
+  const v = datos.viga || {};
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  const separacion = tipo === 'largo' ? (parseFloat(datos.largo) || 0) : (parseFloat(datos.ancho) || 0);
+  const pAncho = parseFloat(p.ancho) || 0;
+  const vAlto = parseFloat(v.alto) || 0;
+  const desplante = parseFloat(datos.desplante) || 0;
+  const sobresaliente = parseFloat(datos.sobresaliente) || 0;
+  const alturaPedestal = desplante + sobresaliente;
+  const espesorSolado = parseFloat(datos.espesor_solado) || 0;
+
+  const scale = 30;
+  const pAnchoPx = clamp((pAncho || 0.3) * scale, 16, 30);
+  const vAltoPx = clamp((vAlto || 0.3) * scale, 8, 18);
+  const pAlturaPx = clamp((alturaPedestal || 1) * scale, 40, 90);
+  const desplantePx = clamp((desplante || 0.5) * scale, 20, 60);
+  const soladoPx = clamp((espesorSolado || 0.05) * scale, 4, 9);
+  const sepPx = clamp((separacion || 2) * scale, 110, 220);
+
+  const cx = 150;
+  const groundY = 100; // N.T.N. — coincide con la parte de arriba de la viga
+  // Margen suficiente arriba (hasta 70px de sobresaliente posible + cota) y
+  // abajo (hasta 60px de desplante + solado) para que nada quede recortado
+  // dentro del viewBox, incluso en los extremos de las escalas clamp().
+  const sobresalientePx = Math.max(4, pAlturaPx - desplantePx);
+  const pTopY = groundY - sobresalientePx; // parte que sobresale sobre el N.T.N.
+  const pBotY = groundY + desplantePx; // parte que se entierra (hasta el desplante)
+  const x1 = cx - sepPx / 2;
+  const x2 = cx + sepPx / 2;
+  const tramoLibre = x2 - pAnchoPx / 2 - (x1 + pAnchoPx / 2);
+
+  return (
+    <svg viewBox="0 0 300 250" className={CT_CSS_SIZE}>
+      <line x1={x1 - 30} y1={groundY} x2={x2 + 30} y2={groundY} stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
+      <text x={x1 - 34} y={groundY - 4} textAnchor="end" fontSize="7.5" fill="#6487C4" fontFamily="monospace">N.T.N</text>
+      {/* Solado bajo cada pedestal (misma huella) */}
+      <rect x={x1 - pAnchoPx / 2} y={pBotY} width={pAnchoPx} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1" />
+      <rect x={x2 - pAnchoPx / 2} y={pBotY} width={pAnchoPx} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1" />
+      {/* Viga, justo debajo del N.T.N., entre las caras internas de los pedestales */}
+      {tramoLibre > 0 && (
+        <rect x={x1 + pAnchoPx / 2} y={groundY} width={tramoLibre} height={vAltoPx} fill="#EAF1FF" stroke="#152644" strokeWidth="1.2" />
+      )}
+      {/* Pedestales: desde el sobresaliente (arriba del N.T.N.) hasta el desplante (abajo) */}
+      <rect x={x1 - pAnchoPx / 2} y={pTopY} width={pAnchoPx} height={pBotY - pTopY} fill="white" stroke="#152644" strokeWidth="1.3" />
+      <rect x={x2 - pAnchoPx / 2} y={pTopY} width={pAnchoPx} height={pBotY - pTopY} fill="white" stroke="#152644" strokeWidth="1.3" />
+      {/* Cota de separación, arriba */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={x1} y1={pTopY - 14} x2={x2} y2={pTopY - 14} />
+        <line x1={x1} y1={pTopY - 18} x2={x1} y2={pTopY - 10} />
+        <line x1={x2} y1={pTopY - 18} x2={x2} y2={pTopY - 10} />
+      </g>
+      <text x={cx} y={pTopY - 22} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644">
+        {tipo === 'largo' ? 'Largo' : 'Ancho'} (centro a centro): {separacion || '—'} m
+      </text>
+      {/* Cota de altura del pedestal, a la izquierda */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={x1 - pAnchoPx / 2 - 14} y1={pTopY} x2={x1 - pAnchoPx / 2 - 14} y2={pBotY} />
+        <line x1={x1 - pAnchoPx / 2 - 10} y1={pTopY} x2={x1 - pAnchoPx / 2 - 18} y2={pTopY} />
+        <line x1={x1 - pAnchoPx / 2 - 10} y1={pBotY} x2={x1 - pAnchoPx / 2 - 18} y2={pBotY} />
+      </g>
+      <text x={x1 - pAnchoPx / 2 - 24} y={(pTopY + pBotY) / 2} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${x1 - pAnchoPx / 2 - 24}, ${(pTopY + pBotY) / 2})`}>
+        {alturaPedestal > 0 ? alturaPedestal.toFixed(2) : '—'} m
+      </text>
+    </svg>
+  );
+}
+function CTElevacionLadoLargo({ datos }) {
+  return <CTElevacionLado datos={datos} tipo="largo" />;
+}
+function CTElevacionLadoCorto({ datos }) {
+  return <CTElevacionLado datos={datos} tipo="corto" />;
+}
+
+/* Corte transversal del pedestal (planta): igual criterio que en Portón —  */
+/* estribo con sus 2 ganchos y las barras repartidas en el perímetro       */
+/* (4 esquinas + el resto repartido parejo entre los 4 lados).             */
+function CTPedestalCorte({ datos }) {
+  const p = datos.pedestal || {};
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  const pAncho = parseFloat(p.ancho) || 0.3;
+  const pProfundo = parseFloat(p.profundo) || 0.3;
+  const cantidad = Math.max(4, parseInt(p.barras?.cantidad, 10) || 4);
+  const w = clamp(pAncho * 130, 40, 100);
+  const d = clamp(pProfundo * 130, 40, 100);
+  const cx = 85, cy = 80;
+  const recubPx = 7;
+  const puntos = puntosPerimetroRectangulo(w / 2 - recubPx, d / 2 - recubPx, cantidad);
+
+  return (
+    <svg viewBox="0 0 180 190" className={CT_PLANTA_CSS_SIZE}>
+      <rect x={cx - w / 2} y={cy - d / 2} width={w} height={d} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      <rect x={cx - w / 2 + recubPx} y={cy - d / 2 + recubPx} width={w - 2 * recubPx} height={d - 2 * recubPx} fill="none" stroke="#2563EB" strokeWidth="1.2" />
+      <line x1={cx - (w / 2 - recubPx) * 0.6} y1={cy + (d / 2 - recubPx) * 0.6} x2={cx - (w / 2 - recubPx) * 0.15} y2={cy + (d / 2 - recubPx) * 0.15} stroke="#2563EB" strokeWidth="1.3" />
+      <line x1={cx - (w / 2 - recubPx) * 0.6} y1={cy - (d / 2 - recubPx) * 0.6} x2={cx - (w / 2 - recubPx) * 0.15} y2={cy - (d / 2 - recubPx) * 0.15} stroke="#2563EB" strokeWidth="1.3" />
+      {puntos.map(([px, py], i) => (
+        <circle key={i} cx={cx + px} cy={cy + py} r="2.6" fill="#059669" />
+      ))}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx - w / 2} y1={cy + d / 2 + 14} x2={cx + w / 2} y2={cy + d / 2 + 14} />
+        <line x1={cx - w / 2} y1={cy + d / 2 + 10} x2={cx - w / 2} y2={cy + d / 2 + 18} />
+        <line x1={cx + w / 2} y1={cy + d / 2 + 10} x2={cx + w / 2} y2={cy + d / 2 + 18} />
+      </g>
+      <text x={cx} y={cy + d / 2 + 28} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644">{pAncho || '—'} m</text>
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx - w / 2 - 14} y1={cy - d / 2} x2={cx - w / 2 - 14} y2={cy + d / 2} />
+        <line x1={cx - w / 2 - 10} y1={cy - d / 2} x2={cx - w / 2 - 18} y2={cy - d / 2} />
+        <line x1={cx - w / 2 - 10} y1={cy + d / 2} x2={cx - w / 2 - 18} y2={cy + d / 2} />
+      </g>
+      <text x={cx - w / 2 - 24} y={cy} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${cx - w / 2 - 24}, ${cy})`}>{pProfundo || '—'} m</text>
+    </svg>
+  );
+}
+
+/* Vista posterior (elevación) del despiece del pedestal — mismo criterio   */
+/* que en Portón, pero la altura total es simplemente desplante +          */
+/* sobresaliente (sin zapata que restar, sin empotramiento adicional).     */
+function CTPedestalElevacion({ datos }) {
+  const p = datos.pedestal || {};
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  const pAncho = parseFloat(p.ancho) || 0.3;
+  const pProfundo = parseFloat(p.profundo) || 0.3;
+  const alturaTotal = (parseFloat(datos.desplante) || 0) + (parseFloat(datos.sobresaliente) || 0);
+  const cantidadBarras = Math.max(4, parseInt(p.barras?.cantidad, 10) || 4);
+  const ganchosBarra = parseFloat(p.barras?.ganchos) || 0;
+  const infoBarra = BARRA_ACERO[p.barras?.calibre];
+  const estribos = calcularEstribos({ altura: alturaTotal, ancho: p.ancho, profundo: p.profundo, separacion: p.estribos?.separacion, calibre: p.estribos?.calibre });
+  const cantidadEstribos = estribos ? estribos.cantidad : 0;
+  const separacionM = parseFloat(p.estribos?.separacion) || 0;
+
+  const w = clamp(pAncho * 130, 45, 100);
+  const h = clamp((alturaTotal || 0.5) * 130, 90, 190);
+  const cx = 90, topY = 30, botY = topY + h, recubPx = 7;
+  const escala = alturaTotal > 0 ? h / alturaTotal : 130;
+
+  const puntos = puntosPerimetroRectangulo(1, pProfundo / pAncho || 1, cantidadBarras);
+  const xUnicas = Array.from(new Set(puntos.map(([px]) => Math.round(px * 1000) / 1000))).sort((a, b) => a - b);
+  const barX = xUnicas.map((frac) => cx + (frac * (w - 2 * recubPx)) / 2);
+  const distanciaEntreBarras = barX.length > 1 ? barX[barX.length - 1] - barX[0] : w;
+  const ganchoMaximoSinChoque = (distanciaEntreBarras / 2) * 0.6;
+  const ganchoPx = infoBarra ? clamp(Math.min(infoBarra.gancho * escala, ganchoMaximoSinChoque), 5, 13) : Math.min(10, ganchoMaximoSinChoque);
+
+  const separacionPx = separacionM > 0 ? separacionM * escala : (h - 2 * recubPx) / Math.max(cantidadEstribos - 1, 1);
+  const totalSpanEstribos = (cantidadEstribos - 1) * separacionPx;
+  const inicioEstribos = topY + recubPx + Math.max(0, (h - 2 * recubPx - totalSpanEstribos) / 2);
+  const estriboY = [];
+  for (let i = 0; i < cantidadEstribos; i++) estriboY.push(inicioEstribos + i * separacionPx);
+
+  const ganchosLabel = ganchosBarra > 0 ? 'L'.repeat(Math.min(ganchosBarra, 2)) : '';
+  const ganchoLongitud = infoBarra ? infoBarra.gancho : null;
+
+  return (
+    <svg viewBox="0 0 190 250" className={CT_PLANTA_CSS_SIZE}>
+      <rect x={cx - w / 2} y={topY} width={w} height={h} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      {estriboY.map((y, i) => (
+        <line key={i} x1={cx - w / 2 + recubPx} y1={y} x2={cx + w / 2 - recubPx} y2={y} stroke="#2563EB" strokeWidth="1.4" />
+      ))}
+      {barX.map((x, i) => {
+        const dir = x < cx ? 1 : x > cx ? -1 : 1;
+        return (
+          <g key={i}>
+            <line x1={x} y1={topY + 2} x2={x} y2={botY - 2} stroke="#059669" strokeWidth="1.6" />
+            {ganchosBarra >= 1 && <line x1={x} y1={botY - 2} x2={x + dir * ganchoPx} y2={botY - 2} stroke="#059669" strokeWidth="1.6" />}
+            {ganchosBarra >= 2 && <line x1={x} y1={topY + 2} x2={x + dir * ganchoPx} y2={topY + 2} stroke="#059669" strokeWidth="1.6" />}
+          </g>
+        );
+      })}
+      <text x={cx} y={topY - 10} textAnchor="middle" fontSize="8" fontWeight="600" fill="#059669">
+        {cantidadBarras}{p.barras?.calibre || '#—'} {ganchosLabel}{ganchoLongitud !== null ? ganchoLongitud.toFixed(2) : ''}
+      </text>
+      <text x={cx + w / 2 + 8} y={(topY + botY) / 2} fontSize="8" fontWeight="600" fill="#2563EB" transform={`rotate(90, ${cx + w / 2 + 8}, ${(topY + botY) / 2})`} textAnchor="middle">
+        {cantidadEstribos || '—'} E{p.estribos?.calibre || '#—'} @{p.estribos?.separacion || '—'}
+      </text>
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx - w / 2 - 16} y1={topY} x2={cx - w / 2 - 16} y2={botY} />
+        <line x1={cx - w / 2 - 12} y1={topY} x2={cx - w / 2 - 20} y2={topY} />
+        <line x1={cx - w / 2 - 12} y1={botY} x2={cx - w / 2 - 20} y2={botY} />
+      </g>
+      <text x={cx - w / 2 - 26} y={(topY + botY) / 2} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${cx - w / 2 - 26}, ${(topY + botY) / 2})`}>
+        {alturaTotal ? alturaTotal.toFixed(2) : '—'} m
+      </text>
+    </svg>
+  );
+}
+
+/* Corte transversal de la viga (larga o corta comparten la misma sección): */
+/* 4 barras de esquina + el estribo con sus 2 ganchos.                     */
+function CTVigaCorte({ datos }) {
+  const v = datos.viga || {};
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  const vAncho = parseFloat(v.ancho) || 0.3;
+  const vAlto = parseFloat(v.alto) || 0.3;
+  const w = clamp(vAncho * 150, 40, 110);
+  const d = clamp(vAlto * 150, 40, 110);
+  const cx = 90, cy = 80;
+  const recubPx = 7;
+
+  return (
+    <svg viewBox="0 0 180 190" className={CT_PLANTA_CSS_SIZE}>
+      <rect x={cx - w / 2} y={cy - d / 2} width={w} height={d} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      <rect x={cx - w / 2 + recubPx} y={cy - d / 2 + recubPx} width={w - 2 * recubPx} height={d - 2 * recubPx} fill="none" stroke="#2563EB" strokeWidth="1.2" />
+      <line x1={cx - (w / 2 - recubPx) * 0.6} y1={cy + (d / 2 - recubPx) * 0.6} x2={cx - (w / 2 - recubPx) * 0.15} y2={cy + (d / 2 - recubPx) * 0.15} stroke="#2563EB" strokeWidth="1.3" />
+      <line x1={cx - (w / 2 - recubPx) * 0.6} y1={cy - (d / 2 - recubPx) * 0.6} x2={cx - (w / 2 - recubPx) * 0.15} y2={cy - (d / 2 - recubPx) * 0.15} stroke="#2563EB" strokeWidth="1.3" />
+      {[[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy], i) => (
+        <circle key={i} cx={cx + sx * (w / 2 - recubPx)} cy={cy + sy * (d / 2 - recubPx)} r="2.6" fill="#059669" />
+      ))}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx - w / 2} y1={cy + d / 2 + 14} x2={cx + w / 2} y2={cy + d / 2 + 14} />
+        <line x1={cx - w / 2} y1={cy + d / 2 + 10} x2={cx - w / 2} y2={cy + d / 2 + 18} />
+        <line x1={cx + w / 2} y1={cy + d / 2 + 10} x2={cx + w / 2} y2={cy + d / 2 + 18} />
+      </g>
+      <text x={cx} y={cy + d / 2 + 28} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644">{vAncho || '—'} m</text>
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={cx - w / 2 - 14} y1={cy - d / 2} x2={cx - w / 2 - 14} y2={cy + d / 2} />
+        <line x1={cx - w / 2 - 10} y1={cy - d / 2} x2={cx - w / 2 - 18} y2={cy - d / 2} />
+        <line x1={cx - w / 2 - 10} y1={cy + d / 2} x2={cx - w / 2 - 18} y2={cy + d / 2} />
+      </g>
+      <text x={cx - w / 2 - 24} y={cy} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${cx - w / 2 - 24}, ${cy})`}>{vAlto || '—'} m</text>
+    </svg>
+  );
+}
+
+/* Vista posterior (elevación) de una viga a lo largo de su longitud —      */
+/* a diferencia del Portón, aquí la barra es CONTINUA SIN TRASLAPO (no hay  */
+/* marcas de empalme): una sola línea de arriba y una de abajo, cada una    */
+/* con gancho en AMBOS extremos (ancla dentro de cada pedestal), y longitud */
+/* total "de cara externa a cara externa" (incluye lo embebido). Los        */
+/* estribos van solo en el tramo LIBRE entre las caras internas.           */
+function CTVigaElevacion({ datos, tipo }) {
+  const p = datos.pedestal || {};
+  const v = datos.viga || {};
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  const longitudCentros = tipo === 'larga' ? (parseFloat(datos.largo) || 0) : (parseFloat(datos.ancho) || 0);
+  const dimPedestal = tipo === 'larga' ? (parseFloat(p.profundo) || 0) : (parseFloat(p.ancho) || 0);
+  const vAlto = parseFloat(v.alto) || 0;
+  const barras = calcularBarrasVigaCT({
+    longitudCentros,
+    dimensionPedestalMismaDireccion: dimPedestal,
+    cantidad: v.barras?.cantidad,
+    calibre: v.barras?.calibre,
+    ganchos: v.barras?.ganchos,
+  });
+  const longitudLibre = Math.max(0, longitudCentros - dimPedestal);
+  const estribos = calcularEstribos({ altura: longitudLibre || undefined, ancho: v.ancho, profundo: v.alto, separacion: v.estribos?.separacion, calibre: v.estribos?.calibre });
+  const cantidadEstribos = estribos ? estribos.cantidad : 0;
+  const separacionEstribos = parseFloat(v.estribos?.separacion) || 0;
+  const ganchosBarra = parseFloat(v.barras?.ganchos) || 0;
+  const infoBarra = BARRA_ACERO[v.barras?.calibre];
+  const longitudTotal = barras ? barras.longitud : longitudCentros + dimPedestal;
+
+  const w = clamp((longitudTotal || 3) * 45, 220, 400);
+  const h = clamp((vAlto || 0.3) * 160, 35, 70);
+  const cx = 210, topY = 45, leftX = cx - w / 2, rightX = cx + w / 2, botY = topY + h;
+  const recubPx = 6;
+  const escala = longitudTotal > 0 ? w / longitudTotal : 45;
+  const ganchoPx = infoBarra ? clamp(infoBarra.gancho * escala, 8, 18) : 12;
+
+  const estriboX = [];
+  if (cantidadEstribos > 0) {
+    // El tramo libre (entre caras internas) queda centrado dentro del ancho
+    // total dibujado (que incluye lo embebido en los pedestales a cada lado).
+    const anchoLibrePx = longitudLibre > 0 ? longitudLibre * escala : w;
+    const margen = Math.max(0, (w - anchoLibrePx) / 2);
+    const separacionPx = separacionEstribos > 0 ? separacionEstribos * escala : anchoLibrePx / Math.max(cantidadEstribos - 1, 1);
+    const totalSpan = (cantidadEstribos - 1) * separacionPx;
+    const inicio = leftX + margen + Math.max(0, (anchoLibrePx - totalSpan) / 2);
+    for (let i = 0; i < cantidadEstribos; i++) estriboX.push(inicio + i * separacionPx);
+  }
+
+  return (
+    <svg viewBox="0 0 420 160" className={CT_VIGA_ELEV_CSS_SIZE}>
+      <rect x={leftX} y={topY} width={w} height={h} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      {estriboX.map((x, i) => (
+        <line key={i} x1={x} y1={topY + recubPx} x2={x} y2={botY - recubPx} stroke="#2563EB" strokeWidth="1.4" />
+      ))}
+      {/* Barra superior: continua, sin traslapo, con gancho en ambos extremos */}
+      <line x1={leftX + 3} y1={topY + recubPx} x2={rightX - 3} y2={topY + recubPx} stroke="#059669" strokeWidth="1.6" />
+      {ganchosBarra >= 1 && <line x1={leftX + 3} y1={topY + recubPx} x2={leftX + 3} y2={topY + recubPx + ganchoPx} stroke="#059669" strokeWidth="1.6" />}
+      {ganchosBarra >= 1 && <line x1={rightX - 3} y1={topY + recubPx} x2={rightX - 3} y2={topY + recubPx + ganchoPx} stroke="#059669" strokeWidth="1.6" />}
+      {/* Barra inferior: igual */}
+      <line x1={leftX + 3} y1={botY - recubPx} x2={rightX - 3} y2={botY - recubPx} stroke="#059669" strokeWidth="1.6" />
+      {ganchosBarra >= 1 && <line x1={leftX + 3} y1={botY - recubPx} x2={leftX + 3} y2={botY - recubPx - ganchoPx} stroke="#059669" strokeWidth="1.6" />}
+      {ganchosBarra >= 1 && <line x1={rightX - 3} y1={botY - recubPx} x2={rightX - 3} y2={botY - recubPx - ganchoPx} stroke="#059669" strokeWidth="1.6" />}
+      {/* Cota de longitud total, arriba */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={leftX} y1={topY - 18} x2={rightX} y2={topY - 18} />
+        <line x1={leftX} y1={topY - 22} x2={leftX} y2={topY - 14} />
+        <line x1={rightX} y1={topY - 22} x2={rightX} y2={topY - 14} />
+      </g>
+      <text x={cx} y={topY - 26} textAnchor="middle" fontSize="9" fontWeight="600" fill="#152644">
+        Longitud (cara externa a cara externa) {longitudTotal ? longitudTotal.toFixed(2) : '—'} m
+      </text>
+      <text x={cx} y={botY + 20} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#2563EB">
+        {cantidadEstribos || '—'} E{v.estribos?.calibre || '#—'} @{v.estribos?.separacion || '—'}
+      </text>
+    </svg>
+  );
+}
+function CTVigaElevacionLarga({ datos }) {
+  return <CTVigaElevacion datos={datos} tipo="larga" />;
+}
+function CTVigaElevacionCorta({ datos }) {
+  return <CTVigaElevacion datos={datos} tipo="corta" />;
+}
+
+function CTVistas({ datos }) {
+  return (
+    <div className="flex flex-wrap gap-4 justify-center">
+      <div className="text-center">
+        <CTIsometrico datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Isométrico del conjunto</p>
+      </div>
+      <div className="text-center">
+        <CTPlanta datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Planta del conjunto</p>
+      </div>
+      <div className="text-center">
+        <CTElevacionLadoLargo datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Elevación · lado largo</p>
+      </div>
+      <div className="text-center">
+        <CTElevacionLadoCorto datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Elevación · lado corto</p>
+      </div>
+      <div className="text-center">
+        <CTPedestalCorte datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Pedestal · corte transversal</p>
+      </div>
+      <div className="text-center">
+        <CTPedestalElevacion datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Pedestal · vista posterior</p>
+      </div>
+      <div className="text-center">
+        <CTVigaCorte datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Viga · corte transversal</p>
+      </div>
+      <div className="text-center">
+        <CTVigaElevacionLarga datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Viga larga · vista posterior</p>
+      </div>
+      <div className="text-center">
+        <CTVigaElevacionCorta datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Viga corta · vista posterior</p>
+      </div>
+    </div>
+  );
+}
+
 function CTForm({ plantilla, onCancel, onSave }) {
   const [nombre, setNombre] = useState(plantilla?.nombre || '');
   const [datos, setDatos] = useState(() => normalizarDatosCT(plantilla?.datos));
@@ -4748,7 +5172,7 @@ function CTForm({ plantilla, onCancel, onSave }) {
       </p>
 
       <div className="flex justify-center bg-navy-50 rounded-lg p-3 mb-5 w-fit mx-auto">
-        <CTIsometrico datos={datos} />
+        <CTVistas datos={datos} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
