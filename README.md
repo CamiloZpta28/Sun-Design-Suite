@@ -169,6 +169,24 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Ajustes finos al Portón, verificados extrayendo el SVG real que genera
+  cada vista** (no solo revisando el código):
+  - **Viga a la misma profundidad que la zapata**: ya no se dibuja encima
+    de la zapata — arranca desde el mismo nivel (justo encima del
+    solado), como en tu referencia.
+  - **Texto de separación quitado del isométrico** — la longitud de la
+    viga se sigue viendo en "Viga · vista posterior" (ya estaba ahí).
+  - **Estribos como línea única** en las vistas posteriores de viga y
+    pedestal — el "efecto de pares" que reportaste no era un problema de
+    separación, era que los dibujaba como un rectángulo hueco (sus dos
+    lados verticales se veían como dos líneas). Ahora es una sola línea
+    por estribo, igual que ya tenía la sección transversal.
+  - **Estribos de la viga centrados**, con la misma lógica que ya usaba
+    el pedestal.
+  - **Ganchos completos en la viga**: ahora las dos barras (arriba y
+    abajo) tienen gancho en AMBOS extremos, no solo en uno — cada extremo
+    ancla en su propia zapata.
+
 - **La pantalla en blanco de Portón — encontrada la causa real esta vez.**
   Mi corrección anterior (rellenar campos faltantes en plantillas viejas)
   era necesaria pero no era la causa completa — por eso seguía pasando

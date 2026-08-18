@@ -3440,8 +3440,8 @@ function PortonIsometrico({ datos }) {
   // pedestal arrancan juntos desde la parte de ARRIBA de la zapata.
   const zapataZ0 = soladoPx;
   const zapataZ1 = soladoPx + zEspesorPx;
-  const vigaZ0 = zapataZ1;
-  const vigaZ1 = zapataZ1 + vAltoPx;
+  const vigaZ0 = zapataZ0; // la viga va a la misma profundidad que la zapata, justo encima del solado
+  const vigaZ1 = zapataZ0 + vAltoPx;
   const pedestalZ0 = zapataZ1;
   const pedestalZ1 = zapataZ1 + pAlturaPx;
   const ntnZ = pedestalZ1; // el N.T.N. queda en la parte de ARRIBA del pedestal
@@ -3450,11 +3450,6 @@ function PortonIsometrico({ datos }) {
   const oy = 30 + Math.max(halfZAncho, 40) + pedestalZ1;
 
   const distanciaCarasInternas = Math.max(0, sepPx - zLargoPx);
-
-  // Cota de separación entre zapatas (arriba, paralela al eje longitudinal)
-  const dimPushArriba = 22;
-  const [sepP1X, sepP1Y] = isoPt(-centroX, -halfZAncho - dimPushArriba, zapataZ1, ox, oy);
-  const [sepP2X, sepP2Y] = isoPt(centroX, -halfZAncho - dimPushArriba, zapataZ1, ox, oy);
 
   // Cota de altura del pedestal (derecha)
   const [alturaTopX, alturaTopY] = isoPt(centroX + pAnchoPx / 2, -pProfundoPx / 2, pedestalZ1, ox, oy);
@@ -3501,13 +3496,6 @@ function PortonIsometrico({ datos }) {
         fontFamily="monospace"
       >
         N.T.N
-      </text>
-      {/* Cota de separación entre zapatas, arriba, paralela al eje */}
-      <g stroke="#152644" strokeWidth="1">
-        <line x1={sepP1X} y1={sepP1Y} x2={sepP2X} y2={sepP2Y} />
-      </g>
-      <text x={(sepP1X + sepP2X) / 2} y={(sepP1Y + sepP2Y) / 2 - 8} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644">
-        Separación (centro a centro): {separacion || '—'} m
       </text>
       {/* Cota de altura del pedestal, a la derecha, paralela a su borde */}
       <g stroke="#152644" strokeWidth="1">
@@ -3804,7 +3792,7 @@ function PortonPedestalElevacion({ datos }) {
     <svg viewBox="0 0 190 250" className={PORTON_PLANTA_CSS_SIZE}>
       <rect x={cx - w / 2} y={topY} width={w} height={h} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
       {estriboY.map((y, i) => (
-        <rect key={i} x={cx - w / 2 + recubPx} y={y - 2} width={w - 2 * recubPx} height="4" fill="none" stroke="#2563EB" strokeWidth="1" />
+        <line key={i} x1={cx - w / 2 + recubPx} y1={y} x2={cx + w / 2 - recubPx} y2={y} stroke="#2563EB" strokeWidth="1.4" />
       ))}
       {barX.map((x, i) => {
         const dir = x < cx ? 1 : x > cx ? -1 : 1;
@@ -3898,12 +3886,10 @@ function PortonVigaElevacion({ datos }) {
 
   const estriboX = [];
   if (cantidadEstribos > 0) {
-    const separacionPx = separacionEstribos > 0 ? separacionEstribos * escala : w / cantidadEstribos;
-    for (let i = 0; i < cantidadEstribos; i++) {
-      const x = leftX + recubPx + i * separacionPx;
-      if (x > rightX - recubPx) break;
-      estriboX.push(x);
-    }
+    const separacionPx = separacionEstribos > 0 ? separacionEstribos * escala : (w - 2 * recubPx) / Math.max(cantidadEstribos - 1, 1);
+    const totalSpan = (cantidadEstribos - 1) * separacionPx;
+    const inicio = leftX + recubPx + Math.max(0, (w - 2 * recubPx - totalSpan) / 2);
+    for (let i = 0; i < cantidadEstribos; i++) estriboX.push(inicio + i * separacionPx);
   }
 
   const tercio1 = leftX + w / 3;
@@ -3913,15 +3899,17 @@ function PortonVigaElevacion({ datos }) {
     <svg viewBox="0 0 440 170" className={PORTON_VIGA_ELEV_CSS_SIZE}>
       <rect x={leftX} y={topY} width={w} height={h} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
       {estriboX.map((x, i) => (
-        <rect key={i} x={x - 2} y={topY + recubPx} width="4" height={h - 2 * recubPx} fill="none" stroke="#2563EB" strokeWidth="1" />
+        <line key={i} x1={x} y1={topY + recubPx} x2={x} y2={botY - recubPx} stroke="#2563EB" strokeWidth="1.4" />
       ))}
-      {/* Barra superior: gancho a la izquierda (ancla en la zapata), empalme marcado en L/3 */}
+      {/* Barra superior: gancho en AMBOS extremos (ancla en cada zapata), empalme marcado en L/3 */}
       <line x1={leftX + 3} y1={topY + recubPx} x2={rightX - 3} y2={topY + recubPx} stroke="#059669" strokeWidth="1.6" />
       {ganchosBarra >= 1 && <line x1={leftX + 3} y1={topY + recubPx} x2={leftX + 3} y2={topY + recubPx + ganchoPx} stroke="#059669" strokeWidth="1.6" />}
+      {ganchosBarra >= 1 && <line x1={rightX - 3} y1={topY + recubPx} x2={rightX - 3} y2={topY + recubPx + ganchoPx} stroke="#059669" strokeWidth="1.6" />}
       <circle cx={tercio1} cy={topY + recubPx} r="2.8" fill="white" stroke="#059669" strokeWidth="1.3" />
       <text x={tercio1} y={topY - 6} textAnchor="middle" fontSize="8" fontWeight="600" fill="#059669">empalme 1/3</text>
-      {/* Barra inferior: gancho a la derecha (ancla en la otra zapata), empalme marcado en 2L/3 */}
+      {/* Barra inferior: gancho en AMBOS extremos (ancla en cada zapata), empalme marcado en 2L/3 */}
       <line x1={leftX + 3} y1={botY - recubPx} x2={rightX - 3} y2={botY - recubPx} stroke="#059669" strokeWidth="1.6" />
+      {ganchosBarra >= 1 && <line x1={leftX + 3} y1={botY - recubPx} x2={leftX + 3} y2={botY - recubPx - ganchoPx} stroke="#059669" strokeWidth="1.6" />}
       {ganchosBarra >= 1 && <line x1={rightX - 3} y1={botY - recubPx} x2={rightX - 3} y2={botY - recubPx - ganchoPx} stroke="#059669" strokeWidth="1.6" />}
       <circle cx={tercio2} cy={botY - recubPx} r="2.8" fill="white" stroke="#059669" strokeWidth="1.3" />
       <text x={tercio2} y={botY + 16} textAnchor="middle" fontSize="8" fontWeight="600" fill="#059669">empalme 2/3</text>
