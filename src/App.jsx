@@ -2820,8 +2820,8 @@ function CamarasVistas({ datos }) {
 /* INVERSORES — 2 pedestales rectangulares iguales + 1 losa con  */
 /* malla electrosoldada, con despiece de acero (barras + estribos). */
 /* ============================================================ */
-const INV_VB_W = 260;
-const INV_VB_H = 240;
+const INV_VB_W = 400;
+const INV_VB_H = 300;
 const INV_M2PX = 55;
 const INV_CSS_SIZE = 'w-72 h-60';
 const INV_REF_CSS_SIZE = 'w-56 h-56';
@@ -2865,7 +2865,7 @@ function InversoresIsometrico({ datos }) {
   const losaZ1 = bodyZ1 + lEspesorPx;
 
   const ox = INV_VB_W / 2;
-  const oy = 55 + Math.max(halfProf, lLargoPx / 2) + losaZ1;
+  const oy = 70 + Math.max(halfProf, lLargoPx / 2) + losaZ1;
 
 
   // Altura del pedestal: esquina trasera-derecha, hacia la derecha.
@@ -2904,13 +2904,14 @@ function InversoresIsometrico({ datos }) {
       <IsoBoxLineArt x0={centroX - halfPed} y0={-halfProf} w={pAnchoPx} d={pProfundoPx} z0={bodyZ0} z1={bodyZ1} ox={ox} oy={oy} />
       {/* Losa encima de ambos */}
       <IsoBoxLineArt x0={-lAnchoPx / 2} y0={-lLargoPx / 2} w={lAnchoPx} d={lLargoPx} z0={bodyZ1} z1={losaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
-      {/* Nivel de terreno natural: coincide con la parte de ARRIBA del pedestal (= la parte de abajo de la losa, que no se excava) */}
+      {/* Nivel de terreno natural: coincide con la parte de ARRIBA del pedestal (= la parte de abajo de la losa, que no se excava) — */}
+      {/* el plano se dibuja más grande que la LOSA (no que el pedestal), para que quede claramente por fuera y no se encime con ella. */}
       <polygon
         points={poly([
-          isoPt(-centroX - halfPed - 16, -halfProf - 16, bodyZ1, ox, oy),
-          isoPt(centroX + halfPed + 16, -halfProf - 16, bodyZ1, ox, oy),
-          isoPt(centroX + halfPed + 16, halfProf + 16, bodyZ1, ox, oy),
-          isoPt(-centroX - halfPed - 16, halfProf + 16, bodyZ1, ox, oy),
+          isoPt(-lAnchoPx / 2 - 24, -lLargoPx / 2 - 24, bodyZ1, ox, oy),
+          isoPt(lAnchoPx / 2 + 24, -lLargoPx / 2 - 24, bodyZ1, ox, oy),
+          isoPt(lAnchoPx / 2 + 24, lLargoPx / 2 + 24, bodyZ1, ox, oy),
+          isoPt(-lAnchoPx / 2 - 24, lLargoPx / 2 + 24, bodyZ1, ox, oy),
         ])}
         fill="none"
         stroke="#6487C4"
@@ -2918,8 +2919,8 @@ function InversoresIsometrico({ datos }) {
         strokeDasharray="4 3"
       />
       <text
-        x={isoPt(-centroX - halfPed - 16, -halfProf - 16, bodyZ1, ox, oy)[0] - 4}
-        y={isoPt(-centroX - halfPed - 16, -halfProf - 16, bodyZ1, ox, oy)[1] + 3}
+        x={isoPt(-lAnchoPx / 2 - 24, -lLargoPx / 2 - 24, bodyZ1, ox, oy)[0] - 4}
+        y={isoPt(-lAnchoPx / 2 - 24, -lLargoPx / 2 - 24, bodyZ1, ox, oy)[1] + 3}
         textAnchor="end"
         fontSize="7.5"
         fill="#6487C4"
@@ -2988,17 +2989,16 @@ function InversoresElevacion({ datos }) {
   const scale = 90;
   const pAnchoPx = clamp((pAncho || 0.3) * scale, 20, 45);
   const pAlturaPx = clamp((pAltura || 0.5) * scale, 45, 110);
-  const desplantePx = clamp((pDesplante || 0.3) * scale, 20, 70);
   const soladoPx = clamp((espesorSolado || 0.05) * scale, 4, 9);
   const sepPx = clamp((pSeparacion || 0.6) * scale, 60, 160);
   const lEspesorPx = clamp((lEspesor || 0.15) * scale, 8, 20);
   const lAnchoPx = clamp((lAncho || 1.6) * scale, pAnchoPx * 2 + sepPx + 20, 260);
 
   const cx = 160;
-  const groundY = 170; // N.T.N. — parte de arriba del pedestal = parte de abajo de la losa
-  const sobresalientePx = Math.max(4, pAlturaPx - desplantePx);
-  const pTopY = groundY - sobresalientePx;
-  const pBotY = groundY + desplantePx;
+  const groundY = 170; // N.T.N. — coincide EXACTAMENTE con la parte de arriba del pedestal:
+  // la losa se apoya directamente sobre el terreno, sin ningún tramo sobresaliendo por encima.
+  const pTopY = groundY;
+  const pBotY = groundY + pAlturaPx; // toda la altura del pedestal queda enterrada
   const soladoBotY = pBotY + soladoPx;
   const losaTopY = pTopY - lEspesorPx;
 
@@ -3008,7 +3008,7 @@ function InversoresElevacion({ datos }) {
   return (
     <svg viewBox="0 0 320 300" className={INV_CSS_SIZE}>
       <line x1={x1 - pAnchoPx / 2 - 34} y1={groundY} x2={x2 + pAnchoPx / 2 + 34} y2={groundY} stroke="#6487C4" strokeWidth="1" strokeDasharray="4 3" />
-      <text x={x1 - pAnchoPx / 2 - 38} y={groundY - 4} textAnchor="end" fontSize="7.5" fill="#6487C4" fontFamily="monospace">N.T.N</text>
+      <text x={x1 - pAnchoPx / 2 - 38} y={groundY - 4} textAnchor="end" fontSize="10" fill="#6487C4" fontFamily="monospace">N.T.N</text>
 
       {/* Solado bajo cada pedestal */}
       <rect x={x1 - pAnchoPx / 2} y={pBotY} width={pAnchoPx} height={soladoPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1" />
@@ -3018,16 +3018,16 @@ function InversoresElevacion({ datos }) {
       <rect x={x1 - pAnchoPx / 2} y={pTopY} width={pAnchoPx} height={pBotY - pTopY} fill="white" stroke="#152644" strokeWidth="1.3" />
       <rect x={x2 - pAnchoPx / 2} y={pTopY} width={pAnchoPx} height={pBotY - pTopY} fill="white" stroke="#152644" strokeWidth="1.3" />
 
-      {/* Losa, apoyada sobre ambos pedestales */}
+      {/* Losa, apoyada directamente sobre el terreno (sobre ambos pedestales) */}
       <rect x={cx - lAnchoPx / 2} y={losaTopY} width={lAnchoPx} height={lEspesorPx} fill="#EAF1FF" stroke="#152644" strokeWidth="1.2" />
 
       {/* Cota de separación libre entre pedestales, justo debajo de la losa */}
       <g stroke="#152644" strokeWidth="1">
-        <line x1={x1 + pAnchoPx / 2} y1={losaTopY - 14} x2={x2 - pAnchoPx / 2} y2={losaTopY - 14} />
-        <line x1={x1 + pAnchoPx / 2} y1={losaTopY - 18} x2={x1 + pAnchoPx / 2} y2={losaTopY - 10} />
-        <line x1={x2 - pAnchoPx / 2} y1={losaTopY - 18} x2={x2 - pAnchoPx / 2} y2={losaTopY - 10} />
+        <line x1={x1 + pAnchoPx / 2} y1={losaTopY - 16} x2={x2 - pAnchoPx / 2} y2={losaTopY - 16} />
+        <line x1={x1 + pAnchoPx / 2} y1={losaTopY - 20} x2={x1 + pAnchoPx / 2} y2={losaTopY - 12} />
+        <line x1={x2 - pAnchoPx / 2} y1={losaTopY - 20} x2={x2 - pAnchoPx / 2} y2={losaTopY - 12} />
       </g>
-      <text x={cx} y={losaTopY - 22} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644">
+      <text x={cx} y={losaTopY - 26} textAnchor="middle" fontSize="10.5" fontWeight="600" fill="#152644">
         Separación libre: {pSeparacion || '—'} m
       </text>
 
@@ -3037,7 +3037,7 @@ function InversoresElevacion({ datos }) {
         <line x1={x1 - pAnchoPx / 2 - 10} y1={pTopY} x2={x1 - pAnchoPx / 2 - 18} y2={pTopY} />
         <line x1={x1 - pAnchoPx / 2 - 10} y1={pBotY} x2={x1 - pAnchoPx / 2 - 18} y2={pBotY} />
       </g>
-      <text x={x1 - pAnchoPx / 2 - 24} y={(pTopY + pBotY) / 2} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${x1 - pAnchoPx / 2 - 24}, ${(pTopY + pBotY) / 2})`}>
+      <text x={x1 - pAnchoPx / 2 - 26} y={(pTopY + pBotY) / 2} textAnchor="middle" fontSize="10.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${x1 - pAnchoPx / 2 - 26}, ${(pTopY + pBotY) / 2})`}>
         {pAltura ? pAltura.toFixed(2) : '—'} m
       </text>
 
@@ -3047,7 +3047,7 @@ function InversoresElevacion({ datos }) {
         <line x1={x2 + pAnchoPx / 2 + 10} y1={losaTopY} x2={x2 + pAnchoPx / 2 + 18} y2={losaTopY} />
         <line x1={x2 + pAnchoPx / 2 + 10} y1={pTopY} x2={x2 + pAnchoPx / 2 + 18} y2={pTopY} />
       </g>
-      <text x={x2 + pAnchoPx / 2 + 24} y={(losaTopY + pTopY) / 2} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${x2 + pAnchoPx / 2 + 24}, ${(losaTopY + pTopY) / 2})`}>
+      <text x={x2 + pAnchoPx / 2 + 26} y={(losaTopY + pTopY) / 2} textAnchor="middle" fontSize="10.5" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${x2 + pAnchoPx / 2 + 26}, ${(losaTopY + pTopY) / 2})`}>
         {lEspesor ? lEspesor.toFixed(2) : '—'} m
       </text>
     </svg>
@@ -3980,21 +3980,23 @@ function PortonElevacion({ datos }) {
 /* siempre 4 en las esquinas, y las que sobren repartidas parejo entre los  */
 /* 4 lados (ej. cantidad=8 → 4 esquinas + 1 a la mitad de cada lado).       */
 /* Marca del gancho a 180° de un estribo, en corte transversal: 2 líneas     */
-/* casi paralelas en la esquina superior izquierda del estribo, a -45°      */
-/* medido desde su borde horizontal superior — reemplaza la representación  */
-/* anterior (una línea a cada una de dos esquinas distintas), que se        */
-/* prestaba a confusión visual (parecía un "check" en vez de un gancho).    */
+/* casi paralelas en la esquina superior izquierda del estribo, a 315°       */
+/* medido desde la horizontal (convención estándar, sentido antihorario) —  */
+/* es decir, hacia ABAJO-DERECHA desde la esquina, entrando en el estribo   */
+/* (no hacia afuera de la caja, que se prestaba a confusión visual).        */
 function GanchoEstriboEsquina({ x, y, size = 9, gap = 3 }) {
-  const rad = Math.PI / 4; // 45°
+  const rad = (315 * Math.PI) / 180; // 315° = -45°, medido antihorario desde la horizontal
+  // screen_dx = cos(rad); screen_dy = -sin(rad) (el eje Y de pantalla está invertido respecto al matemático)
   const dx = size * Math.cos(rad);
-  const dy = size * Math.sin(rad);
+  const dy = -size * Math.sin(rad);
   // Desplazamiento perpendicular a la línea del gancho, para separar las 2 líneas.
-  const ox = gap * Math.cos(rad + Math.PI / 2);
-  const oy = gap * Math.sin(rad + Math.PI / 2);
+  const perpRad = rad + Math.PI / 2;
+  const ox = gap * Math.cos(perpRad);
+  const oy = -gap * Math.sin(perpRad);
   return (
     <g stroke="#2563EB" strokeWidth="1.3">
-      <line x1={x} y1={y} x2={x + dx} y2={y - dy} />
-      <line x1={x + ox} y1={y - oy} x2={x + dx + ox} y2={y - dy - oy} />
+      <line x1={x} y1={y} x2={x + dx} y2={y + dy} />
+      <line x1={x + ox} y1={y + oy} x2={x + dx + ox} y2={y + dy + oy} />
     </g>
   );
 }
@@ -4676,8 +4678,8 @@ function PortonForm({ plantilla, onCancel, onSave }) {
 /* SHELTER · CENTRO DE TRANSFORMACIÓN (CT) — 4 pedestales +       */
 /* 4 vigas (2 largas, 2 cortas) formando un marco. Sin zapata.    */
 /* ============================================================ */
-const CT_VB_W = 320;
-const CT_VB_H = 260;
+const CT_VB_W = 440;
+const CT_VB_H = 300;
 const CT_M2PX = 42;
 const CT_CSS_SIZE = 'w-80 h-64';
 const CT_PLANTA_CSS_SIZE = 'w-56 h-56';
@@ -4777,48 +4779,84 @@ function CTIsometrico({ datos }) {
   const pedestalBox = ([ex, ey], key) => (
     <IsoBoxLineArt key={key} x0={ex - pAnchoPx / 2} y0={ey - pProfundoPx / 2} w={pAnchoPx} d={pProfundoPx} z0={pedestalZ0} z1={pedestalZ1} ox={ox} oy={oy} />
   );
+  const soladoPedestal = ([ex, ey], key) => (
+    <IsoBoxLineArt key={key} x0={ex - pAnchoPx / 2} y0={ey - pProfundoPx / 2} w={pAnchoPx} d={pProfundoPx} z0={soladoZ0} z1={soladoZ1} ox={ox} oy={oy} />
+  );
   // Viga "corta" @ y=-halfLargo: une pSuperior con pLateralA
   const vigaSuperiorCorta = (
     <IsoBoxLineArt x0={-halfAncho + pAnchoPx / 2} y0={-halfLargo - vAnchoPx / 2} w={anchoPx - pAnchoPx} d={vAnchoPx} z0={vigaZ0} z1={vigaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
+  );
+  const soladoVigaSuperiorCorta = (
+    <IsoBoxLineArt x0={-halfAncho + pAnchoPx / 2} y0={-halfLargo - vAnchoPx / 2} w={anchoPx - pAnchoPx} d={vAnchoPx} z0={vigaZ0 - soladoPx} z1={vigaZ0} ox={ox} oy={oy} />
   );
   // Viga "larga" @ x=-halfAncho: une pSuperior con pLateralB
   const vigaSuperiorLarga = (
     <IsoBoxLineArt x0={-halfAncho - vAnchoPx / 2} y0={-halfLargo + pProfundoPx / 2} w={vAnchoPx} d={largoPx - pProfundoPx} z0={vigaZ0} z1={vigaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
   );
+  const soladoVigaSuperiorLarga = (
+    <IsoBoxLineArt x0={-halfAncho - vAnchoPx / 2} y0={-halfLargo + pProfundoPx / 2} w={vAnchoPx} d={largoPx - pProfundoPx} z0={vigaZ0 - soladoPx} z1={vigaZ0} ox={ox} oy={oy} />
+  );
   // Viga "larga" @ x=+halfAncho: une pLateralA con pInferior
   const vigaInferiorLarga = (
     <IsoBoxLineArt x0={halfAncho - vAnchoPx / 2} y0={-halfLargo + pProfundoPx / 2} w={vAnchoPx} d={largoPx - pProfundoPx} z0={vigaZ0} z1={vigaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
+  );
+  const soladoVigaInferiorLarga = (
+    <IsoBoxLineArt x0={halfAncho - vAnchoPx / 2} y0={-halfLargo + pProfundoPx / 2} w={vAnchoPx} d={largoPx - pProfundoPx} z0={vigaZ0 - soladoPx} z1={vigaZ0} ox={ox} oy={oy} />
   );
   // Viga "corta" @ y=+halfLargo: une pLateralB con pInferior
   const vigaInferiorCorta = (
     <IsoBoxLineArt x0={-halfAncho + pAnchoPx / 2} y0={halfLargo - vAnchoPx / 2} w={anchoPx - pAnchoPx} d={vAnchoPx} z0={vigaZ0} z1={vigaZ1} ox={ox} oy={oy} fillTop="#EAF1FF" fillSide="#EAF1FF" />
   );
+  const soladoVigaInferiorCorta = (
+    <IsoBoxLineArt x0={-halfAncho + pAnchoPx / 2} y0={halfLargo - vAnchoPx / 2} w={anchoPx - pAnchoPx} d={vAnchoPx} z0={vigaZ0 - soladoPx} z1={vigaZ0} ox={ox} oy={oy} />
+  );
 
   return (
     <svg viewBox={`0 0 ${CT_VB_W} ${CT_VB_H}`} className={CT_CSS_SIZE}>
-      {/* Solado bajo cada pedestal (misma huella, en la profundidad de la excavación) */}
-      {[pSuperior, pLateralA, pInferior, pLateralB].map(([ex, ey], i) => (
-        <IsoBoxLineArt key={`sol${i}`} x0={ex - pAnchoPx / 2} y0={ey - pProfundoPx / 2} w={pAnchoPx} d={pProfundoPx} z0={soladoZ0} z1={soladoZ1} ox={ox} oy={oy} />
-      ))}
-      {/* Solado bajo cada tramo de viga, justo debajo de su propia cara inferior */}
-      {/* (la viga va al nivel del N.T.N., no a la profundidad de la excavación */}
-      {/* del pedestal, así que su solado va a una profundidad distinta).       */}
-      <IsoBoxLineArt x0={-halfAncho + pAnchoPx / 2} y0={-halfLargo - vAnchoPx / 2} w={anchoPx - pAnchoPx} d={vAnchoPx} z0={vigaZ0 - soladoPx} z1={vigaZ0} ox={ox} oy={oy} />
-      <IsoBoxLineArt x0={-halfAncho - vAnchoPx / 2} y0={-halfLargo + pProfundoPx / 2} w={vAnchoPx} d={largoPx - pProfundoPx} z0={vigaZ0 - soladoPx} z1={vigaZ0} ox={ox} oy={oy} />
-      <IsoBoxLineArt x0={halfAncho - vAnchoPx / 2} y0={-halfLargo + pProfundoPx / 2} w={vAnchoPx} d={largoPx - pProfundoPx} z0={vigaZ0 - soladoPx} z1={vigaZ0} ox={ox} oy={oy} />
-      <IsoBoxLineArt x0={-halfAncho + pAnchoPx / 2} y0={halfLargo - vAnchoPx / 2} w={anchoPx - pAnchoPx} d={vAnchoPx} z0={vigaZ0 - soladoPx} z1={vigaZ0} ox={ox} oy={oy} />
-      {/* Orden de atrás hacia adelante, tal como se ve en la proyección:      */}
-      {/* pedestal superior → 2 vigas superiores → 2 pedestales laterales →   */}
-      {/* 2 vigas inferiores → pedestal inferior. Así cada pedestal tapa el   */}
-      {/* extremo de la viga que le llega desde "atrás".                     */}
+      {/* Orden de atrás hacia adelante, tal como se ve en la proyección — cada */}
+      {/* elemento con su propio solado dibujado justo antes que él: pedestal  */}
+      {/* superior → vigas superiores (con sus solados) → pedestales laterales */}
+      {/* → vigas inferiores (con sus solados) → pedestal inferior. Así cada   */}
+      {/* pedestal tapa el extremo de la viga que le llega desde "atrás".      */}
+      {soladoPedestal(pSuperior, 'sol-ped-superior')}
       {pedestalBox(pSuperior, 'ped-superior')}
+      {soladoVigaSuperiorCorta}
       {vigaSuperiorCorta}
+      {soladoVigaSuperiorLarga}
       {vigaSuperiorLarga}
+      {soladoPedestal(pLateralA, 'sol-ped-lateral-a')}
       {pedestalBox(pLateralA, 'ped-lateral-a')}
+      {soladoPedestal(pLateralB, 'sol-ped-lateral-b')}
       {pedestalBox(pLateralB, 'ped-lateral-b')}
+      {soladoVigaInferiorLarga}
       {vigaInferiorLarga}
+      {soladoVigaInferiorCorta}
       {vigaInferiorCorta}
+      {soladoPedestal(pInferior, 'sol-ped-inferior')}
       {pedestalBox(pInferior, 'ped-inferior')}
+      {/* Nivel de terreno natural: coincide con la parte de ARRIBA de la viga */}
+      <polygon
+        points={poly([
+          isoPt(-halfAncho - 20, -halfLargo - 20, ntnZ, ox, oy),
+          isoPt(halfAncho + 20, -halfLargo - 20, ntnZ, ox, oy),
+          isoPt(halfAncho + 20, halfLargo + 20, ntnZ, ox, oy),
+          isoPt(-halfAncho - 20, halfLargo + 20, ntnZ, ox, oy),
+        ])}
+        fill="none"
+        stroke="#6487C4"
+        strokeWidth="1"
+        strokeDasharray="4 3"
+      />
+      <text
+        x={isoPt(-halfAncho - 20, -halfLargo - 20, ntnZ, ox, oy)[0] - 4}
+        y={isoPt(-halfAncho - 20, -halfLargo - 20, ntnZ, ox, oy)[1] + 3}
+        textAnchor="end"
+        fontSize="7.5"
+        fill="#6487C4"
+        fontFamily="monospace"
+      >
+        N.T.N
+      </text>
       <text x={ox} y={CT_VB_H - 10} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">
         {anchoCT || '—'} × {largoCT || '—'} m (centro a centro) · Altura pedestal {alturaPedestal ? alturaPedestal.toFixed(2) : '—'} m
       </text>
@@ -4879,7 +4917,7 @@ function CTPlanta({ datos }) {
         <line x1={x2} y1={y1 - 28} x2={x2} y2={y1 - 20} />
       </g>
       <text x={cx} y={y1 - 32} textAnchor="middle" fontSize="11" fontWeight="600" fill="#152644">
-        Ancho {anchoCT || '—'} m (centro a centro)
+        Ancho {anchoCT || '—'} m
       </text>
       {/* Cota de largo, a la izquierda */}
       <g stroke="#152644" strokeWidth="1">
@@ -4888,7 +4926,7 @@ function CTPlanta({ datos }) {
         <line x1={x1 - 28} y1={y2} x2={x1 - 20} y2={y2} />
       </g>
       <text x={x1 - 34} y={(y1 + y2) / 2} textAnchor="middle" fontSize="11" fontWeight="600" fill="#152644" transform={`rotate(-90, ${x1 - 34}, ${(y1 + y2) / 2})`}>
-        Largo {largoCT || '—'} m (centro a centro)
+        Largo {largoCT || '—'} m
       </text>
     </svg>
   );
@@ -5614,6 +5652,11 @@ function TrampaAceitePreview({ datos }) {
     isoPt(halfW, halfD, wallZ0, ox, oy), isoPt(-halfW, halfD, wallZ0, ox, oy),
   ]);
 
+  // Cota de altura total (el valor que se digita en "Alto" — incluye la losa,
+  // no solo la pared), a la derecha, paralela a la arista vertical frontal.
+  const [alturaTopX, alturaTopY] = isoPt(halfW, halfD, wallZ1, ox, oy);
+  const [alturaBotX, alturaBotY] = isoPt(halfW, halfD, wallZ0, ox, oy);
+
   return (
     <svg viewBox={`0 0 ${TRAMPA_VB_W} ${TRAMPA_VB_H}`} className={TRAMPA_CSS_SIZE}>
       {/* Solado bajo toda la trampa — sin cara superior (showTop=false):
@@ -5667,8 +5710,14 @@ function TrampaAceitePreview({ datos }) {
       <text x={profLabel[0]} y={profLabel[1]} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644">
         {profundo || '—'} m
       </text>
-      <text x={ox} y={TRAMPA_VB_H - 12} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">
-        {ancho || '—'} × {profundo || '—'} × {alto || '—'} m
+      {/* Cota de altura total, a la derecha, paralela a la arista vertical frontal */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={alturaTopX + 18} y1={alturaTopY} x2={alturaBotX + 18} y2={alturaBotY} />
+        <line x1={alturaTopX + 14} y1={alturaTopY} x2={alturaTopX + 22} y2={alturaTopY} />
+        <line x1={alturaBotX + 14} y1={alturaBotY} x2={alturaBotX + 22} y2={alturaBotY} />
+      </g>
+      <text x={alturaTopX + 30} y={(alturaTopY + alturaBotY) / 2} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${alturaTopX + 30}, ${(alturaTopY + alturaBotY) / 2})`}>
+        {alto ? alto.toFixed(2) : '—'} m
       </text>
     </svg>
   );
@@ -5684,6 +5733,12 @@ function TrampaAceitePlanta({ datos }) {
   const ancho = parseFloat(datos.ancho) || 0;
   const profundo = parseFloat(datos.profundo) || 0;
   const espesorPared = parseFloat(datos.espesor_pared) || 0;
+  // "Alto" es la altura TOTAL de la caja (incluye la losa) — la altura de la
+  // pared sola, que es lo que usan los cálculos de anillos y barras en U, es
+  // esa altura menos el espesor de la losa.
+  const altoTotal = parseFloat(datos.alto) || 0;
+  const espesorLosa = parseFloat(datos.espesor_losa) || 0;
+  const alturaPared = Math.max(0, altoTotal - espesorLosa);
 
   const scale = 110;
   const anchoPx = clamp((ancho || 1.5) * scale, 130, 230);
@@ -5692,16 +5747,16 @@ function TrampaAceitePlanta({ datos }) {
 
   const uLargoCalc = calcularUTrampa({
     dimensionTransversal: datos.ancho, dimensionReparto: datos.profundo,
-    alto: datos.alto, espesorPared: datos.espesor_pared,
+    alto: alturaPared, espesorPared: datos.espesor_pared,
     separacion: datos.u_largo?.separacion, calibre: datos.u_largo?.calibre,
   });
   const uCortoCalc = calcularUTrampa({
     dimensionTransversal: datos.profundo, dimensionReparto: datos.ancho,
-    alto: datos.alto, espesorPared: datos.espesor_pared,
+    alto: alturaPared, espesorPared: datos.espesor_pared,
     separacion: datos.u_corto?.separacion, calibre: datos.u_corto?.calibre,
   });
   const anillos = calcularAnillosTrampa({
-    ancho: datos.ancho, profundo: datos.profundo, alto: datos.alto,
+    ancho: datos.ancho, profundo: datos.profundo, alto: alturaPared,
     espesorPared: datos.espesor_pared,
     separacion: datos.anillos?.separacion, calibre: datos.anillos?.calibre,
   });
@@ -5715,19 +5770,21 @@ function TrampaAceitePlanta({ datos }) {
   const ringX1 = x1 + paredPx / 2, ringX2 = x2 - paredPx / 2;
   const ringY1 = y1 + paredPx / 2, ringY2 = y2 - paredPx / 2;
 
-  // U · lado largo: repartidas a lo largo del profundo, en las paredes que
-  // corren en esa dirección (izquierda/derecha, x = ringX1/ringX2).
+  // U · lado largo: repartidas en el espacio de la pared que corre en esa
+  // dirección (izquierda/derecha, x = ringX1/ringX2) — SIN tocar las
+  // esquinas (que son intersección con la pared perpendicular, no espacio
+  // de esta pared).
   const nLargo = uLargoCalc ? uLargoCalc.cantidad : 0;
   const puntosLargo = [];
   for (let i = 0; i < nLargo; i++) {
-    const frac = nLargo === 1 ? 0.5 : i / (nLargo - 1);
+    const frac = (i + 1) / (nLargo + 1);
     puntosLargo.push(ringY1 + frac * (ringY2 - ringY1));
   }
-  // U · lado corto: repartidas a lo largo del ancho, en las paredes arriba/abajo.
+  // U · lado corto: repartidas en el espacio de la pared arriba/abajo, igual criterio.
   const nCorto = uCortoCalc ? uCortoCalc.cantidad : 0;
   const puntosCorto = [];
   for (let i = 0; i < nCorto; i++) {
-    const frac = nCorto === 1 ? 0.5 : i / (nCorto - 1);
+    const frac = (i + 1) / (nCorto + 1);
     puntosCorto.push(ringX1 + frac * (ringX2 - ringX1));
   }
 
@@ -5793,21 +5850,25 @@ function TrampaAceitePlanta({ datos }) {
 function TrampaAceiteDespieceCorte({ datos, tipo }) {
   const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
   const dimensionTransversal = tipo === 'largo' ? (parseFloat(datos.ancho) || 0) : (parseFloat(datos.profundo) || 0);
-  const alto = parseFloat(datos.alto) || 0;
+  // "Alto" es la altura TOTAL de la caja (incluye la losa) — la altura de la
+  // pared sola (lo que se dibuja como el tramo vertical de este corte) es
+  // esa altura menos el espesor de la losa.
+  const altoTotal = parseFloat(datos.alto) || 0;
   const espesorPared = parseFloat(datos.espesor_pared) || 0;
   const espesorLosa = parseFloat(datos.espesor_losa) || 0;
+  const alturaPared = Math.max(0, altoTotal - espesorLosa);
   const uGrupo = tipo === 'largo' ? (datos.u_largo || {}) : (datos.u_corto || {});
 
   const uCalc = calcularUTrampa({
     dimensionTransversal: tipo === 'largo' ? datos.ancho : datos.profundo,
     dimensionReparto: tipo === 'largo' ? datos.profundo : datos.ancho,
-    alto: datos.alto,
+    alto: alturaPared,
     espesorPared: datos.espesor_pared,
     separacion: uGrupo.separacion,
     calibre: uGrupo.calibre,
   });
   const anillos = calcularAnillosTrampa({
-    ancho: datos.ancho, profundo: datos.profundo, alto: datos.alto,
+    ancho: datos.ancho, profundo: datos.profundo, alto: alturaPared,
     espesorPared: datos.espesor_pared,
     separacion: datos.anillos?.separacion, calibre: datos.anillos?.calibre,
   });
@@ -5819,7 +5880,7 @@ function TrampaAceiteDespieceCorte({ datos, tipo }) {
   const otroCalc = calcularUTrampa({
     dimensionTransversal: otroTipo === 'largo' ? datos.ancho : datos.profundo,
     dimensionReparto: otroTipo === 'largo' ? datos.profundo : datos.ancho,
-    alto: datos.alto,
+    alto: alturaPared,
     espesorPared: datos.espesor_pared,
     separacion: otroGrupo.separacion,
     calibre: otroGrupo.calibre,
@@ -5827,7 +5888,7 @@ function TrampaAceiteDespieceCorte({ datos, tipo }) {
 
   const scale = 130;
   const wPx = clamp((dimensionTransversal || 1.5) * scale, 140, 260);
-  const hPx = clamp((alto || 0.85) * scale, 90, 190);
+  const hPx = clamp((alturaPared || 0.7) * scale, 90, 190);
   const paredPx = clamp((espesorPared || 0.15) * scale, 14, 32);
   const losaPx = clamp((espesorLosa || 0.15) * scale, 12, 28);
 
@@ -5851,21 +5912,25 @@ function TrampaAceiteDespieceCorte({ datos, tipo }) {
   const cantidadAnillos = anillos ? anillos.cantidad : 0;
   const anilloY = [];
   if (cantidadAnillos > 0) {
-    const escalaV = hPx / (alto || 1);
-    const sepPxA = separacionAnillos > 0 ? separacionAnillos * escalaV : (hPx - 2 * recubPx) / Math.max(cantidadAnillos - 1, 1);
+    // Repartidos en el tramo libre de la pared: desde el recubrimiento de
+    // arriba (borde libre) hasta antes de llegar a la losa (para no quedar
+    // justo en la intersección pared-losa).
+    const escalaV = hPx / (alturaPared || 1);
+    const margenInferior = recubPx * 1.5;
+    const sepPxA = separacionAnillos > 0 ? separacionAnillos * escalaV : (hPx - recubPx - margenInferior) / Math.max(cantidadAnillos, 1);
     for (let i = 0; i < cantidadAnillos; i++) {
       const y = topY + recubPx + i * sepPxA;
-      if (y <= wallBotY - recubPx / 2) anilloY.push(y);
+      if (y <= wallBotY - margenInferior) anilloY.push(y);
     }
   }
 
   // Posiciones del acero perpendicular que cruza la losa en este corte,
-  // repartidas parejo a lo ancho de la losa (misma cantidad calculada para
-  // esa dirección — no son visibles en su longitud completa, solo cruzan).
+  // repartidas en el espacio de la losa SIN tocar las intersecciones con
+  // las paredes (que son donde va la barra en U de este mismo plano).
   const cantidadCruce = otroCalc ? otroCalc.cantidad : 0;
   const cruceX = [];
   for (let i = 0; i < cantidadCruce; i++) {
-    const frac = cantidadCruce === 1 ? 0.5 : i / (cantidadCruce - 1);
+    const frac = (i + 1) / (cantidadCruce + 1);
     cruceX.push(barLeftX + frac * (barRightX - barLeftX));
   }
 
@@ -5881,9 +5946,11 @@ function TrampaAceiteDespieceCorte({ datos, tipo }) {
         points={`${barLeftX},${barTopY} ${barLeftX},${barBotY} ${barRightX},${barBotY} ${barRightX},${barTopY}`}
         fill="none" stroke="#059669" strokeWidth="1.8"
       />
-      {/* Ganchos a 180° hacia adentro, en ambos extremos de arriba */}
-      <line x1={barLeftX} y1={barTopY} x2={barLeftX + ganchoPx} y2={barTopY} stroke="#059669" strokeWidth="1.8" />
-      <line x1={barRightX} y1={barTopY} x2={barRightX - ganchoPx} y2={barTopY} stroke="#059669" strokeWidth="1.8" />
+      {/* Ganchos a 180°: casi paralelos a la pared (un tramo corto que se     */}
+      {/* dobla de vuelta hacia abajo, junto a la barra principal), no hacia   */}
+      {/* el lado — un gancho a 180° dobla en el mismo sentido, no perpendicular. */}
+      <line x1={barLeftX + 3} y1={barTopY} x2={barLeftX + 3} y2={barTopY + ganchoPx} stroke="#059669" strokeWidth="1.8" />
+      <line x1={barRightX - 3} y1={barTopY} x2={barRightX - 3} y2={barTopY + ganchoPx} stroke="#059669" strokeWidth="1.8" />
 
       {/* Anillos, vistos de canto: un punto en cada pared por cada altura */}
       {anilloY.map((y, i) => (
@@ -5898,14 +5965,14 @@ function TrampaAceiteDespieceCorte({ datos, tipo }) {
         <circle key={`cr${i}`} cx={x} cy={barBotY} r="2.6" fill="#059669" />
       ))}
 
-      {/* Cota de altura, a la izquierda */}
+      {/* Cota de altura de la pared, a la izquierda */}
       <g stroke="#152644" strokeWidth="1">
         <line x1={leftX - 16} y1={topY} x2={leftX - 16} y2={wallBotY} />
         <line x1={leftX - 12} y1={topY} x2={leftX - 20} y2={topY} />
         <line x1={leftX - 12} y1={wallBotY} x2={leftX - 20} y2={wallBotY} />
       </g>
       <text x={leftX - 28} y={(topY + wallBotY) / 2} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${leftX - 28}, ${(topY + wallBotY) / 2})`}>
-        {alto ? alto.toFixed(2) : '—'} m
+        {alturaPared ? alturaPared.toFixed(2) : '—'} m
       </text>
 
       {/* Etiqueta de la barra en U, arriba */}
@@ -5989,19 +6056,26 @@ function TrampaAceiteForm({ plantilla, onCancel, onSave }) {
 
   const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
 
+  // "Alto" es la altura TOTAL de la caja (incluye la losa) — la altura de la
+  // pared sola, que usan los cálculos de anillos y barras en U, es esa altura
+  // menos el espesor de la losa. calcularVolumenesTrampa SÍ espera el total.
+  const altoTotal = parseFloat(datos.alto) || 0;
+  const espesorLosaNum = parseFloat(datos.espesor_losa) || 0;
+  const alturaPared = Math.max(0, altoTotal - espesorLosaNum);
+
   const anillos = calcularAnillosTrampa({
-    ancho: datos.ancho, profundo: datos.profundo, alto: datos.alto,
+    ancho: datos.ancho, profundo: datos.profundo, alto: alturaPared,
     espesorPared: datos.espesor_pared,
     separacion: datos.anillos?.separacion, calibre: datos.anillos?.calibre,
   });
   const uLargo = calcularUTrampa({
     dimensionTransversal: datos.ancho, dimensionReparto: datos.profundo,
-    alto: datos.alto, espesorPared: datos.espesor_pared,
+    alto: alturaPared, espesorPared: datos.espesor_pared,
     separacion: datos.u_largo?.separacion, calibre: datos.u_largo?.calibre,
   });
   const uCorto = calcularUTrampa({
     dimensionTransversal: datos.profundo, dimensionReparto: datos.ancho,
-    alto: datos.alto, espesorPared: datos.espesor_pared,
+    alto: alturaPared, espesorPared: datos.espesor_pared,
     separacion: datos.u_corto?.separacion, calibre: datos.u_corto?.calibre,
   });
   const volumenes = calcularVolumenesTrampa({
@@ -6047,8 +6121,9 @@ function TrampaAceiteForm({ plantilla, onCancel, onSave }) {
               <input value={datos.profundo} onChange={(e) => set('profundo', e.target.value)} placeholder="1.20" className={cellInput} />
             </div>
             <div>
-              <label className="block text-xs text-navy-500 mb-1">Alto (m)</label>
+              <label className="block text-xs text-navy-500 mb-1">Alto total (m)</label>
               <input value={datos.alto} onChange={(e) => set('alto', e.target.value)} placeholder="0.85" className={cellInput} />
+              <p className="text-[10px] text-navy-400 mt-0.5">Incluye la losa — no solo la pared</p>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
