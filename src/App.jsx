@@ -2820,11 +2820,9 @@ function CamarasVistas({ datos }) {
 /* INVERSORES — 2 pedestales rectangulares iguales + 1 losa con  */
 /* malla electrosoldada, con despiece de acero (barras + estribos). */
 /* ============================================================ */
-const INV_VB_W = 400;
-const INV_VB_H = 300;
 const INV_M2PX = 55;
 const INV_CSS_SIZE = 'w-72 h-60';
-const INV_ISO_CSS_SIZE = 'w-[32rem] h-96';
+const INV_ISO_CSS_SIZE = 'w-[32rem] h-auto';
 const INV_REF_CSS_SIZE = 'w-56 h-56';
 
 /* Isométrico del conjunto: solado corrido + 2 pedestales + losa encima,      */
@@ -2865,8 +2863,42 @@ function InversoresIsometrico({ datos, className = INV_ISO_CSS_SIZE }) {
   const bodyZ1 = pSoladoPx + pAlturaPx;
   const losaZ1 = bodyZ1 + lEspesorPx;
 
-  const ox = INV_VB_W / 2;
-  const oy = 70 + Math.max(halfProf, lLargoPx / 2) + losaZ1;
+  // El tamaño del lienzo se calcula a partir de los puntos extremos reales
+  // del dibujo (con un origen provisional en 0,0), en vez de un margen fijo
+  // pensado para el peor caso posible — así no queda espacio muerto de más
+  // en los casos típicos (que son la inmensa mayoría).
+  const dimPushLosa = 26;
+  const PAD = 46; // margen para el texto de las cotas, que sobresale de sus líneas
+  const bounds = [
+    isoPt(-centroX - halfPed, -halfProf, 0, 0, 0),
+    isoPt(centroX + halfPed, -halfProf, 0, 0, 0),
+    isoPt(centroX + halfPed, halfProf, 0, 0, 0),
+    isoPt(-centroX - halfPed, halfProf, 0, 0, 0),
+    isoPt(-lAnchoPx / 2, -lLargoPx / 2, losaZ1, 0, 0),
+    isoPt(lAnchoPx / 2, -lLargoPx / 2, losaZ1, 0, 0),
+    isoPt(lAnchoPx / 2, lLargoPx / 2, losaZ1, 0, 0),
+    isoPt(-lAnchoPx / 2, lLargoPx / 2, losaZ1, 0, 0),
+    isoPt(-lAnchoPx / 2 - 24, -lLargoPx / 2 - 24, bodyZ1, 0, 0),
+    isoPt(lAnchoPx / 2 + 24, -lLargoPx / 2 - 24, bodyZ1, 0, 0),
+    isoPt(lAnchoPx / 2 + 24, lLargoPx / 2 + 24, bodyZ1, 0, 0),
+    isoPt(-lAnchoPx / 2 - 24, lLargoPx / 2 + 24, bodyZ1, 0, 0),
+    isoPt(-lAnchoPx / 2, -lLargoPx / 2 - dimPushLosa, losaZ1, 0, 0),
+    isoPt(lAnchoPx / 2, -lLargoPx / 2 - dimPushLosa, losaZ1, 0, 0),
+    isoPt(-lAnchoPx / 2 - dimPushLosa, -lLargoPx / 2, losaZ1, 0, 0),
+    isoPt(-lAnchoPx / 2 - dimPushLosa, lLargoPx / 2, losaZ1, 0, 0),
+    isoPt(centroX + halfPed, -halfProf, bodyZ1, 0, 0),
+    isoPt(centroX + halfPed, -halfProf, bodyZ0, 0, 0),
+    isoPt(-lAnchoPx / 2, lLargoPx / 2, losaZ1, 0, 0),
+    isoPt(-lAnchoPx / 2, lLargoPx / 2, bodyZ1, 0, 0),
+  ];
+  const minX = Math.min(...bounds.map((pt) => pt[0])) - PAD;
+  const maxX = Math.max(...bounds.map((pt) => pt[0])) + PAD;
+  const minY = Math.min(...bounds.map((pt) => pt[1])) - PAD * 0.6;
+  const maxY = Math.max(...bounds.map((pt) => pt[1])) + PAD * 0.6;
+  const vbW = maxX - minX;
+  const vbH = maxY - minY;
+  const ox = -minX;
+  const oy = -minY;
 
 
   // Altura del pedestal: esquina trasera-derecha, hacia la derecha.
@@ -2880,7 +2912,6 @@ function InversoresIsometrico({ datos, className = INV_ISO_CSS_SIZE }) {
   // Ancho y largo de la losa: arriba, paralelos a los dos bordes que se ven
   // desde la esquina trasera (la que queda más arriba en la proyección),
   // desplazados aún más arriba para no chocar con la losa ni entre sí.
-  const dimPushLosa = 26;
   const backModel = [-lAnchoPx / 2, -lLargoPx / 2];
   const rightBackModel = [lAnchoPx / 2, -lLargoPx / 2];
   const frontLeftModel = [-lAnchoPx / 2, lLargoPx / 2];
@@ -2895,7 +2926,7 @@ function InversoresIsometrico({ datos, className = INV_ISO_CSS_SIZE }) {
   const lLargoLabel = isoPt(backModel[0] - dimPushLosa - 14, (backModel[1] + frontLeftModel[1]) / 2, losaZ1, ox, oy);
 
   return (
-    <svg viewBox={`0 0 ${INV_VB_W} ${INV_VB_H}`} className={className}>
+    <svg viewBox={`0 0 ${vbW} ${vbH}`} className={className}>
       {/* Solado: uno por cada pedestal, con su misma huella (no una franja continua) */}
       <IsoBoxLineArt x0={-centroX - halfPed} y0={-halfProf} w={pAnchoPx} d={pProfundoPx} z0={0} z1={pSoladoPx} ox={ox} oy={oy} />
       <IsoBoxLineArt x0={centroX - halfPed} y0={-halfProf} w={pAnchoPx} d={pProfundoPx} z0={0} z1={pSoladoPx} ox={ox} oy={oy} />
@@ -4679,11 +4710,9 @@ function PortonForm({ plantilla, onCancel, onSave }) {
 /* SHELTER · CENTRO DE TRANSFORMACIÓN (CT) — 4 pedestales +       */
 /* 4 vigas (2 largas, 2 cortas) formando un marco. Sin zapata.    */
 /* ============================================================ */
-const CT_VB_W = 440;
-const CT_VB_H = 300;
 const CT_M2PX = 42;
 const CT_CSS_SIZE = 'w-80 h-64';
-const CT_ISO_CSS_SIZE = 'w-[35rem] h-96';
+const CT_ISO_CSS_SIZE = 'w-[35rem] h-auto';
 const CT_PLANTA_CSS_SIZE = 'w-56 h-56';
 const CT_PLANTA_GRANDE_CSS_SIZE = 'w-96 h-80';
 const CT_VIGA_ELEV_CSS_SIZE = 'w-[26rem] h-40';
@@ -4768,8 +4797,35 @@ function CTIsometrico({ datos, className = CT_ISO_CSS_SIZE }) {
   const vigaZ1 = ntnZ;
   const vigaZ0 = ntnZ - vAltoPx;
 
-  const ox = CT_VB_W / 2;
-  const oy = 30 + halfLargo + pedestalZ1;
+  // El tamaño del lienzo se calcula a partir de los puntos extremos reales
+  // del dibujo (con un origen provisional en 0,0), en vez de un margen fijo
+  // pensado para el peor caso posible — así no queda espacio muerto de más
+  // en los casos típicos (que son la inmensa mayoría).
+  const PAD = 40;
+  const esqAncho = pAnchoPx / 2;
+  const esqProf = pProfundoPx / 2;
+  const bounds = [
+    isoPt(-halfAncho - esqAncho, -halfLargo - esqProf, 0, 0, 0),
+    isoPt(halfAncho + esqAncho, -halfLargo - esqProf, 0, 0, 0),
+    isoPt(halfAncho + esqAncho, halfLargo + esqProf, 0, 0, 0),
+    isoPt(-halfAncho - esqAncho, halfLargo + esqProf, 0, 0, 0),
+    isoPt(-halfAncho - esqAncho, -halfLargo - esqProf, pedestalZ1, 0, 0),
+    isoPt(halfAncho + esqAncho, -halfLargo - esqProf, pedestalZ1, 0, 0),
+    isoPt(halfAncho + esqAncho, halfLargo + esqProf, pedestalZ1, 0, 0),
+    isoPt(-halfAncho - esqAncho, halfLargo + esqProf, pedestalZ1, 0, 0),
+    isoPt(-halfAncho - 20, -halfLargo - 20, ntnZ, 0, 0),
+    isoPt(halfAncho + 20, -halfLargo - 20, ntnZ, 0, 0),
+    isoPt(halfAncho + 20, halfLargo + 20, ntnZ, 0, 0),
+    isoPt(-halfAncho - 20, halfLargo + 20, ntnZ, 0, 0),
+  ];
+  const minX = Math.min(...bounds.map((pt) => pt[0])) - PAD;
+  const maxX = Math.max(...bounds.map((pt) => pt[0])) + PAD;
+  const minY = Math.min(...bounds.map((pt) => pt[1])) - PAD * 0.6;
+  const maxY = Math.max(...bounds.map((pt) => pt[1])) + PAD * 0.9; // un poco más abajo, para el texto de resumen
+  const vbW = maxX - minX;
+  const vbH = maxY - minY;
+  const ox = -minX;
+  const oy = -minY;
 
   // Las 4 esquinas: "superior" es la más al fondo en la proyección, "inferior"
   // la más al frente, y las otras dos son las "laterales".
@@ -4814,7 +4870,7 @@ function CTIsometrico({ datos, className = CT_ISO_CSS_SIZE }) {
   );
 
   return (
-    <svg viewBox={`0 0 ${CT_VB_W} ${CT_VB_H}`} className={className}>
+    <svg viewBox={`0 0 ${vbW} ${vbH}`} className={className}>
       {/* Orden de atrás hacia adelante, tal como se ve en la proyección — cada */}
       {/* elemento con su propio solado dibujado justo antes que él: pedestal  */}
       {/* superior → vigas superiores (con sus solados) → pedestales laterales */}
@@ -4859,7 +4915,7 @@ function CTIsometrico({ datos, className = CT_ISO_CSS_SIZE }) {
       >
         N.T.N
       </text>
-      <text x={ox} y={CT_VB_H - 10} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">
+      <text x={ox} y={vbH - 10} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">
         {anchoCT || '—'} × {largoCT || '—'} m (centro a centro) · Altura pedestal {alturaPedestal ? alturaPedestal.toFixed(2) : '—'} m
       </text>
     </svg>
