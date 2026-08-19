@@ -5371,6 +5371,7 @@ const TRAMPA_VB_W = 260;
 const TRAMPA_VB_H = 220;
 const TRAMPA_M2PX = 90;
 const TRAMPA_CSS_SIZE = 'w-64 h-56';
+const TRAMPA_DESPIECE_CSS_SIZE = 'w-64 h-56';
 
 function TrampaAceitePreview({ datos }) {
   const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
@@ -5444,18 +5445,169 @@ function TrampaAceitePreview({ datos }) {
   );
 }
 
+/* Despiece de acero: corte vertical de la trampa (2 paredes + losa, como una */
+/* "U" de concreto), mostrando la barra en U de ese lado COMPLETA en su      */
+/* propio plano (baja por una pared, cruza el espesor de la losa, sube por  */
+/* la opuesta, con gancho a 180° en ambos extremos de arriba) + los anillos */
+/* horizontales vistos DE CANTO — como en un corte de estribos, cada anillo */
+/* solo se ve como un punto en cada pared (la barra corre perpendicular al  */
+/* plano de este corte, alrededor de todo el perímetro).                   */
+/* "tipo": 'largo' → corte a lo ancho (la U que conecta las paredes largas, */
+/* repartida a lo profundo); 'corto' → corte a lo profundo (la U que        */
+/* conecta las paredes cortas, repartida a lo ancho).                      */
+function TrampaAceiteDespieceCorte({ datos, tipo }) {
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
+  const dimensionTransversal = tipo === 'largo' ? (parseFloat(datos.ancho) || 0) : (parseFloat(datos.profundo) || 0);
+  const alto = parseFloat(datos.alto) || 0;
+  const espesorPared = parseFloat(datos.espesor_pared) || 0;
+  const espesorLosa = parseFloat(datos.espesor_losa) || 0;
+  const uGrupo = tipo === 'largo' ? (datos.u_largo || {}) : (datos.u_corto || {});
+
+  const uCalc = calcularUTrampa({
+    dimensionTransversal: tipo === 'largo' ? datos.ancho : datos.profundo,
+    dimensionReparto: tipo === 'largo' ? datos.profundo : datos.ancho,
+    alto: datos.alto,
+    espesorPared: datos.espesor_pared,
+    separacion: uGrupo.separacion,
+    calibre: uGrupo.calibre,
+  });
+  const anillos = calcularAnillosTrampa({
+    ancho: datos.ancho, profundo: datos.profundo, alto: datos.alto,
+    espesorPared: datos.espesor_pared,
+    separacion: datos.anillos?.separacion, calibre: datos.anillos?.calibre,
+  });
+
+  const scale = 130;
+  const wPx = clamp((dimensionTransversal || 1.5) * scale, 140, 260);
+  const hPx = clamp((alto || 0.85) * scale, 90, 190);
+  const paredPx = clamp((espesorPared || 0.15) * scale, 14, 32);
+  const losaPx = clamp((espesorLosa || 0.15) * scale, 12, 28);
+
+  const cx = wPx / 2 + 55;
+  const topY = 48;
+  const wallBotY = topY + hPx;
+  const losaBotY = wallBotY + losaPx;
+  const leftX = cx - wPx / 2;
+  const rightX = cx + wPx / 2;
+  const recubPx = 7;
+
+  // Centerlines del acero: centrado en el espesor de cada pared y en el      */
+  // espesor de la losa (mismo criterio de "perímetro centrado" del cálculo). */
+  const barLeftX = leftX + paredPx / 2;
+  const barRightX = rightX - paredPx / 2;
+  const barTopY = topY + recubPx;
+  const barBotY = wallBotY + losaPx / 2;
+  const ganchoPx = 10;
+
+  const separacionAnillos = parseFloat(datos.anillos?.separacion) || 0;
+  const cantidadAnillos = anillos ? anillos.cantidad : 0;
+  const anilloY = [];
+  if (cantidadAnillos > 0) {
+    const escalaV = hPx / (alto || 1);
+    const sepPxA = separacionAnillos > 0 ? separacionAnillos * escalaV : (hPx - 2 * recubPx) / Math.max(cantidadAnillos - 1, 1);
+    for (let i = 0; i < cantidadAnillos; i++) {
+      const y = topY + recubPx + i * sepPxA;
+      if (y <= wallBotY - recubPx / 2) anilloY.push(y);
+    }
+  }
+
+  return (
+    <svg viewBox={`0 0 ${wPx + 110} ${losaBotY + 40}`} className={TRAMPA_DESPIECE_CSS_SIZE}>
+      {/* Concreto en corte: 2 paredes + la losa que las une por debajo */}
+      <rect x={leftX} y={topY} width={paredPx} height={hPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      <rect x={rightX - paredPx} y={topY} width={paredPx} height={hPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+      <rect x={leftX} y={wallBotY} width={wPx} height={losaPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.2" />
+
+      {/* Barra en U, completa en este plano: baja, cruza la losa, sube */}
+      <polyline
+        points={`${barLeftX},${barTopY} ${barLeftX},${barBotY} ${barRightX},${barBotY} ${barRightX},${barTopY}`}
+        fill="none" stroke="#059669" strokeWidth="1.8"
+      />
+      {/* Ganchos a 180° hacia adentro, en ambos extremos de arriba */}
+      <line x1={barLeftX} y1={barTopY} x2={barLeftX + ganchoPx} y2={barTopY} stroke="#059669" strokeWidth="1.8" />
+      <line x1={barRightX} y1={barTopY} x2={barRightX - ganchoPx} y2={barTopY} stroke="#059669" strokeWidth="1.8" />
+
+      {/* Anillos, vistos de canto: un punto en cada pared por cada altura */}
+      {anilloY.map((y, i) => (
+        <g key={i}>
+          <circle cx={barLeftX} cy={y} r="2.6" fill="#2563EB" />
+          <circle cx={barRightX} cy={y} r="2.6" fill="#2563EB" />
+        </g>
+      ))}
+
+      {/* Cota de altura, a la izquierda */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={leftX - 16} y1={topY} x2={leftX - 16} y2={wallBotY} />
+        <line x1={leftX - 12} y1={topY} x2={leftX - 20} y2={topY} />
+        <line x1={leftX - 12} y1={wallBotY} x2={leftX - 20} y2={wallBotY} />
+      </g>
+      <text x={leftX - 26} y={(topY + wallBotY) / 2} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${leftX - 26}, ${(topY + wallBotY) / 2})`}>
+        {alto ? alto.toFixed(2) : '—'} m
+      </text>
+
+      {/* Etiqueta de la barra en U, arriba */}
+      <text x={cx} y={topY - 16} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#059669">
+        {uCalc?.cantidad || '—'} U {uGrupo.calibre || '#—'} @{uGrupo.separacion || '—'} — {uCalc ? uCalc.longitud.toFixed(2) : '—'} m c/u
+      </text>
+      {/* Etiqueta de los anillos, a la derecha */}
+      <text x={rightX + 14} y={(topY + wallBotY) / 2} fontSize="8" fontWeight="600" fill="#2563EB" transform={`rotate(90, ${rightX + 14}, ${(topY + wallBotY) / 2})`} textAnchor="middle">
+        {anillos?.cantidad || '—'} anillos {datos.anillos?.calibre || '#—'} @{datos.anillos?.separacion || '—'}
+      </text>
+    </svg>
+  );
+}
+function TrampaAceiteDespieceLargo({ datos }) {
+  return <TrampaAceiteDespieceCorte datos={datos} tipo="largo" />;
+}
+function TrampaAceiteDespieceCorto({ datos }) {
+  return <TrampaAceiteDespieceCorte datos={datos} tipo="corto" />;
+}
+
+function TrampaAceiteVistas({ datos }) {
+  return (
+    <div className="flex flex-wrap gap-4 justify-center">
+      <div className="text-center">
+        <TrampaAceitePreview datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Isométrico</p>
+      </div>
+      <div className="text-center">
+        <TrampaAceiteDespieceLargo datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Despiece · U lado largo</p>
+      </div>
+      <div className="text-center">
+        <TrampaAceiteDespieceCorto datos={datos} />
+        <p className="text-xs text-navy-400 mt-0.5">Despiece · U lado corto</p>
+      </div>
+    </div>
+  );
+}
+
+/* Garantiza que toda la estructura anidada exista, sin importar qué tan     */
+/* vieja sea la plantilla guardada — mismo motivo que en Portón/CT: sin     */
+/* esto, abrir una plantilla vieja (guardada antes de que existieran los    */
+/* grupos de acero) para editarla revienta con pantalla en blanco.         */
+function normalizarDatosTrampa(datos) {
+  const base = {
+    ancho: '', profundo: '', alto: '',
+    espesor_pared: '', espesor_losa: '', espesor_solado: '',
+    resistencia: '',
+    anillos: { calibre: '', separacion: '' },
+    u_largo: { calibre: '', separacion: '' },
+    u_corto: { calibre: '', separacion: '' },
+  };
+  if (!datos) return base;
+  return {
+    ...base,
+    ...datos,
+    anillos: { ...base.anillos, ...datos.anillos },
+    u_largo: { ...base.u_largo, ...datos.u_largo },
+    u_corto: { ...base.u_corto, ...datos.u_corto },
+  };
+}
+
 function TrampaAceiteForm({ plantilla, onCancel, onSave }) {
   const [nombre, setNombre] = useState(plantilla?.nombre || '');
-  const [datos, setDatos] = useState(
-    plantilla?.datos || {
-      ancho: '', profundo: '', alto: '',
-      espesor_pared: '', espesor_losa: '', espesor_solado: '',
-      resistencia: '',
-      anillos: { calibre: '', separacion: '' },
-      u_largo: { calibre: '', separacion: '' },
-      u_corto: { calibre: '', separacion: '' },
-    }
-  );
+  const [datos, setDatos] = useState(() => normalizarDatosTrampa(plantilla?.datos));
 
   function set(key, val) {
     setDatos((prev) => ({ ...prev, [key]: val }));
@@ -5499,10 +5651,10 @@ function TrampaAceiteForm({ plantilla, onCancel, onSave }) {
       <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
         {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Shelter · Trampa de aceite
       </p>
+      <div className="flex justify-center bg-navy-50 rounded-lg p-3 mb-5">
+        <TrampaAceiteVistas datos={datos} />
+      </div>
       <div className="flex items-start gap-6 flex-wrap">
-        <div className="flex justify-center bg-navy-50 rounded-lg p-3 shrink-0 w-fit mx-auto">
-          <TrampaAceitePreview datos={datos} />
-        </div>
         <div className="flex-1 space-y-3" style={{ minWidth: 280 }}>
           <div>
             <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre de la plantilla</label>
