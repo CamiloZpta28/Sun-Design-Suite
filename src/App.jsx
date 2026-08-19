@@ -6555,7 +6555,7 @@ function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete, mallas, onAd
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {plantillasDelTipo.map((p) => (
                   <div key={p.id} className="bg-white border border-navy-200 rounded-xl p-4">
-                    <div className="flex items-center justify-center mb-2">
+                    <div className="flex items-center justify-center mb-2 [&>svg]:!w-full [&>svg]:!h-auto">
                       <componentes.Preview datos={p.datos} />
                     </div>
                     <p className="font-semibold text-navy-800 text-sm text-center mb-1">{p.nombre}</p>
