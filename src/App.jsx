@@ -2824,6 +2824,7 @@ const INV_VB_W = 400;
 const INV_VB_H = 300;
 const INV_M2PX = 55;
 const INV_CSS_SIZE = 'w-72 h-60';
+const INV_ISO_CSS_SIZE = 'w-[32rem] h-96';
 const INV_REF_CSS_SIZE = 'w-56 h-56';
 
 /* Isométrico del conjunto: solado corrido + 2 pedestales + losa encima,      */
@@ -2894,7 +2895,7 @@ function InversoresIsometrico({ datos }) {
   const lLargoLabel = isoPt(backModel[0] - dimPushLosa - 14, (backModel[1] + frontLeftModel[1]) / 2, losaZ1, ox, oy);
 
   return (
-    <svg viewBox={`0 0 ${INV_VB_W} ${INV_VB_H}`} className={INV_CSS_SIZE}>
+    <svg viewBox={`0 0 ${INV_VB_W} ${INV_VB_H}`} className={INV_ISO_CSS_SIZE}>
       {/* Solado: uno por cada pedestal, con su misma huella (no una franja continua) */}
       <IsoBoxLineArt x0={-centroX - halfPed} y0={-halfProf} w={pAnchoPx} d={pProfundoPx} z0={0} z1={pSoladoPx} ox={ox} oy={oy} />
       <IsoBoxLineArt x0={centroX - halfPed} y0={-halfProf} w={pAnchoPx} d={pProfundoPx} z0={0} z1={pSoladoPx} ox={ox} oy={oy} />
@@ -4682,6 +4683,7 @@ const CT_VB_W = 440;
 const CT_VB_H = 300;
 const CT_M2PX = 42;
 const CT_CSS_SIZE = 'w-80 h-64';
+const CT_ISO_CSS_SIZE = 'w-[35rem] h-96';
 const CT_PLANTA_CSS_SIZE = 'w-56 h-56';
 const CT_PLANTA_GRANDE_CSS_SIZE = 'w-96 h-80';
 const CT_VIGA_ELEV_CSS_SIZE = 'w-[26rem] h-40';
@@ -4812,7 +4814,7 @@ function CTIsometrico({ datos }) {
   );
 
   return (
-    <svg viewBox={`0 0 ${CT_VB_W} ${CT_VB_H}`} className={CT_CSS_SIZE}>
+    <svg viewBox={`0 0 ${CT_VB_W} ${CT_VB_H}`} className={CT_ISO_CSS_SIZE}>
       {/* Orden de atrás hacia adelante, tal como se ve en la proyección — cada */}
       {/* elemento con su propio solado dibujado justo antes que él: pedestal  */}
       {/* superior → vigas superiores (con sus solados) → pedestales laterales */}
@@ -5653,9 +5655,10 @@ function TrampaAceitePreview({ datos }) {
   ]);
 
   // Cota de altura total (el valor que se digita en "Alto" — incluye la losa,
-  // no solo la pared), a la derecha, paralela a la arista vertical frontal.
-  const [alturaTopX, alturaTopY] = isoPt(halfW, halfD, wallZ1, ox, oy);
-  const [alturaBotX, alturaBotY] = isoPt(halfW, halfD, wallZ0, ox, oy);
+  // no solo la pared), a la derecha — en la arista trasera-derecha, que es el
+  // punto más a la derecha de todo el dibujo (queda claramente separada).
+  const [alturaTopX, alturaTopY] = isoPt(halfW, -halfD, wallZ1, ox, oy);
+  const [alturaBotX, alturaBotY] = isoPt(halfW, -halfD, wallZ0, ox, oy);
 
   return (
     <svg viewBox={`0 0 ${TRAMPA_VB_W} ${TRAMPA_VB_H}`} className={TRAMPA_CSS_SIZE}>
