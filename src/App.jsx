@@ -2830,7 +2830,7 @@ const INV_REF_CSS_SIZE = 'w-56 h-56';
 /* Isométrico del conjunto: solado corrido + 2 pedestales + losa encima,      */
 /* con cotas de la losa (ancho/largo/espesor) y de un pedestal (ancho/       */
 /* profundo/altura) — igual estilo de líneas que los demás tipos.           */
-function InversoresIsometrico({ datos }) {
+function InversoresIsometrico({ datos, className = INV_ISO_CSS_SIZE }) {
   const p = datos.pedestal || {};
   const l = datos.losa || {};
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -2895,7 +2895,7 @@ function InversoresIsometrico({ datos }) {
   const lLargoLabel = isoPt(backModel[0] - dimPushLosa - 14, (backModel[1] + frontLeftModel[1]) / 2, losaZ1, ox, oy);
 
   return (
-    <svg viewBox={`0 0 ${INV_VB_W} ${INV_VB_H}`} className={INV_ISO_CSS_SIZE}>
+    <svg viewBox={`0 0 ${INV_VB_W} ${INV_VB_H}`} className={className}>
       {/* Solado: uno por cada pedestal, con su misma huella (no una franja continua) */}
       <IsoBoxLineArt x0={-centroX - halfPed} y0={-halfProf} w={pAnchoPx} d={pProfundoPx} z0={0} z1={pSoladoPx} ox={ox} oy={oy} />
       <IsoBoxLineArt x0={centroX - halfPed} y0={-halfProf} w={pAnchoPx} d={pProfundoPx} z0={0} z1={pSoladoPx} ox={ox} oy={oy} />
@@ -4733,7 +4733,7 @@ function normalizarDatosCT(datos) {
 /* la viga que llega a él (la viga "entra" al pedestal), así que este orden */
 /* funciona en las 4 esquinas a la vez (a diferencia del Portón, que solo   */
 /* tenía 2 esquinas con relación de profundidad opuesta entre sí).          */
-function CTIsometrico({ datos }) {
+function CTIsometrico({ datos, className = CT_ISO_CSS_SIZE }) {
   const p = datos.pedestal || {};
   const v = datos.viga || {};
   const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
@@ -4814,7 +4814,7 @@ function CTIsometrico({ datos }) {
   );
 
   return (
-    <svg viewBox={`0 0 ${CT_VB_W} ${CT_VB_H}`} className={CT_ISO_CSS_SIZE}>
+    <svg viewBox={`0 0 ${CT_VB_W} ${CT_VB_H}`} className={className}>
       {/* Orden de atrás hacia adelante, tal como se ve en la proyección — cada */}
       {/* elemento con su propio solado dibujado justo antes que él: pedestal  */}
       {/* superior → vigas superiores (con sus solados) → pedestales laterales */}
@@ -6555,8 +6555,8 @@ function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete, mallas, onAd
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {plantillasDelTipo.map((p) => (
                   <div key={p.id} className="bg-white border border-navy-200 rounded-xl p-4">
-                    <div className="flex items-center justify-center mb-2 [&>svg]:!w-full [&>svg]:!h-auto">
-                      <componentes.Preview datos={p.datos} />
+                    <div className="flex items-center justify-center mb-2">
+                      <componentes.Preview datos={p.datos} className="w-full h-auto" />
                     </div>
                     <p className="font-semibold text-navy-800 text-sm text-center mb-1">{p.nombre}</p>
                     <p className="text-xs text-navy-400 text-center mb-3">
