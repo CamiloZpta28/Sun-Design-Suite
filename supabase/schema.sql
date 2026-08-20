@@ -205,6 +205,22 @@ create table if not exists cimentacion_plantillas (
   updated_at timestamptz default now()
 );
 
+-- Plantillas reutilizables de equipos eléctricos (paneles, inversores,
+-- transformadores, etc. — ver EQUIPO_TIPOS en src/App.jsx). A diferencia de
+-- cimentacion_plantillas, aquí no hay cálculos: "datos" solo guarda
+-- especificacion + atributos (texto libre) + una imagen opcional en base64.
+-- Se siembra automáticamente con 68 plantillas de ejemplo la primera vez
+-- que se abre la pestaña "Equipos eléctricos" (ver EQUIPO_SEED).
+create table if not exists equipo_plantillas (
+  id text primary key,
+  tipo text not null,
+  nombre text not null,
+  datos jsonb not null default '{}'::jsonb,
+  creado_por text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 -- Lista de tipos de malla electrosoldada disponibles en el selector de la
 -- losa de Inversores (y de cualquier otra cimentación que use malla más
 -- adelante). Empieza con D84; cualquiera puede agregar otra.
@@ -357,6 +373,16 @@ create policy "Crear plantillas de cimentacion" on cimentacion_plantillas
 create policy "Editar plantillas de cimentacion" on cimentacion_plantillas
   for update using (auth.role() = 'authenticated');
 create policy "Eliminar plantillas de cimentacion" on cimentacion_plantillas
+  for delete using (auth.role() = 'authenticated');
+
+alter table equipo_plantillas enable row level security;
+create policy "Lectura de plantillas de equipos" on equipo_plantillas
+  for select using (auth.role() = 'authenticated');
+create policy "Crear plantillas de equipos" on equipo_plantillas
+  for insert with check (auth.role() = 'authenticated');
+create policy "Editar plantillas de equipos" on equipo_plantillas
+  for update using (auth.role() = 'authenticated');
+create policy "Eliminar plantillas de equipos" on equipo_plantillas
   for delete using (auth.role() = 'authenticated');
 
 alter table mallas enable row level security;

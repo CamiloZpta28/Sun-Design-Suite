@@ -6649,6 +6649,500 @@ function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete, mallas, onAd
   );
 }
 
+/* ============================================================================
+   5B. EQUIPOS ELÉCTRICOS — plantillas reutilizables de equipos (paneles,
+   inversores, transformadores, etc.). A diferencia de Cimentaciones, aquí NO
+   hay cálculos ni previsualizaciones técnicas: cada "tipo" es simplemente un
+   nombre + una especificación corta + una lista fija de atributos (texto
+   libre) + una imagen opcional (si no se sube una, se muestra un ícono
+   genérico representativo del tipo de equipo).
+   ============================================================================ */
+
+/* Cada tipo trae su propia lista de "campos" (los nombres exactos vienen del */
+/* Excel de referencia entregado por Camilo). Cuando dentro de una misma      */
+/* categoría había sub-tipos con listas de campos distintas (p. ej. los 3     */
+/* tipos de Transformador, o Cable DC/AC/Cobre desnudo), cada uno quedó como  */
+/* un tipo independiente con su propio formulario — mismo criterio que        */
+/* Cerramiento en Cimentaciones.                                             */
+const EQUIPO_TIPOS = [
+  { id: "panel", label: "Panel", campos: ["Potencia", "Bifacialidad", "Voltaje circuito abierto", "Voltaje de máxima potencia", "Corriente de cortocircuito", "Corriente de máxima potencia", "Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante"] },
+  { id: "inversor", label: "Inversor", campos: ["Potencia", "Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante", "Voltaje nominal", "Voltaje de entrada", "Voltaje de salida", "Voltaje máximo de entrada", "Voltaje mínimo de entrada", "Potencia máxima"] },
+  { id: "transformador_potencia", label: "Transformador de potencia", campos: ["Potencia", "Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante", "Voltaje alta", "Voltaje baja", "Grupo horario", "Número de serie", "Tipo de transformador", "Número de fases", "Nivel de aislamiento"] },
+  { id: "transformador_corriente", label: "Transformador de corriente", campos: ["Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante", "Número de fases", "Nivel de aislamiento", "Clase Medición", "Corriente térmica de corta duración", "Burden", "Relación de transformación", "Corriente primario", "Corriente secundario", "Ancho", "Largo", "Alto", "Corriente nominal"] },
+  { id: "transformador_potencial", label: "Transformador de potencial", campos: ["Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante", "Voltaje alta", "Voltaje baja", "Número de fases", "Nivel de aislamiento", "Clase Medición", "Burden", "Relación de transformación", "Ancho", "Largo", "Alto"] },
+  { id: "reconectador", label: "Reconectador", campos: ["Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante", "Voltaje nominal", "Nivel de aislamiento", "Ancho", "Largo", "Alto", "Corriente nominal"] },
+  { id: "celda", label: "Celda", campos: ["Corriente de cortocircuito", "Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante", "Nivel de aislamiento", "Corriente nominal", "Grado IP"] },
+  { id: "tablero", label: "Tablero", campos: ["Corriente de cortocircuito", "Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante", "Nivel de aislamiento", "Corriente nominal", "Grado IP"] },
+  { id: "breaker", label: "Breaker", campos: ["Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante", "Voltaje nominal", "Corriente nominal", "Icu", "Rango de regulación", "Grado IP"] },
+  { id: "dps", label: "DPS", campos: ["Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante", "Voltaje nominal", "BIL", "Tensión soportada al impulso tipo rayo", "Tensión soportada a frecuencia industrial", "MCOV"] },
+  { id: "medidor", label: "Medidor", campos: ["Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante", "Voltaje de entrada", "Consumo"] },
+  { id: "cable_dc", label: "Cable DC", campos: ["Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante", "Voltaje nominal", "Nivel de aislamiento", "Calibre", "Diámetro conductor", "Diámetro externo", "Resistencia por km", "Peso por km", "Material conductor", "Material aislamiento", "Radio de curvatura mínimo", "Diámetro interno", "Material"] },
+  { id: "cable_ac", label: "Cable AC", campos: ["Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante", "Voltaje nominal", "Nivel de aislamiento", "Calibre", "Diámetro conductor", "Diámetro externo", "Resistencia por km", "Peso por km", "Material conductor", "Material aislamiento", "Radio de curvatura mínimo", "Diámetro interno", "Material"] },
+  { id: "cable_cobre_desnudo", label: "Cable · Cobre desnudo", campos: ["Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante", "Calibre"] },
+  { id: "bandeja", label: "Bandeja", campos: ["Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante", "Ancho", "Largo", "Alto"] },
+  { id: "tuberia_poliamida", label: "Tubería · Poliamida", campos: ["Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante"] },
+  { id: "tuberia_pvc", label: "Tubería · PVC/rígida", campos: ["Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante", "Diámetro externo", "Diámetro interno"] },
+  { id: "shelter", label: "Shelter", campos: ["Marca", "Modelo / Referencia", "Normas técnicas", "Fabricante", "Voltaje nominal"] },
+];
+
+/* Las 68 plantillas de ejemplo del Excel de Camilo, precargadas la primera   */
+/* vez que se abre esta pestaña (ver "cargarDatosIniciales" en el componente */
+/* raíz — mismo patrón que "países/proveedores/mallas" semilla). Solo traen  */
+/* nombre + especificación; los demás atributos quedan en blanco para que    */
+/* cada quien los complete con sus propios datos reales.                    */
+const EQUIPO_SEED = [
+  { tipo: "panel", nombre: "Panel Longi 655 Wp", especificacion: "655 Wp" },
+  { tipo: "panel", nombre: "Panel Longi 620 Wp", especificacion: "620 Wp" },
+  { tipo: "inversor", nombre: "Inversor Huawei 249 kW", especificacion: "249 kW" },
+  { tipo: "inversor", nombre: "Inversor Huawei 247.5 kW", especificacion: "247.5 kW" },
+  { tipo: "inversor", nombre: "Inversor Huawei 300 kW", especificacion: "300 kW" },
+  { tipo: "inversor", nombre: "Inversor Huawei 200 kW", especificacion: "200 kW" },
+  { tipo: "inversor", nombre: "Inversor Huawei 100 kW", especificacion: "100 kW" },
+  { tipo: "transformador_potencia", nombre: "Transformador de potencia Tesla 1100 kVA seco", especificacion: "1100 kVA" },
+  { tipo: "transformador_potencia", nombre: "Transformador de potencia Zentrack 1100 kVA aceite", especificacion: "1100 kVA" },
+  { tipo: "transformador_potencia", nombre: "Transformador de potencia Zentrack 1250 kVA seco", especificacion: "1250 kVA" },
+  { tipo: "transformador_corriente", nombre: "Transformador de corriente Rymel", especificacion: "" },
+  { tipo: "transformador_potencial", nombre: "Transformador de potencial Rymel", especificacion: "" },
+  { tipo: "transformador_potencial", nombre: "Transformador de potencial Rymel", especificacion: "" },
+  { tipo: "reconectador", nombre: "Reconectador ABB", especificacion: "15 kV" },
+  { tipo: "reconectador", nombre: "Reconectador ABB", especificacion: "38 kV" },
+  { tipo: "reconectador", nombre: "Reconectador Noja", especificacion: "15 kV" },
+  { tipo: "reconectador", nombre: "Reconectador Noja", especificacion: "27 kV" },
+  { tipo: "reconectador", nombre: "Reconectador Noja", especificacion: "38 kV" },
+  { tipo: "medidor", nombre: "Medidor Iskra", especificacion: "" },
+  { tipo: "medidor", nombre: "Medidor Itron", especificacion: "" },
+  { tipo: "medidor", nombre: "Medidor Metcom", especificacion: "" },
+  { tipo: "dps", nombre: "DPS Celsa", especificacion: "15 kV" },
+  { tipo: "dps", nombre: "DPS Celsa", especificacion: "36 kV" },
+  { tipo: "dps", nombre: "DPS Shendian Electric", especificacion: "18 kV" },
+  { tipo: "cable_dc", nombre: "Cable DC Procables", especificacion: "6 mm" },
+  { tipo: "cable_ac", nombre: "Cable AC Procables", especificacion: "2 AWG" },
+  { tipo: "cable_ac", nombre: "Cable AC Procables", especificacion: "2 AWG" },
+  { tipo: "cable_ac", nombre: "Cable AC Procables", especificacion: "1/0 AWG" },
+  { tipo: "cable_ac", nombre: "Cable AC Procables", especificacion: "2/0 AWG" },
+  { tipo: "cable_ac", nombre: "Cable AC Procables", especificacion: "4/0 AWG" },
+  { tipo: "cable_ac", nombre: "Cable AC Procables", especificacion: "250 MCM" },
+  { tipo: "cable_ac", nombre: "Cable AC Procables", especificacion: "350 MCM" },
+  { tipo: "cable_ac", nombre: "Cable AC Procables", especificacion: "500 MCM" },
+  { tipo: "cable_ac", nombre: "Cable AC Procables", especificacion: "8 AWG" },
+  { tipo: "breaker", nombre: "Breaker ABB 1250 A 1000V", especificacion: "1250 A 1000V" },
+  { tipo: "breaker", nombre: "Breaker ABB 250 A 1000V", especificacion: "1250 A 1000V" },
+  { tipo: "breaker", nombre: "Breaker ABB 160 A 480V", especificacion: "160 A 480V" },
+  { tipo: "breaker", nombre: "Breaker ABB 80 A 480V", especificacion: "" },
+  { tipo: "breaker", nombre: "Breaker ABB", especificacion: "" },
+  { tipo: "breaker", nombre: "Breaker ABB", especificacion: "" },
+  { tipo: "bandeja", nombre: "Bandeja Escalera Galco", especificacion: "Alt 8cm, L 2.4mt, A 10cm" },
+  { tipo: "bandeja", nombre: "Bandeja Escalera Galco", especificacion: "Alt 5cm / L 2.4mt / A 30cm" },
+  { tipo: "bandeja", nombre: "Bandeja Escalera Galco", especificacion: "Alt 5cm / L 3mt / A 10cm" },
+  { tipo: "bandeja", nombre: "Bandeja Escalera Galco", especificacion: "Alt 5cm / L 3mt / A 20cm" },
+  { tipo: "bandeja", nombre: "Bandeja Escalera Galco", especificacion: "" },
+  { tipo: "bandeja", nombre: "Bandeja Escalera Galco", especificacion: "" },
+  { tipo: "tuberia_poliamida", nombre: "Tubería Poliamida Interflex", especificacion: "AGT 12 N" },
+  { tipo: "tuberia_poliamida", nombre: "Tubería Poliamida Interflex", especificacion: "AGT 48 N" },
+  { tipo: "tuberia_poliamida", nombre: "Tubería Poliamida Interflex", especificacion: "AGT 95 N" },
+  { tipo: "tuberia_pvc", nombre: "Tubería PVC Durman", especificacion: "4\"" },
+  { tipo: "tuberia_pvc", nombre: "Tubería PVC Durman", especificacion: "2\"" },
+  { tipo: "tuberia_pvc", nombre: "Tubería IMC Fuji", especificacion: "4\"" },
+  { tipo: "tuberia_pvc", nombre: "Tubería IMC Fuji", especificacion: "2\"" },
+  { tipo: "tuberia_pvc", nombre: "Tubería IMC Fuji", especificacion: "3/4\"" },
+  { tipo: "tuberia_pvc", nombre: "Tubería Aiscan TPI", especificacion: "3/4\"" },
+  { tipo: "tuberia_pvc", nombre: "Tubería Aiscan UV", especificacion: "2\"" },
+  { tipo: "tuberia_pvc", nombre: "Tubería Aiscan UV", especificacion: "4\"" },
+  { tipo: "tuberia_pvc", nombre: "Tubería Aiscan DNI", especificacion: "2\"" },
+  { tipo: "tuberia_pvc", nombre: "Tubería Aiscan DNI", especificacion: "4\"" },
+  { tipo: "cable_cobre_desnudo", nombre: "Cable Cobre Desnudo", especificacion: "1/0 AWG" },
+  { tipo: "cable_cobre_desnudo", nombre: "Cable Cobre Desnudo", especificacion: "2 AWG" },
+  { tipo: "shelter", nombre: "Shelter Zentrack 1100 KVA 13.8 kV", especificacion: "1100 KVA 13.8 kV" },
+  { tipo: "shelter", nombre: "Shelter Zentrack 1100 KVA 34.5 kV", especificacion: "1100 KVA 34.5 kV" },
+  { tipo: "shelter", nombre: "Shelter Zentrack 1250 kVA 34.5 kV", especificacion: "1250 KVA 34.5 kV" },
+  { tipo: "shelter", nombre: "Shelter Zentrack 1250 kVA 13.8 kV", especificacion: "1250 KVA 13.8 kV" },
+  { tipo: "celda", nombre: "Celda ABB 36 kV", especificacion: "36 kV" },
+  { tipo: "celda", nombre: "Celda ABB 24 kV", especificacion: "24 kV" },
+  { tipo: "tablero", nombre: "Tablero Zentrack 800 V", especificacion: "800 V" },
+];
+
+const EQUIPO_INPUT_CSS = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+
+/* Ícono genérico simple por tipo — se usa como respaldo cuando la plantilla */
+/* no tiene una imagen propia subida. Son símbolos esquemáticos, no dibujos  */
+/* técnicos a escala (a diferencia de las cimentaciones, aquí no aplica).    */
+function EquipoIcono({ tipoId, className = 'w-28 h-28' }) {
+  const stroke = '#152644';
+  const accent = '#2563EB';
+  let content;
+  switch (tipoId) {
+    case 'panel':
+      content = (
+        <g>
+          <rect x="18" y="28" width="64" height="44" rx="2" fill="#EAF1FF" stroke={stroke} strokeWidth="1.4" />
+          {[1, 2, 3].map((i) => <line key={`v${i}`} x1={18 + i * 16} y1="28" x2={18 + i * 16} y2="72" stroke={stroke} strokeWidth="1" />)}
+          {[1, 2].map((i) => <line key={`h${i}`} x1="18" y1={28 + i * 14.6} x2="82" y2={28 + i * 14.6} stroke={stroke} strokeWidth="1" />)}
+        </g>
+      );
+      break;
+    case 'inversor':
+      content = (
+        <g>
+          <rect x="24" y="24" width="52" height="52" rx="5" fill="#F6F7F9" stroke={stroke} strokeWidth="1.4" />
+          <path d="M 32 50 Q 41 30, 50 50 T 68 50" fill="none" stroke={accent} strokeWidth="2.2" />
+        </g>
+      );
+      break;
+    case 'transformador_potencia':
+      content = (
+        <g>
+          <rect x="24" y="46" width="52" height="30" rx="3" fill="#F6F7F9" stroke={stroke} strokeWidth="1.4" />
+          <line x1="38" y1="46" x2="38" y2="30" stroke={stroke} strokeWidth="1.8" />
+          <line x1="62" y1="46" x2="62" y2="30" stroke={stroke} strokeWidth="1.8" />
+          <circle cx="38" cy="27" r="3.2" fill="#F6F7F9" stroke={stroke} strokeWidth="1.2" />
+          <circle cx="62" cy="27" r="3.2" fill="#F6F7F9" stroke={stroke} strokeWidth="1.2" />
+        </g>
+      );
+      break;
+    case 'transformador_corriente':
+      content = (
+        <g>
+          <circle cx="50" cy="50" r="24" fill="#F6F7F9" stroke={stroke} strokeWidth="1.4" />
+          <circle cx="50" cy="50" r="11" fill="white" stroke={stroke} strokeWidth="1.2" />
+          <line x1="16" y1="50" x2="84" y2="50" stroke={accent} strokeWidth="2.2" />
+        </g>
+      );
+      break;
+    case 'transformador_potencial':
+      content = (
+        <g>
+          <rect x="34" y="46" width="32" height="26" rx="3" fill="#F6F7F9" stroke={stroke} strokeWidth="1.4" />
+          <line x1="50" y1="46" x2="50" y2="28" stroke={stroke} strokeWidth="1.8" />
+          <circle cx="50" cy="25" r="3.2" fill="#F6F7F9" stroke={stroke} strokeWidth="1.2" />
+        </g>
+      );
+      break;
+    case 'reconectador':
+      content = (
+        <g>
+          <rect x="37" y="40" width="26" height="36" rx="3" fill="#F6F7F9" stroke={stroke} strokeWidth="1.4" />
+          <line x1="50" y1="40" x2="50" y2="25" stroke={stroke} strokeWidth="1.8" />
+          <circle cx="50" cy="22" r="3.2" fill="#F6F7F9" stroke={stroke} strokeWidth="1.2" />
+          <line x1="28" y1="78" x2="72" y2="78" stroke={stroke} strokeWidth="1.4" />
+        </g>
+      );
+      break;
+    case 'celda':
+      content = (
+        <g>
+          <rect x="27" y="22" width="46" height="54" rx="2" fill="#F6F7F9" stroke={stroke} strokeWidth="1.4" />
+          <line x1="50" y1="22" x2="50" y2="76" stroke={stroke} strokeWidth="1" />
+          <circle cx="38.5" cy="34" r="2.2" fill={stroke} />
+          <circle cx="61.5" cy="34" r="2.2" fill={stroke} />
+          <rect x="32" y="55" width="14" height="11" fill="none" stroke={accent} strokeWidth="1.2" />
+          <rect x="54" y="55" width="14" height="11" fill="none" stroke={accent} strokeWidth="1.2" />
+        </g>
+      );
+      break;
+    case 'tablero':
+      content = (
+        <g>
+          <rect x="23" y="23" width="54" height="54" rx="2" fill="#F6F7F9" stroke={stroke} strokeWidth="1.4" />
+          {[0, 1, 2].map((r) => [0, 1].map((c) => (
+            <rect key={`${r}-${c}`} x={31 + c * 22} y={31 + r * 14} width="15" height="9" fill="none" stroke={accent} strokeWidth="1" />
+          )))}
+        </g>
+      );
+      break;
+    case 'breaker':
+      content = (
+        <g>
+          <rect x="31" y="28" width="38" height="48" rx="3" fill="#F6F7F9" stroke={stroke} strokeWidth="1.4" />
+          <line x1="50" y1="42" x2="50" y2="58" stroke={accent} strokeWidth="2.6" strokeLinecap="round" />
+          <circle cx="50" cy="63" r="2.6" fill={stroke} />
+        </g>
+      );
+      break;
+    case 'dps':
+      content = (
+        <g>
+          <rect x="42" y="22" width="16" height="48" rx="7" fill="#F6F7F9" stroke={stroke} strokeWidth="1.4" />
+          {[0, 1, 2, 3].map((i) => <line key={i} x1="42" y1={30 + i * 9.5} x2="58" y2={30 + i * 9.5} stroke={stroke} strokeWidth="1" />)}
+          <line x1="50" y1="70" x2="50" y2="80" stroke={stroke} strokeWidth="1.4" />
+        </g>
+      );
+      break;
+    case 'medidor':
+      content = (
+        <g>
+          <circle cx="50" cy="50" r="27" fill="#F6F7F9" stroke={stroke} strokeWidth="1.4" />
+          <circle cx="50" cy="50" r="18" fill="white" stroke={stroke} strokeWidth="1" />
+          <line x1="50" y1="50" x2="61" y2="39" stroke={accent} strokeWidth="1.8" strokeLinecap="round" />
+          <circle cx="50" cy="50" r="1.8" fill={stroke} />
+        </g>
+      );
+      break;
+    case 'cable_dc':
+    case 'cable_ac':
+      content = (
+        <path d="M 16 50 Q 33 28, 50 50 T 84 50" fill="none" stroke={accent} strokeWidth="3.2" strokeLinecap="round" />
+      );
+      break;
+    case 'cable_cobre_desnudo':
+      content = (
+        <g>
+          <path d="M 16 48 Q 33 32, 50 48 T 84 48" fill="none" stroke="#B45309" strokeWidth="2.6" strokeLinecap="round" />
+          <path d="M 16 53 Q 33 37, 50 53 T 84 53" fill="none" stroke="#B45309" strokeWidth="1.2" strokeLinecap="round" opacity="0.55" />
+        </g>
+      );
+      break;
+    case 'bandeja':
+      content = (
+        <g>
+          <line x1="16" y1="34" x2="84" y2="34" stroke={stroke} strokeWidth="1.8" />
+          <line x1="16" y1="66" x2="84" y2="66" stroke={stroke} strokeWidth="1.8" />
+          {[25, 38, 51, 64, 77].map((x) => <line key={x} x1={x} y1="34" x2={x} y2="66" stroke={stroke} strokeWidth="1.2" />)}
+        </g>
+      );
+      break;
+    case 'tuberia_poliamida':
+      content = (
+        <line x1="16" y1="50" x2="84" y2="50" stroke={stroke} strokeWidth="7" strokeDasharray="3.5 3.5" strokeLinecap="round" />
+      );
+      break;
+    case 'tuberia_pvc':
+      content = (
+        <rect x="16" y="43" width="68" height="14" rx="7" fill="#F6F7F9" stroke={stroke} strokeWidth="1.4" />
+      );
+      break;
+    case 'shelter':
+      content = (
+        <g>
+          <rect x="26" y="46" width="48" height="32" fill="#F6F7F9" stroke={stroke} strokeWidth="1.4" />
+          <polygon points="21,46 79,46 50,26" fill="#EAF1FF" stroke={stroke} strokeWidth="1.4" />
+          <rect x="44" y="60" width="12" height="18" fill="none" stroke={stroke} strokeWidth="1.2" />
+        </g>
+      );
+      break;
+    default:
+      content = <rect x="30" y="30" width="40" height="40" fill="#F6F7F9" stroke={stroke} strokeWidth="1.4" />;
+  }
+  return (
+    <svg viewBox="0 0 100 100" className={className}>
+      {content}
+    </svg>
+  );
+}
+
+/* Formulario genérico: funciona para CUALQUIER tipo de equipo a partir de   */
+/* su lista de "campos" (todos son texto libre — no hay cálculos aquí). La   */
+/* imagen se guarda como data URL (base64) directamente en "datos.imagen";   */
+/* si no se sube ninguna, se muestra el ícono genérico del tipo.             */
+function EquipoForm({ tipoDef, plantilla, onCancel, onSave }) {
+  const [nombre, setNombre] = useState(plantilla?.nombre || '');
+  const [especificacion, setEspecificacion] = useState(plantilla?.datos?.especificacion || '');
+  const [atributos, setAtributos] = useState(() => {
+    const base = {};
+    tipoDef.campos.forEach((c) => { base[c] = ''; });
+    return { ...base, ...(plantilla?.datos?.atributos || {}) };
+  });
+  const [imagen, setImagen] = useState(plantilla?.datos?.imagen || null);
+  const [errorImagen, setErrorImagen] = useState('');
+
+  function setAtributo(campo, val) {
+    setAtributos((prev) => ({ ...prev, [campo]: val }));
+  }
+
+  function handleImagenChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErrorImagen('');
+    if (file.size > 3 * 1024 * 1024) {
+      setErrorImagen('La imagen no puede pesar más de 3 MB.');
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setImagen(reader.result);
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }
+
+  function submit(e) {
+    e.preventDefault();
+    if (!nombre.trim()) return;
+    onSave(nombre.trim(), { especificacion, atributos, imagen });
+  }
+
+  return (
+    <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
+      <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
+        {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · {tipoDef.label}
+      </p>
+
+      <div className="flex justify-center bg-navy-50 rounded-lg p-4 mb-5">
+        <div className="text-center">
+          {imagen ? (
+            <div>
+              <img src={imagen} alt={tipoDef.label} className="max-w-[16rem] max-h-52 rounded-lg border border-navy-200 object-contain mx-auto" />
+              <button type="button" onClick={() => setImagen(null)} className="mt-2 text-xs font-semibold text-red-500 hover:text-red-600">
+                Quitar imagen
+              </button>
+            </div>
+          ) : (
+            <EquipoIcono tipoId={tipoDef.id} className="w-36 h-36 mx-auto" />
+          )}
+          <label className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-lime-600 hover:text-lime-700 cursor-pointer">
+            <UploadCloud className="w-3.5 h-3.5" />
+            {imagen ? 'Cambiar imagen' : 'Subir una foto/imagen'}
+            <input type="file" accept="image/*" className="hidden" onChange={handleImagenChange} />
+          </label>
+          {!imagen && <p className="text-[11px] text-navy-400 mt-1">Si no subes una imagen, se muestra este ícono genérico.</p>}
+          {errorImagen && <p className="text-[11px] text-red-500 mt-1">{errorImagen}</p>}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre de la plantilla</label>
+          <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={`${tipoDef.label} Marca Modelo`} className={EQUIPO_INPUT_CSS} required />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Especificación</label>
+          <input value={especificacion} onChange={(e) => setEspecificacion(e.target.value)} placeholder="Ej. 655 Wp, 15 kV, 1250 A..." className={EQUIPO_INPUT_CSS} />
+        </div>
+      </div>
+
+      <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-3">Atributos</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+        {tipoDef.campos.map((campo) => (
+          <div key={campo}>
+            <label className="block text-xs text-navy-500 mb-1">{campo}</label>
+            <input value={atributos[campo] || ''} onChange={(e) => setAtributo(campo, e.target.value)} className={EQUIPO_INPUT_CSS} />
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button type="submit" className="bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
+          {plantilla ? 'Guardar cambios' : 'Crear plantilla'}
+        </button>
+        <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/* Vista principal de la pestaña — mismo patrón exacto que CimentacionesView: */
+/* selector de tipo, botón "nueva plantilla", formulario, y grid de tarjetas. */
+function EquiposElectricosView({ plantillas, onAdd, onUpdate, onDelete }) {
+  const [tipoActivo, setTipoActivo] = useState(EQUIPO_TIPOS[0].id);
+  const [creando, setCreando] = useState(false);
+  const [editandoId, setEditandoId] = useState(null);
+  const [confirmandoId, setConfirmandoId] = useState(null);
+
+  const tipoDef = EQUIPO_TIPOS.find((t) => t.id === tipoActivo);
+  const plantillasDelTipo = plantillas.filter((p) => p.tipo === tipoActivo);
+
+  function cerrarFormulario() {
+    setCreando(false);
+    setEditandoId(null);
+  }
+
+  return (
+    <div className="p-4 md:p-8 max-w-5xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-navy-800">Equipos eléctricos</h1>
+        <p className="text-navy-500 text-sm mt-1">
+          Plantillas reutilizables de equipos eléctricos — se crean una vez y se usan en cualquier proyecto sin volver a digitarlas.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        {EQUIPO_TIPOS.map((t) => {
+          const activo = tipoActivo === t.id;
+          const cantidad = plantillas.filter((p) => p.tipo === t.id).length;
+          return (
+            <button
+              key={t.id}
+              onClick={() => { setTipoActivo(t.id); cerrarFormulario(); }}
+              className={`flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-lg border transition-colors ${
+                activo ? 'bg-navy-800 text-white border-navy-800' : 'bg-white text-navy-600 border-navy-200 hover:border-navy-400'
+              }`}
+            >
+              {t.label}
+              <span className={activo ? 'text-navy-300' : 'text-navy-400'}>({cantidad})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {!creando && !editandoId && (
+        <button
+          onClick={() => setCreando(true)}
+          className="flex items-center gap-1.5 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg mb-5 transition-colors"
+        >
+          <Plus className="w-4 h-4" /> Nueva plantilla de {tipoDef.label}
+        </button>
+      )}
+
+      {(creando || editandoId) && (
+        <EquipoForm
+          tipoDef={tipoDef}
+          plantilla={editandoId ? plantillasDelTipo.find((p) => p.id === editandoId) : null}
+          onCancel={cerrarFormulario}
+          onSave={(nombre, datos) => {
+            if (editandoId) onUpdate(editandoId, { nombre, datos });
+            else onAdd(tipoActivo, nombre, datos);
+            cerrarFormulario();
+          }}
+        />
+      )}
+
+      {!creando && !editandoId && (
+        plantillasDelTipo.length === 0 ? (
+          <p className="text-sm text-navy-400 italic text-center py-10">Aún no hay plantillas de {tipoDef.label}.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {plantillasDelTipo.map((p) => (
+              <div key={p.id} className="bg-white border border-navy-200 rounded-xl p-4">
+                <div className="flex items-center justify-center mb-2" style={{ minHeight: '9rem' }}>
+                  {p.datos?.imagen ? (
+                    <img src={p.datos.imagen} alt={p.nombre} className="max-h-36 rounded-lg object-contain" />
+                  ) : (
+                    <EquipoIcono tipoId={p.tipo} className="w-28 h-28" />
+                  )}
+                </div>
+                <p className="font-semibold text-navy-800 text-sm text-center mb-1">{p.nombre}</p>
+                <p className="text-xs text-navy-400 text-center mb-3">
+                  {p.datos?.especificacion || '—'}
+                </p>
+                <div className="flex items-center justify-center gap-4">
+                  <button onClick={() => setEditandoId(p.id)} className="text-xs font-semibold text-lime-600 hover:text-lime-700 flex items-center gap-1">
+                    <Pencil className="w-3.5 h-3.5" /> Editar
+                  </button>
+                  {confirmandoId === p.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-navy-500">¿Eliminar?</span>
+                      <button onClick={() => { onDelete(p.id); setConfirmandoId(null); }} className="text-xs font-bold text-red-600 hover:text-red-700">
+                        Sí
+                      </button>
+                      <button onClick={() => setConfirmandoId(null)} className="text-xs text-navy-400 hover:text-navy-600">
+                        No
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmandoId(p.id)} className="text-xs font-semibold text-navy-400 hover:text-red-500 flex items-center gap-1">
+                      <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
 /* --- Proyección isométrica simple, para que el ancho/profundo/alto se      */
 /* distingan claramente en la previsualización. x = ancho, y = profundo,    */
 /* z = altura (hacia arriba). Devuelve coordenadas de pantalla [sx, sy].     */
@@ -8465,6 +8959,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
     { key: 'todos', label: 'Todos los Proyectos', icon: Layers },
     { key: 'resumen_inversionistas', label: 'Resumen por Inversionista', icon: PieChart },
     { key: 'cimentaciones', label: 'Cimentaciones', icon: Boxes },
+    { key: 'equipos_electricos', label: 'Equipos eléctricos', icon: Zap },
     { key: 'equipo', label: 'Equipo', icon: UserCog },
     { key: 'instructivos', label: 'Instructivos', icon: Video },
     { key: 'enlaces', label: 'Enlaces de Interés', icon: Link2 },
@@ -10669,6 +11164,7 @@ export default function App() {
   const [paises, setPaises] = useState([]);
   const [proveedores, setProveedores] = useState([]);
   const [plantillasCimentacion, setPlantillasCimentacion] = useState([]);
+  const [plantillasEquipos, setPlantillasEquipos] = useState([]);
   const [mallas, setMallas] = useState([]);
   const [parametrosIngenieria, setParametrosIngenieria] = useState({ recubrimiento: RECUBRIMIENTO_CIMENTACION, barras: BARRA_ACERO, traslapos: TRASLAPO_TABLE });
   const [dataLoaded, setDataLoaded] = useState(false);
@@ -10812,6 +11308,25 @@ export default function App() {
 
     const { data: plantillaRows } = await supabase.from('cimentacion_plantillas').select('*').order('created_at', { ascending: true });
     setPlantillasCimentacion((plantillaRows || []).map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {} })));
+
+    // Equipos eléctricos: si la tabla está completamente vacía (primera vez
+    // que se abre esta pestaña), la sembramos con las 68 plantillas de
+    // ejemplo del Excel — mismo criterio que países/proveedores/mallas.
+    const { data: equipoRows } = await supabase.from('equipo_plantillas').select('*').order('created_at', { ascending: true });
+    if (!equipoRows || equipoRows.length === 0) {
+      const semillaEquipos = EQUIPO_SEED.map((s) => ({
+        id: makeId('equipo'),
+        tipo: s.tipo,
+        nombre: s.nombre,
+        datos: { especificacion: s.especificacion, atributos: {}, imagen: null },
+      }));
+      await supabase.from('equipo_plantillas').insert(semillaEquipos).then(({ error }) => {
+        if (error) console.error('Error creando plantillas semilla de equipos eléctricos:', error);
+      });
+      setPlantillasEquipos(semillaEquipos);
+    } else {
+      setPlantillasEquipos(equipoRows.map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {} })));
+    }
 
     const { data: mallaRows } = await supabase.from('mallas').select('*').order('created_at', { ascending: true });
     if (!mallaRows || mallaRows.length === 0) {
@@ -11039,6 +11554,34 @@ export default function App() {
       }
     });
   }
+  function handleAddPlantillaEquipo(tipo, nombre, datos) {
+    const nueva = { id: makeId('equipo'), tipo, nombre, datos };
+    setPlantillasEquipos((prev) => [...prev, nueva]);
+    supabase.from('equipo_plantillas').insert({ id: nueva.id, tipo, nombre, datos, creado_por: perfil?.nombre || null }).then(({ error }) => {
+      if (error) {
+        console.error('Error creando plantilla de equipo eléctrico:', error);
+        alert('No se pudo guardar la plantilla. Detalle: ' + error.message);
+      }
+    });
+  }
+  function handleUpdatePlantillaEquipo(id, patch) {
+    setPlantillasEquipos((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    supabase.from('equipo_plantillas').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error('Error editando plantilla de equipo eléctrico:', error);
+        alert('No se pudo guardar el cambio. Detalle: ' + error.message);
+      }
+    });
+  }
+  function handleDeletePlantillaEquipo(id) {
+    setPlantillasEquipos((prev) => prev.filter((p) => p.id !== id));
+    supabase.from('equipo_plantillas').delete().eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error('Error eliminando plantilla de equipo eléctrico:', error);
+        alert('No se pudo eliminar la plantilla. Detalle: ' + error.message);
+      }
+    });
+  }
   function handleAddCarpeta(nombre) {
     const nueva = { id: makeId('carpeta'), nombre };
     setCarpetas((prev) => [...prev, nueva]);
@@ -11260,6 +11803,14 @@ export default function App() {
             perfil={perfil}
             parametrosIngenieria={parametrosIngenieria}
             onGuardarParametros={handleGuardarParametrosIngenieria}
+          />
+        )}
+        {view === 'equipos_electricos' && (
+          <EquiposElectricosView
+            plantillas={plantillasEquipos}
+            onAdd={handleAddPlantillaEquipo}
+            onUpdate={handleUpdatePlantillaEquipo}
+            onDelete={handleDeletePlantillaEquipo}
           />
         )}
         {view === 'equipo' && (
