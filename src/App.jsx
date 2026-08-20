@@ -290,13 +290,20 @@ const SCHEMA = [
   {
     id: 'estructural', label: 'Estructural', icon: Building2,
     fields: [
-      { key: 'dim_ciment_shelter', label: 'Dim. cimentación shelter', type: 'cimentacion', forma: 'rectangular', sobresale: 0.5 },
-      { key: 'dim_ciment_inversores', label: 'Dim. cimentación inversores', type: 'cimentacion', forma: 'rectangular', sobresale: 0 },
-      { key: 'dim_ciment_cerramiento', label: 'Dim. cimentación cerramiento', type: 'cimentacion', forma: 'cilindrica', sobresale: 0 },
-      { key: 'dim_ciment_porton', label: 'Dim. cimentación portón', type: 'cimentacion', forma: 'zapata_pedestal', sobresale: 0 },
-      { key: 'dim_ciment_luminarias', label: 'Dim. cimentación luminarias', type: 'cimentacion', forma: 'rectangular', sobresale: 0.1 },
-      { key: 'dim_ciment_cctv', label: 'Dim. cimentación CCTV', type: 'cimentacion', forma: 'rectangular', sobresale: 0.05 },
-      { key: 'dim_ciment_postes', label: 'Dim. cimentación postes MT', type: 'cimentacion', forma: 'cilindrica', sobresale: 0.05 },
+      /* Cimentaciones del proyecto: cada una se elige de las plantillas ya   */
+      /* creadas en la pestaña "Cimentaciones" (un slot fijo por cada uno de  */
+      /* los 9 tipos) — no se digitan dimensiones aquí. El enlace es "en      */
+      /* vivo": si alguien edita la plantilla después, este resumen refleja   */
+      /* siempre la versión más reciente (solo se guarda el id elegido).      */
+      { key: 'plantilla_postes_mt', label: 'Postes MT', type: 'cimentacion_plantilla', tipoCimentacion: 'postes_mt' },
+      { key: 'plantilla_luminarias', label: 'Luminarias', type: 'cimentacion_plantilla', tipoCimentacion: 'luminarias' },
+      { key: 'plantilla_camaras', label: 'Cámaras', type: 'cimentacion_plantilla', tipoCimentacion: 'camaras' },
+      { key: 'plantilla_inversores', label: 'Inversores', type: 'cimentacion_plantilla', tipoCimentacion: 'inversores' },
+      { key: 'plantilla_cerramiento_postes', label: 'Cerramiento · Postes', type: 'cimentacion_plantilla', tipoCimentacion: 'cerramiento_postes' },
+      { key: 'plantilla_cerramiento_porton', label: 'Cerramiento · Portón', type: 'cimentacion_plantilla', tipoCimentacion: 'cerramiento_porton' },
+      { key: 'plantilla_cerramiento_paso_fauna', label: 'Cerramiento · Paso de fauna', type: 'cimentacion_plantilla', tipoCimentacion: 'cerramiento_paso_fauna' },
+      { key: 'plantilla_shelter_ct', label: 'Shelter · Centro de Transformación', type: 'cimentacion_plantilla', tipoCimentacion: 'shelter_ct' },
+      { key: 'plantilla_shelter_trampa_aceite', label: 'Shelter · Trampa de aceite', type: 'cimentacion_plantilla', tipoCimentacion: 'shelter_trampa_aceite' },
       catalogSchemaField('tipo_galvanizado', 'METAL', 'GALVANIZADO', 'Tipo de galvanizado'),
       { key: 'esquema_puntado', label: 'Esquema de puntado', type: 'text' },
       { key: 'espec_aceros_pernos', label: 'Especificaciones de aceros y pernos', type: 'text' },
@@ -410,6 +417,27 @@ const SCHEMA = [
       { key: 'distancia_pitch', label: 'Distancia Pitch', type: 'text' },
       { key: 'modulos_por_string', label: 'Módulos por string', type: 'text' },
       { key: 'modulos_ev', label: 'Módulos EV', type: 'text' },
+      /* Equipos eléctricos del proyecto: cada uno se elige de las plantillas */
+      /* ya creadas en "Equipos eléctricos" (un slot fijo por cada uno de los */
+      /* 18 tipos) — enlace en vivo, igual criterio que en Estructural.       */
+      { key: 'equipo_panel', label: 'Panel', type: 'equipo_plantilla', tipoEquipo: 'panel' },
+      { key: 'equipo_inversor', label: 'Inversor', type: 'equipo_plantilla', tipoEquipo: 'inversor' },
+      { key: 'equipo_transformador_potencia', label: 'Transformador de potencia', type: 'equipo_plantilla', tipoEquipo: 'transformador_potencia' },
+      { key: 'equipo_transformador_corriente', label: 'Transformador de corriente', type: 'equipo_plantilla', tipoEquipo: 'transformador_corriente' },
+      { key: 'equipo_transformador_potencial', label: 'Transformador de potencial', type: 'equipo_plantilla', tipoEquipo: 'transformador_potencial' },
+      { key: 'equipo_reconectador', label: 'Reconectador', type: 'equipo_plantilla', tipoEquipo: 'reconectador' },
+      { key: 'equipo_celda', label: 'Celda', type: 'equipo_plantilla', tipoEquipo: 'celda' },
+      { key: 'equipo_tablero', label: 'Tablero', type: 'equipo_plantilla', tipoEquipo: 'tablero' },
+      { key: 'equipo_breaker', label: 'Breaker', type: 'equipo_plantilla', tipoEquipo: 'breaker' },
+      { key: 'equipo_dps', label: 'DPS', type: 'equipo_plantilla', tipoEquipo: 'dps' },
+      { key: 'equipo_medidor', label: 'Medidor', type: 'equipo_plantilla', tipoEquipo: 'medidor' },
+      { key: 'equipo_cable_dc', label: 'Cable DC', type: 'equipo_plantilla', tipoEquipo: 'cable_dc' },
+      { key: 'equipo_cable_ac', label: 'Cable AC', type: 'equipo_plantilla', tipoEquipo: 'cable_ac' },
+      { key: 'equipo_cable_cobre_desnudo', label: 'Cable · Cobre desnudo', type: 'equipo_plantilla', tipoEquipo: 'cable_cobre_desnudo' },
+      { key: 'equipo_bandeja', label: 'Bandeja', type: 'equipo_plantilla', tipoEquipo: 'bandeja' },
+      { key: 'equipo_tuberia_poliamida', label: 'Tubería · Poliamida', type: 'equipo_plantilla', tipoEquipo: 'tuberia_poliamida' },
+      { key: 'equipo_tuberia_pvc', label: 'Tubería · PVC/rígida', type: 'equipo_plantilla', tipoEquipo: 'tuberia_pvc' },
+      { key: 'equipo_shelter', label: 'Shelter', type: 'equipo_plantilla', tipoEquipo: 'shelter' },
     ],
   },
 ];
@@ -502,28 +530,6 @@ function emptyStations() {
   return Array.from({ length: STATION_ROWS }, () => ({ nombre: '', dias: '', peso: '' }));
 }
 
-/* Estructura vacía de una cimentación según su forma:                       */
-/* - rectangular (pedestal simple): ancho, profundo, desplante               */
-/* - cilindrica (pilote): diámetro, desplante                                */
-/* - zapata_pedestal (zapata con pedestal, ej. portón): A/B de la zapata,    */
-/*   a/b del pedestal, y desplante                                           */
-/* "desplante" es lo que digita cada quien (profundidad de fundación); lo    */
-/* que sobresale sobre el terreno es fijo por tipo de elemento (ver SCHEMA). */
-function emptyCimentacion(forma) {
-  if (forma === 'cilindrica') return { diametro: '', desplante: '', resistencia: '' };
-  if (forma === 'zapata_pedestal') {
-    return { ancho_zapata: '', profundo_zapata: '', alto_zapata: '', ancho_pedestal: '', profundo_pedestal: '', desplante: '', resistencia: '' };
-  }
-  return { ancho: '', profundo: '', desplante: '', resistencia: '' };
-}
-/* Altura del pedestal en una zapata con pedestal: lo que queda del total    */
-/* (desplante + lo que sobresale) después de restar el alto de la zapata.   */
-function altoPedestal(v, sobresale) {
-  const totalM = (parseFloat(v.desplante) || 0) + sobresale;
-  const altoZapataM = parseFloat(v.alto_zapata) || 0;
-  return Math.max(0, totalM - altoZapataM);
-}
-
 function emptySchemaData() {
   const obj = {};
   SCHEMA.forEach((section) => {
@@ -531,7 +537,6 @@ function emptySchemaData() {
     section.fields.forEach((f) => {
       if (f.type === 'boolean') obj[section.id][f.key] = { valor: null, nota: '' };
       else if (f.type === 'stations') obj[section.id][f.key] = emptyStations();
-      else if (f.type === 'cimentacion') obj[section.id][f.key] = emptyCimentacion(f.forma);
       else obj[section.id][f.key] = '';
     });
   });
@@ -662,10 +667,6 @@ function diffSectionData(section, before, after) {
     } else if (field.type === 'stations') {
       if (JSON.stringify(b || []) !== JSON.stringify(a || [])) {
         cambios.push(`${field.label}: se actualizó la tabla de estaciones`);
-      }
-    } else if (field.type === 'cimentacion') {
-      if (JSON.stringify(b || {}) !== JSON.stringify(a || {})) {
-        cambios.push(`${field.label}: se actualizaron las dimensiones`);
       }
     } else if ((b || '') !== (a || '')) {
       cambios.push(`${field.label}: "${b || '—'}" → "${a || '—'}"`);
@@ -7159,35 +7160,6 @@ function poly(points) {
 /* Dibuja una caja isométrica (3 caras visibles: superior, derecha e         */
 /* izquierda) entre z0 (abajo) y z1 (arriba), con ancho W y profundo D,      */
 /* dentro de un origen (ox, oy). Colores en 3 tonos para dar volumen.       */
-function IsoBox({ x0, y0, w, d, z0, z1, ox, oy, colors }) {
-  const top = [
-    isoPt(x0, y0, z1, ox, oy),
-    isoPt(x0 + w, y0, z1, ox, oy),
-    isoPt(x0 + w, y0 + d, z1, ox, oy),
-    isoPt(x0, y0 + d, z1, ox, oy),
-  ];
-  const right = [
-    isoPt(x0 + w, y0, z1, ox, oy),
-    isoPt(x0 + w, y0 + d, z1, ox, oy),
-    isoPt(x0 + w, y0 + d, z0, ox, oy),
-    isoPt(x0 + w, y0, z0, ox, oy),
-  ];
-  const left = [
-    isoPt(x0, y0 + d, z1, ox, oy),
-    isoPt(x0 + w, y0 + d, z1, ox, oy),
-    isoPt(x0 + w, y0 + d, z0, ox, oy),
-    isoPt(x0, y0 + d, z0, ox, oy),
-  ];
-  return (
-    <g>
-      <polygon points={poly(left)} fill={colors[2]} stroke="#59671E" strokeWidth="1" />
-      <polygon points={poly(right)} fill={colors[1]} stroke="#59671E" strokeWidth="1" />
-      <polygon points={poly(top)} fill={colors[0]} stroke="#59671E" strokeWidth="1" />
-    </g>
-  );
-}
-/* Misma caja isométrica de arriba, pero en estilo "plano técnico" (líneas    */
-/* azul oscuro, sin relleno de color) — para las plantillas de Cimentaciones. */
 function IsoBoxLineArt({ x0, y0, w, d, z0, z1, ox, oy, fillTop = 'white', fillSide = '#F6F7F9', showTop = true }) {
   const top = [
     isoPt(x0, y0, z1, ox, oy),
@@ -7215,105 +7187,7 @@ function IsoBoxLineArt({ x0, y0, w, d, z0, z1, ox, oy, fillTop = 'white', fillSi
     </g>
   );
 }
-/* Línea de Nivel de Terreno Natural (N.T.N), dibujada con el mismo ángulo   */
-/* isométrico, tocando el modelo justo a la altura donde cruza el terreno.  */
-function NtnMarker({ x, y, z, ox, oy }) {
-  const [x1, y1] = isoPt(x, y, z, ox, oy);
-  const [x2, y2] = isoPt(x - 22, y, z, ox, oy);
-  return (
-    <g>
-      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#3C64AA" strokeWidth="1.2" />
-      <text x={x2 - 3} y={y2 - 3} fontSize="9" fill="#3C64AA" textAnchor="end" fontFamily="monospace">N.T.N</text>
-    </g>
-  );
-}
-
-/* Dibujo esquemático (isométrico) de una cimentación: pedestal rectangular, */
-/* pilote cilíndrico, o zapata con pedestal (ej. portón). No es a escala     */
-/* exacta (tiene límites para no deformarse), solo es una previsualización  */
-/* que reacciona a los valores digitados. "sobresale" es fijo por tipo de   */
-/* elemento; "desplante" es lo que digita cada quien (profundidad).         */
-function CimentacionPreview({ forma, v, sobresale }) {
-  const m2px = 48;
-  const clampD = (m) => Math.max(16, Math.min(80, m * m2px));
-  const dim = (strVal, defaultMeters) => {
-    const n = parseFloat(strVal);
-    return clampD(n > 0 ? n : defaultMeters);
-  };
-  const desplanteM = parseFloat(v.desplante) || 0;
-  const totalM = desplanteM + sobresale;
-  const totalPx = totalM > 0 ? clampD(totalM) : 46;
-  const sobresalePx = totalM > 0 ? (sobresale / totalM) * totalPx : (sobresale > 0 ? 12 : 0);
-
-  const svgW = 160;
-  const ox = svgW / 2;
-  const oy = 60;
-
-  let body = null;
-  let ntn = null;
-  let svgH = 150;
-
-  if (forma === 'cilindrica') {
-    const diamPx = dim(v.diametro, 0.3);
-    const rx = diamPx / 2;
-    const ry = rx * 0.42;
-    const topZ = sobresalePx;
-    const botZ = topZ - totalPx;
-    const [cxTop, cyTop] = isoPt(0, 0, topZ, ox, oy);
-    const [, cyBot] = isoPt(0, 0, botZ, ox, oy);
-    body = (
-      <g>
-        <rect x={cxTop - rx} y={cyTop} width={rx * 2} height={Math.max(1, cyBot - cyTop)} fill="#D9FA47" stroke="#59671E" strokeWidth="1" />
-        <ellipse cx={cxTop} cy={cyBot} rx={rx} ry={ry} fill="#9AB620" stroke="#59671E" strokeWidth="1" />
-        <ellipse cx={cxTop} cy={cyTop} rx={rx} ry={ry} fill="#F5FAE1" stroke="#59671E" strokeWidth="1" />
-      </g>
-    );
-    ntn = <NtnMarker x={rx} y={0} z={0} ox={ox} oy={oy} />;
-    svgH = cyBot + 20;
-  } else if (forma === 'zapata_pedestal') {
-    const A = dim(v.ancho_zapata, 1.2);
-    const B = dim(v.profundo_zapata, 1.2);
-    const a = dim(v.ancho_pedestal, 0.5);
-    const b = dim(v.profundo_pedestal, 0.5);
-    const altoZapataM = parseFloat(v.alto_zapata) || 0.3;
-    const pedestalAltoM = Math.max(0.05, totalM - altoZapataM);
-    const effScale = totalM > 0 ? totalPx / totalM : m2px;
-    const zapataH = Math.max(6, altoZapataM * effScale);
-    const pedestalH = Math.max(6, pedestalAltoM * effScale);
-    const topZ = sobresalePx;
-    const botZ = topZ - totalPx;
-    const zapataTopZ = botZ + zapataH;
-    body = (
-      <g>
-        <IsoBox x0={-A / 2} y0={-B / 2} w={A} d={B} z0={botZ} z1={zapataTopZ} ox={ox} oy={oy} colors={['#F5FAE1', '#C2E723', '#9AB620']} />
-        <IsoBox x0={-a / 2} y0={-b / 2} w={a} d={b} z0={zapataTopZ} z1={zapataTopZ + pedestalH} ox={ox} oy={oy} colors={['#F5FAE1', '#D9FA47', '#C2E723']} />
-      </g>
-    );
-    // El N.T.N. se ancla donde z=0 cruza el modelo: el pedestal si llega hasta ahí, si no la zapata.
-    const zRef = 0 >= zapataTopZ ? { x: a / 2, y: b / 2 } : { x: A / 2, y: B / 2 };
-    ntn = <NtnMarker x={zRef.x} y={zRef.y} z={0} ox={ox} oy={oy} />;
-    const [, yBottomCorner] = isoPt(A / 2, B / 2, botZ, ox, oy);
-    svgH = yBottomCorner + 20;
-  } else {
-    const W = dim(v.ancho, 0.8);
-    const D = dim(v.profundo, 0.8);
-    const topZ = sobresalePx;
-    const botZ = topZ - totalPx;
-    body = <IsoBox x0={-W / 2} y0={-D / 2} w={W} d={D} z0={botZ} z1={topZ} ox={ox} oy={oy} colors={['#F5FAE1', '#C2E723', '#9AB620']} />;
-    ntn = <NtnMarker x={W / 2} y={D / 2} z={0} ox={ox} oy={oy} />;
-    const [, yBottomCorner] = isoPt(W / 2, D / 2, botZ, ox, oy);
-    svgH = yBottomCorner + 20;
-  }
-
-  return (
-    <svg viewBox={`-10 0 ${svgW} ${svgH}`} className="w-32 h-32">
-      {body}
-      {ntn}
-    </svg>
-  );
-}
-
-function FieldRenderer({ field, value, editMode, onChange, siblingData, inversionistas, onAddInversionista, paises, onAddPais, proveedores, onAddProveedor }) {
+function FieldRenderer({ field, value, editMode, onChange, siblingData, inversionistas, onAddInversionista, paises, onAddPais, proveedores, onAddProveedor, plantillasCimentacion, plantillasEquipos }) {
   if (field.type === 'departamento') {
     if (!editMode) return <ReadOnlyValue label={field.label} value={value} mono={false} />;
     return (
@@ -7442,108 +7316,117 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
     );
   }
 
-  if (field.type === 'cimentacion') {
-    const v = value && typeof value === 'object' && !Array.isArray(value) ? value : emptyCimentacion(field.forma);
-    const totalM = ((parseFloat(v.desplante) || 0) + field.sobresale).toFixed(2);
+  if (field.type === 'cimentacion_plantilla') {
+    const plantillasDelTipo = (plantillasCimentacion || []).filter((p) => p.tipo === field.tipoCimentacion);
+    const seleccionada = plantillasDelTipo.find((p) => p.id === value);
+    const tipoDef = CIMENTACION_TIPOS.find((t) => t.id === field.tipoCimentacion);
+    const componentes = CIMENTACION_COMPONENTES[field.tipoCimentacion];
 
-    const resumenPartes = field.forma === 'cilindrica'
-      ? [v.diametro && `Diámetro: ${v.diametro} m`]
-      : field.forma === 'zapata_pedestal'
-        ? [
-            (v.ancho_zapata || v.profundo_zapata || v.alto_zapata) &&
-              `Zapata ${v.ancho_zapata || '—'} × ${v.profundo_zapata || '—'} × ${v.alto_zapata || '—'} m`,
-            (v.ancho_pedestal || v.profundo_pedestal) &&
-              `Pedestal ${v.ancho_pedestal || '—'} × ${v.profundo_pedestal || '—'} × ${altoPedestal(v, field.sobresale).toFixed(2)} m`,
-          ]
-        : [(v.ancho || v.profundo) && `${v.ancho || '—'} × ${v.profundo || '—'} m`];
-    if (v.desplante) resumenPartes.push(`Desplante: ${v.desplante} m`);
-    if (v.resistencia) resumenPartes.push(`Concreto: ${v.resistencia}`);
-    const resumen = resumenPartes.filter(Boolean).join(' · ');
+    const previewBox = seleccionada ? (
+      <div className="w-24 h-20 shrink-0 flex items-center justify-center bg-navy-50 rounded-lg overflow-hidden">
+        <componentes.Preview datos={seleccionada.datos} className="w-full h-full" />
+      </div>
+    ) : null;
 
     if (!editMode) {
       return (
         <div className="py-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-2">{field.label}</p>
-          <div className="flex items-center gap-3">
-            <CimentacionPreview forma={field.forma} v={v} sobresale={field.sobresale} />
-            <div>
-              <p className={`text-sm ${resumen ? 'text-navy-700' : 'text-navy-300 italic'}`}>{resumen || 'Sin definir'}</p>
-              <p className="text-xs text-navy-400 mt-1">Sobresale del terreno: {field.sobresale} m · Alto total: {totalM} m</p>
+          {seleccionada ? (
+            <div className="flex items-center gap-3">
+              {previewBox}
+              <div>
+                <p className="text-sm text-navy-700 font-semibold">{seleccionada.nombre}</p>
+                <p className="text-xs text-navy-400 mt-0.5">{componentes.resumen(seleccionada.datos)}</p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <p className="text-sm text-navy-300 italic">Sin plantilla seleccionada</p>
+          )}
         </div>
       );
     }
 
-    function set(key, val) {
-      onChange({ ...v, [key]: val });
+    return (
+      <div className="py-1">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-2">{field.label}</label>
+        <select
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400 mb-2"
+        >
+          <option value="">— Ninguna —</option>
+          {plantillasDelTipo.map((p) => (
+            <option key={p.id} value={p.id}>{p.nombre}</option>
+          ))}
+        </select>
+        {plantillasDelTipo.length === 0 ? (
+          <p className="text-xs text-navy-400 italic">Aún no hay plantillas de {tipoDef?.label} en Cimentaciones.</p>
+        ) : seleccionada ? (
+          <div className="flex items-center gap-3 mt-2">
+            {previewBox}
+            <p className="text-xs text-navy-500">{componentes.resumen(seleccionada.datos)}</p>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (field.type === 'equipo_plantilla') {
+    const plantillasDelTipo = (plantillasEquipos || []).filter((p) => p.tipo === field.tipoEquipo);
+    const seleccionada = plantillasDelTipo.find((p) => p.id === value);
+    const tipoDef = EQUIPO_TIPOS.find((t) => t.id === field.tipoEquipo);
+
+    const previewBox = seleccionada ? (
+      <div className="w-20 h-20 shrink-0 flex items-center justify-center bg-navy-50 rounded-lg overflow-hidden">
+        {seleccionada.datos?.imagen ? (
+          <img src={seleccionada.datos.imagen} alt={seleccionada.nombre} className="max-h-full max-w-full object-contain" />
+        ) : (
+          <EquipoIcono tipoId={seleccionada.tipo} className="w-16 h-16" />
+        )}
+      </div>
+    ) : null;
+
+    if (!editMode) {
+      return (
+        <div className="py-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-2">{field.label}</p>
+          {seleccionada ? (
+            <div className="flex items-center gap-3">
+              {previewBox}
+              <div>
+                <p className="text-sm text-navy-700 font-semibold">{seleccionada.nombre}</p>
+                <p className="text-xs text-navy-400 mt-0.5">{seleccionada.datos?.especificacion || '—'}</p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-navy-300 italic">Sin plantilla seleccionada</p>
+          )}
+        </div>
+      );
     }
-    const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
 
     return (
       <div className="py-1">
         <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-2">{field.label}</label>
-        <div className="flex items-start gap-4 flex-wrap">
-          <CimentacionPreview forma={field.forma} v={v} sobresale={field.sobresale} />
-          <div className="space-y-2 flex-1" style={{ minWidth: 190 }}>
-            {field.forma === 'cilindrica' && (
-              <div>
-                <label className="block text-xs text-navy-500 mb-1">Diámetro (m)</label>
-                <input value={v.diametro} onChange={(e) => set('diametro', e.target.value)} placeholder="0.30" className={cellInput} />
-              </div>
-            )}
-            {field.forma === 'rectangular' && (
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs text-navy-500 mb-1">Ancho (m)</label>
-                  <input value={v.ancho} onChange={(e) => set('ancho', e.target.value)} placeholder="0.40" className={cellInput} />
-                </div>
-                <div>
-                  <label className="block text-xs text-navy-500 mb-1">Profundo (m)</label>
-                  <input value={v.profundo} onChange={(e) => set('profundo', e.target.value)} placeholder="0.40" className={cellInput} />
-                </div>
-              </div>
-            )}
-            {field.forma === 'zapata_pedestal' && (
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs text-navy-500 mb-1">Ancho zapata (m)</label>
-                  <input value={v.ancho_zapata} onChange={(e) => set('ancho_zapata', e.target.value)} placeholder="1.00" className={cellInput} />
-                </div>
-                <div>
-                  <label className="block text-xs text-navy-500 mb-1">Profundo zapata (m)</label>
-                  <input value={v.profundo_zapata} onChange={(e) => set('profundo_zapata', e.target.value)} placeholder="1.00" className={cellInput} />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-xs text-navy-500 mb-1">Alto de zapata (m)</label>
-                  <input value={v.alto_zapata} onChange={(e) => set('alto_zapata', e.target.value)} placeholder="0.30" className={cellInput} />
-                </div>
-                <div>
-                  <label className="block text-xs text-navy-500 mb-1">Ancho pedestal (m)</label>
-                  <input value={v.ancho_pedestal} onChange={(e) => set('ancho_pedestal', e.target.value)} placeholder="0.40" className={cellInput} />
-                </div>
-                <div>
-                  <label className="block text-xs text-navy-500 mb-1">Profundo pedestal (m)</label>
-                  <input value={v.profundo_pedestal} onChange={(e) => set('profundo_pedestal', e.target.value)} placeholder="0.40" className={cellInput} />
-                </div>
-              </div>
-            )}
-            <div>
-              <label className="block text-xs text-navy-500 mb-1">
-                {field.forma === 'zapata_pedestal' ? 'Profundidad de desplante (m)' : 'Desplante (m)'}
-              </label>
-              <input value={v.desplante} onChange={(e) => set('desplante', e.target.value)} placeholder="1.00" className={cellInput} />
-            </div>
-            <div>
-              <label className="block text-xs text-navy-500 mb-1">Resistencia del concreto</label>
-              <ResistenciaSelect value={v.resistencia} onChange={(val) => set('resistencia', val)} className={cellInput} />
-            </div>
-            <p className="text-xs text-navy-400">
-              Sobresale del terreno: <span className="font-mono text-navy-600">{field.sobresale} m</span> (fijo) · Alto total:{' '}
-              <span className="font-mono text-navy-600">{totalM} m</span>
-            </p>
+        <select
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400 mb-2"
+        >
+          <option value="">— Ninguno —</option>
+          {plantillasDelTipo.map((p) => (
+            <option key={p.id} value={p.id}>{p.nombre}</option>
+          ))}
+        </select>
+        {plantillasDelTipo.length === 0 ? (
+          <p className="text-xs text-navy-400 italic">Aún no hay plantillas de {tipoDef?.label} en Equipos eléctricos.</p>
+        ) : seleccionada ? (
+          <div className="flex items-center gap-3 mt-2">
+            {previewBox}
+            <p className="text-xs text-navy-500">{seleccionada.datos?.especificacion || '—'}</p>
           </div>
-        </div>
+        ) : null}
       </div>
     );
   }
@@ -7679,7 +7562,7 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
 
 function SectionFieldsGrid({
   section, data, editMode, onFieldChange, inversionistas, onAddInversionista, paises, onAddPais,
-  proveedores, onAddProveedor,
+  proveedores, onAddProveedor, plantillasCimentacion, plantillasEquipos,
   structureType, focusFieldKey, onFocusHandled,
 }) {
   const [grupoAbierto, setGrupoAbierto] = useState(false);
@@ -7753,7 +7636,7 @@ function SectionFieldsGrid({
           <div
             key={field.key}
             data-field-key={field.key}
-            className={`${field.type === 'stations' || field.type === 'cimentacion' ? 'col-span-full' : ''} ${
+            className={`${field.type === 'stations' || field.type === 'cimentacion_plantilla' || field.type === 'equipo_plantilla' ? 'col-span-full' : ''} ${
               focusFieldKey === field.key ? 'ring-2 ring-lime-400 rounded-lg' : ''
             }`}
           >
@@ -7769,6 +7652,8 @@ function SectionFieldsGrid({
               onAddPais={onAddPais}
               proveedores={proveedores}
               onAddProveedor={onAddProveedor}
+              plantillasCimentacion={plantillasCimentacion}
+              plantillasEquipos={plantillasEquipos}
             />
           </div>
           );
@@ -8541,7 +8426,7 @@ function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, on
   );
 }
 
-function PrintableReport({ project }) {
+function PrintableReport({ project, plantillasCimentacion, plantillasEquipos }) {
   const general = project.data.general;
   return (
     <div className="print-only p-10">
@@ -8629,28 +8514,36 @@ function PrintableReport({ project }) {
                   );
                 }
 
-                if (field.type === 'cimentacion') {
-                  const v = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
-                  const totalM = ((parseFloat(v.desplante) || 0) + field.sobresale).toFixed(2);
-                  const partes = field.forma === 'cilindrica'
-                    ? [v.diametro && `Ø ${v.diametro} m`]
-                    : field.forma === 'zapata_pedestal'
-                      ? [
-                          (v.ancho_zapata || v.profundo_zapata || v.alto_zapata) &&
-                            `Zapata ${v.ancho_zapata || '—'}×${v.profundo_zapata || '—'}×${v.alto_zapata || '—'} m`,
-                          (v.ancho_pedestal || v.profundo_pedestal) &&
-                            `Pedestal ${v.ancho_pedestal || '—'}×${v.profundo_pedestal || '—'}×${altoPedestal(v, field.sobresale).toFixed(2)} m`,
-                        ]
-                      : [(v.ancho || v.profundo) && `${v.ancho || '—'}×${v.profundo || '—'} m`];
-                  if (v.desplante) partes.push(`Desplante ${v.desplante} m`);
-                  if (v.resistencia) partes.push(`Concreto ${v.resistencia}`);
-                  const resumen = partes.filter(Boolean).join(' · ');
+                if (field.type === 'cimentacion_plantilla') {
+                  const seleccionada = (plantillasCimentacion || []).find((p) => p.id === raw);
+                  const componentes = seleccionada ? CIMENTACION_COMPONENTES[seleccionada.tipo] : null;
                   return (
                     <tr key={field.key} className="border-b border-navy-100">
                       <td className="py-1.5 pr-4 text-navy-500 w-1/2 align-top">{field.label}</td>
                       <td className="py-1.5 font-mono text-navy-700 align-top">
-                        {resumen || '—'}
-                        <span className="block font-sans text-xs text-navy-500 mt-0.5">Sobresale del terreno: {field.sobresale} m · Alto total: {totalM} m</span>
+                        {seleccionada ? (
+                          <>
+                            {seleccionada.nombre}
+                            <span className="block font-sans text-xs text-navy-500 mt-0.5">{componentes?.resumen(seleccionada.datos)}</span>
+                          </>
+                        ) : '—'}
+                      </td>
+                    </tr>
+                  );
+                }
+
+                if (field.type === 'equipo_plantilla') {
+                  const seleccionada = (plantillasEquipos || []).find((p) => p.id === raw);
+                  return (
+                    <tr key={field.key} className="border-b border-navy-100">
+                      <td className="py-1.5 pr-4 text-navy-500 w-1/2 align-top">{field.label}</td>
+                      <td className="py-1.5 font-mono text-navy-700 align-top">
+                        {seleccionada ? (
+                          <>
+                            {seleccionada.nombre}
+                            <span className="block font-sans text-xs text-navy-500 mt-0.5">{seleccionada.datos?.especificacion || '—'}</span>
+                          </>
+                        ) : '—'}
                       </td>
                     </tr>
                   );
@@ -9791,7 +9684,7 @@ function HistorialPanel({ historial, loading, onRefresh }) {
   );
 }
 
-function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, perfil, inversionistas, onAddInversionista, paises, onAddPais, proveedores, onAddProveedor }) {
+function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, perfil, inversionistas, onAddInversionista, paises, onAddPais, proveedores, onAddProveedor, plantillasCimentacion, plantillasEquipos }) {
   const [activeTab, setActiveTab] = useState(SCHEMA[0].id);
   const [editMode, setEditMode] = useState(false);
   const [draftData, setDraftData] = useState(null);
@@ -10365,6 +10258,8 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
                   onAddPais={onAddPais}
                   proveedores={proveedores}
                   onAddProveedor={onAddProveedor}
+                  plantillasCimentacion={plantillasCimentacion}
+                  plantillasEquipos={plantillasEquipos}
                   structureType={getStructureType(project)}
                   focusFieldKey={focusFieldKey}
                   onFocusHandled={() => setFocusFieldKey(null)}
@@ -10398,7 +10293,7 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
         </div>
       </div>
 
-      <PrintableReport project={project} />
+      <PrintableReport project={project} plantillasCimentacion={plantillasCimentacion} plantillasEquipos={plantillasEquipos} />
     </div>
   );
 }
@@ -11855,6 +11750,8 @@ export default function App() {
             onAddPais={handleAddPais}
             proveedores={proveedores}
             onAddProveedor={handleAddProveedor}
+            plantillasCimentacion={plantillasCimentacion}
+            plantillasEquipos={plantillasEquipos}
           />
         )}
       </main>
