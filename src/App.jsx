@@ -7,7 +7,7 @@ import {
   Loader2, RefreshCw, LogOut, ShieldCheck, Lock, History, ClipboardCheck, StickyNote, UserCog,
   Folder, FolderPlus, ChevronDown, ChevronRight, PlayCircle, Video, Code2,
   Bold, Italic, Underline, List, PartyPopper, MessageSquare, PieChart, AlertTriangle, Menu, UserPlus, Boxes,
-  CircleDot, Lightbulb, Home, Wrench, KeyRound,
+  CircleDot, Lightbulb, Home, Wrench, KeyRound, Copy,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import logoMark from './assets/logo-s-mark.png';
@@ -2093,7 +2093,7 @@ function PostesMtForm({ plantilla, onCancel, onSave }) {
   return (
     <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
       <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
-        {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Postes MT
+        {plantilla?.__duplicando ? 'Nueva plantilla (copia)' : plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Postes MT
       </p>
       <div className="flex items-start gap-6 flex-wrap">
         <div className="flex justify-center bg-navy-50 rounded-lg p-3 shrink-0 w-fit mx-auto">
@@ -2418,7 +2418,7 @@ function LuminariasForm({ plantilla, onCancel, onSave }) {
   return (
     <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
       <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
-        {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Luminarias
+        {plantilla?.__duplicando ? 'Nueva plantilla (copia)' : plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Luminarias
       </p>
       <div className="flex items-start gap-6 flex-wrap">
         <div className="flex justify-center bg-navy-50 rounded-lg p-3 shrink-0 w-fit mx-auto">
@@ -2508,7 +2508,7 @@ function CamarasForm({ plantilla, onCancel, onSave }) {
   return (
     <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
       <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
-        {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Cámaras
+        {plantilla?.__duplicando ? 'Nueva plantilla (copia)' : plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Cámaras
       </p>
       <div className="flex items-start gap-6 flex-wrap">
         <div className="flex justify-center bg-navy-50 rounded-lg p-3 shrink-0 w-fit mx-auto">
@@ -3368,7 +3368,7 @@ function InversoresForm({ plantilla, onCancel, onSave, mallas, onAddMalla }) {
   return (
     <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
       <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
-        {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Inversores
+        {plantilla?.__duplicando ? 'Nueva plantilla (copia)' : plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Inversores
       </p>
 
       <div className="flex justify-center bg-navy-50 rounded-lg p-3 mb-5 w-fit mx-auto">
@@ -3642,7 +3642,7 @@ function PasoFaunaForm({ plantilla, onCancel, onSave }) {
   return (
     <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
       <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
-        {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Cerramiento · Paso de fauna
+        {plantilla?.__duplicando ? 'Nueva plantilla (copia)' : plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Cerramiento · Paso de fauna
       </p>
       <div className="flex items-start gap-6 flex-wrap">
         <div className="flex justify-center bg-navy-50 rounded-lg p-3 shrink-0 w-fit mx-auto">
@@ -4445,7 +4445,7 @@ function PortonForm({ plantilla, onCancel, onSave }) {
   return (
     <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
       <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
-        {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Cerramiento · Portón
+        {plantilla?.__duplicando ? 'Nueva plantilla (copia)' : plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Cerramiento · Portón
       </p>
 
       <div className="flex justify-center bg-navy-50 rounded-lg p-3 mb-5 w-fit mx-auto">
@@ -5436,7 +5436,7 @@ function CTForm({ plantilla, onCancel, onSave }) {
   return (
     <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
       <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
-        {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Shelter · Centro de Transformación
+        {plantilla?.__duplicando ? 'Nueva plantilla (copia)' : plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Shelter · Centro de Transformación
       </p>
 
       <div className="flex justify-center bg-navy-50 rounded-lg p-3 mb-5 w-fit mx-auto">
@@ -6154,7 +6154,7 @@ function TrampaAceiteForm({ plantilla, onCancel, onSave }) {
   return (
     <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
       <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
-        {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Shelter · Trampa de aceite
+        {plantilla?.__duplicando ? 'Nueva plantilla (copia)' : plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · Shelter · Trampa de aceite
       </p>
       <div className="flex justify-center bg-navy-50 rounded-lg p-3 mb-5">
         <TrampaAceiteVistas datos={datos} />
@@ -6294,21 +6294,39 @@ function TrampaAceiteForm({ plantilla, onCancel, onSave }) {
 /* tipo de cimentación activo. Se va llenando a medida que construimos cada  */
 /* uno — los que faltan simplemente no aparecen aquí (CimentacionesView ya   */
 /* filtra por "disponible" antes de llegar a este punto).                   */
+/* Cada "resumen" devuelve un arreglo de líneas "Etiqueta: valor" (no un solo */
+/* string) para poder mostrar subcategorías (Losa/Pedestales, Zapatas/       */
+/* Pedestales/Viga, etc.) como líneas separadas y más legibles — se renderiza */
+/* con <ResumenLineas>, que pone en negrita la parte antes de ":".           */
 const CIMENTACION_COMPONENTES = {
   postes_mt: {
     Form: PostesMtForm,
     Preview: PostesMtPreview,
-    resumen: (d) => `Ø ${d.diametro || '—'} m · ${((parseFloat(d.desplante) || 0) + (parseFloat(d.sobresaliente) || 0)).toFixed(2)} m`,
+    resumen: (d) => [
+      `Diámetro: ${d.diametro || '—'} m`,
+      `Desplante: ${d.desplante || '—'} m`,
+      `Altura total: ${((parseFloat(d.desplante) || 0) + (parseFloat(d.sobresaliente) || 0)).toFixed(2)} m`,
+    ],
   },
   luminarias: {
     Form: LuminariasForm,
     Preview: LuminariasPreview,
-    resumen: (d) => `${d.ancho || '—'} × ${d.profundo || '—'} m · ${((parseFloat(d.desplante) || 0) + (parseFloat(d.sobresaliente) || 0)).toFixed(2)} m`,
+    resumen: (d) => [
+      `Ancho: ${d.ancho || '—'} m`,
+      `Profundo: ${d.profundo || '—'} m`,
+      `Desplante: ${d.desplante || '—'} m`,
+      `Altura total: ${((parseFloat(d.desplante) || 0) + (parseFloat(d.sobresaliente) || 0)).toFixed(2)} m`,
+    ],
   },
   camaras: {
     Form: CamarasForm,
     Preview: CamarasPreview,
-    resumen: (d) => `${d.ancho || '—'} × ${d.profundo || '—'} m · ${((parseFloat(d.desplante) || 0) + (parseFloat(d.sobresaliente) || 0)).toFixed(2)} m`,
+    resumen: (d) => [
+      `Ancho: ${d.ancho || '—'} m`,
+      `Profundo: ${d.profundo || '—'} m`,
+      `Desplante: ${d.desplante || '—'} m`,
+      `Altura total: ${((parseFloat(d.desplante) || 0) + (parseFloat(d.sobresaliente) || 0)).toFixed(2)} m`,
+    ],
   },
   inversores: {
     Form: InversoresForm,
@@ -6316,35 +6334,110 @@ const CIMENTACION_COMPONENTES = {
     resumen: (d) => {
       const p = d.pedestal || {};
       const l = d.losa || {};
-      return `Losa ${l.ancho || '—'}×${l.largo || '—'} m · Pedestales ${p.ancho || '—'}×${p.profundo || '—'} m`;
+      const alturaPedestal = ((parseFloat(p.desplante) || 0) + (parseFloat(p.sobresaliente) || 0)).toFixed(2);
+      return [
+        `Desplante: ${p.desplante || '—'} m`,
+        `Losa: ${l.ancho || '—'} × ${l.largo || '—'} × ${l.espesor || '—'} m`,
+        `Pedestales: ${p.ancho || '—'} × ${p.profundo || '—'} × ${alturaPedestal} m`,
+      ];
     },
   },
   cerramiento_postes: {
     Form: PostesMtForm,
     Preview: PostesMtPreview,
-    resumen: (d) => `Ø ${d.diametro || '—'} m · ${((parseFloat(d.desplante) || 0) + (parseFloat(d.sobresaliente) || 0)).toFixed(2)} m`,
+    resumen: (d) => [
+      `Diámetro: ${d.diametro || '—'} m`,
+      `Desplante: ${d.desplante || '—'} m`,
+      `Altura total: ${((parseFloat(d.desplante) || 0) + (parseFloat(d.sobresaliente) || 0)).toFixed(2)} m`,
+    ],
   },
   cerramiento_porton: {
     Form: PortonForm,
     Preview: PortonIsometrico,
-    resumen: (d) => `Zapatas ${d.zapata?.ancho || '—'}×${d.zapata?.largo || '—'} m · Separación ${d.separacion_zapatas || '—'} m`,
+    resumen: (d) => {
+      const z = d.zapata || {};
+      const p = d.pedestal || {};
+      const v = d.viga || {};
+      const alturaPedestal = Math.max(0, (parseFloat(d.desplante) || 0) - (parseFloat(z.espesor) || 0)).toFixed(2);
+      const longitudViga = Math.max(0, (parseFloat(d.separacion_zapatas) || 0) - (parseFloat(z.largo) || 0)).toFixed(2);
+      return [
+        `Desplante: ${d.desplante || '—'} m`,
+        `Zapatas: ${z.ancho || '—'} × ${z.largo || '—'} × ${z.espesor || '—'} m`,
+        `Pedestales: ${p.ancho || '—'} × ${p.profundo || '—'} × ${alturaPedestal} m`,
+        `Viga: ${v.ancho || '—'} × ${v.alto || '—'} × ${longitudViga} m`,
+      ];
+    },
   },
   cerramiento_paso_fauna: {
     Form: PasoFaunaForm,
     Preview: PasoFaunaPreview,
-    resumen: (d) => `${d.ancho || '—'} × ${d.profundo || '—'} × ${d.alto || '—'} m`,
+    resumen: (d) => [
+      `Ancho: ${d.ancho || '—'} m`,
+      `Profundo: ${d.profundo || '—'} m`,
+      `Altura total: ${d.alto || '—'} m`,
+    ],
   },
   shelter_ct: {
     Form: CTForm,
     Preview: CTIsometrico,
-    resumen: (d) => `${d.ancho || '—'} × ${d.largo || '—'} m · 4 pedestales ${d.pedestal?.ancho || '—'}×${d.pedestal?.profundo || '—'} m`,
+    resumen: (d) => {
+      const p = d.pedestal || {};
+      const v = d.viga || {};
+      const anchoCT = parseFloat(d.ancho) || 0;
+      const largoCT = parseFloat(d.largo) || 0;
+      const pAncho = parseFloat(p.ancho) || 0;
+      const pProfundo = parseFloat(p.profundo) || 0;
+      const alturaPedestal = ((parseFloat(d.desplante) || 0) + (parseFloat(d.sobresaliente) || 0)).toFixed(2);
+      const largoVigaLarga = Math.max(0, largoCT - pProfundo).toFixed(2);
+      const largoVigaCorta = Math.max(0, anchoCT - pAncho).toFixed(2);
+      return [
+        `Desplante: ${d.desplante || '—'} m`,
+        `Pedestales: ${p.ancho || '—'} × ${p.profundo || '—'} × ${alturaPedestal} m`,
+        `Viga larga: ${v.ancho || '—'} × ${v.alto || '—'} × ${largoVigaLarga} m`,
+        `Viga corta: ${v.ancho || '—'} × ${v.alto || '—'} × ${largoVigaCorta} m`,
+      ];
+    },
   },
   shelter_trampa_aceite: {
     Form: TrampaAceiteForm,
     Preview: TrampaAceitePreview,
-    resumen: (d) => `${d.ancho || '—'} × ${d.profundo || '—'} × ${d.alto || '—'} m`,
+    resumen: (d) => [
+      `Ancho: ${d.ancho || '—'} m`,
+      `Profundo: ${d.profundo || '—'} m`,
+      `Altura total: ${d.alto || '—'} m`,
+    ],
   },
 };
+
+/* Muestra las líneas de un "resumen" (ver arriba), poniendo en negrita la    */
+/* parte antes de ":" — reutilizable en la tarjeta de Cimentaciones, en el    */
+/* selector de plantillas dentro de un proyecto, y en el resumen imprimible. */
+function ResumenLineas({ lineas, size = 'text-xs', align = 'left' }) {
+  if (!lineas || lineas.length === 0) return null;
+  return (
+    <div className={`${size} text-navy-500 space-y-0.5 ${align === 'center' ? 'text-center' : ''}`}>
+      {lineas.map((linea, i) => {
+        const idx = linea.indexOf(':');
+        if (idx === -1) return <p key={i}>{linea}</p>;
+        return (
+          <p key={i}>
+            <span className="font-semibold text-navy-600">{linea.slice(0, idx + 1)}</span>
+            {linea.slice(idx + 1)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+/* Líneas "Atributo: valor" de una plantilla de equipo eléctrico — solo los   */
+/* que sí se llenaron (los que quedan en blanco no aportan nada al resumen). */
+function atributosLineas(datos) {
+  const atributos = datos?.atributos || {};
+  return Object.entries(atributos)
+    .filter(([, v]) => v && String(v).trim() !== '')
+    .map(([k, v]) => `${k}: ${v}`);
+}
 
 /* Vista principal de "Cimentaciones": elige el tipo (6 en total, hoy solo   */
 /* Postes MT está construido) y administra sus plantillas (crear, editar,   */
@@ -6507,6 +6600,7 @@ function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete, mallas, onAd
   const [tipoActivo, setTipoActivo] = useState('postes_mt');
   const [creando, setCreando] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
+  const [duplicandoDesde, setDuplicandoDesde] = useState(null);
   const [confirmandoId, setConfirmandoId] = useState(null);
   const [mostrandoParametros, setMostrandoParametros] = useState(false);
 
@@ -6517,6 +6611,11 @@ function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete, mallas, onAd
   function cerrarFormulario() {
     setCreando(false);
     setEditandoId(null);
+    setDuplicandoDesde(null);
+  }
+  function duplicar(p) {
+    setDuplicandoDesde({ nombre: `${p.nombre} (copia)`, datos: JSON.parse(JSON.stringify(p.datos)), __duplicando: true });
+    setCreando(true);
   }
 
   if (mostrandoParametros) {
@@ -6593,7 +6692,11 @@ function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete, mallas, onAd
 
           {(creando || editandoId) && (
             <componentes.Form
-              plantilla={editandoId ? plantillasDelTipo.find((p) => p.id === editandoId) : null}
+              plantilla={
+                editandoId
+                  ? plantillasDelTipo.find((p) => p.id === editandoId)
+                  : duplicandoDesde || null
+              }
               onCancel={cerrarFormulario}
               onSave={(nombre, datos) => {
                 if (editandoId) onUpdate(editandoId, { nombre, datos });
@@ -6616,12 +6719,15 @@ function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete, mallas, onAd
                       <componentes.Preview datos={p.datos} className="w-full h-auto" />
                     </div>
                     <p className="font-semibold text-navy-800 text-sm text-center mb-1">{p.nombre}</p>
-                    <p className="text-xs text-navy-400 text-center mb-3">
-                      {componentes.resumen(p.datos)}
-                    </p>
-                    <div className="flex items-center justify-center gap-4">
+                    <div className="mb-3">
+                      <ResumenLineas lineas={componentes.resumen(p.datos)} size="text-xs" align="center" />
+                    </div>
+                    <div className="flex items-center justify-center gap-4 flex-wrap">
                       <button onClick={() => setEditandoId(p.id)} className="text-xs font-semibold text-lime-600 hover:text-lime-700 flex items-center gap-1">
                         <Pencil className="w-3.5 h-3.5" /> Editar
+                      </button>
+                      <button onClick={() => duplicar(p)} className="text-xs font-semibold text-navy-500 hover:text-navy-700 flex items-center gap-1">
+                        <Copy className="w-3.5 h-3.5" /> Duplicar
                       </button>
                       {confirmandoId === p.id ? (
                         <div className="flex items-center gap-1.5">
@@ -6973,7 +7079,7 @@ function EquipoForm({ tipoDef, plantilla, onCancel, onSave }) {
   return (
     <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
       <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
-        {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · {tipoDef.label}
+        {plantilla?.__duplicando ? 'Nueva plantilla (copia)' : plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · {tipoDef.label}
       </p>
 
       <div className="flex justify-center bg-navy-50 rounded-lg p-4 mb-5">
@@ -7037,6 +7143,7 @@ function EquiposElectricosView({ plantillas, onAdd, onUpdate, onDelete }) {
   const [tipoActivo, setTipoActivo] = useState(EQUIPO_TIPOS[0].id);
   const [creando, setCreando] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
+  const [duplicandoDesde, setDuplicandoDesde] = useState(null);
   const [confirmandoId, setConfirmandoId] = useState(null);
 
   const tipoDef = EQUIPO_TIPOS.find((t) => t.id === tipoActivo);
@@ -7045,6 +7152,11 @@ function EquiposElectricosView({ plantillas, onAdd, onUpdate, onDelete }) {
   function cerrarFormulario() {
     setCreando(false);
     setEditandoId(null);
+    setDuplicandoDesde(null);
+  }
+  function duplicar(p) {
+    setDuplicandoDesde({ nombre: `${p.nombre} (copia)`, datos: JSON.parse(JSON.stringify(p.datos)), __duplicando: true });
+    setCreando(true);
   }
 
   return (
@@ -7087,7 +7199,7 @@ function EquiposElectricosView({ plantillas, onAdd, onUpdate, onDelete }) {
       {(creando || editandoId) && (
         <EquipoForm
           tipoDef={tipoDef}
-          plantilla={editandoId ? plantillasDelTipo.find((p) => p.id === editandoId) : null}
+          plantilla={editandoId ? plantillasDelTipo.find((p) => p.id === editandoId) : (duplicandoDesde || null)}
           onCancel={cerrarFormulario}
           onSave={(nombre, datos) => {
             if (editandoId) onUpdate(editandoId, { nombre, datos });
@@ -7112,12 +7224,21 @@ function EquiposElectricosView({ plantillas, onAdd, onUpdate, onDelete }) {
                   )}
                 </div>
                 <p className="font-semibold text-navy-800 text-sm text-center mb-1">{p.nombre}</p>
-                <p className="text-xs text-navy-400 text-center mb-3">
-                  {p.datos?.especificacion || '—'}
-                </p>
-                <div className="flex items-center justify-center gap-4">
+                <div className="mb-3">
+                  {p.datos?.especificacion && (
+                    <p className="text-xs font-semibold text-navy-600 text-center mb-1">{p.datos.especificacion}</p>
+                  )}
+                  <ResumenLineas lineas={atributosLineas(p.datos)} size="text-xs" align="center" />
+                  {!p.datos?.especificacion && atributosLineas(p.datos).length === 0 && (
+                    <p className="text-xs text-navy-300 italic text-center">Sin atributos definidos</p>
+                  )}
+                </div>
+                <div className="flex items-center justify-center gap-4 flex-wrap">
                   <button onClick={() => setEditandoId(p.id)} className="text-xs font-semibold text-lime-600 hover:text-lime-700 flex items-center gap-1">
                     <Pencil className="w-3.5 h-3.5" /> Editar
+                  </button>
+                  <button onClick={() => duplicar(p)} className="text-xs font-semibold text-navy-500 hover:text-navy-700 flex items-center gap-1">
+                    <Copy className="w-3.5 h-3.5" /> Duplicar
                   </button>
                   {confirmandoId === p.id ? (
                     <div className="flex items-center gap-1.5">
@@ -7323,7 +7444,7 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
     const componentes = CIMENTACION_COMPONENTES[field.tipoCimentacion];
 
     const previewBox = seleccionada ? (
-      <div className="w-24 h-20 shrink-0 flex items-center justify-center bg-navy-50 rounded-lg overflow-hidden">
+      <div className="w-28 h-24 shrink-0 flex items-center justify-center bg-navy-50 rounded-lg overflow-hidden">
         <componentes.Preview datos={seleccionada.datos} className="w-full h-full" />
       </div>
     ) : null;
@@ -7333,11 +7454,11 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
         <div className="py-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-2">{field.label}</p>
           {seleccionada ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               {previewBox}
               <div>
-                <p className="text-sm text-navy-700 font-semibold">{seleccionada.nombre}</p>
-                <p className="text-xs text-navy-400 mt-0.5">{componentes.resumen(seleccionada.datos)}</p>
+                <p className="text-sm text-navy-700 font-semibold mb-1">{seleccionada.nombre}</p>
+                <ResumenLineas lineas={componentes.resumen(seleccionada.datos)} size="text-sm" />
               </div>
             </div>
           ) : (
@@ -7363,9 +7484,9 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
         {plantillasDelTipo.length === 0 ? (
           <p className="text-xs text-navy-400 italic">Aún no hay plantillas de {tipoDef?.label} en Cimentaciones.</p>
         ) : seleccionada ? (
-          <div className="flex items-center gap-3 mt-2">
+          <div className="flex items-center gap-4 mt-2">
             {previewBox}
-            <p className="text-xs text-navy-500">{componentes.resumen(seleccionada.datos)}</p>
+            <ResumenLineas lineas={componentes.resumen(seleccionada.datos)} size="text-sm" />
           </div>
         ) : null}
       </div>
@@ -7378,11 +7499,11 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
     const tipoDef = EQUIPO_TIPOS.find((t) => t.id === field.tipoEquipo);
 
     const previewBox = seleccionada ? (
-      <div className="w-20 h-20 shrink-0 flex items-center justify-center bg-navy-50 rounded-lg overflow-hidden">
+      <div className="w-24 h-24 shrink-0 flex items-center justify-center bg-navy-50 rounded-lg overflow-hidden">
         {seleccionada.datos?.imagen ? (
           <img src={seleccionada.datos.imagen} alt={seleccionada.nombre} className="max-h-full max-w-full object-contain" />
         ) : (
-          <EquipoIcono tipoId={seleccionada.tipo} className="w-16 h-16" />
+          <EquipoIcono tipoId={seleccionada.tipo} className="w-20 h-20" />
         )}
       </div>
     ) : null;
@@ -7392,11 +7513,11 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
         <div className="py-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-2">{field.label}</p>
           {seleccionada ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               {previewBox}
               <div>
-                <p className="text-sm text-navy-700 font-semibold">{seleccionada.nombre}</p>
-                <p className="text-xs text-navy-400 mt-0.5">{seleccionada.datos?.especificacion || '—'}</p>
+                <p className="text-sm text-navy-700 font-semibold mb-1">{seleccionada.nombre}</p>
+                <ResumenLineas lineas={atributosLineas(seleccionada.datos)} size="text-sm" />
               </div>
             </div>
           ) : (
@@ -7422,9 +7543,9 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
         {plantillasDelTipo.length === 0 ? (
           <p className="text-xs text-navy-400 italic">Aún no hay plantillas de {tipoDef?.label} en Equipos eléctricos.</p>
         ) : seleccionada ? (
-          <div className="flex items-center gap-3 mt-2">
+          <div className="flex items-center gap-4 mt-2">
             {previewBox}
-            <p className="text-xs text-navy-500">{seleccionada.datos?.especificacion || '—'}</p>
+            <ResumenLineas lineas={atributosLineas(seleccionada.datos)} size="text-sm" />
           </div>
         ) : null}
       </div>
@@ -8524,7 +8645,9 @@ function PrintableReport({ project, plantillasCimentacion, plantillasEquipos }) 
                         {seleccionada ? (
                           <>
                             {seleccionada.nombre}
-                            <span className="block font-sans text-xs text-navy-500 mt-0.5">{componentes?.resumen(seleccionada.datos)}</span>
+                            <span className="block font-sans mt-0.5">
+                              <ResumenLineas lineas={componentes?.resumen(seleccionada.datos)} size="text-xs" />
+                            </span>
                           </>
                         ) : '—'}
                       </td>
@@ -8541,7 +8664,9 @@ function PrintableReport({ project, plantillasCimentacion, plantillasEquipos }) 
                         {seleccionada ? (
                           <>
                             {seleccionada.nombre}
-                            <span className="block font-sans text-xs text-navy-500 mt-0.5">{seleccionada.datos?.especificacion || '—'}</span>
+                            <span className="block font-sans mt-0.5">
+                              <ResumenLineas lineas={atributosLineas(seleccionada.datos)} size="text-xs" />
+                            </span>
                           </>
                         ) : '—'}
                       </td>
