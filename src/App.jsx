@@ -7444,7 +7444,7 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
     const componentes = CIMENTACION_COMPONENTES[field.tipoCimentacion];
 
     const previewBox = seleccionada ? (
-      <div className="w-28 h-24 shrink-0 flex items-center justify-center bg-navy-50 rounded-lg overflow-hidden">
+      <div className="w-36 h-32 shrink-0 flex items-center justify-center bg-navy-50 rounded-lg overflow-hidden">
         <componentes.Preview datos={seleccionada.datos} className="w-full h-full" />
       </div>
     ) : null;
@@ -7499,11 +7499,11 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
     const tipoDef = EQUIPO_TIPOS.find((t) => t.id === field.tipoEquipo);
 
     const previewBox = seleccionada ? (
-      <div className="w-24 h-24 shrink-0 flex items-center justify-center bg-navy-50 rounded-lg overflow-hidden">
+      <div className="w-32 h-32 shrink-0 flex items-center justify-center bg-navy-50 rounded-lg overflow-hidden">
         {seleccionada.datos?.imagen ? (
           <img src={seleccionada.datos.imagen} alt={seleccionada.nombre} className="max-h-full max-w-full object-contain" />
         ) : (
-          <EquipoIcono tipoId={seleccionada.tipo} className="w-20 h-20" />
+          <EquipoIcono tipoId={seleccionada.tipo} className="w-28 h-28" />
         )}
       </div>
     ) : null;
@@ -7747,8 +7747,13 @@ function SectionFieldsGrid({
      contexto, así que se usa la etiqueta corta. Fuera de él (campos propios
      de la pestaña) se conserva el label canónico completo. */
   function renderCampos(fields, { contextual = false } = {}) {
+    // Estructural y Eléctrico están dominadas por selectores de plantillas
+    // (cimentacion_plantilla / equipo_plantilla) con su propia vista previa;
+    // se ven mejor a 2 columnas fijas (aprovechan el ancho disponible) en vez
+    // de escalar a 3 en pantallas grandes, que las dejaba muy angostas.
+    const dosColumnas = section.id === 'estructural' || section.id === 'electrico';
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 divide-y divide-navy-100 md:divide-y-0">
+      <div className={`grid grid-cols-1 md:grid-cols-2 ${dosColumnas ? '' : 'lg:grid-cols-3'} gap-x-8 divide-y divide-navy-100 md:divide-y-0`}>
         {fields.map((original) => {
           const field = contextual
             ? { ...original, label: displayLabelFor(original.key, original.label) }
@@ -7757,7 +7762,7 @@ function SectionFieldsGrid({
           <div
             key={field.key}
             data-field-key={field.key}
-            className={`${field.type === 'stations' || field.type === 'cimentacion_plantilla' || field.type === 'equipo_plantilla' ? 'col-span-full' : ''} ${
+            className={`${field.type === 'stations' ? 'col-span-full' : ''} ${
               focusFieldKey === field.key ? 'ring-2 ring-lime-400 rounded-lg' : ''
             }`}
           >
