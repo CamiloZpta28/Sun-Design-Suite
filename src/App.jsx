@@ -101,7 +101,7 @@ const EQUIPO_CATEGORIAS = [
   { id: 'ing_civiles', label: 'Ing. Civiles', icon: HardHat, roles: ['civil', 'hidraulico', 'estructural', 'geotecnico'] },
   { id: 'ing_electricos', label: 'Ing. Eléctricos', icon: Zap, roles: ['electrico'] },
   { id: 'delineantes', label: 'Delineantes', icon: PenTool, roles: ['delineante'] },
-  { id: 'control_documental', label: 'Control documental', icon: FileText, roles: ['tramites_bt'] },
+  { id: 'control_documental', label: 'Trámites y BT', icon: FileText, roles: ['tramites_bt'] },
   { id: 'control_calidad', label: 'Control de Calidad', icon: ClipboardCheck, roles: [QA_ROLE.key] },
   { id: 'lideres', label: 'Líderes', icon: ShieldCheck, roles: LEADER_ROLE_KEYS },
   { id: 'desarrolladores', label: 'Desarrolladores', icon: Code2, roles: [DEV_ROLE.key] },
@@ -188,8 +188,27 @@ function catalogSchemaField(key, categoryId, inputKey, label, opts) {
    de otro modo quedaría dominada por ellos. Es únicamente presentación: el
    campo, su clave en projects.data y su comportamiento no cambian. */
 const GRUPO_NOTAS_TECNICAS = { id: 'notas_tecnicas', label: 'Información para Notas Técnicas' };
+/* Como isBlank() (de technical-notes) no sabe de arreglos/objetos, un array  */
+/* vacío (ej. "Módulos por inversor" sin filas) contaría como "con dato" —   */
+/* esta versión sí los trata como vacíos, para el contador de los grupos     */
+/* plegables genéricos (ver camposPlegables).                               */
+function tieneValorParaConteo(v) {
+  if (Array.isArray(v)) return v.some((item) => item && Object.values(item).some((x) => x && String(x).trim() !== ''));
+  if (v && typeof v === 'object') return Object.values(v).some((x) => x && String(x).trim() !== '');
+  return !isBlank(v);
+}
+
 function camposNotasTecnicas(fields) {
   return fields.map((f) => ({ ...f, grupo: GRUPO_NOTAS_TECNICAS.id }));
+}
+
+/* Grupo plegable simple y genérico (mismo estilo visual que el acordeón de  */
+/* Notas Técnicas de arriba, pero sin su lógica de subgrupos/estructura —    */
+/* solo un plegar/desplegar con contador "X de Y con dato") para reducir el */
+/* ruido visual de secciones largas dentro de una pestaña, ej. "Cerramiento" */
+/* en Civil o "Inversores"/"Equipos eléctricos" en Eléctrico.               */
+function camposPlegables(fields, id, label) {
+  return fields.map((f) => ({ ...f, grupoPlegable: id, grupoPlegableLabel: label }));
 }
 
 /* Campo alimentado por un valor técnico del repositorio que todavía no tiene
@@ -247,8 +266,7 @@ const SCHEMA = [
          se calculan solos (fórmulas). Los "computed" leen otros campos de
          esta MISMA sección ('civil') por su key, vía el objeto que reciben.
          =================================================================== */
-      { key: 'cerr_titulo', label: 'Cerramiento', type: 'grupo_titulo', nivel: 1 },
-
+      ...camposPlegables([
       // — Cerramiento (general) —
       { key: 'cerr_general_titulo', label: 'General', type: 'grupo_titulo', nivel: 2 },
       { key: 'cerr_longitud_total', label: 'Longitud total cerramiento (m)', type: 'text' },
@@ -262,7 +280,6 @@ const SCHEMA = [
           const vientos = parseFloat(d?.cerr_vientos_cantidad) || 0;
           return String(postes + vientos);
         },
-        ayuda: 'Se calcula solo: Cantidad postes + Cantidad vientos',
       },
 
       // — Tubería —
@@ -274,7 +291,6 @@ const SCHEMA = [
       {
         key: 'cerr_postes_cantidad', label: 'Cantidad postes', type: 'computed',
         formula: (d) => String(calcCerrCantidadPostes(d)),
-        ayuda: 'Se calcula solo: ROUNDUP((Longitud total / Separación entre postes) + 2 + (Cambios de dirección − 1))',
       },
       {
         key: 'cerr_diagonales_cantidad', label: 'Diagonales', type: 'computed',
@@ -285,17 +301,14 @@ const SCHEMA = [
           if (!sepDiag) return '0';
           return String(Math.ceil(((longitud / sepDiag) + cambios) * 2));
         },
-        ayuda: 'Se calcula solo: ROUNDUP(((Longitud total / Separación entre diagonales) + Cambios de dirección) × 2)',
       },
       {
         key: 'cerr_diametro_poste_m', label: 'Diámetro de poste (m)', type: 'computed',
         formula: (d) => ((parseFloat(d?.cerr_diametro_poste_pulg) || 0) * 0.0254).toFixed(4),
-        ayuda: 'Se calcula solo: Diámetro de poste (pulg) × 0.0254',
       },
       {
         key: 'cerr_circunferencia_poste', label: 'Circunferencia poste (m)', type: 'computed',
         formula: (d) => (((parseFloat(d?.cerr_diametro_poste_pulg) || 0) * 0.0254) * Math.PI).toFixed(4),
-        ayuda: 'Se calcula solo: Diámetro de poste (m) × π',
       },
 
       // — Vientos —
@@ -309,7 +322,6 @@ const SCHEMA = [
       {
         key: 'cerr_angulos_cantidad', label: 'Cantidad ángulos', type: 'computed',
         formula: (d) => String(Math.max(0, calcCerrCantidadPostes(d) - 1)),
-        ayuda: 'Se calcula solo: Cantidad postes − 1',
       },
       {
         key: 'cerr_area_total', label: 'Área total (m²)', type: 'computed',
@@ -319,7 +331,6 @@ const SCHEMA = [
           const separacion = parseFloat(d?.cerr_separacion_postes) || 0;
           return (perimetro * angulos * separacion).toFixed(4);
         },
-        ayuda: 'Se calcula solo: Perímetro (m) × Cantidad ángulos × Separación entre postes',
       },
 
       // — Platina (si aplica) — (100% calculado; si se usa platina, anula la
@@ -328,7 +339,6 @@ const SCHEMA = [
       {
         key: 'cerr_platinas_cantidad', label: 'Cantidad platinas', type: 'computed',
         formula: (d) => String(3 * calcCerrCantidadPostes(d)),
-        ayuda: 'Se calcula solo: 3 × Cantidad postes. Si se usa platina, se anula la "Longitud total de cinta bandit en cerramiento" (son alternativas entre sí).',
       },
 
       // — Cinta Bandit —
@@ -353,7 +363,6 @@ const SCHEMA = [
           const total = (circ * 2 * porPoste * postes) + (perimAngulo * 2 * angulos * porAngulo) + (circ * 2 * porDiagonal * diagonales);
           return total.toFixed(2);
         },
-        ayuda: 'Se anula si se usa platina (son alternativas entre sí).',
       },
       {
         key: 'cerr_bandit_total_porton', label: 'Longitud total de cinta bandit en portón (m)', type: 'computed',
@@ -369,7 +378,6 @@ const SCHEMA = [
       {
         key: 'cerr_porton_bisagras', label: 'Cantidad de bisagras', type: 'computed',
         formula: () => '8',
-        ayuda: 'Siempre es 8.',
       },
 
       // — Pintura —
@@ -384,7 +392,6 @@ const SCHEMA = [
           const separacion = parseFloat(d?.cerr_separacion_postes) || 0;
           return ((perimetro * angulos * separacion) * 1.15).toFixed(2);
         },
-        ayuda: 'Se calcula solo: Área total × 1.15',
       },
       {
         key: 'cerr_galones_imprimante', label: 'Galones de imprimante', type: 'computed',
@@ -396,7 +403,6 @@ const SCHEMA = [
           const rendimiento = parseFloat(d?.cerr_imprimante_1mano) || 0;
           return rendimiento ? String(Math.ceil(pinturaM2 / rendimiento)) : '0';
         },
-        ayuda: 'Se calcula solo: m² de pintura / Imprimante 1 mano',
       },
       {
         key: 'cerr_galones_pintura', label: 'Galones de pintura', type: 'computed',
@@ -408,7 +414,6 @@ const SCHEMA = [
           const rendimiento = parseFloat(d?.cerr_rendimiento_2manos) || 0;
           return rendimiento ? String(Math.ceil(pinturaM2 / rendimiento)) : '0';
         },
-        ayuda: 'Se calcula solo: m² de pintura / Rendimiento a 2 manos',
       },
 
       // — Pasos de fauna — (100% calculado)
@@ -416,8 +421,8 @@ const SCHEMA = [
       {
         key: 'cerr_pasos_fauna_cantidad', label: 'Cantidad pasos de fauna', type: 'computed',
         formula: (d) => String(Math.round((parseFloat(d?.cerr_longitud_total) || 0) / 100)),
-        ayuda: 'Se calcula solo: Longitud total cerramiento / 100',
       },
+      ], 'cerramiento', 'Cerramiento'),
     ],
   },
   {
@@ -589,35 +594,41 @@ const SCHEMA = [
       { key: 'potencia_nominal', label: 'Potencia nominal', type: 'text' },
       { key: 'potencia_pico', label: 'Potencia pico', type: 'text' },
       { key: 'dc_ac_ratio', label: 'DC/AC ratio', type: 'text' },
-      { key: 'factor_potencia', label: 'Factor de potencia (inversores)', type: 'text' },
       { key: 'tipo_estructura', label: 'Tipo de estructura', type: 'text' },
       { key: 'distancia_pitch', label: 'Distancia Pitch', type: 'text' },
       { key: 'modulos_por_string', label: 'Módulos por string', type: 'text' },
       { key: 'modulos_ev', label: 'Módulos FV', type: 'text' },
-      { key: 'numero_inversores', label: 'Número de inversores', type: 'text' },
-      { key: 'referencia_inversores', label: 'Referencia de inversores', type: 'text' },
-      { key: 'modulos_por_inversor', label: 'Módulos por inversor', type: 'modulos_inversor' },
+
+      ...camposPlegables([
+        { key: 'factor_potencia', label: 'Factor de potencia (inversores)', type: 'text' },
+        { key: 'numero_inversores', label: 'Número de inversores', type: 'text' },
+        { key: 'referencia_inversores', label: 'Referencia de inversores', type: 'text' },
+        { key: 'modulos_por_inversor', label: 'Módulos por inversor', type: 'modulos_inversor' },
+      ], 'inversores', 'Inversores'),
+
       /* Equipos eléctricos del proyecto: cada uno se elige de las plantillas */
       /* ya creadas en "Equipos eléctricos" (un slot fijo por cada uno de los */
       /* 18 tipos) — enlace en vivo, igual criterio que en Estructural.       */
-      { key: 'equipo_panel', label: 'Panel', type: 'equipo_plantilla', tipoEquipo: 'panel' },
-      { key: 'equipo_inversor', label: 'Inversor', type: 'equipo_plantilla', tipoEquipo: 'inversor' },
-      { key: 'equipo_transformador_potencia', label: 'Transformador de potencia', type: 'equipo_plantilla', tipoEquipo: 'transformador_potencia' },
-      { key: 'equipo_transformador_corriente', label: 'Transformador de corriente', type: 'equipo_plantilla', tipoEquipo: 'transformador_corriente' },
-      { key: 'equipo_transformador_potencial', label: 'Transformador de potencial', type: 'equipo_plantilla', tipoEquipo: 'transformador_potencial' },
-      { key: 'equipo_reconectador', label: 'Reconectador', type: 'equipo_plantilla', tipoEquipo: 'reconectador' },
-      { key: 'equipo_celda', label: 'Celda', type: 'equipo_plantilla', tipoEquipo: 'celda' },
-      { key: 'equipo_tablero', label: 'Tablero', type: 'equipo_plantilla', tipoEquipo: 'tablero' },
-      { key: 'equipo_breaker', label: 'Breaker', type: 'equipo_plantilla', tipoEquipo: 'breaker' },
-      { key: 'equipo_dps', label: 'DPS', type: 'equipo_plantilla', tipoEquipo: 'dps' },
-      { key: 'equipo_medidor', label: 'Medidor', type: 'equipo_plantilla', tipoEquipo: 'medidor' },
-      { key: 'equipo_cable_dc', label: 'Cable DC', type: 'equipo_plantilla', tipoEquipo: 'cable_dc' },
-      { key: 'equipo_cable_ac', label: 'Cable AC', type: 'equipo_plantilla', tipoEquipo: 'cable_ac' },
-      { key: 'equipo_cable_cobre_desnudo', label: 'Cable · Cobre desnudo', type: 'equipo_plantilla', tipoEquipo: 'cable_cobre_desnudo' },
-      { key: 'equipo_bandeja', label: 'Bandeja', type: 'equipo_plantilla', tipoEquipo: 'bandeja' },
-      { key: 'equipo_tuberia_poliamida', label: 'Tubería · Poliamida', type: 'equipo_plantilla', tipoEquipo: 'tuberia_poliamida' },
-      { key: 'equipo_tuberia_pvc', label: 'Tubería · PVC/rígida', type: 'equipo_plantilla', tipoEquipo: 'tuberia_pvc' },
-      { key: 'equipo_shelter', label: 'Shelter', type: 'equipo_plantilla', tipoEquipo: 'shelter' },
+      ...camposPlegables([
+        { key: 'equipo_panel', label: 'Panel', type: 'equipo_plantilla', tipoEquipo: 'panel' },
+        { key: 'equipo_inversor', label: 'Inversor', type: 'equipo_plantilla', tipoEquipo: 'inversor' },
+        { key: 'equipo_transformador_potencia', label: 'Transformador de potencia', type: 'equipo_plantilla', tipoEquipo: 'transformador_potencia' },
+        { key: 'equipo_transformador_corriente', label: 'Transformador de corriente', type: 'equipo_plantilla', tipoEquipo: 'transformador_corriente' },
+        { key: 'equipo_transformador_potencial', label: 'Transformador de potencial', type: 'equipo_plantilla', tipoEquipo: 'transformador_potencial' },
+        { key: 'equipo_reconectador', label: 'Reconectador', type: 'equipo_plantilla', tipoEquipo: 'reconectador' },
+        { key: 'equipo_celda', label: 'Celda', type: 'equipo_plantilla', tipoEquipo: 'celda' },
+        { key: 'equipo_tablero', label: 'Tablero', type: 'equipo_plantilla', tipoEquipo: 'tablero' },
+        { key: 'equipo_breaker', label: 'Breaker', type: 'equipo_plantilla', tipoEquipo: 'breaker' },
+        { key: 'equipo_dps', label: 'DPS', type: 'equipo_plantilla', tipoEquipo: 'dps' },
+        { key: 'equipo_medidor', label: 'Medidor', type: 'equipo_plantilla', tipoEquipo: 'medidor' },
+        { key: 'equipo_cable_dc', label: 'Cable DC', type: 'equipo_plantilla', tipoEquipo: 'cable_dc' },
+        { key: 'equipo_cable_ac', label: 'Cable AC', type: 'equipo_plantilla', tipoEquipo: 'cable_ac' },
+        { key: 'equipo_cable_cobre_desnudo', label: 'Cable · Cobre desnudo', type: 'equipo_plantilla', tipoEquipo: 'cable_cobre_desnudo' },
+        { key: 'equipo_bandeja', label: 'Bandeja', type: 'equipo_plantilla', tipoEquipo: 'bandeja' },
+        { key: 'equipo_tuberia_poliamida', label: 'Tubería · Poliamida', type: 'equipo_plantilla', tipoEquipo: 'tuberia_poliamida' },
+        { key: 'equipo_tuberia_pvc', label: 'Tubería · PVC/rígida', type: 'equipo_plantilla', tipoEquipo: 'tuberia_pvc' },
+        { key: 'equipo_shelter', label: 'Shelter', type: 'equipo_plantilla', tipoEquipo: 'shelter' },
+      ], 'equipos_electricos', 'Equipos eléctricos'),
     ],
   },
 ];
@@ -7972,6 +7983,11 @@ function SectionFieldsGrid({
   structureType, focusFieldKey, onFocusHandled,
 }) {
   const [grupoAbierto, setGrupoAbierto] = useState(false);
+  /* Grupos plegables genéricos (ver camposPlegables) — a diferencia del      */
+  /* acordeón de Notas Técnicas de arriba, puede haber varios por pestaña    */
+  /* (ej. "Inversores" y "Equipos eléctricos" en Eléctrico) y todos arrancan */
+  /* cerrados, ya que su único propósito es reducir ruido visual.            */
+  const [plegablesAbiertos, setPlegablesAbiertos] = useState({});
   /* Subapartados desplegados dentro del acordeón: "General" y el de la
      estructura activa se abren de entrada; el resto queda cerrado pero
      SIEMPRE presente y desplegable. Estado de UI puro: nunca se persiste. */
@@ -7979,7 +7995,17 @@ function SectionFieldsGrid({
     structureType ? { GENERAL: true, [structureType]: true } : { GENERAL: true }
   );
 
-  const propios = section.fields.filter((f) => !f.grupo);
+  const propios = section.fields.filter((f) => !f.grupo && !f.grupoPlegable);
+  const gruposPlegables = [];
+  section.fields.forEach((f) => {
+    if (!f.grupoPlegable) return;
+    let g = gruposPlegables.find((g) => g.id === f.grupoPlegable);
+    if (!g) {
+      g = { id: f.grupoPlegable, label: f.grupoPlegableLabel || f.grupoPlegable, fields: [] };
+      gruposPlegables.push(g);
+    }
+    g.fields.push(f);
+  });
   const agrupados = section.fields.filter((f) => f.grupo === GRUPO_NOTAS_TECNICAS.id);
   const porClave = new Map(agrupados.map((f) => [f.key, f]));
 
@@ -8076,6 +8102,28 @@ function SectionFieldsGrid({
   return (
     <>
       {renderCampos(propios)}
+
+      {gruposPlegables.map((g) => {
+        const abierto = !!plegablesAbiertos[g.id];
+        const contables = g.fields.filter((f) => f.type !== 'grupo_titulo' && f.type !== 'computed');
+        const conDato = contables.filter((f) => data && tieneValorParaConteo(data[f.key])).length;
+        return (
+          <div key={g.id} className="mt-6 border-t border-navy-200 pt-4">
+            <button
+              type="button"
+              onClick={() => setPlegablesAbiertos((prev) => ({ ...prev, [g.id]: !prev[g.id] }))}
+              className="flex items-center gap-2 w-full text-left group"
+            >
+              {abierto
+                ? <ChevronDown className="w-4 h-4 text-navy-400 shrink-0" />
+                : <ChevronRight className="w-4 h-4 text-navy-400 shrink-0" />}
+              <span className="text-sm font-semibold text-navy-700 group-hover:text-navy-900">{g.label}</span>
+              <span className="text-xs text-navy-400">{conDato} de {contables.length} con dato</span>
+            </button>
+            {abierto && <div className="mt-4">{renderCampos(g.fields)}</div>}
+          </div>
+        );
+      })}
 
       {agrupados.length > 0 && (
         <div className="mt-6 border-t border-navy-200 pt-4">
