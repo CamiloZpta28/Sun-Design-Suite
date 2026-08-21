@@ -44,6 +44,7 @@ const ROLES = [
   { key: 'electrico', label: 'Ing. Eléctrico', icon: Zap },
   { key: 'geotecnico', label: 'Ing. Geotécnico', icon: Mountain },
   { key: 'delineante', label: 'Delineante', icon: PenTool },
+  { key: 'tramites_bt', label: 'Trámites y BT', icon: FileText },
 ];
 
 /* Estas especialidades admiten varias personas a la vez en el mismo        */
@@ -100,6 +101,7 @@ const EQUIPO_CATEGORIAS = [
   { id: 'ing_civiles', label: 'Ing. Civiles', icon: HardHat, roles: ['civil', 'hidraulico', 'estructural', 'geotecnico'] },
   { id: 'ing_electricos', label: 'Ing. Eléctricos', icon: Zap, roles: ['electrico'] },
   { id: 'delineantes', label: 'Delineantes', icon: PenTool, roles: ['delineante'] },
+  { id: 'control_documental', label: 'Control documental', icon: FileText, roles: ['tramites_bt'] },
   { id: 'control_calidad', label: 'Control de Calidad', icon: ClipboardCheck, roles: [QA_ROLE.key] },
   { id: 'lideres', label: 'Líderes', icon: ShieldCheck, roles: LEADER_ROLE_KEYS },
   { id: 'desarrolladores', label: 'Desarrolladores', icon: Code2, roles: [DEV_ROLE.key] },
@@ -237,6 +239,185 @@ const SCHEMA = [
       { key: 'es_insumo', label: 'Estudio de Suelos (insumo disponible)', type: 'boolean' },
       { key: 'zona_viento', label: 'Zona de viento', type: 'text' },
       { key: 'postes_cerca_predio', label: 'Postes en el predio (o cerca)', type: 'boolean' },
+
+      /* ===================================================================
+         CERRAMIENTO — replica el Excel de referencia de Camilo. Dentro de
+         cada sub-subcategoría, primero van los campos que digita el
+         ingeniero (los que en el Excel tenían fondo azul) y luego los que
+         se calculan solos (fórmulas). Los "computed" leen otros campos de
+         esta MISMA sección ('civil') por su key, vía el objeto que reciben.
+         =================================================================== */
+      { key: 'cerr_titulo', label: 'Cerramiento', type: 'grupo_titulo', nivel: 1 },
+
+      // — Cerramiento (general) —
+      { key: 'cerr_general_titulo', label: 'General', type: 'grupo_titulo', nivel: 2 },
+      { key: 'cerr_longitud_total', label: 'Longitud total cerramiento (m)', type: 'text' },
+
+      // — Pedestales — (100% calculado: postes + vientos)
+      { key: 'cerr_pedestales_titulo', label: 'Pedestales', type: 'grupo_titulo', nivel: 2 },
+      {
+        key: 'cerr_pedestales_cantidad', label: 'Cantidad pedestales', type: 'computed',
+        formula: (d) => {
+          const postes = calcCerrCantidadPostes(d);
+          const vientos = parseFloat(d?.cerr_vientos_cantidad) || 0;
+          return String(postes + vientos);
+        },
+        ayuda: 'Se calcula solo: Cantidad postes + Cantidad vientos',
+      },
+
+      // — Tubería —
+      { key: 'cerr_tuberia_titulo', label: 'Tubería', type: 'grupo_titulo', nivel: 2 },
+      { key: 'cerr_separacion_postes', label: 'Separación entre postes (m)', type: 'text' },
+      { key: 'cerr_cambios_direccion', label: 'Cantidad cambios de dirección', type: 'text' },
+      { key: 'cerr_separacion_diagonales', label: 'Separación entre diagonales (m)', type: 'text' },
+      { key: 'cerr_diametro_poste_pulg', label: 'Diámetro de poste (pulg)', type: 'text' },
+      {
+        key: 'cerr_postes_cantidad', label: 'Cantidad postes', type: 'computed',
+        formula: (d) => String(calcCerrCantidadPostes(d)),
+        ayuda: 'Se calcula solo: ROUNDUP((Longitud total / Separación entre postes) + 2 + (Cambios de dirección − 1))',
+      },
+      {
+        key: 'cerr_diagonales_cantidad', label: 'Diagonales', type: 'computed',
+        formula: (d) => {
+          const longitud = parseFloat(d?.cerr_longitud_total) || 0;
+          const sepDiag = parseFloat(d?.cerr_separacion_diagonales) || 0;
+          const cambios = parseFloat(d?.cerr_cambios_direccion) || 0;
+          if (!sepDiag) return '0';
+          return String(Math.ceil(((longitud / sepDiag) + cambios) * 2));
+        },
+        ayuda: 'Se calcula solo: ROUNDUP(((Longitud total / Separación entre diagonales) + Cambios de dirección) × 2)',
+      },
+      {
+        key: 'cerr_diametro_poste_m', label: 'Diámetro de poste (m)', type: 'computed',
+        formula: (d) => ((parseFloat(d?.cerr_diametro_poste_pulg) || 0) * 0.0254).toFixed(4),
+        ayuda: 'Se calcula solo: Diámetro de poste (pulg) × 0.0254',
+      },
+      {
+        key: 'cerr_circunferencia_poste', label: 'Circunferencia poste (m)', type: 'computed',
+        formula: (d) => (((parseFloat(d?.cerr_diametro_poste_pulg) || 0) * 0.0254) * Math.PI).toFixed(4),
+        ayuda: 'Se calcula solo: Diámetro de poste (m) × π',
+      },
+
+      // — Vientos —
+      { key: 'cerr_vientos_titulo', label: 'Vientos', type: 'grupo_titulo', nivel: 2 },
+      { key: 'cerr_vientos_cantidad', label: 'Cantidad vientos', type: 'text' },
+
+      // — Ángulos (Malla) —
+      { key: 'cerr_angulos_titulo', label: 'Ángulos (Malla)', type: 'grupo_titulo', nivel: 2 },
+      { key: 'cerr_perimetro_angulo', label: 'Perímetro ángulo (m)', type: 'text' },
+      { key: 'cerr_perimetro_malla', label: 'Perímetro (m)', type: 'text' },
+      {
+        key: 'cerr_angulos_cantidad', label: 'Cantidad ángulos', type: 'computed',
+        formula: (d) => String(Math.max(0, calcCerrCantidadPostes(d) - 1)),
+        ayuda: 'Se calcula solo: Cantidad postes − 1',
+      },
+      {
+        key: 'cerr_area_total', label: 'Área total (m²)', type: 'computed',
+        formula: (d) => {
+          const perimetro = parseFloat(d?.cerr_perimetro_malla) || 0;
+          const angulos = Math.max(0, calcCerrCantidadPostes(d) - 1);
+          const separacion = parseFloat(d?.cerr_separacion_postes) || 0;
+          return (perimetro * angulos * separacion).toFixed(4);
+        },
+        ayuda: 'Se calcula solo: Perímetro (m) × Cantidad ángulos × Separación entre postes',
+      },
+
+      // — Platina (si aplica) — (100% calculado; si se usa platina, anula la
+      // "Longitud total de cinta bandit en cerramiento" de más abajo, y viceversa)
+      { key: 'cerr_platina_titulo', label: 'Platina (si aplica)', type: 'grupo_titulo', nivel: 2 },
+      {
+        key: 'cerr_platinas_cantidad', label: 'Cantidad platinas', type: 'computed',
+        formula: (d) => String(3 * calcCerrCantidadPostes(d)),
+        ayuda: 'Se calcula solo: 3 × Cantidad postes. Si se usa platina, se anula la "Longitud total de cinta bandit en cerramiento" (son alternativas entre sí).',
+      },
+
+      // — Cinta Bandit —
+      { key: 'cerr_bandit_titulo', label: 'Cinta Bandit', type: 'grupo_titulo', nivel: 2 },
+      { key: 'cerr_bandit_por_poste', label: 'Cantidad por poste', type: 'text' },
+      { key: 'cerr_bandit_por_angulo', label: 'Cantidad por ángulo', type: 'text' },
+      { key: 'cerr_bandit_por_diagonal', label: 'Cantidad por diagonal', type: 'text' },
+      {
+        key: 'cerr_bandit_total_cerramiento', label: 'Longitud total de cinta bandit en cerramiento (m)', type: 'computed',
+        formula: (d) => {
+          const circ = ((parseFloat(d?.cerr_diametro_poste_pulg) || 0) * 0.0254) * Math.PI;
+          const perimAngulo = parseFloat(d?.cerr_perimetro_angulo) || 0;
+          const postes = calcCerrCantidadPostes(d);
+          const angulos = Math.max(0, postes - 1);
+          const longitud = parseFloat(d?.cerr_longitud_total) || 0;
+          const sepDiag = parseFloat(d?.cerr_separacion_diagonales) || 0;
+          const cambios = parseFloat(d?.cerr_cambios_direccion) || 0;
+          const diagonales = sepDiag ? Math.ceil(((longitud / sepDiag) + cambios) * 2) : 0;
+          const porPoste = parseFloat(d?.cerr_bandit_por_poste) || 0;
+          const porAngulo = parseFloat(d?.cerr_bandit_por_angulo) || 0;
+          const porDiagonal = parseFloat(d?.cerr_bandit_por_diagonal) || 0;
+          const total = (circ * 2 * porPoste * postes) + (perimAngulo * 2 * angulos * porAngulo) + (circ * 2 * porDiagonal * diagonales);
+          return total.toFixed(2);
+        },
+        ayuda: 'Se anula si se usa platina (son alternativas entre sí).',
+      },
+      {
+        key: 'cerr_bandit_total_porton', label: 'Longitud total de cinta bandit en portón (m)', type: 'computed',
+        formula: (d) => {
+          const circ = ((parseFloat(d?.cerr_diametro_poste_pulg) || 0) * 0.0254) * Math.PI;
+          const total = (circ * 2 * 4 * 6) + (circ * 2 * 6 * 3) + (circ * 2 * 4 * 2);
+          return total.toFixed(2);
+        },
+      },
+
+      // — Portón — (fijo, no depende de nada)
+      { key: 'cerr_porton_titulo', label: 'Portón', type: 'grupo_titulo', nivel: 2 },
+      {
+        key: 'cerr_porton_bisagras', label: 'Cantidad de bisagras', type: 'computed',
+        formula: () => '8',
+        ayuda: 'Siempre es 8.',
+      },
+
+      // — Pintura —
+      { key: 'cerr_pintura_titulo', label: 'Pintura', type: 'grupo_titulo', nivel: 2 },
+      { key: 'cerr_imprimante_1mano', label: 'Imprimante 1 mano (m²/gal)', type: 'text' },
+      { key: 'cerr_rendimiento_2manos', label: 'Rendimiento a 2 manos (m²/gal)', type: 'text' },
+      {
+        key: 'cerr_pintura_m2', label: 'm² de pintura (desperdicio 15%)', type: 'computed',
+        formula: (d) => {
+          const perimetro = parseFloat(d?.cerr_perimetro_malla) || 0;
+          const angulos = Math.max(0, calcCerrCantidadPostes(d) - 1);
+          const separacion = parseFloat(d?.cerr_separacion_postes) || 0;
+          return ((perimetro * angulos * separacion) * 1.15).toFixed(2);
+        },
+        ayuda: 'Se calcula solo: Área total × 1.15',
+      },
+      {
+        key: 'cerr_galones_imprimante', label: 'Galones de imprimante', type: 'computed',
+        formula: (d) => {
+          const perimetro = parseFloat(d?.cerr_perimetro_malla) || 0;
+          const angulos = Math.max(0, calcCerrCantidadPostes(d) - 1);
+          const separacion = parseFloat(d?.cerr_separacion_postes) || 0;
+          const pinturaM2 = (perimetro * angulos * separacion) * 1.15;
+          const rendimiento = parseFloat(d?.cerr_imprimante_1mano) || 0;
+          return rendimiento ? String(Math.ceil(pinturaM2 / rendimiento)) : '0';
+        },
+        ayuda: 'Se calcula solo: m² de pintura / Imprimante 1 mano',
+      },
+      {
+        key: 'cerr_galones_pintura', label: 'Galones de pintura', type: 'computed',
+        formula: (d) => {
+          const perimetro = parseFloat(d?.cerr_perimetro_malla) || 0;
+          const angulos = Math.max(0, calcCerrCantidadPostes(d) - 1);
+          const separacion = parseFloat(d?.cerr_separacion_postes) || 0;
+          const pinturaM2 = (perimetro * angulos * separacion) * 1.15;
+          const rendimiento = parseFloat(d?.cerr_rendimiento_2manos) || 0;
+          return rendimiento ? String(Math.ceil(pinturaM2 / rendimiento)) : '0';
+        },
+        ayuda: 'Se calcula solo: m² de pintura / Rendimiento a 2 manos',
+      },
+
+      // — Pasos de fauna — (100% calculado)
+      { key: 'cerr_pasos_fauna_titulo', label: 'Pasos de fauna', type: 'grupo_titulo', nivel: 2 },
+      {
+        key: 'cerr_pasos_fauna_cantidad', label: 'Cantidad pasos de fauna', type: 'computed',
+        formula: (d) => String(Math.round((parseFloat(d?.cerr_longitud_total) || 0) / 100)),
+        ayuda: 'Se calcula solo: Longitud total cerramiento / 100',
+      },
     ],
   },
   {
@@ -258,10 +439,6 @@ const SCHEMA = [
       { key: 'altura_min_terreno', label: 'Altura mínima con terreno (m)', type: 'text' },
       { key: 'tolerancia_superior', label: 'Tolerancia superior (m)', type: 'text' },
       { key: 'tolerancia_inferior', label: 'Tolerancia inferior (m)', type: 'text' },
-      { key: 'numero_inversores', label: 'Número de inversores', type: 'text' },
-      { key: 'especificacion_inversores', label: 'Especificación de inversores', type: 'text' },
-      { key: 'modulos_por_inversor', label: 'Módulos por inversor', type: 'text' },
-      { key: 'referencia_inversores', label: 'Referencia de inversores', type: 'text' },
     ],
   },
   {
@@ -416,7 +593,10 @@ const SCHEMA = [
       { key: 'tipo_estructura', label: 'Tipo de estructura', type: 'text' },
       { key: 'distancia_pitch', label: 'Distancia Pitch', type: 'text' },
       { key: 'modulos_por_string', label: 'Módulos por string', type: 'text' },
-      { key: 'modulos_ev', label: 'Módulos EV', type: 'text' },
+      { key: 'modulos_ev', label: 'Módulos FV', type: 'text' },
+      { key: 'numero_inversores', label: 'Número de inversores', type: 'text' },
+      { key: 'referencia_inversores', label: 'Referencia de inversores', type: 'text' },
+      { key: 'modulos_por_inversor', label: 'Módulos por inversor', type: 'modulos_inversor' },
       /* Equipos eléctricos del proyecto: cada uno se elige de las plantillas */
       /* ya creadas en "Equipos eléctricos" (un slot fijo por cada uno de los */
       /* 18 tipos) — enlace en vivo, igual criterio que en Estructural.       */
@@ -537,6 +717,7 @@ function emptySchemaData() {
     section.fields.forEach((f) => {
       if (f.type === 'boolean') obj[section.id][f.key] = { valor: null, nota: '' };
       else if (f.type === 'stations') obj[section.id][f.key] = emptyStations();
+      else if (f.type === 'modulos_inversor') obj[section.id][f.key] = [];
       else obj[section.id][f.key] = '';
     });
   });
@@ -652,6 +833,16 @@ function renderNoteText(texto) {
 
 /* Compara los valores "antes" y "después" de una especialidad y devuelve una  */
 /* lista de textos legibles, uno por cada campo que realmente cambió.         */
+/* Cantidad de postes del cerramiento — la reutilizan varias fórmulas de la   */
+/* subcategoría "Cerramiento" en Civil (pedestales, ángulos, cinta bandit…). */
+function calcCerrCantidadPostes(d) {
+  const longitud = parseFloat(d?.cerr_longitud_total) || 0;
+  const separacion = parseFloat(d?.cerr_separacion_postes) || 0;
+  const cambios = parseFloat(d?.cerr_cambios_direccion) || 0;
+  if (!separacion) return 0;
+  return Math.ceil((longitud / separacion) + 2 + (cambios - 1));
+}
+
 function diffSectionData(section, before, after) {
   const cambios = [];
   section.fields.forEach((field) => {
@@ -664,10 +855,12 @@ function diffSectionData(section, before, after) {
         const fmt = (v) => (v.valor === true ? 'Sí' : v.valor === false ? 'No' : 'sin definir') + (v.nota ? ` (${v.nota})` : '');
         cambios.push(`${field.label}: ${fmt(bv)} → ${fmt(av)}`);
       }
-    } else if (field.type === 'stations') {
+    } else if (field.type === 'stations' || field.type === 'modulos_inversor') {
       if (JSON.stringify(b || []) !== JSON.stringify(a || [])) {
-        cambios.push(`${field.label}: se actualizó la tabla de estaciones`);
+        cambios.push(`${field.label}: se actualizó la tabla`);
       }
+    } else if (field.type === 'grupo_titulo') {
+      // encabezado visual, no guarda datos propios — nada que comparar
     } else if ((b || '') !== (a || '')) {
       cambios.push(`${field.label}: "${b || '—'}" → "${a || '—'}"`);
     }
@@ -7437,6 +7630,17 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
     );
   }
 
+  if (field.type === 'grupo_titulo') {
+    // Encabezado visual (sin valor propio) para separar sub-secciones dentro
+    // de una pestaña — nivel 1 = título de la subcategoría completa (ej.
+    // "Cerramiento"), nivel 2 = cada sub-subcategoría dentro de ella.
+    return field.nivel === 1 ? (
+      <p className="text-sm font-bold uppercase tracking-wide text-navy-800 mt-2">{field.label}</p>
+    ) : (
+      <p className="text-xs font-bold uppercase tracking-wide text-navy-500 pt-3 mt-1 border-t border-navy-100">{field.label}</p>
+    );
+  }
+
   if (field.type === 'cimentacion_plantilla') {
     const plantillasDelTipo = (plantillasCimentacion || []).filter((p) => p.tipo === field.tipoCimentacion);
     const seleccionada = plantillasDelTipo.find((p) => p.id === value);
@@ -7548,6 +7752,87 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
             <ResumenLineas lineas={atributosLineas(seleccionada.datos)} size="text-sm" />
           </div>
         ) : null}
+      </div>
+    );
+  }
+
+  if (field.type === 'modulos_inversor') {
+    // Cantidad de filas = "Número de inversores" (otro campo de esta misma
+    // sección) — cada fila representa un inversor con su configuración de
+    // strings/módulos y la cantidad total de módulos que le corresponden.
+    const n = Math.max(0, parseInt(siblingData?.numero_inversores, 10) || 0);
+    const rowsGuardadas = Array.isArray(value) ? value : [];
+    const filas = Array.from({ length: n }, (_, i) => rowsGuardadas[i] || { configuracion: '', cantidad: '' });
+
+    if (!editMode) {
+      const conDatos = filas.filter((r) => r.configuracion || r.cantidad);
+      return (
+        <div className="py-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-2">{field.label}</p>
+          {n === 0 ? (
+            <p className="text-sm text-navy-300 italic">Define primero el "Número de inversores"</p>
+          ) : conDatos.length === 0 ? (
+            <p className="text-sm text-navy-300 italic">Sin definir</p>
+          ) : (
+            <table className="w-full text-sm border border-navy-200 rounded-lg overflow-hidden">
+              <thead>
+                <tr className="bg-navy-50">
+                  <th className="text-left font-semibold text-navy-500 px-3 py-1.5 border-b border-navy-200">Inversor</th>
+                  <th className="text-left font-semibold text-navy-500 px-3 py-1.5 border-b border-navy-200">Configuración</th>
+                  <th className="text-left font-semibold text-navy-500 px-3 py-1.5 border-b border-navy-200">Cant.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filas.map((r, i) => (
+                  <tr key={i} className="border-b border-navy-100 last:border-b-0">
+                    <td className="px-3 py-1.5 font-mono text-navy-700">{i + 1}</td>
+                    <td className="px-3 py-1.5 font-mono text-navy-700">{r.configuracion || '—'}</td>
+                    <td className="px-3 py-1.5 font-mono text-navy-700">{r.cantidad || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      );
+    }
+
+    function updateFila(i, key, val) {
+      const next = filas.map((r, idx) => (idx === i ? { ...r, [key]: val } : r));
+      onChange(next);
+    }
+    const cellInputMod = 'w-full rounded-md border border-navy-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+    return (
+      <div className="py-1">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
+        {n === 0 ? (
+          <p className="text-xs text-navy-400 italic">Define primero el campo "Número de inversores" para habilitar esta tabla.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border border-navy-200 rounded-lg">
+              <thead>
+                <tr className="bg-navy-50">
+                  <th className="text-left font-semibold text-navy-500 px-2 py-1.5 border-b border-navy-200 w-20">Inversor</th>
+                  <th className="text-left font-semibold text-navy-500 px-2 py-1.5 border-b border-navy-200">Configuración</th>
+                  <th className="text-left font-semibold text-navy-500 px-2 py-1.5 border-b border-navy-200 w-28">Cant.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filas.map((r, i) => (
+                  <tr key={i} className="border-b border-navy-100 last:border-b-0">
+                    <td className="px-2 py-1.5 font-mono text-navy-500 text-center">{i + 1}</td>
+                    <td className="p-1.5">
+                      <input type="text" className={cellInputMod} value={r.configuracion} onChange={(e) => updateFila(i, 'configuracion', e.target.value)} placeholder="18 strings X 28 módulos" />
+                    </td>
+                    <td className="p-1.5">
+                      <input type="text" className={cellInputMod} value={r.cantidad} onChange={(e) => updateFila(i, 'cantidad', e.target.value)} placeholder="504" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     );
   }
@@ -7762,7 +8047,7 @@ function SectionFieldsGrid({
           <div
             key={field.key}
             data-field-key={field.key}
-            className={`${field.type === 'stations' ? 'col-span-full' : ''} ${
+            className={`${field.type === 'stations' || field.type === 'grupo_titulo' || field.type === 'modulos_inversor' ? 'col-span-full' : ''} ${
               focusFieldKey === field.key ? 'ring-2 ring-lime-400 rounded-lg' : ''
             }`}
           >
@@ -8607,6 +8892,16 @@ function PrintableReport({ project, plantillasCimentacion, plantillasEquipos }) 
               {section.fields.map((field) => {
                 const raw = project.data[section.id] ? project.data[section.id][field.key] : undefined;
 
+                if (field.type === 'grupo_titulo') {
+                  return (
+                    <tr key={field.key}>
+                      <td colSpan={2} className={`pt-3 pb-1 font-bold uppercase tracking-wide text-navy-600 ${field.nivel === 1 ? 'text-sm' : 'text-xs border-t border-navy-200'}`}>
+                        {field.label}
+                      </td>
+                    </tr>
+                  );
+                }
+
                 if (field.type === 'stations') {
                   const filas = (Array.isArray(raw) ? raw : []).filter((r) => r.nombre || r.dias || r.peso);
                   return (
@@ -8630,6 +8925,43 @@ function PrintableReport({ project, plantillasCimentacion, plantillasEquipos }) 
                                   <td className="px-2 py-1 font-mono">{r.nombre || '—'}</td>
                                   <td className="px-2 py-1 font-mono">{r.dias || '—'}</td>
                                   <td className="px-2 py-1 font-mono">{r.peso || '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                }
+
+                if (field.type === 'modulos_inversor') {
+                  const sectionData = project.data[section.id] || {};
+                  const n = Math.max(0, parseInt(sectionData.numero_inversores, 10) || 0);
+                  const rowsGuardadas = Array.isArray(raw) ? raw : [];
+                  const filas = Array.from({ length: n }, (_, i) => rowsGuardadas[i] || { configuracion: '', cantidad: '' })
+                    .filter((r) => r.configuracion || r.cantidad);
+                  return (
+                    <tr key={field.key} className="border-b border-navy-100">
+                      <td className="py-1.5 pr-4 text-navy-500 w-1/2 align-top">{field.label}</td>
+                      <td className="py-1.5 align-top">
+                        {filas.length === 0 ? (
+                          <span className="font-mono text-navy-700">—</span>
+                        ) : (
+                          <table className="w-full text-xs border border-navy-300">
+                            <thead>
+                              <tr className="bg-navy-50">
+                                <th className="text-left px-2 py-1 border-b border-navy-300">Inversor</th>
+                                <th className="text-left px-2 py-1 border-b border-navy-300">Configuración</th>
+                                <th className="text-left px-2 py-1 border-b border-navy-300">Cant.</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {filas.map((r, i) => (
+                                <tr key={i}>
+                                  <td className="px-2 py-1 font-mono">{i + 1}</td>
+                                  <td className="px-2 py-1 font-mono">{r.configuracion || '—'}</td>
+                                  <td className="px-2 py-1 font-mono">{r.cantidad || '—'}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -8975,7 +9307,7 @@ function LoadingScreen({ mensaje = 'Cargando…' }) {
 /* ============================================================================
    7. NAVEGACIÓN Y LAYOUT
    ============================================================================ */
-function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLogout, mobileOpen, onCloseMobile }) {
+function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile, onRefresh, onLogout, mobileOpen, onCloseMobile }) {
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { key: 'mis', label: 'Mis Proyectos', icon: FolderKanban },
@@ -9041,14 +9373,20 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onRefresh, onLog
           className="p-4 border-t border-navy-800 flex items-center gap-3"
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom) + 1rem, 1.25rem)' }}
         >
-          <Avatar name={perfil.nombre} foto={perfil.foto} />
-          <div className="min-w-0 flex-1">
-            <p className="text-white text-sm font-semibold truncate">{perfil.nombre}</p>
-            <p className="text-navy-300 text-xs truncate flex items-center gap-1">
-              {isLeader(perfil) && <ShieldCheck className="w-3 h-3 text-lime-400 shrink-0" />}
-              {rolesLabel(perfil)}
-            </p>
-          </div>
+          <button
+            onClick={onViewMyProfile}
+            title="Ver mi perfil"
+            className="flex items-center gap-3 min-w-0 flex-1 text-left rounded-md hover:bg-navy-800 -m-1 p-1 transition-colors"
+          >
+            <Avatar name={perfil.nombre} foto={perfil.foto} />
+            <div className="min-w-0 flex-1">
+              <p className="text-white text-sm font-semibold truncate">{perfil.nombre}</p>
+              <p className="text-navy-300 text-xs truncate flex items-center gap-1">
+                {isLeader(perfil) && <ShieldCheck className="w-3 h-3 text-lime-400 shrink-0" />}
+                {rolesLabel(perfil)}
+              </p>
+            </div>
+          </button>
           <button onClick={onEditProfile} title="Editar mi perfil" className="text-navy-300 hover:text-white shrink-0">
             <Pencil className="w-3.5 h-3.5" />
           </button>
@@ -9333,19 +9671,29 @@ function InversionistaResumenCard({ nombre, proyectos, onOpenProject }) {
       </button>
       {expandido && (
         <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          {proyectos.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => onOpenProject(p.id)}
-              className="flex items-center justify-between gap-2 bg-navy-50 hover:bg-navy-100 border border-navy-200 rounded-lg px-3 py-2.5 text-left transition-colors"
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-navy-700 truncate">{projectDisplayName(p)}</p>
-                <p className="text-xs text-navy-400 truncate">{p.data.general.municipio}, {p.data.general.departamento}</p>
-              </div>
-              <StatusBadge estado={p.estado} size="sm" />
-            </button>
-          ))}
+          {proyectos.map((p) => {
+            const { conteoPorEstado: cpe, total: tot } = computeProjectDocProgress(p);
+            const totalSeguido = tot - (cpe['No aplica'] || 0);
+            const pctApc = totalSeguido === 0 ? 0 : Math.round(((cpe['Aprobado para construcción (APC)'] || 0) / totalSeguido) * 100);
+            const pctEntregado = totalSeguido === 0 ? 0 : Math.round(((cpe['Entregado'] || 0) / totalSeguido) * 100);
+            return (
+              <button
+                key={p.id}
+                onClick={() => onOpenProject(p.id)}
+                className="flex items-center justify-between gap-2 bg-navy-50 hover:bg-navy-100 border border-navy-200 rounded-lg px-3 py-2.5 text-left transition-colors"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-navy-700 truncate">{projectDisplayName(p)}</p>
+                  <p className="text-xs text-navy-400 truncate">{p.data.general.municipio}, {p.data.general.departamento}</p>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="text-xs text-navy-500">APC: <span className="font-semibold text-navy-700">{pctApc}%</span></span>
+                    <span className="text-xs text-violet-500">Entregado: <span className="font-semibold text-violet-600">{pctEntregado}%</span></span>
+                  </div>
+                </div>
+                <StatusBadge estado={p.estado} size="sm" />
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -11762,6 +12110,7 @@ export default function App() {
         stats={stats}
         perfil={perfil}
         onEditProfile={() => setShowProfileEdit(true)}
+        onViewMyProfile={() => { setView('equipo'); setSelectedPersonId(perfil.id); }}
         onRefresh={handleRefresh}
         onLogout={handleLogout}
         mobileOpen={sidebarOpen}
