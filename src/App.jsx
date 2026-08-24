@@ -46,6 +46,16 @@ const ROLES = [
   { key: 'delineante', label: 'Delineante', icon: PenTool },
   { key: 'tramites_bt', label: 'Trámites y BT', icon: FileText },
 ];
+/* Roles "de disciplina técnica" — para estos, el Dashboard muestra el       */
+/* resumen PERSONAL (solo los proyectos donde están asignados) en vez del   */
+/* total de todos los proyectos. Si alguien tiene ADEMÁS un rol que no está  */
+/* en esta lista (líder, QA, desarrollador, Trámites y BT…), ese "otro tipo" */
+/* gana y ve el resumen total — ver usaResumenPersonal().                   */
+const ROLES_DASHBOARD_PERSONAL = ['civil', 'geotecnico', 'estructural', 'hidraulico', 'electrico', 'delineante'];
+function usaResumenPersonal(perfil) {
+  const roles = perfil?.roles || [];
+  return roles.length > 0 && roles.every((r) => ROLES_DASHBOARD_PERSONAL.includes(r));
+}
 
 /* Estas especialidades admiten varias personas a la vez en el mismo        */
 /* proyecto (ej. dos ingenieros civiles). Las demás siguen siendo de una    */
@@ -61,9 +71,17 @@ function equipoComoArray(valor) {
   if (Array.isArray(valor)) return valor.filter(Boolean);
   return valor ? [valor] : [];
 }
+/* Claves de "equipo" que NO cuentan como asignación real de trabajo: quien  */
+/* aprueba un proyecto no lo desarrolla (no debería tener permiso de        */
+/* edición ni aparecer en sus "Mis proyectos" — ver "Revisión de proyectos" */
+/* aparte), y el ingeniero de proyectos no tiene cuenta con la que iniciar  */
+/* sesión, así que tampoco aplica.                                          */
+const EQUIPO_CLAVES_SIN_ASIGNACION = ['aprobador_civil', 'aprobador_electrico', 'ingeniero_proyectos'];
 /* Todos los nombres asignados a un proyecto, sin importar el rol.         */
 function equipoNombres(equipo) {
-  return Object.values(equipo || {}).flatMap(equipoComoArray);
+  return Object.entries(equipo || {})
+    .filter(([k]) => !EQUIPO_CLAVES_SIN_ASIGNACION.includes(k))
+    .flatMap(([, v]) => equipoComoArray(v));
 }
 /* Texto legible para un valor de equipo[role] (nombre único, varios       */
 /* nombres separados por coma, o vacío).                                    */
@@ -135,6 +153,14 @@ function canAssignRole(perfil, roleKey) {
 }
 function isAssignedToProject(perfil, project) {
   return !!perfil && equipoNombres(project.equipo).includes(perfil.nombre);
+}
+/* A diferencia de isAssignedToProject: esto SÍ mira las claves de aprobador */
+/* — para el apartado "Revisión de proyectos" (ver Dashboard), que es lo     */
+/* opuesto de "Mis proyectos" (no lo desarrollo, solo lo apruebo).           */
+function esAprobadorDe(perfil, project) {
+  if (!perfil) return false;
+  const equipo = project.equipo || {};
+  return equipo.aprobador_civil === perfil.nombre || equipo.aprobador_electrico === perfil.nombre;
 }
 
 /* --------------------- 2. ESQUEMA DE CAMPOS POR ESPECIALIDAD ---------------- */
@@ -234,7 +260,6 @@ const SCHEMA = [
       { key: 'departamento', label: 'Departamento', type: 'departamento' },
       { key: 'municipio', label: 'Municipio', type: 'municipio' },
       { key: 'pais', label: 'País', type: 'pais' },
-      { key: 'inversionista', label: 'Inversionista', type: 'inversionista' },
       { key: 'numero_minigranja', label: 'Número de minigranja (ej. 215)', type: 'text' },
       { key: 'numero_predio', label: 'Número de predio (ej. 1)', type: 'text' },
       { key: 'propietario_predio', label: 'Propietario de predio', type: 'text' },
@@ -242,8 +267,34 @@ const SCHEMA = [
       { key: 'magna_sirgas', label: 'Coord. MAGNA-SIRGAS (Bogotá)', type: 'text' },
       { key: 'lat_long', label: 'Coordenadas Lat/Long', type: 'text' },
       { key: 'altitud', label: 'Altitud (m.s.n.m.)', type: 'text' },
+      { key: 'direccion_proyecto', label: 'Dirección del proyecto', type: 'text' },
+      { key: 'tipo_predio', label: 'Tipo predio (rural o urbano)', type: 'text' },
       { key: 'fecha_inicio', label: 'Fecha de Inicio', type: 'date' },
       { key: 'fecha_entrega', label: 'Fecha de Entrega', type: 'date' },
+
+      /* Operador de red / Inversionista / Instalador: cada uno es un        */
+      /* catálogo compartido (mismo criterio que Mallas/Países/Proveedores)  */
+      /* — el correo/teléfono/NIT/logo son ATRIBUTOS de esa entidad, no del  */
+      /* proyecto, así que se editan aquí pero se guardan en su propio       */
+      /* catálogo y se reflejan en todos los proyectos que la usen.         */
+      ...camposPlegables([
+        { key: 'operador_red', label: 'Operador de red', type: 'operador_red' },
+        { key: 'or_logo', label: 'Logo OR', type: 'catalogo_atributo', catalogo: 'operadores_red', dependeDe: 'operador_red', dependeDeLabel: 'Operador de red', campoAtributo: 'logo', esImagen: true },
+      ], 'operador_red_grupo', 'Operador de red'),
+
+      ...camposPlegables([
+        { key: 'inversionista', label: 'Inversionista', type: 'inversionista' },
+        { key: 'inv_correo', label: 'Correo Inversionista', type: 'catalogo_atributo', catalogo: 'inversionistas', dependeDe: 'inversionista', dependeDeLabel: 'Inversionista', campoAtributo: 'correo' },
+        { key: 'inv_telefono', label: 'Teléfono Inversionista', type: 'catalogo_atributo', catalogo: 'inversionistas', dependeDe: 'inversionista', dependeDeLabel: 'Inversionista', campoAtributo: 'telefono' },
+        { key: 'inv_nit', label: 'NIT del inversionista', type: 'catalogo_atributo', catalogo: 'inversionistas', dependeDe: 'inversionista', dependeDeLabel: 'Inversionista', campoAtributo: 'nit' },
+        { key: 'inv_logo', label: 'Logo Inversionista', type: 'catalogo_atributo', catalogo: 'inversionistas', dependeDe: 'inversionista', dependeDeLabel: 'Inversionista', campoAtributo: 'logo', esImagen: true },
+      ], 'inversionista_grupo', 'Inversionista'),
+
+      ...camposPlegables([
+        { key: 'instalador', label: 'Instalador', type: 'instalador' },
+        { key: 'instalador_nit', label: 'NIT instalador', type: 'catalogo_atributo', catalogo: 'instaladores', dependeDe: 'instalador', dependeDeLabel: 'Instalador', campoAtributo: 'nit' },
+        { key: 'instalador_logo', label: 'Logo Instalador', type: 'catalogo_atributo', catalogo: 'instaladores', dependeDe: 'instalador', dependeDeLabel: 'Instalador', campoAtributo: 'logo', esImagen: true },
+      ], 'instalador_grupo', 'Instalador'),
     ],
   },
   {
@@ -463,6 +514,8 @@ const SCHEMA = [
       { key: 'modulo_poisson', label: 'Módulo de Poisson (μ)', type: 'text' },
       { key: 'peso_unitario', label: 'Peso unitario', type: 'text' },
       { key: 'temperatura_suelo', label: 'Temperatura del suelo', type: 'text' },
+      { key: 'resistividad_termica', label: 'Resistividad térmica', type: 'text' },
+      { key: 'suelista', label: 'Suelista', type: 'text' },
       { key: 'clasificacion_suelo', label: 'Clasificación de suelo (NSR-10)', type: 'select', opciones: ['A', 'B', 'C', 'D', 'E', 'F'] },
       catalogSchemaField('capacidad_admisible_cerramiento', 'CERRAMIENTO_PERIMETRAL', 'CAPACIDAD_SUELO', 'Capacidad admisible del suelo (cimentación cerramiento)'),
       catalogSchemaField('capacidad_admisible_porton', 'PORTON_METALICO', 'CAPACIDAD_SUELO', 'Capacidad admisible del suelo (cimentación portón)'),
@@ -940,6 +993,7 @@ function rowToProject(row) {
     archivos: row.archivos || [],
     notas: row.notas || [],
     documentos: row.documentos || {},
+    created_at: row.created_at || null,
   };
 }
 function rowToProfile(row, roles) {
@@ -949,6 +1003,12 @@ function rowToProfile(row, roles) {
     foto: row.foto_url,
     fecha_cumpleanos: row.fecha_cumpleanos || '',
     fecha_ingreso: row.fecha_ingreso || '',
+    cedula: row.cedula || '',
+    ciudad_expedicion_cedula: row.ciudad_expedicion_cedula || '',
+    matricula_profesional: row.matricula_profesional || '',
+    celular: row.celular || '',
+    direccion: row.direccion || '',
+    correo_personal: row.correo_personal || '',
     roles: roles || [],
   };
 }
@@ -1604,6 +1664,32 @@ function ProveedorPicker({ value, proveedores, onChange, onAddNew }) {
       onAddNew={onAddNew}
       placeholderNuevo="Nombre del nuevo proveedor"
       etiquetaAgregar="+ Agregar nuevo proveedor…"
+    />
+  );
+}
+
+function OperadorRedPicker({ value, operadoresRed, onChange, onAddNew }) {
+  return (
+    <AddableSelect
+      value={value}
+      opciones={(operadoresRed || []).map((o) => o.nombre)}
+      onChange={onChange}
+      onAddNew={onAddNew}
+      placeholderNuevo="Nombre del nuevo operador de red"
+      etiquetaAgregar="+ Agregar nuevo operador de red…"
+    />
+  );
+}
+
+function InstaladorPicker({ value, instaladores, onChange, onAddNew }) {
+  return (
+    <AddableSelect
+      value={value}
+      opciones={(instaladores || []).map((i) => i.nombre)}
+      onChange={onChange}
+      onAddNew={onAddNew}
+      placeholderNuevo="Nombre del nuevo instalador"
+      etiquetaAgregar="+ Agregar nuevo instalador…"
     />
   );
 }
@@ -7512,7 +7598,12 @@ function IsoBoxLineArt({ x0, y0, w, d, z0, z1, ox, oy, fillTop = 'white', fillSi
     </g>
   );
 }
-function FieldRenderer({ field, value, editMode, onChange, siblingData, inversionistas, onAddInversionista, paises, onAddPais, proveedores, onAddProveedor, plantillasCimentacion, plantillasEquipos }) {
+function FieldRenderer({
+  field, value, editMode, onChange, siblingData, inversionistas, onAddInversionista, paises, onAddPais,
+  proveedores, onAddProveedor, plantillasCimentacion, plantillasEquipos,
+  inversionistasDetalle, operadoresRed, onAddOperadorRed, instaladores, onAddInstalador,
+  ingenierosProyectos, onUpdateCatalogoAtributo,
+}) {
   if (field.type === 'departamento') {
     if (!editMode) return <ReadOnlyValue label={field.label} value={value} mono={false} />;
     return (
@@ -7581,6 +7672,105 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
       <div className="py-1">
         <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
         <ProveedorPicker value={value} proveedores={proveedores || []} onChange={onChange} onAddNew={onAddProveedor} />
+      </div>
+    );
+  }
+
+  if (field.type === 'operador_red') {
+    if (!editMode) return <ReadOnlyValue label={field.label} value={value} mono={false} />;
+    return (
+      <div className="py-1">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
+        <OperadorRedPicker value={value} operadoresRed={operadoresRed} onChange={onChange} onAddNew={onAddOperadorRed} />
+      </div>
+    );
+  }
+
+  if (field.type === 'instalador') {
+    if (!editMode) return <ReadOnlyValue label={field.label} value={value} mono={false} />;
+    return (
+      <div className="py-1">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
+        <InstaladorPicker value={value} instaladores={instaladores} onChange={onChange} onAddNew={onAddInstalador} />
+      </div>
+    );
+  }
+
+  if (field.type === 'catalogo_atributo') {
+    // No es un dato del proyecto: es un atributo de LA ENTIDAD elegida en
+    // otro campo de esta misma sección (field.dependeDe) — ej. el correo del
+    // inversionista, el logo del operador de red, el NIT del instalador. Se
+    // guarda en la tabla del catálogo (field.catalogo), no en projects.data.
+    const catalogos = { inversionistas: inversionistasDetalle, operadores_red: operadoresRed, instaladores, ingenieros_proyectos: ingenierosProyectos };
+    const lista = catalogos[field.catalogo] || [];
+    const nombreSeleccionado = siblingData ? siblingData[field.dependeDe] : '';
+    const fila = lista.find((r) => r.nombre === nombreSeleccionado);
+    const valorAtributo = fila ? fila[field.campoAtributo] : '';
+
+    if (!nombreSeleccionado) {
+      return (
+        <div className="py-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-1">{field.label}</p>
+          <p className="text-sm text-navy-300 italic">Elige primero "{field.dependeDeLabel || field.dependeDe}"</p>
+        </div>
+      );
+    }
+
+    function guardarAtributo(nuevoValor) {
+      onUpdateCatalogoAtributo(field.catalogo, nombreSeleccionado, field.campoAtributo, nuevoValor);
+    }
+
+    if (field.esImagen) {
+      if (!editMode) {
+        return (
+          <div className="py-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-1">{field.label}</p>
+            {valorAtributo ? (
+              <img src={valorAtributo} alt={field.label} className="max-h-16 rounded border border-navy-200 object-contain" />
+            ) : (
+              <p className="text-sm text-navy-300 italic">Sin definir</p>
+            )}
+          </div>
+        );
+      }
+      return (
+        <div className="py-1">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
+          <div className="flex items-center gap-3">
+            {valorAtributo && <img src={valorAtributo} alt={field.label} className="max-h-12 rounded border border-navy-200 object-contain" />}
+            <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-lime-600 hover:text-lime-700 cursor-pointer">
+              <UploadCloud className="w-3.5 h-3.5" />
+              {valorAtributo ? 'Cambiar imagen' : 'Subir imagen'}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = () => guardarAtributo(reader.result);
+                  reader.readAsDataURL(file);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+          </div>
+          <p className="text-[11px] text-navy-400 mt-1">Este dato pertenece a "{nombreSeleccionado}" — se refleja en todos sus proyectos.</p>
+        </div>
+      );
+    }
+
+    if (!editMode) return <ReadOnlyValue label={field.label} value={valorAtributo} mono={false} />;
+    return (
+      <div className="py-1">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
+        <input
+          value={valorAtributo || ''}
+          onChange={(e) => guardarAtributo(e.target.value)}
+          className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+        />
+        <p className="text-[11px] text-navy-400 mt-1">Este dato pertenece a "{nombreSeleccionado}" — se refleja en todos sus proyectos.</p>
       </div>
     );
   }
@@ -7980,6 +8170,8 @@ function FieldRenderer({ field, value, editMode, onChange, siblingData, inversio
 function SectionFieldsGrid({
   section, data, editMode, onFieldChange, inversionistas, onAddInversionista, paises, onAddPais,
   proveedores, onAddProveedor, plantillasCimentacion, plantillasEquipos,
+  inversionistasDetalle, operadoresRed, onAddOperadorRed, instaladores, onAddInstalador,
+  ingenierosProyectos, onUpdateCatalogoAtributo,
   structureType, focusFieldKey, onFocusHandled,
 }) {
   const [grupoAbierto, setGrupoAbierto] = useState(false);
@@ -8091,6 +8283,13 @@ function SectionFieldsGrid({
               onAddProveedor={onAddProveedor}
               plantillasCimentacion={plantillasCimentacion}
               plantillasEquipos={plantillasEquipos}
+              inversionistasDetalle={inversionistasDetalle}
+              operadoresRed={operadoresRed}
+              onAddOperadorRed={onAddOperadorRed}
+              instaladores={instaladores}
+              onAddInstalador={onAddInstalador}
+              ingenierosProyectos={ingenierosProyectos}
+              onUpdateCatalogoAtributo={onUpdateCatalogoAtributo}
             />
           </div>
           );
@@ -9359,6 +9558,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile,
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { key: 'mis', label: 'Mis Proyectos', icon: FolderKanban },
+    { key: 'revision', label: 'Revisión de Proyectos', icon: ClipboardCheck },
     { key: 'todos', label: 'Todos los Proyectos', icon: Layers },
     { key: 'resumen_inversionistas', label: 'Resumen por Inversionista', icon: PieChart },
     { key: 'cimentaciones', label: 'Cimentaciones', icon: Boxes },
@@ -9491,12 +9691,14 @@ function ProjectCard({ project, onClick, directorio }) {
 /* ============================================================================
    8. VISTAS PRINCIPALES
    ============================================================================ */
-function Dashboard({ projects, misProyectos, onNewProject, openProject, setView, directorio, perfil }) {
-  const total = projects.length;
-  const activos = projects.filter((p) => p.estado === 'activo').length;
-  const pausa = projects.filter((p) => p.estado === 'pausa').length;
-  const inactivos = projects.filter((p) => p.estado === 'inactivo').length;
-  const finalizados = projects.filter((p) => p.estado === 'finalizado').length;
+function Dashboard({ projects, misProyectos, proyectosRevision, onNewProject, openProject, setView, directorio, perfil }) {
+  const resumenPersonal = usaResumenPersonal(perfil);
+  const universoResumen = resumenPersonal ? misProyectos : projects;
+  const total = universoResumen.length;
+  const activos = universoResumen.filter((p) => p.estado === 'activo').length;
+  const pausa = universoResumen.filter((p) => p.estado === 'pausa').length;
+  const inactivos = universoResumen.filter((p) => p.estado === 'inactivo').length;
+  const finalizados = universoResumen.filter((p) => p.estado === 'finalizado').length;
   const primerNombre = (perfil.nombre || '').split(' ')[0];
 
   return (
@@ -9506,7 +9708,7 @@ function Dashboard({ projects, misProyectos, onNewProject, openProject, setView,
           <Avatar name={perfil.nombre} foto={perfil.foto} size="lg" />
           <div>
             <h1 className="text-2xl font-bold text-navy-800">Hola, {primerNombre}</h1>
-            <p className="text-navy-500 text-sm mt-1">{rolesLabel(perfil)} · Panel general de proyectos</p>
+            <p className="text-navy-500 text-sm mt-1">{rolesLabel(perfil)} · {resumenPersonal ? 'Resumen de tus proyectos asignados' : 'Panel general de proyectos'}</p>
           </div>
         </div>
         <button onClick={onNewProject} className="flex items-center gap-2 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition-colors">
@@ -9515,7 +9717,7 @@ function Dashboard({ projects, misProyectos, onNewProject, openProject, setView,
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
-        <StatCard label="Total Proyectos" value={total} icon={Layers} accent="border-navy-300" />
+        <StatCard label={resumenPersonal ? 'Mis Proyectos' : 'Total Proyectos'} value={total} icon={Layers} accent="border-navy-300" />
         <StatCard label="Activos" value={activos} icon={Check} accent="border-emerald-400" textColor="text-emerald-600" />
         <StatCard label="En Pausa" value={pausa} icon={Cog} accent="border-yellow-400" textColor="text-yellow-600" />
         <StatCard label="Inactivos" value={inactivos} icon={XCircle} accent="border-red-400" textColor="text-red-600" />
@@ -9528,11 +9730,24 @@ function Dashboard({ projects, misProyectos, onNewProject, openProject, setView,
           Ver todos →
         </button>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
         {misProyectos.slice(0, 3).map((p) => (
           <ProjectCard key={p.id} project={p} onClick={() => openProject(p.id)} directorio={directorio} />
         ))}
         {misProyectos.length === 0 && <p className="text-navy-400 text-sm italic col-span-full">No tienes proyectos asignados todavía.</p>}
+      </div>
+
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-bold text-navy-800">Revisión de proyectos</h2>
+        <button onClick={() => setView('revision')} className="text-sm font-medium text-lime-600 hover:text-lime-700">
+          Ver todos →
+        </button>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {proyectosRevision.slice(0, 3).map((p) => (
+          <ProjectCard key={p.id} project={p} onClick={() => openProject(p.id)} directorio={directorio} />
+        ))}
+        {proyectosRevision.length === 0 && <p className="text-navy-400 text-sm italic col-span-full">No tienes proyectos para aprobar todavía.</p>}
       </div>
     </div>
   );
@@ -9779,7 +9994,8 @@ function ResumenInversionistasView({ projects, onOpenProject }) {
 }
 
 function EquipoSelect({ role, valorActual, directorio, onChange, readOnly }) {
-  const candidatos = directorio.filter((u) => u.roles && u.roles.includes(role.key));
+  const rolParaFiltrar = role.filterRoleKey || role.key;
+  const candidatos = directorio.filter((u) => u.roles && u.roles.includes(rolParaFiltrar));
   const actualRegistrado = valorActual && candidatos.some((u) => u.nombre === valorActual);
 
   if (readOnly) {
@@ -9863,6 +10079,44 @@ function EquipoMultiSelect({ role, valores, directorio, onChange, readOnly }) {
 
 /* Decide si usar el selector de una sola persona o el de varias, según el   */
 /* rol. Se usa en todos los lugares donde se asigna equipo a un proyecto.   */
+/* El "Ingeniero de proyectos" no tiene cuenta (no inicia sesión), así que no */
+/* sale de "directorio" como los demás roles: sale de un catálogo compartido */
+/* (nombre + matrícula) — se elige/agrega por nombre igual que un Instalador,*/
+/* y la matrícula se ve/edita debajo, ligada a esa persona del catálogo.    */
+function IngenieroProyectosField({ valor, ingenierosProyectos, onChange, onAddNew, onUpdateMatricula, readOnly }) {
+  const fila = (ingenierosProyectos || []).find((i) => i.nombre === valor);
+  const matricula = fila?.matricula || '';
+
+  if (readOnly) {
+    return (
+      <p className={`text-sm font-medium py-1.5 ${valor ? 'text-navy-700' : 'text-navy-300 italic'}`}>
+        {valor ? `${valor}${matricula ? ` (${matricula})` : ''}` : 'Sin asignar'}
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <AddableSelect
+        value={valor}
+        opciones={(ingenierosProyectos || []).map((i) => i.nombre)}
+        onChange={onChange}
+        onAddNew={onAddNew}
+        placeholderNuevo="Nombre del nuevo ingeniero de proyectos"
+        etiquetaAgregar="+ Agregar nuevo ingeniero de proyectos…"
+      />
+      {valor && (
+        <input
+          value={matricula}
+          onChange={(e) => onUpdateMatricula(valor, e.target.value)}
+          placeholder="Matrícula profesional"
+          className="w-full rounded-lg border border-navy-300 px-2.5 py-1.5 text-sm"
+        />
+      )}
+    </div>
+  );
+}
+
 function EquipoField({ role, valor, directorio, onChange, readOnly }) {
   if (esRolMultiple(role.key)) {
     return <EquipoMultiSelect role={role} valores={valor} directorio={directorio} onChange={onChange} readOnly={readOnly} />;
@@ -10210,7 +10464,12 @@ function HistorialPanel({ historial, loading, onRefresh }) {
   );
 }
 
-function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, perfil, inversionistas, onAddInversionista, paises, onAddPais, proveedores, onAddProveedor, plantillasCimentacion, plantillasEquipos }) {
+function ProjectDetail({
+  project, updateProject, onBack, onDelete, directorio, perfil, inversionistas, onAddInversionista, paises, onAddPais,
+  proveedores, onAddProveedor, plantillasCimentacion, plantillasEquipos,
+  inversionistasDetalle, operadoresRed, onAddOperadorRed, instaladores, onAddInstalador,
+  ingenierosProyectos, onAddIngenieroProyectos, onUpdateCatalogoAtributo,
+}) {
   const [activeTab, setActiveTab] = useState(SCHEMA[0].id);
   const [editMode, setEditMode] = useState(false);
   const [draftData, setDraftData] = useState(null);
@@ -10691,6 +10950,61 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
                 </div>
               );
             })}
+
+            {/* Ingeniero de proyectos: no tiene cuenta, sale de un catálogo   */}
+            {/* compartido (nombre + matrícula) en vez de "directorio".        */}
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-navy-100 flex items-center justify-center shrink-0 mt-0.5">
+                <FileText className="w-4 h-4 text-navy-500" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-navy-400 mb-0.5">Ingeniero de proyectos</p>
+                <IngenieroProyectosField
+                  valor={project.equipo.ingeniero_proyectos}
+                  ingenierosProyectos={ingenierosProyectos}
+                  onChange={(val) => handleEquipoChange('ingeniero_proyectos', val)}
+                  onAddNew={onAddIngenieroProyectos}
+                  onUpdateMatricula={(nombre, val) => onUpdateCatalogoAtributo('ingenieros_proyectos', nombre, 'matricula', val)}
+                  readOnly={!puedeGestionar}
+                />
+              </div>
+            </div>
+
+            {/* Aprobador civil/eléctrico: personas reales con rol civil/     */}
+            {/* eléctrico, pero que NO desarrollan el proyecto — no cuentan   */}
+            {/* como "asignadas" (ver equipoNombres) ni tienen permiso de     */}
+            {/* edición; aparecen en "Revisión de proyectos" en vez de "Mis   */}
+            {/* proyectos".                                                    */}
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-navy-100 flex items-center justify-center shrink-0 mt-0.5">
+                <HardHat className="w-4 h-4 text-navy-500" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-navy-400 mb-0.5">Aprobador civil</p>
+                <EquipoSelect
+                  role={{ key: 'aprobador_civil', filterRoleKey: 'civil' }}
+                  valorActual={project.equipo.aprobador_civil}
+                  directorio={directorio}
+                  onChange={(val) => handleEquipoChange('aprobador_civil', val)}
+                  readOnly={!puedeGestionar}
+                />
+              </div>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-navy-100 flex items-center justify-center shrink-0 mt-0.5">
+                <Zap className="w-4 h-4 text-navy-500" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-navy-400 mb-0.5">Aprobador eléctrico</p>
+                <EquipoSelect
+                  role={{ key: 'aprobador_electrico', filterRoleKey: 'electrico' }}
+                  valorActual={project.equipo.aprobador_electrico}
+                  directorio={directorio}
+                  onChange={(val) => handleEquipoChange('aprobador_electrico', val)}
+                  readOnly={!puedeGestionar}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -10786,6 +11100,13 @@ function ProjectDetail({ project, updateProject, onBack, onDelete, directorio, p
                   onAddProveedor={onAddProveedor}
                   plantillasCimentacion={plantillasCimentacion}
                   plantillasEquipos={plantillasEquipos}
+                  inversionistasDetalle={inversionistasDetalle}
+                  operadoresRed={operadoresRed}
+                  onAddOperadorRed={onAddOperadorRed}
+                  instaladores={instaladores}
+                  onAddInstalador={onAddInstalador}
+                  ingenierosProyectos={ingenierosProyectos}
+                  onUpdateCatalogoAtributo={onUpdateCatalogoAtributo}
                   structureType={getStructureType(project)}
                   focusFieldKey={focusFieldKey}
                   onFocusHandled={() => setFocusFieldKey(null)}
@@ -11318,12 +11639,43 @@ function PersonProfileView({ persona, perfil, projects, onBack, onToggleRole, on
   const [editingFechas, setEditingFechas] = useState(false);
   const [cumpleDraft, setCumpleDraft] = useState(persona.fecha_cumpleanos || '');
   const [ingresoDraft, setIngresoDraft] = useState(persona.fecha_ingreso || '');
+  const [editingDatos, setEditingDatos] = useState(false);
+  const [datosDraft, setDatosDraft] = useState({
+    cedula: persona.cedula || '',
+    ciudad_expedicion_cedula: persona.ciudad_expedicion_cedula || '',
+    matricula_profesional: persona.matricula_profesional || '',
+    celular: persona.celular || '',
+    direccion: persona.direccion || '',
+    correo_personal: persona.correo_personal || '',
+  });
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   function guardarFechas() {
     onUpdatePersonaInfo(persona.id, { fecha_cumpleanos: cumpleDraft || null, fecha_ingreso: ingresoDraft || null });
     setEditingFechas(false);
+  }
+  function guardarDatos() {
+    onUpdatePersonaInfo(persona.id, {
+      cedula: datosDraft.cedula.trim() || null,
+      ciudad_expedicion_cedula: datosDraft.ciudad_expedicion_cedula.trim() || null,
+      matricula_profesional: datosDraft.matricula_profesional.trim() || null,
+      celular: datosDraft.celular.trim() || null,
+      direccion: datosDraft.direccion.trim() || null,
+      correo_personal: datosDraft.correo_personal.trim() || null,
+    });
+    setEditingDatos(false);
+  }
+  function cancelarDatos() {
+    setDatosDraft({
+      cedula: persona.cedula || '',
+      ciudad_expedicion_cedula: persona.ciudad_expedicion_cedula || '',
+      matricula_profesional: persona.matricula_profesional || '',
+      celular: persona.celular || '',
+      direccion: persona.direccion || '',
+      correo_personal: persona.correo_personal || '',
+    });
+    setEditingDatos(false);
   }
 
   async function confirmarEliminar() {
@@ -11414,6 +11766,53 @@ function PersonProfileView({ persona, perfil, projects, onBack, onToggleRole, on
               ) : (
                 <button onClick={() => setEditingFechas(true)} className="flex items-center gap-1.5 text-xs font-semibold text-lime-600 hover:text-lime-700">
                   <Pencil className="w-3.5 h-3.5" /> Editar fechas
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white border border-navy-200 rounded-xl p-6 mb-6">
+        <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-4">Datos personales</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {[
+            ['cedula', 'Cédula'],
+            ['ciudad_expedicion_cedula', 'Ciudad de expedición de la cédula'],
+            ['matricula_profesional', 'Matrícula profesional'],
+            ['celular', 'Celular'],
+            ['direccion', 'Dirección'],
+            ['correo_personal', 'Correo'],
+          ].map(([key, label]) => (
+            <div key={key}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-1">{label}</p>
+              {editingDatos ? (
+                <input
+                  value={datosDraft[key]}
+                  onChange={(e) => setDatosDraft((prev) => ({ ...prev, [key]: e.target.value }))}
+                  className="w-full rounded-lg border border-navy-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400"
+                />
+              ) : (
+                <p className={persona[key] ? 'text-sm text-navy-700' : 'text-sm text-navy-300 italic'}>
+                  {persona[key] || 'Sin definir'}
+                </p>
+              )}
+            </div>
+          ))}
+          {puedeEditarFechas && (
+            <div className="sm:col-span-2 flex gap-2">
+              {editingDatos ? (
+                <>
+                  <button onClick={guardarDatos} className="flex items-center gap-1.5 text-xs font-semibold bg-lime-500 hover:bg-lime-600 text-navy-900 px-3 py-1.5 rounded-md">
+                    <Check className="w-3.5 h-3.5" /> Guardar
+                  </button>
+                  <button onClick={cancelarDatos} className="text-xs text-navy-400 hover:text-navy-600 px-2 py-1.5">
+                    Cancelar
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => setEditingDatos(true)} className="flex items-center gap-1.5 text-xs font-semibold text-lime-600 hover:text-lime-700">
+                  <Pencil className="w-3.5 h-3.5" /> Editar datos personales
                 </button>
               )}
             </div>
@@ -11582,6 +11981,15 @@ export default function App() {
   const [carpetas, setCarpetas] = useState([]);
   const [videos, setVideos] = useState([]);
   const [inversionistas, setInversionistas] = useState([]);
+  // Objetos completos (correo/teléfono/NIT/logo) de cada inversionista — se
+  // cargan por separado de la lista de nombres de arriba (que no se toca,
+  // para no afectar nada de lo que ya depende de ella).
+  const [inversionistasDetalle, setInversionistasDetalle] = useState([]);
+  const [operadoresRed, setOperadoresRed] = useState([]);
+  const [instaladores, setInstaladores] = useState([]);
+  const [ingenierosProyectos, setIngenierosProyectos] = useState([]);
+  // { [projectId]: isoTimestamp } — solo de MIS visitas, para ordenar "Mis proyectos".
+  const [misVisitas, setMisVisitas] = useState({});
   const [paises, setPaises] = useState([]);
   const [proveedores, setProveedores] = useState([]);
   const [plantillasCimentacion, setPlantillasCimentacion] = useState([]);
@@ -11702,8 +12110,33 @@ export default function App() {
         if (error) console.error('Error creando inversionistas semilla:', error);
       });
       setInversionistas(semilla);
+      setInversionistasDetalle(semilla.map((nombre) => ({ nombre })));
     } else {
       setInversionistas(invRows.map((r) => r.nombre));
+      setInversionistasDetalle(invRows);
+    }
+
+    const { data: orRows } = await supabase.from('operadores_red').select('*').order('created_at', { ascending: true });
+    setOperadoresRed(orRows || []);
+
+    const { data: instRows } = await supabase.from('instaladores').select('*').order('created_at', { ascending: true });
+    if (!instRows || instRows.length === 0) {
+      await supabase.from('instaladores').insert({ nombre: 'Solenium' }).then(({ error }) => {
+        if (error) console.error('Error creando instalador semilla:', error);
+      });
+      setInstaladores([{ nombre: 'Solenium' }]);
+    } else {
+      setInstaladores(instRows);
+    }
+
+    const { data: ingRows } = await supabase.from('ingenieros_proyectos').select('*').order('created_at', { ascending: true });
+    setIngenierosProyectos(ingRows || []);
+
+    if (ownUserId) {
+      const { data: visitaRows } = await supabase.from('project_last_view').select('project_id, viewed_at').eq('usuario_id', ownUserId);
+      const mapa = {};
+      (visitaRows || []).forEach((r) => { mapa[r.project_id] = r.viewed_at; });
+      setMisVisitas(mapa);
     }
 
     const { data: paisRows } = await supabase.from('paises').select('*').order('created_at', { ascending: true });
@@ -11792,6 +12225,19 @@ export default function App() {
     setViewState('detalle');
     setSidebarOpen(false);
     window.history.pushState({ view: 'detalle', selectedId: id }, '');
+    registrarVisitaProyecto(id);
+  }
+  /* Deja constancia de que YO abrí este proyecto ahora — solo para poder    */
+  /* ordenar "Mis proyectos" por el último con el que interactué (no es un   */
+  /* registro de cambios como activity_log, así que no aparece en ningún    */
+  /* historial visible).                                                    */
+  function registrarVisitaProyecto(id) {
+    if (!perfil?.id) return;
+    const ahora = new Date().toISOString();
+    setMisVisitas((prev) => ({ ...prev, [id]: ahora }));
+    supabase.from('project_last_view').upsert({ usuario_id: perfil.id, project_id: id, viewed_at: ahora }).then(({ error }) => {
+      if (error) console.error('Error registrando visita al proyecto:', error);
+    });
   }
   function goBack() {
     // Deja que el navegador retroceda de verdad — el listener de popstate
@@ -11906,8 +12352,54 @@ export default function App() {
     const limpio = nombre.trim();
     if (!limpio) return;
     setInversionistas((prev) => (prev.includes(limpio) ? prev : [...prev, limpio]));
+    setInversionistasDetalle((prev) => (prev.some((i) => i.nombre === limpio) ? prev : [...prev, { nombre: limpio }]));
     supabase.from('inversionistas').upsert({ nombre: limpio }).then(({ error }) => {
       if (error) console.error('Error creando inversionista:', error);
+    });
+  }
+  function handleAddOperadorRed(nombre) {
+    const limpio = nombre.trim();
+    if (!limpio) return;
+    setOperadoresRed((prev) => (prev.some((o) => o.nombre === limpio) ? prev : [...prev, { nombre: limpio }]));
+    supabase.from('operadores_red').upsert({ nombre: limpio }).then(({ error }) => {
+      if (error) console.error('Error creando operador de red:', error);
+    });
+  }
+  function handleAddInstalador(nombre) {
+    const limpio = nombre.trim();
+    if (!limpio) return;
+    setInstaladores((prev) => (prev.some((i) => i.nombre === limpio) ? prev : [...prev, { nombre: limpio }]));
+    supabase.from('instaladores').upsert({ nombre: limpio }).then(({ error }) => {
+      if (error) console.error('Error creando instalador:', error);
+    });
+  }
+  function handleAddIngenieroProyectos(nombre) {
+    const limpio = nombre.trim();
+    if (!limpio) return;
+    setIngenierosProyectos((prev) => (prev.some((i) => i.nombre === limpio) ? prev : [...prev, { nombre: limpio }]));
+    supabase.from('ingenieros_proyectos').upsert({ nombre: limpio }).then(({ error }) => {
+      if (error) console.error('Error creando ingeniero de proyectos:', error);
+    });
+  }
+  /* Actualiza un atributo (correo, NIT, logo, matrícula…) de UNA fila de un  */
+  /* catálogo compartido (inversionistas/operadores_red/instaladores/        */
+  /* ingenieros_proyectos) — se refleja en todos los proyectos que usen ese  */
+  /* mismo nombre, ya que no es un dato del proyecto sino de la entidad.     */
+  function handleUpdateCatalogoAtributo(tabla, nombre, campo, valor) {
+    const setters = {
+      inversionistas: setInversionistasDetalle,
+      operadores_red: setOperadoresRed,
+      instaladores: setInstaladores,
+      ingenieros_proyectos: setIngenierosProyectos,
+    };
+    const setter = setters[tabla];
+    if (!setter) return;
+    setter((prev) => prev.map((row) => (row.nombre === nombre ? { ...row, [campo]: valor } : row)));
+    supabase.from(tabla).update({ [campo]: valor }).eq('nombre', nombre).then(({ error }) => {
+      if (error) {
+        console.error(`Error actualizando ${campo} de ${nombre} en ${tabla}:`, error);
+        alert('No se pudo guardar este dato. Detalle: ' + error.message);
+      }
     });
   }
   function handleAddPais(nombre) {
@@ -12114,7 +12606,10 @@ export default function App() {
   if (!perfil) return <ProfileGate userId={session.user.id} onSaved={handleProfileSaved} />;
   if (!dataLoaded) return <LoadingScreen mensaje="Cargando proyectos…" />;
 
-  const misProyectos = projects.filter((p) => equipoNombres(p.equipo).includes(perfil.nombre));
+  const misProyectos = projects
+    .filter((p) => equipoNombres(p.equipo).includes(perfil.nombre))
+    .sort((a, b) => new Date(misVisitas[b.id] || b.created_at || 0) - new Date(misVisitas[a.id] || a.created_at || 0));
+  const proyectosRevision = projects.filter((p) => esAprobadorDe(perfil, p));
   const selectedProject = projects.find((p) => p.id === selectedId);
   const stats = {
     activo: projects.filter((p) => p.estado === 'activo').length,
@@ -12182,6 +12677,7 @@ export default function App() {
           <Dashboard
             projects={projects}
             misProyectos={misProyectos}
+            proyectosRevision={proyectosRevision}
             onNewProject={() => setShowCreate(true)}
             openProject={openProject}
             setView={setView}
@@ -12194,6 +12690,16 @@ export default function App() {
             projects={misProyectos}
             title="Mis Proyectos"
             subtitle={`Proyectos donde ${perfil.nombre} hace parte del equipo`}
+            onOpen={openProject}
+            onNewProject={() => setShowCreate(true)}
+            directorio={directorio}
+          />
+        )}
+        {view === 'revision' && (
+          <ProjectListView
+            projects={proyectosRevision}
+            title="Revisión de Proyectos"
+            subtitle={`Proyectos donde ${perfil.nombre} es aprobador`}
             onOpen={openProject}
             onNewProject={() => setShowCreate(true)}
             directorio={directorio}
@@ -12279,6 +12785,14 @@ export default function App() {
             onAddProveedor={handleAddProveedor}
             plantillasCimentacion={plantillasCimentacion}
             plantillasEquipos={plantillasEquipos}
+            inversionistasDetalle={inversionistasDetalle}
+            operadoresRed={operadoresRed}
+            onAddOperadorRed={handleAddOperadorRed}
+            instaladores={instaladores}
+            onAddInstalador={handleAddInstalador}
+            ingenierosProyectos={ingenierosProyectos}
+            onAddIngenieroProyectos={handleAddIngenieroProyectos}
+            onUpdateCatalogoAtributo={handleUpdateCatalogoAtributo}
           />
         )}
       </main>
