@@ -7755,6 +7755,15 @@ function FieldRenderer({
                 }}
               />
             </label>
+            {valorAtributo && (
+              <button
+                type="button"
+                onClick={() => guardarAtributo(null)}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:text-red-600"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Eliminar imagen
+              </button>
+            )}
           </div>
           <p className="text-[11px] text-navy-400 mt-1">Este dato pertenece a "{nombreSeleccionado}" — se refleja en todos sus proyectos.</p>
         </div>
@@ -10491,6 +10500,11 @@ function ProjectDetail({
   const puedeGestionar = isLeader(perfil); // asignar equipo + cambiar estado + eliminar/renombrar proyecto
   const puedeEditarContenido = isDeveloper(perfil) || isAssignedToProject(perfil, project); // campos técnicos + archivos + notas
   const puedeComentar = isQA(perfil); // comentarios en Control Documental
+  /* Además de un líder, el ingeniero civil/eléctrico YA asignado a ESTE      */
+  /* proyecto también puede elegir quién lo aprueba en su propia disciplina  */
+  /* (no cualquier civil/eléctrico de la empresa, solo el de este proyecto). */
+  const puedeAsignarAprobadorCivil = puedeGestionar || equipoComoArray(project.equipo.civil).includes(perfil.nombre);
+  const puedeAsignarAprobadorElectrico = puedeGestionar || equipoComoArray(project.equipo.electrico).includes(perfil.nombre);
 
   async function loadHistorial() {
     setLoadingHistorial(true);
@@ -10925,12 +10939,15 @@ function ProjectDetail({
             </span>
             {!puedeGestionar && (
               <span className="flex items-center gap-1 text-xs font-normal text-navy-400">
-                <Lock className="w-3.5 h-3.5" /> Solo un líder puede editar esto
+                <Lock className="w-3.5 h-3.5" />
+                {puedeAsignarAprobadorCivil || puedeAsignarAprobadorElectrico
+                  ? 'Solo un líder puede editar el resto del equipo'
+                  : 'Solo un líder puede editar esto'}
               </span>
             )}
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {ROLES.map((role) => {
+            {ROLES.filter((role) => role.key !== 'tramites_bt').map((role) => {
               const RoleIcon = role.icon;
               return (
                 <div key={role.key} className="flex items-start gap-2.5">
@@ -10986,7 +11003,7 @@ function ProjectDetail({
                   valorActual={project.equipo.aprobador_civil}
                   directorio={directorio}
                   onChange={(val) => handleEquipoChange('aprobador_civil', val)}
-                  readOnly={!puedeGestionar}
+                  readOnly={!puedeAsignarAprobadorCivil}
                 />
               </div>
             </div>
@@ -11001,7 +11018,7 @@ function ProjectDetail({
                   valorActual={project.equipo.aprobador_electrico}
                   directorio={directorio}
                   onChange={(val) => handleEquipoChange('aprobador_electrico', val)}
-                  readOnly={!puedeGestionar}
+                  readOnly={!puedeAsignarAprobadorElectrico}
                 />
               </div>
             </div>
