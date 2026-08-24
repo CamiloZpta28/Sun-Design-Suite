@@ -76,7 +76,7 @@ function equipoComoArray(valor) {
 /* edición ni aparecer en sus "Mis proyectos" — ver "Revisión de proyectos" */
 /* aparte), y el ingeniero de proyectos no tiene cuenta con la que iniciar  */
 /* sesión, así que tampoco aplica.                                          */
-const EQUIPO_CLAVES_SIN_ASIGNACION = ['aprobador_civil', 'aprobador_electrico', 'ingeniero_proyectos'];
+const EQUIPO_CLAVES_SIN_ASIGNACION = ['aprobador_electrico', 'ingeniero_proyectos'];
 /* Todos los nombres asignados a un proyecto, sin importar el rol.         */
 function equipoNombres(equipo) {
   return Object.entries(equipo || {})
@@ -154,13 +154,13 @@ function canAssignRole(perfil, roleKey) {
 function isAssignedToProject(perfil, project) {
   return !!perfil && equipoNombres(project.equipo).includes(perfil.nombre);
 }
-/* A diferencia de isAssignedToProject: esto SÍ mira las claves de aprobador */
+/* A diferencia de isAssignedToProject: esto SÍ mira la clave de revisor    */
 /* — para el apartado "Revisión de proyectos" (ver Dashboard), que es lo     */
-/* opuesto de "Mis proyectos" (no lo desarrollo, solo lo apruebo).           */
+/* opuesto de "Mis proyectos" (no lo desarrollo, solo lo reviso).            */
 function esAprobadorDe(perfil, project) {
   if (!perfil) return false;
   const equipo = project.equipo || {};
-  return equipo.aprobador_civil === perfil.nombre || equipo.aprobador_electrico === perfil.nombre;
+  return equipo.aprobador_electrico === perfil.nombre;
 }
 
 /* --------------------- 2. ESQUEMA DE CAMPOS POR ESPECIALIDAD ---------------- */
@@ -682,6 +682,59 @@ const SCHEMA = [
         { key: 'equipo_tuberia_pvc', label: 'Tubería · PVC/rígida', type: 'equipo_plantilla', tipoEquipo: 'tuberia_pvc' },
         { key: 'equipo_shelter', label: 'Shelter', type: 'equipo_plantilla', tipoEquipo: 'shelter' },
       ], 'equipos_electricos', 'Equipos eléctricos'),
+
+      /* ===================================================================
+         Datos adicionales de Eléctrico — mismo criterio que Cerramiento en
+         Civil: agrupados en sub-subcategorías plegables. "Nivel de
+         contaminación de aire" queda suelto (en el Excel de referencia
+         venía como "Sin categoría", sin encajar en ningún grupo).
+         =================================================================== */
+      ...camposPlegables([
+        { key: 'voltaje_red_mt_or', label: 'Voltaje red MT OR', type: 'text' },
+        { key: 'codigo_obra_or', label: 'Código obra OR', type: 'text' },
+        { key: 'icc_trifasica_mt', label: 'Corriente de cortocircuito trifásica red MT', type: 'text' },
+        { key: 'icc_monofasica_mt', label: 'Corriente de cortocircuito monofásica red MT', type: 'text' },
+        { key: 'icc_trifasica_bt', label: 'Corriente de cortocircuito trifásica BT', type: 'text' },
+        { key: 'icc_monofasica_bt', label: 'Corriente de cortocircuito monofásica BT', type: 'text' },
+        { key: 'codigo_bdi', label: 'Código BDI', type: 'text' },
+        { key: 'codigo_ct', label: 'Código CT', type: 'text' },
+        { key: 'nombre_circuito', label: 'Nombre Circuito', type: 'text' },
+        { key: 'nombre_subestacion', label: 'Nombre subestación', type: 'text' },
+      ], 'datos_ecs_or', 'Datos ECS / Insumos OR'),
+
+      ...camposPlegables([
+        { key: 'datos_temperatura_horaria', label: 'Datos de temperatura horaria', type: 'text' },
+        { key: 'datos_irradiacion', label: 'Datos de irradiación', type: 'text' },
+        { key: 'irradiacion_global_horizontal_anual', label: 'Irradiación global en un plano horizontal anual', type: 'text' },
+        { key: 'generacion_anual', label: 'Generación anual', type: 'text' },
+        { key: 'tamanos_string', label: 'Tamaños string', type: 'text' },
+        { key: 'energia_mensual', label: 'Energía mensual', type: 'energia_mensual' },
+      ], 'simulacion_pvsyst', 'Simulación Pvsyst'),
+
+      ...camposPlegables([
+        { key: 'tramo_panel_transicion_subterranea', label: 'Tramo string: panel → transición subterránea', type: 'text' },
+        { key: 'tramo_transicion_subterranea_inversor', label: 'Tramo string: transición subterránea → inversor', type: 'text' },
+        { key: 'tramo_inversor_tablero_bt', label: 'Tramo inversor → tablero de baja tensión', type: 'text' },
+        { key: 'tramo_celda_remonte_poste_afloramiento', label: 'Tramo celda de remonte → poste de afloramiento', type: 'text' },
+        { key: 'tramo_poste_afloramiento_punto_conexion', label: 'Tramo poste de afloramiento → punto de conexión', type: 'text' },
+        { key: 'tramo_spt_subestacion_inversores_trackers', label: 'Tramo SPT subestación, inversores y trackers', type: 'text' },
+        { key: 'tramo_spt_cerramiento_equipotencializacion', label: 'Tramo SPT cerramiento y equipotencialización', type: 'text' },
+        { key: 'tramo_inversor_smartlogger', label: 'Tramo inversor → smartlogger', type: 'text' },
+        { key: 'tramo_subestacion_estacion_meteorologica', label: 'Tramo subestación → estación meteorológica', type: 'text' },
+        { key: 'tramo_camara_cctv_subestacion', label: 'Tramo cámara CCTV → subestación', type: 'text' },
+      ], 'tramos_electricos', 'Tramos'),
+
+      ...camposPlegables([
+        { key: 'tipo_energizacion_aislamiento', label: 'Tipo de energización aislamiento', type: 'text' },
+        { key: 'resistencias_cierre', label: 'Resistencias de cierre', type: 'text' },
+        { key: 'compensacion_paralelo', label: 'Compensación en paralelo', type: 'text' },
+        { key: 'distancia_dps_subestacion', label: 'Distancia del DPS a la subestación', type: 'text' },
+        { key: 'vano_tipico_mt_acometida', label: 'Vano típico de la línea de media tensión en la acometida', type: 'text' },
+        { key: 'indice_fallas_linea', label: 'Índice de fallas de la línea', type: 'text' },
+        { key: 'tasa_falla_aceptable_aislamiento', label: 'Tasa de falla aceptable para el aislamiento', type: 'text' },
+      ], 'coordinacion_aislamiento', 'Coordinación de aislamiento'),
+
+      { key: 'nivel_contaminacion_aire', label: 'Nivel de contaminación de aire', type: 'text' },
     ],
   },
 ];
@@ -770,6 +823,13 @@ const STATUS_CONFIG = {
 
 /* ------------------------------ 3. HELPERS ---------------------------------- */
 const STATION_ROWS = 7;
+/* Los 12 meses fijos de la tabla "Energía mensual" (Eléctrico) — el orden   */
+/* nunca cambia, así que no hace falta guardarlo, solo los 3 valores por mes.*/
+const MESES_ENERGIA = ['Ene.', 'Feb.', 'Mar.', 'Abr.', 'May.', 'Jun.', 'Jul.', 'Ago.', 'Sep.', 'Oct.', 'Nov.', 'Dic.'];
+function emptyEnergiaMensual() {
+  return MESES_ENERGIA.map(() => ({ inyectada: '', consumida: '', total: '' }));
+}
+
 function emptyStations() {
   return Array.from({ length: STATION_ROWS }, () => ({ nombre: '', dias: '', peso: '' }));
 }
@@ -782,6 +842,7 @@ function emptySchemaData() {
       if (f.type === 'boolean') obj[section.id][f.key] = { valor: null, nota: '' };
       else if (f.type === 'stations') obj[section.id][f.key] = emptyStations();
       else if (f.type === 'modulos_inversor') obj[section.id][f.key] = [];
+      else if (f.type === 'energia_mensual') obj[section.id][f.key] = emptyEnergiaMensual();
       else obj[section.id][f.key] = '';
     });
   });
@@ -919,7 +980,7 @@ function diffSectionData(section, before, after) {
         const fmt = (v) => (v.valor === true ? 'Sí' : v.valor === false ? 'No' : 'sin definir') + (v.nota ? ` (${v.nota})` : '');
         cambios.push(`${field.label}: ${fmt(bv)} → ${fmt(av)}`);
       }
-    } else if (field.type === 'stations' || field.type === 'modulos_inversor') {
+    } else if (field.type === 'stations' || field.type === 'modulos_inversor' || field.type === 'energia_mensual') {
       if (JSON.stringify(b || []) !== JSON.stringify(a || [])) {
         cambios.push(`${field.label}: se actualizó la tabla`);
       }
@@ -7966,6 +8027,103 @@ function FieldRenderer({
     );
   }
 
+  if (field.type === 'energia_mensual') {
+    // 3 columnas independientes (nadie se calcula de las otras — se
+    // confirmó con los datos reales que "Total" no es Inyectada+Consumida),
+    // 12 filas fijas (una por mes) + una fila de totales, que sí es la suma
+    // de cada columna.
+    const filas = Array.isArray(value) && value.length === 12 ? value : emptyEnergiaMensual();
+    const sumaCol = (campo) => filas.reduce((acc, f) => acc + (parseFloat(f?.[campo]) || 0), 0);
+    const totalInyectada = sumaCol('inyectada');
+    const totalConsumida = sumaCol('consumida');
+    const totalTotal = sumaCol('total');
+    const encabezados = ['Mes', 'Energía Inyectada [kWh-mes]', 'Energía Consumida [kWh-mes]', 'Energía Total [kWh-mes]'];
+
+    if (!editMode) {
+      const conDatos = filas.some((f) => f?.inyectada || f?.consumida || f?.total);
+      return (
+        <div className="py-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-2">{field.label}</p>
+          {!conDatos ? (
+            <p className="text-sm text-navy-300 italic">Sin definir</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border border-navy-200 rounded-lg overflow-hidden">
+                <thead>
+                  <tr className="bg-navy-50">
+                    {encabezados.map((h) => (
+                      <th key={h} className="text-left font-semibold text-navy-500 px-3 py-1.5 border-b border-navy-200">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {MESES_ENERGIA.map((mes, i) => (
+                    <tr key={mes} className="border-b border-navy-100 last:border-b-0">
+                      <td className="px-3 py-1.5 font-mono text-navy-700">{mes}</td>
+                      <td className="px-3 py-1.5 font-mono text-navy-700">{filas[i]?.inyectada || '—'}</td>
+                      <td className="px-3 py-1.5 font-mono text-navy-700">{filas[i]?.consumida || '—'}</td>
+                      <td className="px-3 py-1.5 font-mono text-navy-700">{filas[i]?.total || '—'}</td>
+                    </tr>
+                  ))}
+                  <tr className="bg-navy-50">
+                    <td className="px-3 py-1.5 font-bold text-navy-800">Total</td>
+                    <td className="px-3 py-1.5 font-mono font-bold text-navy-800">{totalInyectada}</td>
+                    <td className="px-3 py-1.5 font-mono font-bold text-navy-800">{totalConsumida}</td>
+                    <td className="px-3 py-1.5 font-mono font-bold text-navy-800">{totalTotal}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function updateFilaEnergia(i, campo, val) {
+      const next = filas.map((f, idx) => (idx === i ? { ...f, [campo]: val } : f));
+      onChange(next);
+    }
+    const cellInputE = 'w-full rounded-md border border-navy-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+    return (
+      <div className="py-1">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border border-navy-200 rounded-lg">
+            <thead>
+              <tr className="bg-navy-50">
+                {encabezados.map((h) => (
+                  <th key={h} className="text-left font-semibold text-navy-500 px-2 py-1.5 border-b border-navy-200">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {MESES_ENERGIA.map((mes, i) => (
+                <tr key={mes} className="border-b border-navy-100 last:border-b-0">
+                  <td className="px-2 py-1.5 font-mono text-navy-500">{mes}</td>
+                  <td className="p-1.5">
+                    <input type="text" className={cellInputE} value={filas[i]?.inyectada || ''} onChange={(e) => updateFilaEnergia(i, 'inyectada', e.target.value)} />
+                  </td>
+                  <td className="p-1.5">
+                    <input type="text" className={cellInputE} value={filas[i]?.consumida || ''} onChange={(e) => updateFilaEnergia(i, 'consumida', e.target.value)} />
+                  </td>
+                  <td className="p-1.5">
+                    <input type="text" className={cellInputE} value={filas[i]?.total || ''} onChange={(e) => updateFilaEnergia(i, 'total', e.target.value)} />
+                  </td>
+                </tr>
+              ))}
+              <tr className="bg-navy-50">
+                <td className="px-2 py-1.5 font-bold text-navy-800">Total</td>
+                <td className="px-2 py-1.5 font-mono font-bold text-navy-800">{totalInyectada}</td>
+                <td className="px-2 py-1.5 font-mono font-bold text-navy-800">{totalConsumida}</td>
+                <td className="px-2 py-1.5 font-mono font-bold text-navy-800">{totalTotal}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
   if (field.type === 'modulos_inversor') {
     // Cantidad de filas = "Número de inversores" (otro campo de esta misma
     // sección) — cada fila representa un inversor con su configuración de
@@ -8274,7 +8432,7 @@ function SectionFieldsGrid({
           <div
             key={field.key}
             data-field-key={field.key}
-            className={`${field.type === 'stations' || field.type === 'grupo_titulo' || field.type === 'modulos_inversor' ? 'col-span-full' : ''} ${
+            className={`${field.type === 'stations' || field.type === 'grupo_titulo' || field.type === 'modulos_inversor' || field.type === 'energia_mensual' ? 'col-span-full' : ''} ${
               focusFieldKey === field.key ? 'ring-2 ring-lime-400 rounded-lg' : ''
             }`}
           >
@@ -9220,6 +9378,49 @@ function PrintableReport({ project, plantillasCimentacion, plantillasEquipos }) 
                                   <td className="px-2 py-1 font-mono">{r.cantidad || '—'}</td>
                                 </tr>
                               ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                }
+
+                if (field.type === 'energia_mensual') {
+                  const filas = Array.isArray(raw) && raw.length === 12 ? raw : emptyEnergiaMensual();
+                  const conDatos = filas.some((f) => f?.inyectada || f?.consumida || f?.total);
+                  const sumaCol = (campo) => filas.reduce((acc, f) => acc + (parseFloat(f?.[campo]) || 0), 0);
+                  return (
+                    <tr key={field.key} className="border-b border-navy-100">
+                      <td className="py-1.5 pr-4 text-navy-500 w-1/2 align-top">{field.label}</td>
+                      <td className="py-1.5 align-top">
+                        {!conDatos ? (
+                          <span className="font-mono text-navy-700">—</span>
+                        ) : (
+                          <table className="w-full text-xs border border-navy-300">
+                            <thead>
+                              <tr className="bg-navy-50">
+                                <th className="text-left px-2 py-1 border-b border-navy-300">Mes</th>
+                                <th className="text-left px-2 py-1 border-b border-navy-300">Energía Inyectada [kWh-mes]</th>
+                                <th className="text-left px-2 py-1 border-b border-navy-300">Energía Consumida [kWh-mes]</th>
+                                <th className="text-left px-2 py-1 border-b border-navy-300">Energía Total [kWh-mes]</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {MESES_ENERGIA.map((mes, i) => (
+                                <tr key={mes}>
+                                  <td className="px-2 py-1 font-mono">{mes}</td>
+                                  <td className="px-2 py-1 font-mono">{filas[i]?.inyectada || '—'}</td>
+                                  <td className="px-2 py-1 font-mono">{filas[i]?.consumida || '—'}</td>
+                                  <td className="px-2 py-1 font-mono">{filas[i]?.total || '—'}</td>
+                                </tr>
+                              ))}
+                              <tr className="bg-navy-50 font-bold">
+                                <td className="px-2 py-1">Total</td>
+                                <td className="px-2 py-1 font-mono">{sumaCol('inyectada')}</td>
+                                <td className="px-2 py-1 font-mono">{sumaCol('consumida')}</td>
+                                <td className="px-2 py-1 font-mono">{sumaCol('total')}</td>
+                              </tr>
                             </tbody>
                           </table>
                         )}
@@ -10500,10 +10701,9 @@ function ProjectDetail({
   const puedeGestionar = isLeader(perfil); // asignar equipo + cambiar estado + eliminar/renombrar proyecto
   const puedeEditarContenido = isDeveloper(perfil) || isAssignedToProject(perfil, project); // campos técnicos + archivos + notas
   const puedeComentar = isQA(perfil); // comentarios en Control Documental
-  /* Además de un líder, el ingeniero civil/eléctrico YA asignado a ESTE      */
-  /* proyecto también puede elegir quién lo aprueba en su propia disciplina  */
-  /* (no cualquier civil/eléctrico de la empresa, solo el de este proyecto). */
-  const puedeAsignarAprobadorCivil = puedeGestionar || equipoComoArray(project.equipo.civil).includes(perfil.nombre);
+  /* Además de un líder, el ingeniero eléctrico YA asignado a ESTE proyecto   */
+  /* también puede elegir quién lo revisa (no cualquier eléctrico de la      */
+  /* empresa, solo el de este proyecto).                                     */
   const puedeAsignarAprobadorElectrico = puedeGestionar || equipoComoArray(project.equipo.electrico).includes(perfil.nombre);
 
   async function loadHistorial() {
@@ -10940,7 +11140,7 @@ function ProjectDetail({
             {!puedeGestionar && (
               <span className="flex items-center gap-1 text-xs font-normal text-navy-400">
                 <Lock className="w-3.5 h-3.5" />
-                {puedeAsignarAprobadorCivil || puedeAsignarAprobadorElectrico
+                {puedeAsignarAprobadorElectrico
                   ? 'Solo un líder puede editar el resto del equipo'
                   : 'Solo un líder puede editar esto'}
               </span>
@@ -10987,32 +11187,16 @@ function ProjectDetail({
               </div>
             </div>
 
-            {/* Aprobador civil/eléctrico: personas reales con rol civil/     */}
-            {/* eléctrico, pero que NO desarrollan el proyecto — no cuentan   */}
-            {/* como "asignadas" (ver equipoNombres) ni tienen permiso de     */}
-            {/* edición; aparecen en "Revisión de proyectos" en vez de "Mis   */}
-            {/* proyectos".                                                    */}
-            <div className="flex items-start gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-navy-100 flex items-center justify-center shrink-0 mt-0.5">
-                <HardHat className="w-4 h-4 text-navy-500" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-navy-400 mb-0.5">Aprobador civil</p>
-                <EquipoSelect
-                  role={{ key: 'aprobador_civil', filterRoleKey: 'civil' }}
-                  valorActual={project.equipo.aprobador_civil}
-                  directorio={directorio}
-                  onChange={(val) => handleEquipoChange('aprobador_civil', val)}
-                  readOnly={!puedeAsignarAprobadorCivil}
-                />
-              </div>
-            </div>
+            {/* Revisor eléctrico: persona real con rol eléctrico, pero que    */}
+            {/* NO desarrolla el proyecto — no cuenta como "asignada" (ver     */}
+            {/* equipoNombres) ni tiene permiso de edición; aparece en         */}
+            {/* "Revisión de proyectos" en vez de "Mis proyectos".              */}
             <div className="flex items-start gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-navy-100 flex items-center justify-center shrink-0 mt-0.5">
                 <Zap className="w-4 h-4 text-navy-500" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs text-navy-400 mb-0.5">Aprobador eléctrico</p>
+                <p className="text-xs text-navy-400 mb-0.5">Revisor eléctrico</p>
                 <EquipoSelect
                   role={{ key: 'aprobador_electrico', filterRoleKey: 'electrico' }}
                   valorActual={project.equipo.aprobador_electrico}
@@ -12716,7 +12900,7 @@ export default function App() {
           <ProjectListView
             projects={proyectosRevision}
             title="Revisión de Proyectos"
-            subtitle={`Proyectos donde ${perfil.nombre} es aprobador`}
+            subtitle={`Proyectos donde ${perfil.nombre} es revisor eléctrico`}
             onOpen={openProject}
             onNewProject={() => setShowCreate(true)}
             directorio={directorio}
