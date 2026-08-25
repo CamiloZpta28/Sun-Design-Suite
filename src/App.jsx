@@ -7646,6 +7646,10 @@ const CANALIZACION_TIPOS = [
   { id: 'comunicaciones', label: 'Comunicaciones', profundidadNorma: 0.40, tieneTuberia: true, distanciaCintaNorma: 0.20 },
   { id: 'energia_ssaa', label: 'Energía', profundidadNorma: 0.45, tieneTuberia: true, distanciaCintaNorma: 0.25 },
   { id: 'spt', label: 'SPT', profundidadNorma: 0.50, tieneTuberia: false, distanciaCintaNorma: 0.25, esCableFino: true },
+  /* "Combinaciones" no es un tipo de línea con su propia norma — es una      */
+  /* zanja compuesta que junta 2 o más plantillas YA CREADAS (de cualquiera  */
+  /* de los tipos de arriba), cada una a SU PROPIA profundidad (escalonada). */
+  { id: 'combinacion', label: 'Combinaciones', esCombinacion: true },
 ];
 
 /* "diametro" ahora se elige de un catálogo compartido (en pulgadas, mismo   */
@@ -7671,6 +7675,40 @@ function pulgadasAMetros(str) {
   return parsePulgadas(str) * 0.0254;
 }
 
+/* 19 combinaciones de ejemplo (diámetro × cantidad de tuberías) más         */
+/* comunes en las minigranjas — se siembran solas la primera vez que se     */
+/* carga la app (con IDs fijos, así que nunca duplican ni pisan las         */
+/* plantillas que alguien ya haya creado a mano).                          */
+const CANALIZACION_SEED = [
+  { id: 'seed_dc_2_1', tipo: 'dc', diametro: '2"', cantidad: 1 },
+  { id: 'seed_dc_2_2', tipo: 'dc', diametro: '2"', cantidad: 2 },
+  { id: 'seed_dc_2_3', tipo: 'dc', diametro: '2"', cantidad: 3 },
+  { id: 'seed_dc_2_4', tipo: 'dc', diametro: '2"', cantidad: 4 },
+  { id: 'seed_dc_2_5', tipo: 'dc', diametro: '2"', cantidad: 5 },
+  { id: 'seed_dc_1_1', tipo: 'dc', diametro: '1"', cantidad: 1 },
+  { id: 'seed_dc_1_2', tipo: 'dc', diametro: '1"', cantidad: 2 },
+  { id: 'seed_dc_1_3', tipo: 'dc', diametro: '1"', cantidad: 3 },
+  { id: 'seed_ac_2_1', tipo: 'acbt_tuberia', diametro: '2"', cantidad: 1 },
+  { id: 'seed_ac_2_2', tipo: 'acbt_tuberia', diametro: '2"', cantidad: 2 },
+  { id: 'seed_ac_4_1', tipo: 'acbt_tuberia', diametro: '4"', cantidad: 1 },
+  { id: 'seed_ac_4_2', tipo: 'acbt_tuberia', diametro: '4"', cantidad: 2 },
+  { id: 'seed_ac_4_3', tipo: 'acbt_tuberia', diametro: '4"', cantidad: 3 },
+  { id: 'seed_mt_4_2', tipo: 'mt', diametro: '4"', cantidad: 2 },
+  { id: 'seed_mt_6_2', tipo: 'mt', diametro: '6"', cantidad: 2 },
+  { id: 'seed_com_34_1', tipo: 'comunicaciones', diametro: '3/4"', cantidad: 1 },
+  { id: 'seed_com_34_2', tipo: 'comunicaciones', diametro: '3/4"', cantidad: 2 },
+  { id: 'seed_ene_34_1', tipo: 'energia_ssaa', diametro: '3/4"', cantidad: 1 },
+  { id: 'seed_ene_34_2', tipo: 'energia_ssaa', diametro: '3/4"', cantidad: 2 },
+];
+function construirSeedCanalizaciones() {
+  return CANALIZACION_SEED.map((s) => {
+    const tipoDef = CANALIZACION_TIPOS.find((t) => t.id === s.tipo);
+    const nombre = `${tipoDef.label} ${s.diametro} × ${s.cantidad} tubería${s.cantidad > 1 ? 's' : ''}`;
+    const datos = { ...emptyDatosCanalizacion(tipoDef), diametro: s.diametro, cantidad_tuberias: String(s.cantidad) };
+    return { id: s.id, tipo: s.tipo, nombre, datos, es_principal: false };
+  });
+}
+
 function emptyDatosCanalizacion(tipoDef) {
   return {
     diametro: '',
@@ -7679,7 +7717,7 @@ function emptyDatosCanalizacion(tipoDef) {
     separacion_entre_tuberias: '0.10',
     profundidad: String(tipoDef.profundidadNorma),
     distancia_cinta: String(tipoDef.distanciaCintaNorma),
-    espesor_arenilla: tipoDef.tieneTuberia ? '0.05' : '',
+    espesor_arenilla: '0.05',
     separacion_lateral: '0.15',
     notas: '',
   };
@@ -7731,7 +7769,7 @@ function CanalizacionPreview({ tipoId, datos, className = 'w-full h-auto' }) {
   const profundidad = parseFloat(d.profundidad) || tipoDef.profundidadNorma;
   const anchoZanjaM = calcAnchoZanjaCanalizacion(tipoDef, d);
   const cintaDesdeSuperficieM = calcCintaDesdeSuperficie(tipoDef, d);
-  const espesorArenilla = parseFloat(d.espesor_arenilla) || 0;
+  const espesorArenilla = parseFloat(d.espesor_arenilla) || 0.05;
   const sepLateralM = parseFloat(d.separacion_lateral) || 0.15;
   const cantidad = tipoDef.tieneTuberia ? Math.max(1, parseInt(d.cantidad_tuberias, 10) || 1) : 1;
   const sepEntreM = parseFloat(d.separacion_entre_tuberias) || 0.10;
@@ -7740,18 +7778,23 @@ function CanalizacionPreview({ tipoId, datos, className = 'w-full h-auto' }) {
   const profPx = clamp(profundidad * scale, 60, 220);
   const anchoPx = clamp(anchoZanjaM * scale, 55, 220);
   const cintaYPx = clamp(cintaDesdeSuperficieM * scale, 10, profPx - 6);
-  const arenillaPx = tipoDef.tieneTuberia ? clamp(espesorArenilla * scale, 4, 18) : 0;
+  const arenillaPx = clamp(espesorArenilla * scale, 4, 18);
   const sepLateralPx = clamp(sepLateralM * scale, 6, anchoPx / 2 - 6);
   const sepEntrePx = clamp(sepEntreM * scale, 3, 30);
 
   const marginTop = 34;
-  const marginLeft = 92;
+  const marginLeft = 88;
   const zanjaX0 = marginLeft;
   const zanjaTopY = marginTop;
-  const tuboY = zanjaTopY + profPx; // profundidad = a la generatriz superior del ducto/cable
+  const tuboY = zanjaTopY + profPx; // profundidad = a la generatriz superior del ducto/cable/elemento
   const tuboRadioPx = tipoDef.tieneTuberia ? clamp((anchoPx - 2 * sepLateralPx - sepEntrePx * (cantidad - 1)) / (2 * cantidad), 5, 16) : 0;
-  const zanjaBotY = tuboY + (tipoDef.tieneTuberia ? Math.max(arenillaPx, tuboRadioPx) + arenillaPx + 12 : 12);
-  const svgW = zanjaX0 + anchoPx + 70;
+  // "Altura" del elemento enterrado, para poder calcular dónde termina la arenilla de abajo:
+  // el diámetro completo si es tubería, un cable finito si es SPT, o un trazo delgado si es directamente enterrado.
+  const alturaElementoPx = tipoDef.tieneTuberia ? tuboRadioPx * 2 : (tipoDef.esCableFino ? 4.4 : 3);
+  const arenillaTopY = tuboY - arenillaPx;
+  const arenillaBotY = tuboY + alturaElementoPx + arenillaPx;
+  const zanjaBotY = arenillaBotY + 12;
+  const svgW = zanjaX0 + anchoPx + 96;
   const svgH = zanjaBotY + 62;
 
   // Centros de cada tubería, repartidas simétricamente con separación sepEntrePx.
@@ -7760,6 +7803,23 @@ function CanalizacionPreview({ tipoId, datos, className = 'w-full h-auto' }) {
   const primerCentroX = centroZanja - anchoGrupoTuberias / 2 + tuboRadioPx;
   const centrosX = Array.from({ length: cantidad }, (_, i) => primerCentroX + i * (tuboRadioPx * 2 + sepEntrePx));
 
+  // Cota vertical pequeña (segmento) — para la pila de cotas de la derecha, cercana al dibujo.
+  function CotaVertical({ y0, y1, x, valor }) {
+    if (y1 - y0 < 0.5) return null;
+    return (
+      <g>
+        <g stroke="#3C64AA" strokeWidth="1">
+          <line x1={x} y1={y0} x2={x} y2={y1} />
+          <line x1={x - 4} y1={y0} x2={x + 4} y2={y0} />
+          <line x1={x - 4} y1={y1} x2={x + 4} y2={y1} />
+        </g>
+        <text x={x + 9} y={(y0 + y1) / 2} textAnchor="middle" fontSize="7" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${x + 9}, ${(y0 + y1) / 2})`}>
+          {valor.toFixed(2)} m
+        </text>
+      </g>
+    );
+  }
+
   return (
     <svg viewBox={`0 0 ${svgW} ${svgH}`} className={className}>
       {/* Nivel de piso existente */}
@@ -7767,75 +7827,59 @@ function CanalizacionPreview({ tipoId, datos, className = 'w-full h-auto' }) {
       <polygon points={`${centroZanja - 5},${zanjaTopY - 11} ${centroZanja + 5},${zanjaTopY - 11} ${centroZanja},${zanjaTopY - 2}`} fill="#152644" />
       <text x={centroZanja} y={zanjaTopY - 16} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">Nivel de piso existente</text>
 
-      {/* Material de excavación compactado (relleno) — la etiqueta va DENTRO */}
-      {/* de la zanja (no en el margen izquierdo, que ya usan las cotas de   */}
-      {/* cinta-suelo/cinta-tubería y podría chocar con ella).               */}
+      {/* Material de excavación compactado (relleno) */}
       <rect x={zanjaX0} y={zanjaTopY} width={anchoPx} height={zanjaBotY - zanjaTopY} fill="#F2E8D5" stroke="#152644" strokeWidth="1.3" />
       {Array.from({ length: 26 }).map((_, i) => (
         <circle key={i} cx={zanjaX0 + 8 + (i * 37) % (anchoPx - 12)} cy={zanjaTopY + 8 + Math.floor(i / 4) * 14} r="1" fill="#B8A67D" opacity="0.7" />
       ))}
-      <text x={zanjaX0 + 6} y={zanjaTopY + 12} textAnchor="start" fontSize="7" fill="#152644">Material de la</text>
-      <text x={zanjaX0 + 6} y={zanjaTopY + 20} textAnchor="start" fontSize="7" fill="#152644">excavación</text>
-      <text x={zanjaX0 + 6} y={zanjaTopY + 28} textAnchor="start" fontSize="7" fill="#152644">compactado</text>
+
+      {/* Descripciones a la IZQUIERDA (solo texto, sin cotas — así no se     */}
+      {/* cruzan con las cotas, que ahora van todas a la derecha).           */}
+      <text x={zanjaX0 - 8} y={zanjaTopY + (cintaYPx > 30 ? cintaYPx / 2 - 6 : 12)} textAnchor="end" fontSize="7" fill="#152644">Material de la</text>
+      <text x={zanjaX0 - 8} y={zanjaTopY + (cintaYPx > 30 ? cintaYPx / 2 + 2 : 20)} textAnchor="end" fontSize="7" fill="#152644">excavación</text>
+      <text x={zanjaX0 - 8} y={zanjaTopY + (cintaYPx > 30 ? cintaYPx / 2 + 10 : 28)} textAnchor="end" fontSize="7" fill="#152644">compactado</text>
+      <text x={zanjaX0 - 8} y={zanjaTopY + cintaYPx + 3} textAnchor="end" fontSize="7.5" fill="#152644">Cinta de</text>
+      <text x={zanjaX0 - 8} y={zanjaTopY + cintaYPx + 12} textAnchor="end" fontSize="7.5" fill="#152644">señalización</text>
+      <text x={zanjaX0 - 8} y={arenillaTopY + 4} textAnchor="end" fontSize="7.5" fill="#152644">Arenilla</text>
+      <text x={zanjaX0 - 8} y={tuboY + alturaElementoPx / 2 + 4} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#152644">{tipoDef.label}</text>
 
       {/* Cinta de señalización — TODOS los tipos, incluido SPT */}
       <line x1={zanjaX0 + 6} y1={zanjaTopY + cintaYPx} x2={zanjaX0 + anchoPx - 6} y2={zanjaTopY + cintaYPx} stroke="#DC2626" strokeWidth="3" />
-      <text x={zanjaX0 - 8} y={zanjaTopY + cintaYPx + 3} textAnchor="end" fontSize="7.5" fill="#152644">Cinta de</text>
-      <text x={zanjaX0 - 8} y={zanjaTopY + cintaYPx + 12} textAnchor="end" fontSize="7.5" fill="#152644">señalización</text>
 
-      {/* Arenilla (encima y debajo de la tubería) */}
-      {tipoDef.tieneTuberia && (
-        <rect x={zanjaX0 + sepLateralPx - 4} y={tuboY - arenillaPx} width={anchoPx - 2 * sepLateralPx + 8} height={arenillaPx * 2 + tuboRadioPx * 2} fill="#EFE3C8" stroke="#152644" strokeWidth="1" strokeDasharray="3 2" />
-      )}
-      {tipoDef.tieneTuberia && (
-        <text x={zanjaX0 - 8} y={tuboY - arenillaPx + 4} textAnchor="end" fontSize="7.5" fill="#152644">Arenilla</text>
-      )}
+      {/* Arenilla: franja de LADO A LADO de la zanja (no un recuadro angosto */}
+      {/* alrededor del tubo) — igual encima que debajo del elemento.        */}
+      <rect x={zanjaX0} y={arenillaTopY} width={anchoPx} height={arenillaBotY - arenillaTopY} fill="#EFE3C8" stroke="#152644" strokeWidth="1" strokeDasharray="3 2" />
 
       {/* Tubería(s) (círculos) o cable (línea/punto fino), a la profundidad digitada */}
       {tipoDef.tieneTuberia ? (
-        <>
-          {centrosX.map((cx, i) => (
-            <circle key={i} cx={cx} cy={tuboY + tuboRadioPx} r={tuboRadioPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.3" />
-          ))}
-          <text x={zanjaX0 - 8} y={tuboY + tuboRadioPx + 4} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#152644">{tipoDef.label}</text>
-        </>
+        centrosX.map((cx, i) => (
+          <circle key={i} cx={cx} cy={tuboY + tuboRadioPx} r={tuboRadioPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.3" />
+        ))
       ) : tipoDef.esCableFino ? (
-        <>
-          <circle cx={centroZanja} cy={tuboY} r="2.2" fill="#059669" stroke="#152644" strokeWidth="0.8" />
-          <text x={zanjaX0 - 8} y={tuboY + 4} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#152644">{tipoDef.label}</text>
-        </>
+        <circle cx={centroZanja} cy={tuboY + alturaElementoPx / 2} r="2.2" fill="#059669" stroke="#152644" strokeWidth="0.8" />
       ) : (
-        <>
-          <line x1={zanjaX0 + sepLateralPx} y1={tuboY} x2={zanjaX0 + anchoPx - sepLateralPx} y2={tuboY} stroke="#059669" strokeWidth="3" strokeLinecap="round" />
-          <text x={zanjaX0 - 8} y={tuboY + 4} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#152644">{tipoDef.label}</text>
-        </>
+        <line x1={zanjaX0 + sepLateralPx} y1={tuboY + alturaElementoPx / 2} x2={zanjaX0 + anchoPx - sepLateralPx} y2={tuboY + alturaElementoPx / 2} stroke="#059669" strokeWidth="3" strokeLinecap="round" />
       )}
 
-      {/* Cotas apiladas a la izquierda: cinta-suelo y cinta-tubería */}
-      <g stroke="#3C64AA" strokeWidth="1">
-        <line x1={zanjaX0 - 34} y1={zanjaTopY} x2={zanjaX0 - 34} y2={zanjaTopY + cintaYPx} />
-        <line x1={zanjaX0 - 38} y1={zanjaTopY} x2={zanjaX0 - 30} y2={zanjaTopY} />
-        <line x1={zanjaX0 - 38} y1={zanjaTopY + cintaYPx} x2={zanjaX0 - 30} y2={zanjaTopY + cintaYPx} />
-      </g>
-      <text x={zanjaX0 - 44} y={zanjaTopY + cintaYPx / 2} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${zanjaX0 - 44}, ${zanjaTopY + cintaYPx / 2})`}>
-        {cintaDesdeSuperficieM.toFixed(2)} m
-      </text>
-      <g stroke="#3C64AA" strokeWidth="1">
-        <line x1={zanjaX0 - 34} y1={zanjaTopY + cintaYPx} x2={zanjaX0 - 34} y2={tuboY} />
-        <line x1={zanjaX0 - 38} y1={tuboY} x2={zanjaX0 - 30} y2={tuboY} />
-      </g>
-      <text x={zanjaX0 - 44} y={zanjaTopY + cintaYPx + (tuboY - zanjaTopY - cintaYPx) / 2} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${zanjaX0 - 44}, ${zanjaTopY + cintaYPx + (tuboY - zanjaTopY - cintaYPx) / 2})`}>
-        {(profundidad - cintaDesdeSuperficieM).toFixed(2)} m
-      </text>
+      {/* Cotas a la DERECHA, con jerarquía: primero (más cerca del dibujo)  */}
+      {/* los 4 segmentos (piso→cinta, cinta→arenilla, arenilla→elemento,    */}
+      {/* elemento→arenilla), y en paralelo, más alejada, la profundidad     */}
+      {/* total de la zanja (piso hasta el fondo de la arenilla).           */}
+      <CotaVertical y0={zanjaTopY} y1={zanjaTopY + cintaYPx} x={zanjaX0 + anchoPx + 14} valor={cintaDesdeSuperficieM} />
+      <CotaVertical y0={zanjaTopY + cintaYPx} y1={arenillaTopY} x={zanjaX0 + anchoPx + 14} valor={(arenillaTopY - (zanjaTopY + cintaYPx)) / scale} />
+      <CotaVertical y0={arenillaTopY} y1={tuboY} x={zanjaX0 + anchoPx + 14} valor={espesorArenilla} />
+      <CotaVertical y0={tuboY + alturaElementoPx} y1={arenillaBotY} x={zanjaX0 + anchoPx + 14} valor={espesorArenilla} />
 
-      {/* Cota de profundidad total (a la derecha, la más externa) */}
       <g stroke="#152644" strokeWidth="1">
-        <line x1={zanjaX0 + anchoPx + 16} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 16} y2={tuboY} />
-        <line x1={zanjaX0 + anchoPx + 12} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 20} y2={zanjaTopY} />
-        <line x1={zanjaX0 + anchoPx + 12} y1={tuboY} x2={zanjaX0 + anchoPx + 20} y2={tuboY} />
+        <line x1={zanjaX0 + anchoPx + 40} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 40} y2={arenillaBotY} />
+        <line x1={zanjaX0 + anchoPx + 36} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 44} y2={zanjaTopY} />
+        <line x1={zanjaX0 + anchoPx + 36} y1={arenillaBotY} x2={zanjaX0 + anchoPx + 44} y2={arenillaBotY} />
       </g>
-      <text x={zanjaX0 + anchoPx + 28} y={(zanjaTopY + tuboY) / 2} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${zanjaX0 + anchoPx + 28}, ${(zanjaTopY + tuboY) / 2})`}>
-        {profundidad.toFixed(2)} m
+      <text x={zanjaX0 + anchoPx + 52} y={(zanjaTopY + arenillaBotY) / 2} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${zanjaX0 + anchoPx + 52}, ${(zanjaTopY + arenillaBotY) / 2})`}>
+        {((arenillaBotY - zanjaTopY) / scale).toFixed(2)} m
+      </text>
+      <text x={zanjaX0 + anchoPx + 62} y={(zanjaTopY + arenillaBotY) / 2} textAnchor="middle" fontSize="6" fill="#8A93A6" transform={`rotate(90, ${zanjaX0 + anchoPx + 62}, ${(zanjaTopY + arenillaBotY) / 2})`}>
+        profundidad total de la zanja
       </text>
 
       {/* Cotas de segmentos abajo: separación lateral / diámetro / separación entre tuberías... */}
@@ -7981,13 +8025,11 @@ function CanalizacionForm({ tipoDef, plantilla, onCancel, onSave, diametrosTuber
             Sugerida: {tipoDef.distanciaCintaNorma} m. Nunca queda a menos de 0.20 m del piso — si tocara quedar más arriba, se respeta ese mínimo.
           </p>
         </div>
-        {tipoDef.tieneTuberia && (
-          <div>
-            <label className="block text-xs text-navy-500 mb-1">Espesor de arenilla (m)</label>
-            <input value={datos.espesor_arenilla} onChange={(e) => set('espesor_arenilla', e.target.value)} className={cellInput} />
-            <p className="text-[11px] text-navy-400 mt-0.5">Por encima y por debajo del tubo (norma: 0.05 m).</p>
-          </div>
-        )}
+        <div>
+          <label className="block text-xs text-navy-500 mb-1">Espesor de arenilla (m)</label>
+          <input value={datos.espesor_arenilla} onChange={(e) => set('espesor_arenilla', e.target.value)} className={cellInput} />
+          <p className="text-[11px] text-navy-400 mt-0.5">Por encima y por debajo del elemento (norma: 0.05 m).</p>
+        </div>
         <div>
           <label className="block text-xs text-navy-500 mb-1">Separación lateral zanja–tubería (m)</label>
           <input value={datos.separacion_lateral} onChange={(e) => set('separacion_lateral', e.target.value)} className={cellInput} />
@@ -8023,6 +8065,212 @@ function CanalizacionForm({ tipoDef, plantilla, onCancel, onSave, diametrosTuber
       <div className="flex items-center gap-3">
         <button type="submit" className="bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
           {plantilla ? 'Guardar cambios' : 'Crear plantilla'}
+        </button>
+        <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/* Datos "en vivo" de una línea dentro de una Combinación: mira su propia    */
+/* plantilla (tipo + datos) tal como está AHORA — si se edita después, la    */
+/* combinación refleja el cambio solo, igual criterio que Cimentaciones.    */
+function datosLineaCombinacion(plantillaLinea) {
+  const tipoDef = CANALIZACION_TIPOS.find((t) => t.id === plantillaLinea?.tipo);
+  if (!tipoDef) return null;
+  const d = plantillaLinea.datos || {};
+  return {
+    tipoDef,
+    nombre: plantillaLinea.nombre,
+    anchoM: calcAnchoZanjaCanalizacion(tipoDef, d),
+    profundidadM: parseFloat(d.profundidad) || tipoDef.profundidadNorma,
+    cintaDesdeSuperficieM: calcCintaDesdeSuperficie(tipoDef, d),
+    espesorArenillaM: parseFloat(d.espesor_arenilla) || 0.05,
+    sepLateralM: parseFloat(d.separacion_lateral) || 0.15,
+    cantidad: tipoDef.tieneTuberia ? Math.max(1, parseInt(d.cantidad_tuberias, 10) || 1) : 1,
+    sepEntreM: parseFloat(d.separacion_entre_tuberias) || 0.10,
+    diametroM: tipoDef.tieneTuberia ? (pulgadasAMetros(d.diametro) || 0.02) : (tipoDef.esCableFino ? 0.01 : 0.02),
+  };
+}
+
+/* Zanja escalonada: cada línea de la combinación se dibuja en su propia     */
+/* "columna", una junto a otra, cada una excavada hasta SU propia            */
+/* profundidad (más superficial a la izquierda, más profunda a la derecha), */
+/* con un escalón entre columnas de distinta profundidad — así se ve un      */
+/* corte real cuando dos líneas de distinta norma comparten la misma zanja. */
+function CombinacionPreview({ lineaIds, plantillasCanalizaciones, className = 'w-full h-auto' }) {
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const scale = 200;
+  const lineas = (lineaIds || [])
+    .map((id) => plantillasCanalizaciones.find((p) => p.id === id))
+    .filter(Boolean)
+    .map(datosLineaCombinacion)
+    .filter(Boolean)
+    .sort((a, b) => a.profundidadM - b.profundidadM); // más superficial primero (izquierda)
+
+  if (lineas.length === 0) {
+    return (
+      <svg viewBox="0 0 200 60" className={className}>
+        <text x="100" y="32" textAnchor="middle" fontSize="9" fill="#8A93A6">Elige al menos 2 plantillas</text>
+      </svg>
+    );
+  }
+
+  const marginTop = 30;
+  const zanjaX0 = 8;
+  const zanjaTopY = marginTop;
+  const maxProfPx = clamp(Math.max(...lineas.map((l) => l.profundidadM)) * scale, 60, 220);
+
+  let cursorX = zanjaX0;
+  const columnas = lineas.map((l) => {
+    const anchoPx = clamp(l.anchoM * scale, 40, 150);
+    const profPx = clamp(l.profundidadM * scale, 50, maxProfPx);
+    const cintaYPx = clamp(l.cintaDesdeSuperficieM * scale, 8, profPx - 6);
+    const arenillaPx = clamp(l.espesorArenillaM * scale, 4, 16);
+    const tuboRadioPx = l.tipoDef.tieneTuberia
+      ? clamp((anchoPx - 2 * clamp(l.sepLateralM * scale, 5, anchoPx / 2 - 5) - clamp(l.sepEntreM * scale, 3, 26) * (l.cantidad - 1)) / (2 * l.cantidad), 4, 14)
+      : 0;
+    const alturaElementoPx = l.tipoDef.tieneTuberia ? tuboRadioPx * 2 : (l.tipoDef.esCableFino ? 4 : 3);
+    const x0 = cursorX;
+    cursorX += anchoPx;
+    const tuboY = zanjaTopY + profPx;
+    const arenillaBotY = tuboY + alturaElementoPx + arenillaPx;
+    return { ...l, x0, anchoPx, profPx, cintaYPx, arenillaPx, tuboRadioPx, alturaElementoPx, tuboY, arenillaBotY };
+  });
+
+  // Las etiquetas/cotas de cada columna van todas a la MISMA altura, debajo
+  // de la columna que más abajo llegue (la más profunda) — así nunca quedan
+  // montadas sobre las tuberías/cable de esa columna.
+  const maxArenillaBotY = Math.max(...columnas.map((c) => c.arenillaBotY));
+  const svgW = cursorX + 16;
+  const svgH = maxArenillaBotY + 62;
+
+  return (
+    <svg viewBox={`0 0 ${svgW} ${svgH}`} className={className}>
+      <line x1={zanjaX0 - 6} y1={zanjaTopY} x2={cursorX + 6} y2={zanjaTopY} stroke="#152644" strokeWidth="1.4" />
+      <text x={(zanjaX0 + cursorX) / 2} y={zanjaTopY - 10} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644">Nivel de piso existente</text>
+
+      {columnas.map((c, i) => {
+        const tuboY = c.tuboY;
+        const arenillaTopY = tuboY - c.arenillaPx;
+        const arenillaBotY = c.arenillaBotY;
+        const centro = c.x0 + c.anchoPx / 2;
+        const anchoGrupo = c.cantidad * (c.tuboRadioPx * 2) + (c.cantidad - 1) * clamp(c.sepEntreM * scale, 3, 26);
+        const primerCentro = centro - anchoGrupo / 2 + c.tuboRadioPx;
+        return (
+          <g key={i}>
+            <rect x={c.x0} y={zanjaTopY} width={c.anchoPx} height={arenillaBotY - zanjaTopY} fill="#F2E8D5" stroke="#152644" strokeWidth="1.1" />
+            <line x1={c.x0 + 4} y1={zanjaTopY + c.cintaYPx} x2={c.x0 + c.anchoPx - 4} y2={zanjaTopY + c.cintaYPx} stroke="#DC2626" strokeWidth="2.5" />
+            <rect x={c.x0} y={arenillaTopY} width={c.anchoPx} height={arenillaBotY - arenillaTopY} fill="#EFE3C8" stroke="#152644" strokeWidth="0.8" strokeDasharray="3 2" />
+            {c.tipoDef.tieneTuberia ? (
+              Array.from({ length: c.cantidad }).map((_, j) => (
+                <circle key={j} cx={primerCentro + j * (c.tuboRadioPx * 2 + clamp(c.sepEntreM * scale, 3, 26))} cy={tuboY + c.tuboRadioPx} r={c.tuboRadioPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.1" />
+              ))
+            ) : c.tipoDef.esCableFino ? (
+              <circle cx={centro} cy={tuboY + c.alturaElementoPx / 2} r="1.8" fill="#059669" stroke="#152644" strokeWidth="0.7" />
+            ) : (
+              <line x1={c.x0 + 4} y1={tuboY + c.alturaElementoPx / 2} x2={c.x0 + c.anchoPx - 4} y2={tuboY + c.alturaElementoPx / 2} stroke="#059669" strokeWidth="2.5" strokeLinecap="round" />
+            )}
+            <text x={centro} y={maxArenillaBotY + 16} textAnchor="middle" fontSize="7" fontWeight="600" fill="#152644">{c.tipoDef.label}</text>
+            <text x={centro} y={maxArenillaBotY + 28} textAnchor="middle" fontSize="7" fill="#3C64AA">{c.profundidadM.toFixed(2)} m</text>
+            {i < columnas.length - 1 && (
+              <line x1={c.x0 + c.anchoPx} y1={zanjaTopY} x2={c.x0 + c.anchoPx} y2={maxArenillaBotY} stroke="#152644" strokeWidth="1" strokeDasharray="2 2" opacity="0.5" />
+            )}
+          </g>
+        );
+      })}
+
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={zanjaX0} y1={maxArenillaBotY + 40} x2={cursorX} y2={maxArenillaBotY + 40} />
+        <line x1={zanjaX0} y1={maxArenillaBotY + 36} x2={zanjaX0} y2={maxArenillaBotY + 44} />
+        <line x1={cursorX} y1={maxArenillaBotY + 36} x2={cursorX} y2={maxArenillaBotY + 44} />
+      </g>
+      <text x={(zanjaX0 + cursorX) / 2} y={maxArenillaBotY + 54} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644">
+        {((cursorX - zanjaX0) / scale).toFixed(2)} m (ancho total)
+      </text>
+    </svg>
+  );
+}
+
+function resumenCombinacion(lineaIds, plantillasCanalizaciones) {
+  const lineas = (lineaIds || [])
+    .map((id) => plantillasCanalizaciones.find((p) => p.id === id))
+    .filter(Boolean)
+    .map(datosLineaCombinacion)
+    .filter(Boolean)
+    .sort((a, b) => a.profundidadM - b.profundidadM);
+  if (lineas.length === 0) return ['Sin líneas elegidas'];
+  return lineas.map((l) => `${l.tipoDef.label} (${l.nombre}): ${l.profundidadM.toFixed(2)} m`);
+}
+
+function CombinacionForm({ plantilla, plantillasCanalizaciones, onCancel, onSave }) {
+  const [nombre, setNombre] = useState(plantilla?.nombre || '');
+  const [esPrincipal, setEsPrincipal] = useState(plantilla?.es_principal || false);
+  const [lineaIds, setLineaIds] = useState(plantilla?.datos?.lineas || []);
+
+  const opciones = plantillasCanalizaciones.filter((p) => p.tipo !== 'combinacion');
+  const porTipo = {};
+  opciones.forEach((p) => { (porTipo[p.tipo] = porTipo[p.tipo] || []).push(p); });
+
+  function toggle(id) {
+    setLineaIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+  function submit(e) {
+    e.preventDefault();
+    if (!nombre.trim() || lineaIds.length < 2) return;
+    onSave(nombre.trim(), { lineas: lineaIds }, esPrincipal);
+  }
+  const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+
+  return (
+    <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
+      <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
+        {plantilla ? 'Editar combinación' : 'Nueva combinación'}
+      </p>
+
+      <div className="flex justify-center bg-navy-50 rounded-lg p-4 mb-5">
+        <div className="w-full max-w-2xl">
+          <CombinacionPreview lineaIds={lineaIds} plantillasCanalizaciones={plantillasCanalizaciones} />
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre de la combinación</label>
+        <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder='Ej. AC-BT 2" + AC-BT 4"' className={cellInput} required />
+      </div>
+
+      <p className="block text-xs font-semibold uppercase text-navy-500 mb-2">
+        Elige 2 o más plantillas ya creadas ({lineaIds.length} elegidas)
+      </p>
+      {opciones.length === 0 ? (
+        <p className="text-sm text-navy-400 italic mb-4">Aún no hay plantillas de ningún tipo para combinar. Crea al menos 2 primero.</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5 max-h-80 overflow-y-auto border border-navy-100 rounded-lg p-3">
+          {CANALIZACION_TIPOS.filter((t) => !t.esCombinacion && porTipo[t.id]?.length).map((t) => (
+            <div key={t.id}>
+              <p className="text-xs font-bold text-navy-600 mb-1">{t.label}</p>
+              {porTipo[t.id].map((p) => (
+                <label key={p.id} className="flex items-center gap-2 py-0.5 cursor-pointer">
+                  <input type="checkbox" checked={lineaIds.includes(p.id)} onChange={() => toggle(p.id)} className="w-3.5 h-3.5 accent-lime-500" />
+                  <span className="text-sm text-navy-700">{p.nombre}</span>
+                </label>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+      {lineaIds.length === 1 && <p className="text-xs text-amber-600 mb-4">Elige al menos una línea más (una combinación necesita 2 o más).</p>}
+
+      <label className="flex items-center gap-2 mb-5 cursor-pointer">
+        <input type="checkbox" checked={esPrincipal} onChange={(e) => setEsPrincipal(e.target.checked)} className="w-4 h-4 accent-lime-500" />
+        <span className="text-sm text-navy-700">Marcar como <strong>Principal</strong> de "Combinaciones"</span>
+      </label>
+
+      <div className="flex items-center gap-3">
+        <button type="submit" disabled={lineaIds.length < 2 || !nombre.trim()} className="bg-lime-500 hover:bg-lime-600 disabled:opacity-40 disabled:cursor-not-allowed text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
+          {plantilla ? 'Guardar cambios' : 'Crear combinación'}
         </button>
         <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700">
           Cancelar
@@ -8081,28 +8329,43 @@ function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrinci
           onClick={() => setCreando(true)}
           className="flex items-center gap-1.5 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg mb-5 transition-colors"
         >
-          <Plus className="w-4 h-4" /> Nueva plantilla de {tipoDef.label}
+          <Plus className="w-4 h-4" /> {tipoDef.esCombinacion ? 'Nueva combinación' : `Nueva plantilla de ${tipoDef.label}`}
         </button>
       )}
 
       {(creando || editandoId) && (
-        <CanalizacionForm
-          tipoDef={tipoDef}
-          plantilla={editandoId ? plantillasDelTipo.find((p) => p.id === editandoId) : null}
-          onCancel={cerrarFormulario}
-          onSave={(nombre, datos, esPrincipal) => {
-            if (editandoId) onUpdate(editandoId, { nombre, datos }, esPrincipal, tipoActivo);
-            else onAdd(tipoActivo, nombre, datos, esPrincipal);
-            cerrarFormulario();
-          }}
-          diametrosTuberia={diametrosTuberia}
-          onAddDiametro={onAddDiametro}
-        />
+        tipoDef.esCombinacion ? (
+          <CombinacionForm
+            plantilla={editandoId ? plantillasDelTipo.find((p) => p.id === editandoId) : null}
+            plantillasCanalizaciones={plantillas}
+            onCancel={cerrarFormulario}
+            onSave={(nombre, datos, esPrincipal) => {
+              if (editandoId) onUpdate(editandoId, { nombre, datos }, esPrincipal, tipoActivo);
+              else onAdd(tipoActivo, nombre, datos, esPrincipal);
+              cerrarFormulario();
+            }}
+          />
+        ) : (
+          <CanalizacionForm
+            tipoDef={tipoDef}
+            plantilla={editandoId ? plantillasDelTipo.find((p) => p.id === editandoId) : null}
+            onCancel={cerrarFormulario}
+            onSave={(nombre, datos, esPrincipal) => {
+              if (editandoId) onUpdate(editandoId, { nombre, datos }, esPrincipal, tipoActivo);
+              else onAdd(tipoActivo, nombre, datos, esPrincipal);
+              cerrarFormulario();
+            }}
+            diametrosTuberia={diametrosTuberia}
+            onAddDiametro={onAddDiametro}
+          />
+        )
       )}
 
       {!creando && !editandoId && (
         plantillasDelTipo.length === 0 ? (
-          <p className="text-sm text-navy-400 italic text-center py-10">Aún no hay plantillas de {tipoDef.label}.</p>
+          <p className="text-sm text-navy-400 italic text-center py-10">
+            {tipoDef.esCombinacion ? 'Aún no hay combinaciones.' : `Aún no hay plantillas de ${tipoDef.label}.`}
+          </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {plantillasDelTipo.map((p) => (
@@ -8113,11 +8376,18 @@ function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrinci
                   </span>
                 )}
                 <div className="flex items-center justify-center mb-2">
-                  <CanalizacionPreview tipoId={p.tipo} datos={p.datos} className="w-full h-auto" />
+                  {tipoDef.esCombinacion ? (
+                    <CombinacionPreview lineaIds={p.datos?.lineas} plantillasCanalizaciones={plantillas} className="w-full h-auto" />
+                  ) : (
+                    <CanalizacionPreview tipoId={p.tipo} datos={p.datos} className="w-full h-auto" />
+                  )}
                 </div>
                 <p className="font-semibold text-navy-800 text-sm text-center mb-1">{p.nombre}</p>
                 <div className="mb-3">
-                  <ResumenLineas lineas={resumenCanalizacion(p.tipo, p.datos)} size="text-xs" align="center" />
+                  <ResumenLineas
+                    lineas={tipoDef.esCombinacion ? resumenCombinacion(p.datos?.lineas, plantillas) : resumenCanalizacion(p.tipo, p.datos)}
+                    size="text-xs" align="center"
+                  />
                 </div>
                 <div className="flex items-center justify-center gap-4 flex-wrap">
                   <button onClick={() => setEditandoId(p.id)} className="text-xs font-semibold text-lime-600 hover:text-lime-700 flex items-center gap-1">
@@ -12924,7 +13194,18 @@ export default function App() {
     }
 
     const { data: canalizacionRows } = await supabase.from('canalizacion_plantillas').select('*').order('created_at', { ascending: true });
-    setPlantillasCanalizaciones((canalizacionRows || []).map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {}, es_principal: r.es_principal || false })));
+    const idsExistentes = new Set((canalizacionRows || []).map((r) => r.id));
+    const seedFaltante = construirSeedCanalizaciones().filter((s) => !idsExistentes.has(s.id));
+    if (seedFaltante.length > 0) {
+      // "upsert" en vez de "insert": si por alguna carrera de red ya existieran
+      // (ej. dos pestañas abiertas a la vez), no falla — simplemente no las duplica.
+      await supabase.from('canalizacion_plantillas').upsert(seedFaltante).then(({ error }) => {
+        if (error) console.error('Error creando plantillas semilla de canalizaciones:', error);
+      });
+      setPlantillasCanalizaciones([...(canalizacionRows || []).map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {}, es_principal: r.es_principal || false })), ...seedFaltante]);
+    } else {
+      setPlantillasCanalizaciones((canalizacionRows || []).map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {}, es_principal: r.es_principal || false })));
+    }
 
     const { data: diametroRows } = await supabase.from('diametros_tuberia').select('*').order('created_at', { ascending: true });
     if (!diametroRows || diametroRows.length === 0) {
