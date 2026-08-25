@@ -7634,106 +7634,201 @@ function EquiposElectricosView({ plantillas, onAdd, onUpdate, onDelete }) {
 /* son SUGERENCIAS iniciales (editables), no valores forzados.               */
 /* "tieneTuberia": false solo para SPT (cable desnudo, sin ducto ni arenilla) */
 /* y AC-BT directamente enterrado (según el documento, sin tubería).         */
+/* Orden y nombres pedidos: DC, AC-BT Tubería, AC-BT Enterrado, AC-MT,       */
+/* Comunicaciones, Energía, SPT. "tieneTuberia": false para AC-BT Enterrado */
+/* (cable directamente enterrado) y SPT (cable de puesta a tierra, muy      */
+/* delgado — ver "esCableFino"). Todos llevan cinta de señalización.        */
 const CANALIZACION_TIPOS = [
-  { id: 'dc', label: 'DC (Paneles → Inversor)', profundidadNorma: 0.45, tieneTuberia: true, colorCinta: '#DC2626', distanciaCintaNorma: 0.25, diametroPlaceholder: 'Flexible — ej. 3/4"' },
-  { id: 'comunicaciones', label: 'Comunicaciones (F.O. / UTP)', profundidadNorma: 0.40, tieneTuberia: true, colorCinta: '#F97316', distanciaCintaNorma: 0.20, diametroPlaceholder: 'ej. 3/4", 1 1/4", 2"' },
-  { id: 'energia_ssaa', label: 'Energía SSAA (220 V)', profundidadNorma: 0.45, tieneTuberia: true, colorCinta: '#DC2626', distanciaCintaNorma: 0.25, diametroPlaceholder: 'ej. 3/4"' },
-  { id: 'acbt_tuberia', label: 'AC-BT con tubería (800 V)', profundidadNorma: 0.45, tieneTuberia: true, colorCinta: '#DC2626', distanciaCintaNorma: 0.25, diametroPlaceholder: 'ej. 4"' },
-  { id: 'acbt_directo', label: 'AC-BT directamente enterrado (800 V, sin tubería)', profundidadNorma: 0.60, tieneTuberia: false, colorCinta: '#DC2626', distanciaCintaNorma: 0.25, diametroPlaceholder: '' },
-  { id: 'mt', label: 'AC-MT (13.8 kV / 34.5 kV)', profundidadNorma: 0.75, tieneTuberia: true, colorCinta: '#DC2626', distanciaCintaNorma: 0.25, diametroPlaceholder: '4" (13.8kV, AFINIA/AIR-E) o 6" (34.5kV, ESSA)' },
-  { id: 'spt', label: 'SPT (puesta a tierra)', profundidadNorma: 0.50, tieneTuberia: false, colorCinta: null, distanciaCintaNorma: null, diametroPlaceholder: 'ej. 1/0 AWG' },
+  { id: 'dc', label: 'DC', profundidadNorma: 0.45, tieneTuberia: true, distanciaCintaNorma: 0.25 },
+  { id: 'acbt_tuberia', label: 'AC-BT Tubería', profundidadNorma: 0.45, tieneTuberia: true, distanciaCintaNorma: 0.25 },
+  { id: 'acbt_directo', label: 'AC-BT Enterrado', profundidadNorma: 0.60, tieneTuberia: false, distanciaCintaNorma: 0.25 },
+  { id: 'mt', label: 'AC-MT', profundidadNorma: 0.75, tieneTuberia: true, distanciaCintaNorma: 0.25 },
+  { id: 'comunicaciones', label: 'Comunicaciones', profundidadNorma: 0.40, tieneTuberia: true, distanciaCintaNorma: 0.20 },
+  { id: 'energia_ssaa', label: 'Energía', profundidadNorma: 0.45, tieneTuberia: true, distanciaCintaNorma: 0.25 },
+  { id: 'spt', label: 'SPT', profundidadNorma: 0.50, tieneTuberia: false, distanciaCintaNorma: 0.25, esCableFino: true },
 ];
+
+/* "diametro" ahora se elige de un catálogo compartido (en pulgadas, mismo   */
+/* criterio que País/Ingeniero de proyectos): admite fracciones como        */
+/* 3/4" o 1 1/4". Estas dos funciones hacen la conversión a metros para     */
+/* los cálculos de ancho de zanja y del dibujo.                             */
+function parsePulgadas(str) {
+  if (!str) return 0;
+  const limpio = String(str).replace(/["″]/g, '').trim();
+  if (!limpio) return 0;
+  let total = 0;
+  for (const parte of limpio.split(/\s+/)) {
+    if (parte.includes('/')) {
+      const [num, den] = parte.split('/').map(Number);
+      if (den) total += num / den;
+    } else {
+      total += parseFloat(parte) || 0;
+    }
+  }
+  return total;
+}
+function pulgadasAMetros(str) {
+  return parsePulgadas(str) * 0.0254;
+}
 
 function emptyDatosCanalizacion(tipoDef) {
   return {
     diametro: '',
+    calibre_cable: '',
+    cantidad_tuberias: tipoDef.tieneTuberia ? '1' : '',
+    separacion_entre_tuberias: '0.10',
     profundidad: String(tipoDef.profundidadNorma),
-    ancho_zanja: '0.30',
-    distancia_cinta: tipoDef.distanciaCintaNorma != null ? String(tipoDef.distanciaCintaNorma) : '',
+    distancia_cinta: String(tipoDef.distanciaCintaNorma),
     espesor_arenilla: tipoDef.tieneTuberia ? '0.05' : '',
     separacion_lateral: '0.15',
     notas: '',
   };
 }
 
+/* Ancho de zanja: YA NO se digita — se calcula solo como (separación       */
+/* lateral × 2, a lado y lado) + el espacio que ocupan la(s) tubería(s) y,  */
+/* si hay más de una, la separación mínima entre caras externas (0.10 m).  */
+/* Para SPT/AC-BT Enterrado (sin tubería) se usa un ancho de cable nominal  */
+/* pequeño, ya que no hay un ducto real que mida.                          */
+function calcAnchoZanjaCanalizacion(tipoDef, datos) {
+  const sepLateral = parseFloat(datos?.separacion_lateral) || 0.15;
+  if (!tipoDef.tieneTuberia) {
+    const anchoCable = tipoDef.esCableFino ? 0.01 : 0.02;
+    return sepLateral * 2 + anchoCable;
+  }
+  const cantidad = Math.max(1, parseInt(datos?.cantidad_tuberias, 10) || 1);
+  const sepEntre = parseFloat(datos?.separacion_entre_tuberias) || 0.10;
+  const diametroM = pulgadasAMetros(datos?.diametro) || 0.02;
+  const anchoTuberias = diametroM * cantidad + sepEntre * Math.max(0, cantidad - 1);
+  return sepLateral * 2 + anchoTuberias;
+}
+
+/* La cinta se ubica respecto a la TUBERÍA/CABLE (0.20 m para              */
+/* Comunicaciones, 0.25 m para las demás — sugerido, editable), pero NUNCA  */
+/* a menos de 0.20 m de la superficie: si la tubería es muy superficial y   */
+/* eso empujaría la cinta más arriba del mínimo permitido, se respeta el    */
+/* mínimo (la distancia real a la tubería queda entonces menor a la        */
+/* sugerida — se muestra igual, no es un error).                           */
+function calcCintaDesdeSuperficie(tipoDef, datos) {
+  const profundidad = parseFloat(datos?.profundidad) || tipoDef.profundidadNorma;
+  const distanciaDeseada = datos?.distancia_cinta !== '' && datos?.distancia_cinta != null
+    ? parseFloat(datos.distancia_cinta)
+    : tipoDef.distanciaCintaNorma;
+  const posicionIdeal = profundidad - distanciaDeseada;
+  return Math.max(0.20, posicionIdeal);
+}
+
 /* Corte transversal simple (no isométrico — así se ven los planos reales de */
 /* referencia): terreno arriba, material de excavación, cinta de            */
-/* señalización, arenilla y la tubería/cable a su profundidad. Reacciona a   */
-/* los valores digitados, igual criterio que las previews de Cimentaciones. */
+/* señalización, arenilla y la(s) tubería(s)/cable a su profundidad.        */
+/* Reacciona a los valores digitados, igual criterio que Cimentaciones.     */
 function CanalizacionPreview({ tipoId, datos, className = 'w-full h-auto' }) {
   const tipoDef = CANALIZACION_TIPOS.find((t) => t.id === tipoId) || CANALIZACION_TIPOS[0];
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
   const scale = 220; // px por metro
+  const d = datos || {};
 
-  const profundidad = parseFloat(datos?.profundidad) || tipoDef.profundidadNorma;
-  const anchoZanja = parseFloat(datos?.ancho_zanja) || 0.3;
-  const distanciaCinta = datos?.distancia_cinta !== '' && datos?.distancia_cinta != null ? parseFloat(datos.distancia_cinta) : tipoDef.distanciaCintaNorma;
-  const espesorArenilla = parseFloat(datos?.espesor_arenilla) || 0;
+  const profundidad = parseFloat(d.profundidad) || tipoDef.profundidadNorma;
+  const anchoZanjaM = calcAnchoZanjaCanalizacion(tipoDef, d);
+  const cintaDesdeSuperficieM = calcCintaDesdeSuperficie(tipoDef, d);
+  const espesorArenilla = parseFloat(d.espesor_arenilla) || 0;
+  const sepLateralM = parseFloat(d.separacion_lateral) || 0.15;
+  const cantidad = tipoDef.tieneTuberia ? Math.max(1, parseInt(d.cantidad_tuberias, 10) || 1) : 1;
+  const sepEntreM = parseFloat(d.separacion_entre_tuberias) || 0.10;
+  const diametroM = tipoDef.tieneTuberia ? (pulgadasAMetros(d.diametro) || 0.02) : (tipoDef.esCableFino ? 0.01 : 0.02);
 
   const profPx = clamp(profundidad * scale, 60, 220);
-  const anchoPx = clamp(anchoZanja * scale, 50, 160);
-  const cintaOffsetPx = tipoDef.tieneTuberia || tipoDef.colorCinta
-    ? clamp((distanciaCinta || 0) * scale, 15, profPx - 10)
-    : 0;
-  const arenillaPx = clamp(espesorArenilla * scale, 4, 18);
+  const anchoPx = clamp(anchoZanjaM * scale, 55, 220);
+  const cintaYPx = clamp(cintaDesdeSuperficieM * scale, 10, profPx - 6);
+  const arenillaPx = tipoDef.tieneTuberia ? clamp(espesorArenilla * scale, 4, 18) : 0;
+  const sepLateralPx = clamp(sepLateralM * scale, 6, anchoPx / 2 - 6);
+  const sepEntrePx = clamp(sepEntreM * scale, 3, 30);
 
   const marginTop = 34;
-  const zanjaX0 = 60;
+  const marginLeft = 92;
+  const zanjaX0 = marginLeft;
   const zanjaTopY = marginTop;
-  const zanjaBotY = marginTop + profPx + (tipoDef.tieneTuberia ? arenillaPx + 10 : 10);
-  const tuboY = zanjaTopY + profPx; // profundidad medida a la generatriz superior del ducto/cable
-  const svgW = zanjaX0 + anchoPx + 90;
-  const svgH = zanjaBotY + 30;
+  const tuboY = zanjaTopY + profPx; // profundidad = a la generatriz superior del ducto/cable
+  const tuboRadioPx = tipoDef.tieneTuberia ? clamp((anchoPx - 2 * sepLateralPx - sepEntrePx * (cantidad - 1)) / (2 * cantidad), 5, 16) : 0;
+  const zanjaBotY = tuboY + (tipoDef.tieneTuberia ? Math.max(arenillaPx, tuboRadioPx) + arenillaPx + 12 : 12);
+  const svgW = zanjaX0 + anchoPx + 70;
+  const svgH = zanjaBotY + 62;
 
-  const tuboRadioPx = tipoDef.tieneTuberia ? clamp(anchoPx * 0.16, 7, 16) : 0;
+  // Centros de cada tubería, repartidas simétricamente con separación sepEntrePx.
+  const centroZanja = zanjaX0 + anchoPx / 2;
+  const anchoGrupoTuberias = cantidad * (tuboRadioPx * 2) + (cantidad - 1) * sepEntrePx;
+  const primerCentroX = centroZanja - anchoGrupoTuberias / 2 + tuboRadioPx;
+  const centrosX = Array.from({ length: cantidad }, (_, i) => primerCentroX + i * (tuboRadioPx * 2 + sepEntrePx));
 
   return (
     <svg viewBox={`0 0 ${svgW} ${svgH}`} className={className}>
       {/* Nivel de piso existente */}
       <line x1={zanjaX0 - 20} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 20} y2={zanjaTopY} stroke="#152644" strokeWidth="1.4" />
-      <polygon points={`${zanjaX0 + anchoPx / 2 - 5},${zanjaTopY - 11} ${zanjaX0 + anchoPx / 2 + 5},${zanjaTopY - 11} ${zanjaX0 + anchoPx / 2},${zanjaTopY - 2}`} fill="#152644" />
-      <text x={zanjaX0 + anchoPx / 2} y={zanjaTopY - 16} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">Nivel de piso existente</text>
+      <polygon points={`${centroZanja - 5},${zanjaTopY - 11} ${centroZanja + 5},${zanjaTopY - 11} ${centroZanja},${zanjaTopY - 2}`} fill="#152644" />
+      <text x={centroZanja} y={zanjaTopY - 16} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">Nivel de piso existente</text>
 
-      {/* Material de excavación compactado (relleno) */}
+      {/* Material de excavación compactado (relleno) — la etiqueta va DENTRO */}
+      {/* de la zanja (no en el margen izquierdo, que ya usan las cotas de   */}
+      {/* cinta-suelo/cinta-tubería y podría chocar con ella).               */}
       <rect x={zanjaX0} y={zanjaTopY} width={anchoPx} height={zanjaBotY - zanjaTopY} fill="#F2E8D5" stroke="#152644" strokeWidth="1.3" />
       {Array.from({ length: 26 }).map((_, i) => (
         <circle key={i} cx={zanjaX0 + 8 + (i * 37) % (anchoPx - 12)} cy={zanjaTopY + 8 + Math.floor(i / 4) * 14} r="1" fill="#B8A67D" opacity="0.7" />
       ))}
-      <text x={zanjaX0 - 8} y={zanjaTopY + 14} textAnchor="end" fontSize="7.5" fill="#152644">Material de la</text>
-      <text x={zanjaX0 - 8} y={zanjaTopY + 23} textAnchor="end" fontSize="7.5" fill="#152644">excavación</text>
-      <text x={zanjaX0 - 8} y={zanjaTopY + 32} textAnchor="end" fontSize="7.5" fill="#152644">compactado</text>
+      <text x={zanjaX0 + 6} y={zanjaTopY + 12} textAnchor="start" fontSize="7" fill="#152644">Material de la</text>
+      <text x={zanjaX0 + 6} y={zanjaTopY + 20} textAnchor="start" fontSize="7" fill="#152644">excavación</text>
+      <text x={zanjaX0 + 6} y={zanjaTopY + 28} textAnchor="start" fontSize="7" fill="#152644">compactado</text>
 
-      {/* Cinta de señalización */}
-      {tipoDef.colorCinta && (
-        <>
-          <line x1={zanjaX0 + 6} y1={zanjaTopY + cintaOffsetPx} x2={zanjaX0 + anchoPx - 6} y2={zanjaTopY + cintaOffsetPx} stroke={tipoDef.colorCinta} strokeWidth="3" />
-          <text x={zanjaX0 - 8} y={zanjaTopY + cintaOffsetPx + 3} textAnchor="end" fontSize="7.5" fill="#152644">Cinta de</text>
-          <text x={zanjaX0 - 8} y={zanjaTopY + cintaOffsetPx + 12} textAnchor="end" fontSize="7.5" fill="#152644">señalización</text>
-        </>
-      )}
+      {/* Cinta de señalización — TODOS los tipos, incluido SPT */}
+      <line x1={zanjaX0 + 6} y1={zanjaTopY + cintaYPx} x2={zanjaX0 + anchoPx - 6} y2={zanjaTopY + cintaYPx} stroke="#DC2626" strokeWidth="3" />
+      <text x={zanjaX0 - 8} y={zanjaTopY + cintaYPx + 3} textAnchor="end" fontSize="7.5" fill="#152644">Cinta de</text>
+      <text x={zanjaX0 - 8} y={zanjaTopY + cintaYPx + 12} textAnchor="end" fontSize="7.5" fill="#152644">señalización</text>
 
       {/* Arenilla (encima y debajo de la tubería) */}
       {tipoDef.tieneTuberia && (
-        <rect x={zanjaX0} y={tuboY - arenillaPx} width={anchoPx} height={arenillaPx * 2 + tuboRadioPx * 2} fill="#EFE3C8" stroke="#152644" strokeWidth="1" strokeDasharray="3 2" />
+        <rect x={zanjaX0 + sepLateralPx - 4} y={tuboY - arenillaPx} width={anchoPx - 2 * sepLateralPx + 8} height={arenillaPx * 2 + tuboRadioPx * 2} fill="#EFE3C8" stroke="#152644" strokeWidth="1" strokeDasharray="3 2" />
       )}
       {tipoDef.tieneTuberia && (
         <text x={zanjaX0 - 8} y={tuboY - arenillaPx + 4} textAnchor="end" fontSize="7.5" fill="#152644">Arenilla</text>
       )}
 
-      {/* Tubería (círculo) o cable (línea gruesa), a la profundidad digitada */}
+      {/* Tubería(s) (círculos) o cable (línea/punto fino), a la profundidad digitada */}
       {tipoDef.tieneTuberia ? (
         <>
-          <circle cx={zanjaX0 + anchoPx / 2} cy={tuboY + tuboRadioPx} r={tuboRadioPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.3" />
-          <text x={zanjaX0 - 8} y={tuboY + tuboRadioPx + 4} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#152644">{tipoDef.label.split(' ')[0]}</text>
+          {centrosX.map((cx, i) => (
+            <circle key={i} cx={cx} cy={tuboY + tuboRadioPx} r={tuboRadioPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.3" />
+          ))}
+          <text x={zanjaX0 - 8} y={tuboY + tuboRadioPx + 4} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#152644">{tipoDef.label}</text>
+        </>
+      ) : tipoDef.esCableFino ? (
+        <>
+          <circle cx={centroZanja} cy={tuboY} r="2.2" fill="#059669" stroke="#152644" strokeWidth="0.8" />
+          <text x={zanjaX0 - 8} y={tuboY + 4} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#152644">{tipoDef.label}</text>
         </>
       ) : (
         <>
-          <line x1={zanjaX0 + 10} y1={tuboY} x2={zanjaX0 + anchoPx - 10} y2={tuboY} stroke="#059669" strokeWidth="3" strokeLinecap="round" />
-          <text x={zanjaX0 - 8} y={tuboY + 4} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#152644">{tipoDef.label.split(' ')[0]}</text>
+          <line x1={zanjaX0 + sepLateralPx} y1={tuboY} x2={zanjaX0 + anchoPx - sepLateralPx} y2={tuboY} stroke="#059669" strokeWidth="3" strokeLinecap="round" />
+          <text x={zanjaX0 - 8} y={tuboY + 4} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#152644">{tipoDef.label}</text>
         </>
       )}
 
-      {/* Cota de profundidad total (a la derecha) */}
+      {/* Cotas apiladas a la izquierda: cinta-suelo y cinta-tubería */}
+      <g stroke="#3C64AA" strokeWidth="1">
+        <line x1={zanjaX0 - 34} y1={zanjaTopY} x2={zanjaX0 - 34} y2={zanjaTopY + cintaYPx} />
+        <line x1={zanjaX0 - 38} y1={zanjaTopY} x2={zanjaX0 - 30} y2={zanjaTopY} />
+        <line x1={zanjaX0 - 38} y1={zanjaTopY + cintaYPx} x2={zanjaX0 - 30} y2={zanjaTopY + cintaYPx} />
+      </g>
+      <text x={zanjaX0 - 44} y={zanjaTopY + cintaYPx / 2} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${zanjaX0 - 44}, ${zanjaTopY + cintaYPx / 2})`}>
+        {cintaDesdeSuperficieM.toFixed(2)} m
+      </text>
+      <g stroke="#3C64AA" strokeWidth="1">
+        <line x1={zanjaX0 - 34} y1={zanjaTopY + cintaYPx} x2={zanjaX0 - 34} y2={tuboY} />
+        <line x1={zanjaX0 - 38} y1={tuboY} x2={zanjaX0 - 30} y2={tuboY} />
+      </g>
+      <text x={zanjaX0 - 44} y={zanjaTopY + cintaYPx + (tuboY - zanjaTopY - cintaYPx) / 2} textAnchor="middle" fontSize="7.5" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${zanjaX0 - 44}, ${zanjaTopY + cintaYPx + (tuboY - zanjaTopY - cintaYPx) / 2})`}>
+        {(profundidad - cintaDesdeSuperficieM).toFixed(2)} m
+      </text>
+
+      {/* Cota de profundidad total (a la derecha, la más externa) */}
       <g stroke="#152644" strokeWidth="1">
         <line x1={zanjaX0 + anchoPx + 16} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 16} y2={tuboY} />
         <line x1={zanjaX0 + anchoPx + 12} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 20} y2={zanjaTopY} />
@@ -7743,14 +7838,50 @@ function CanalizacionPreview({ tipoId, datos, className = 'w-full h-auto' }) {
         {profundidad.toFixed(2)} m
       </text>
 
-      {/* Cota de ancho de zanja (abajo) */}
+      {/* Cotas de segmentos abajo: separación lateral / diámetro / separación entre tuberías... */}
+      {tipoDef.tieneTuberia && (() => {
+        const segY = zanjaBotY + 12;
+        const marcas = [zanjaX0, zanjaX0 + sepLateralPx];
+        let cursor = zanjaX0 + sepLateralPx;
+        for (let i = 0; i < cantidad; i++) {
+          cursor += tuboRadioPx * 2;
+          marcas.push(cursor);
+          if (i < cantidad - 1) {
+            cursor += sepEntrePx;
+            marcas.push(cursor);
+          }
+        }
+        marcas.push(zanjaX0 + anchoPx);
+        const etiquetas = [sepLateralM, ...Array.from({ length: cantidad }, () => diametroM).flatMap((diam, i) => (i < cantidad - 1 ? [diam, sepEntreM] : [diam])), sepLateralM];
+        return (
+          <>
+            {marcas.slice(0, -1).map((x0, i) => {
+              const x1 = marcas[i + 1];
+              return (
+                <g key={i}>
+                  <g stroke="#152644" strokeWidth="0.8">
+                    <line x1={x0} y1={segY} x2={x1} y2={segY} />
+                    <line x1={x0} y1={segY - 4} x2={x0} y2={segY + 4} />
+                    <line x1={x1} y1={segY - 4} x2={x1} y2={segY + 4} />
+                  </g>
+                  <text x={(x0 + x1) / 2} y={segY - 6} textAnchor="middle" fontSize="6.3" fill="#152644">
+                    {(etiquetas[i] || 0).toFixed(2)}
+                  </text>
+                </g>
+              );
+            })}
+          </>
+        );
+      })()}
+
+      {/* Cota de ancho de zanja total (la más abajo) */}
       <g stroke="#152644" strokeWidth="1">
-        <line x1={zanjaX0} y1={zanjaBotY + 14} x2={zanjaX0 + anchoPx} y2={zanjaBotY + 14} />
-        <line x1={zanjaX0} y1={zanjaBotY + 10} x2={zanjaX0} y2={zanjaBotY + 18} />
-        <line x1={zanjaX0 + anchoPx} y1={zanjaBotY + 10} x2={zanjaX0 + anchoPx} y2={zanjaBotY + 18} />
+        <line x1={zanjaX0} y1={zanjaBotY + 32} x2={zanjaX0 + anchoPx} y2={zanjaBotY + 32} />
+        <line x1={zanjaX0} y1={zanjaBotY + 28} x2={zanjaX0} y2={zanjaBotY + 36} />
+        <line x1={zanjaX0 + anchoPx} y1={zanjaBotY + 28} x2={zanjaX0 + anchoPx} y2={zanjaBotY + 36} />
       </g>
-      <text x={zanjaX0 + anchoPx / 2} y={zanjaBotY + 26} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">
-        {anchoZanja.toFixed(2)} m
+      <text x={centroZanja} y={zanjaBotY + 46} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">
+        {anchoZanjaM.toFixed(2)} m
       </text>
     </svg>
   );
@@ -7761,14 +7892,31 @@ function CanalizacionPreview({ tipoId, datos, className = 'w-full h-auto' }) {
 function resumenCanalizacion(tipoId, d) {
   const tipoDef = CANALIZACION_TIPOS.find((t) => t.id === tipoId) || CANALIZACION_TIPOS[0];
   const lineas = [];
-  if (d.diametro) lineas.push(`${tipoDef.tieneTuberia ? 'Diámetro' : 'Calibre'}: ${d.diametro}`);
+  if (tipoDef.tieneTuberia && d.diametro) {
+    const cantidad = Math.max(1, parseInt(d.cantidad_tuberias, 10) || 1);
+    lineas.push(`Tubería: ${d.diametro} × ${cantidad}`);
+  }
+  if (tipoDef.esCableFino && d.calibre_cable) lineas.push(`Calibre: ${d.calibre_cable}`);
   lineas.push(`Profundidad: ${d.profundidad || tipoDef.profundidadNorma} m`);
-  lineas.push(`Ancho de zanja: ${d.ancho_zanja || '—'} m`);
-  if (tipoDef.colorCinta && d.distancia_cinta) lineas.push(`Distancia a la cinta: ${d.distancia_cinta} m`);
+  lineas.push(`Ancho de zanja: ${calcAnchoZanjaCanalizacion(tipoDef, d).toFixed(2)} m`);
+  lineas.push(`Cinta a: ${calcCintaDesdeSuperficie(tipoDef, d).toFixed(2)} m del piso`);
   return lineas;
 }
 
-function CanalizacionForm({ tipoDef, plantilla, onCancel, onSave }) {
+function DiametroPicker({ value, diametros, onChange, onAddNew }) {
+  return (
+    <AddableSelect
+      value={value}
+      opciones={diametros || []}
+      onChange={onChange}
+      onAddNew={onAddNew}
+      placeholderNuevo='Ej. 3/4", 1 1/4", 2"...'
+      etiquetaAgregar="+ Agregar nuevo diámetro…"
+    />
+  );
+}
+
+function CanalizacionForm({ tipoDef, plantilla, onCancel, onSave, diametrosTuberia, onAddDiametro }) {
   const [nombre, setNombre] = useState(plantilla?.nombre || '');
   const [esPrincipal, setEsPrincipal] = useState(plantilla?.es_principal || false);
   const [datos, setDatos] = useState(() => ({ ...emptyDatosCanalizacion(tipoDef), ...(plantilla?.datos || {}) }));
@@ -7782,6 +7930,8 @@ function CanalizacionForm({ tipoDef, plantilla, onCancel, onSave }) {
     onSave(nombre.trim(), datos, esPrincipal);
   }
   const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+  const cantidad = Math.max(1, parseInt(datos.cantidad_tuberias, 10) || 1);
+  const anchoCalculado = calcAnchoZanjaCanalizacion(tipoDef, datos);
 
   return (
     <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
@@ -7798,28 +7948,39 @@ function CanalizacionForm({ tipoDef, plantilla, onCancel, onSave }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <div>
           <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre de la plantilla</label>
-          <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={`${tipoDef.label} Tipo 1`} className={cellInput} required />
+          <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={`${tipoDef.label} 2" × 1 tubería`} className={cellInput} required />
         </div>
-        <div>
-          <label className="block text-xs text-navy-500 mb-1">{tipoDef.tieneTuberia ? 'Diámetro de tubería' : 'Calibre'}</label>
-          <input value={datos.diametro} onChange={(e) => set('diametro', e.target.value)} placeholder={tipoDef.diametroPlaceholder} className={cellInput} />
-        </div>
+
+        {tipoDef.tieneTuberia && (
+          <>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Diámetro de tubería</label>
+              <DiametroPicker value={datos.diametro} diametros={diametrosTuberia} onChange={(v) => set('diametro', v)} onAddNew={onAddDiametro} />
+            </div>
+            <div>
+              <label className="block text-xs text-navy-500 mb-1">Cantidad de tuberías en esta zanja</label>
+              <input type="number" min="1" value={datos.cantidad_tuberias} onChange={(e) => set('cantidad_tuberias', e.target.value)} className={cellInput} />
+            </div>
+          </>
+        )}
+        {tipoDef.esCableFino && (
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Calibre del cable</label>
+            <input value={datos.calibre_cable} onChange={(e) => set('calibre_cable', e.target.value)} placeholder='ej. 8.25 mm' className={cellInput} />
+          </div>
+        )}
         <div>
           <label className="block text-xs text-navy-500 mb-1">Profundidad (m)</label>
           <input value={datos.profundidad} onChange={(e) => set('profundidad', e.target.value)} className={cellInput} />
           <p className="text-[11px] text-navy-400 mt-0.5">Sugerida por la norma: {tipoDef.profundidadNorma} m (editable).</p>
         </div>
         <div>
-          <label className="block text-xs text-navy-500 mb-1">Ancho de zanja (m)</label>
-          <input value={datos.ancho_zanja} onChange={(e) => set('ancho_zanja', e.target.value)} className={cellInput} />
+          <label className="block text-xs text-navy-500 mb-1">Distancia de la cinta a la tubería/cable (m)</label>
+          <input value={datos.distancia_cinta} onChange={(e) => set('distancia_cinta', e.target.value)} className={cellInput} />
+          <p className="text-[11px] text-navy-400 mt-0.5">
+            Sugerida: {tipoDef.distanciaCintaNorma} m. Nunca queda a menos de 0.20 m del piso — si tocara quedar más arriba, se respeta ese mínimo.
+          </p>
         </div>
-        {tipoDef.colorCinta && (
-          <div>
-            <label className="block text-xs text-navy-500 mb-1">Distancia de la cinta al ducto (m)</label>
-            <input value={datos.distancia_cinta} onChange={(e) => set('distancia_cinta', e.target.value)} className={cellInput} />
-            <p className="text-[11px] text-navy-400 mt-0.5">Sugerida: {tipoDef.distanciaCintaNorma} m (mín. 0.20 m del piso).</p>
-          </div>
-        )}
         {tipoDef.tieneTuberia && (
           <div>
             <label className="block text-xs text-navy-500 mb-1">Espesor de arenilla (m)</label>
@@ -7831,6 +7992,19 @@ function CanalizacionForm({ tipoDef, plantilla, onCancel, onSave }) {
           <label className="block text-xs text-navy-500 mb-1">Separación lateral zanja–tubería (m)</label>
           <input value={datos.separacion_lateral} onChange={(e) => set('separacion_lateral', e.target.value)} className={cellInput} />
           <p className="text-[11px] text-navy-400 mt-0.5">A lado y lado, borde externo (norma: 0.15 m).</p>
+        </div>
+        {tipoDef.tieneTuberia && cantidad > 1 && (
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Separación entre tuberías (m)</label>
+            <input value={datos.separacion_entre_tuberias} onChange={(e) => set('separacion_entre_tuberias', e.target.value)} className={cellInput} />
+            <p className="text-[11px] text-navy-400 mt-0.5">Mínimo entre caras externas: 0.10 m.</p>
+          </div>
+        )}
+        <div className="sm:col-span-2 bg-navy-50 rounded-lg px-3 py-2">
+          <p className="text-xs text-navy-500">
+            Ancho de zanja (calculado): <span className="font-mono font-semibold text-navy-800">{anchoCalculado.toFixed(2)} m</span>
+          </p>
+          <p className="text-[11px] text-navy-400 mt-0.5">= (separación lateral × 2) + espacio de la(s) tubería(s)/cable. Ya no se digita, se calcula solo.</p>
         </div>
         <div className="sm:col-span-2">
           <label className="block text-xs text-navy-500 mb-1">Notas</label>
@@ -7858,7 +8032,8 @@ function CanalizacionForm({ tipoDef, plantilla, onCancel, onSave }) {
   );
 }
 
-function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrincipal }) {
+function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrincipal, diametrosTuberia, onAddDiametro }) {
+
   const [tipoActivo, setTipoActivo] = useState(CANALIZACION_TIPOS[0].id);
   const [creando, setCreando] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
@@ -7920,6 +8095,8 @@ function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrinci
             else onAdd(tipoActivo, nombre, datos, esPrincipal);
             cerrarFormulario();
           }}
+          diametrosTuberia={diametrosTuberia}
+          onAddDiametro={onAddDiametro}
         />
       )}
 
@@ -12557,6 +12734,7 @@ export default function App() {
   const [plantillasCimentacion, setPlantillasCimentacion] = useState([]);
   const [plantillasEquipos, setPlantillasEquipos] = useState([]);
   const [plantillasCanalizaciones, setPlantillasCanalizaciones] = useState([]);
+  const [diametrosTuberia, setDiametrosTuberia] = useState([]);
   const [mallas, setMallas] = useState([]);
   const [parametrosIngenieria, setParametrosIngenieria] = useState({ recubrimiento: RECUBRIMIENTO_CIMENTACION, barras: BARRA_ACERO, traslapos: TRASLAPO_TABLE });
   const [dataLoaded, setDataLoaded] = useState(false);
@@ -12747,6 +12925,17 @@ export default function App() {
 
     const { data: canalizacionRows } = await supabase.from('canalizacion_plantillas').select('*').order('created_at', { ascending: true });
     setPlantillasCanalizaciones((canalizacionRows || []).map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {}, es_principal: r.es_principal || false })));
+
+    const { data: diametroRows } = await supabase.from('diametros_tuberia').select('*').order('created_at', { ascending: true });
+    if (!diametroRows || diametroRows.length === 0) {
+      const semillaDiametros = ['3/4"', '1"', '1 1/4"', '2"', '4"', '6"'];
+      await supabase.from('diametros_tuberia').insert(semillaDiametros.map((nombre) => ({ nombre }))).then(({ error }) => {
+        if (error) console.error('Error creando diámetros semilla:', error);
+      });
+      setDiametrosTuberia(semillaDiametros);
+    } else {
+      setDiametrosTuberia(diametroRows.map((r) => r.nombre));
+    }
 
     const { data: mallaRows } = await supabase.from('mallas').select('*').order('created_at', { ascending: true });
     if (!mallaRows || mallaRows.length === 0) {
@@ -13064,6 +13253,14 @@ export default function App() {
   /* "es_principal": al crear/marcar una plantilla como principal, primero    */
   /* desmarca cualquier otra del MISMO tipo (nunca puede haber 2 principales  */
   /* a la vez para un mismo tipo de canalización).                           */
+  function handleAddDiametro(nombre) {
+    const limpio = nombre.trim();
+    if (!limpio) return;
+    setDiametrosTuberia((prev) => (prev.includes(limpio) ? prev : [...prev, limpio]));
+    supabase.from('diametros_tuberia').upsert({ nombre: limpio }).then(({ error }) => {
+      if (error) console.error('Error creando diámetro de tubería:', error);
+    });
+  }
   function handleAddPlantillaCanalizacion(tipo, nombre, datos, esPrincipal) {
     const nueva = { id: makeId('canal'), tipo, nombre, datos, es_principal: !!esPrincipal };
     setPlantillasCanalizaciones((prev) => {
@@ -13372,6 +13569,8 @@ export default function App() {
             onUpdate={handleUpdatePlantillaCanalizacion}
             onDelete={handleDeletePlantillaCanalizacion}
             onSetPrincipal={handleSetPrincipalCanalizacion}
+            diametrosTuberia={diametrosTuberia}
+            onAddDiametro={handleAddDiametro}
           />
         )}
         {view === 'equipo' && (

@@ -21,8 +21,10 @@ create table if not exists inversionistas (
 );
 
 alter table inversionistas enable row level security;
+drop policy if exists "Lectura de inversionistas" on inversionistas;
 create policy "Lectura de inversionistas" on inversionistas
   for select using (auth.role() = 'authenticated');
+drop policy if exists "Crear inversionistas" on inversionistas;
 create policy "Crear inversionistas" on inversionistas
   for insert with check (auth.role() = 'authenticated');
 

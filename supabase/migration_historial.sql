@@ -20,8 +20,10 @@ create table if not exists activity_log (
 
 alter table activity_log enable row level security;
 
+drop policy if exists "Lectura de historial" on activity_log;
 create policy "Lectura de historial" on activity_log
   for select using (auth.role() = 'authenticated');
+drop policy if exists "Crear registros de historial" on activity_log;
 create policy "Crear registros de historial" on activity_log
   for insert with check (auth.role() = 'authenticated');
 -- A propósito no hay políticas de update/delete: el historial es inmutable,

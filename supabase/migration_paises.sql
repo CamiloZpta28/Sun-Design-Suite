@@ -14,8 +14,10 @@ create table if not exists paises (
 );
 
 alter table paises enable row level security;
+drop policy if exists "Lectura de paises" on paises;
 create policy "Lectura de paises" on paises
   for select using (auth.role() = 'authenticated');
+drop policy if exists "Crear paises" on paises;
 create policy "Crear paises" on paises
   for insert with check (auth.role() = 'authenticated');
 

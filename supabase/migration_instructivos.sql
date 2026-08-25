@@ -25,21 +25,29 @@ create table if not exists instructivo_videos (
 );
 
 alter table instructivo_carpetas enable row level security;
+drop policy if exists "Lectura de carpetas de instructivos" on instructivo_carpetas;
 create policy "Lectura de carpetas de instructivos" on instructivo_carpetas
   for select using (auth.role() = 'authenticated');
+drop policy if exists "Crear carpetas de instructivos" on instructivo_carpetas;
 create policy "Crear carpetas de instructivos" on instructivo_carpetas
   for insert with check (auth.role() = 'authenticated');
+drop policy if exists "Editar carpetas de instructivos" on instructivo_carpetas;
 create policy "Editar carpetas de instructivos" on instructivo_carpetas
   for update using (auth.role() = 'authenticated');
+drop policy if exists "Eliminar carpetas de instructivos" on instructivo_carpetas;
 create policy "Eliminar carpetas de instructivos" on instructivo_carpetas
   for delete using (auth.role() = 'authenticated');
 
 alter table instructivo_videos enable row level security;
+drop policy if exists "Lectura de videos de instructivos" on instructivo_videos;
 create policy "Lectura de videos de instructivos" on instructivo_videos
   for select using (auth.role() = 'authenticated');
+drop policy if exists "Crear videos de instructivos" on instructivo_videos;
 create policy "Crear videos de instructivos" on instructivo_videos
   for insert with check (auth.role() = 'authenticated');
+drop policy if exists "Editar videos de instructivos" on instructivo_videos;
 create policy "Editar videos de instructivos" on instructivo_videos
   for update using (auth.role() = 'authenticated');
+drop policy if exists "Eliminar videos de instructivos" on instructivo_videos;
 create policy "Eliminar videos de instructivos" on instructivo_videos
   for delete using (auth.role() = 'authenticated');

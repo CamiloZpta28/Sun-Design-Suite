@@ -14,8 +14,10 @@ create table if not exists proveedores (
 );
 
 alter table proveedores enable row level security;
+drop policy if exists "Lectura de proveedores" on proveedores;
 create policy "Lectura de proveedores" on proveedores
   for select using (auth.role() = 'authenticated');
+drop policy if exists "Crear proveedores" on proveedores;
 create policy "Crear proveedores" on proveedores
   for insert with check (auth.role() = 'authenticated');
 

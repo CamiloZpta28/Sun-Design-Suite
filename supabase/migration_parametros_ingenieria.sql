@@ -12,12 +12,15 @@ create table if not exists parametros_ingenieria (
 );
 
 alter table parametros_ingenieria enable row level security;
+drop policy if exists "Lectura de parametros de ingenieria" on parametros_ingenieria;
 create policy "Lectura de parametros de ingenieria" on parametros_ingenieria
   for select using (auth.role() = 'authenticated');
+drop policy if exists "Solo desarrollador edita parametros de ingenieria (insert)" on parametros_ingenieria;
 create policy "Solo desarrollador edita parametros de ingenieria (insert)" on parametros_ingenieria
   for insert with check (
     exists (select 1 from user_roles ur where ur.user_id = auth.uid() and ur.role_key = 'desarrollador')
   );
+drop policy if exists "Solo desarrollador edita parametros de ingenieria (update)" on parametros_ingenieria;
 create policy "Solo desarrollador edita parametros de ingenieria (update)" on parametros_ingenieria
   for update using (
     exists (select 1 from user_roles ur where ur.user_id = auth.uid() and ur.role_key = 'desarrollador')

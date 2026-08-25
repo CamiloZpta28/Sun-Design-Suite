@@ -8,6 +8,7 @@
 -- corre primero supabase/migration_roles_notas_documentos.sql).
 -- =============================================================
 
+drop policy if exists "Solo lider de diseno elimina perfiles" on profiles;
 create policy "Solo lider de diseno elimina perfiles" on profiles
   for delete using (
     exists (

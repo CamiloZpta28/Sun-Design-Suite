@@ -11,8 +11,10 @@ create table if not exists mallas (
 );
 
 alter table mallas enable row level security;
+drop policy if exists "Lectura de mallas" on mallas;
 create policy "Lectura de mallas" on mallas
   for select using (auth.role() = 'authenticated');
+drop policy if exists "Crear mallas" on mallas;
 create policy "Crear mallas" on mallas
   for insert with check (auth.role() = 'authenticated');
 

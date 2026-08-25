@@ -35,12 +35,14 @@ create table if not exists user_roles (
 
 alter table user_roles enable row level security;
 
+drop policy if exists "Lectura de roles" on user_roles;
 create policy "Lectura de roles" on user_roles
   for select using (auth.role() = 'authenticated');
 
 -- Solo alguien que YA tiene un rol de líder puede otorgar o quitar
 -- roles (a sí mismo o a otra persona). Nadie puede autoasignarse un
 -- rol de liderazgo desde la aplicación.
+drop policy if exists "Lideres asignan roles" on user_roles;
 create policy "Lideres asignan roles" on user_roles
   for insert with check (
     exists (
@@ -49,6 +51,7 @@ create policy "Lideres asignan roles" on user_roles
       and ur.role_key in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno')
     )
   );
+drop policy if exists "Lideres quitan roles" on user_roles;
 create policy "Lideres quitan roles" on user_roles
   for delete using (
     exists (

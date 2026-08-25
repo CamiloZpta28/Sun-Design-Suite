@@ -1,9 +1,13 @@
 -- =============================================================
--- Sun Design Suite · Migración: Operador de red, Instalador, y
--- atributos de Inversionista (correo/teléfono/NIT/logo).
+-- Sun Design Suite · Migración: Operador de red, Instalador,
+-- atributos de Inversionista (correo/teléfono/NIT/logo), Ingenieros
+-- de proyectos, y seguimiento de última visita por proyecto.
 -- Solo necesitas correr este archivo si YA habías ejecutado
 -- schema.sql antes de esta actualización. Pégalo en el SQL Editor
 -- de Supabase y presiona "Run".
+--
+-- Es seguro correr este archivo más de una vez (usa "if not exists" y
+-- "drop policy if exists" antes de cada política).
 -- =============================================================
 
 -- El operador de red de un proyecto (con su logo) — catálogo compartido,
@@ -36,18 +40,30 @@ alter table inversionistas add column if not exists nit text;
 alter table inversionistas add column if not exists logo text;
 
 alter table operadores_red enable row level security;
+
+drop policy if exists "Lectura de operadores de red" on operadores_red;
 create policy "Lectura de operadores de red" on operadores_red
   for select using (auth.role() = 'authenticated');
+
+drop policy if exists "Crear operadores de red" on operadores_red;
 create policy "Crear operadores de red" on operadores_red
   for insert with check (auth.role() = 'authenticated');
+
+drop policy if exists "Editar operadores de red" on operadores_red;
 create policy "Editar operadores de red" on operadores_red
   for update using (auth.role() = 'authenticated');
 
 alter table instaladores enable row level security;
+
+drop policy if exists "Lectura de instaladores" on instaladores;
 create policy "Lectura de instaladores" on instaladores
   for select using (auth.role() = 'authenticated');
+
+drop policy if exists "Crear instaladores" on instaladores;
 create policy "Crear instaladores" on instaladores
   for insert with check (auth.role() = 'authenticated');
+
+drop policy if exists "Editar instaladores" on instaladores;
 create policy "Editar instaladores" on instaladores
   for update using (auth.role() = 'authenticated');
 
@@ -61,10 +77,16 @@ create table if not exists ingenieros_proyectos (
 );
 
 alter table ingenieros_proyectos enable row level security;
+
+drop policy if exists "Lectura de ingenieros de proyectos" on ingenieros_proyectos;
 create policy "Lectura de ingenieros de proyectos" on ingenieros_proyectos
   for select using (auth.role() = 'authenticated');
+
+drop policy if exists "Crear ingenieros de proyectos" on ingenieros_proyectos;
 create policy "Crear ingenieros de proyectos" on ingenieros_proyectos
   for insert with check (auth.role() = 'authenticated');
+
+drop policy if exists "Editar ingenieros de proyectos" on ingenieros_proyectos;
 create policy "Editar ingenieros de proyectos" on ingenieros_proyectos
   for update using (auth.role() = 'authenticated');
 
@@ -79,10 +101,16 @@ create table if not exists project_last_view (
 );
 
 alter table project_last_view enable row level security;
+
+drop policy if exists "Lectura de mis visitas" on project_last_view;
 create policy "Lectura de mis visitas" on project_last_view
   for select using (auth.role() = 'authenticated');
+
+drop policy if exists "Registrar mi visita" on project_last_view;
 create policy "Registrar mi visita" on project_last_view
   for insert with check (auth.uid() = usuario_id);
+
+drop policy if exists "Actualizar mi visita" on project_last_view;
 create policy "Actualizar mi visita" on project_last_view
   for update using (auth.uid() = usuario_id);
 
