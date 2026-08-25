@@ -7,7 +7,7 @@ import {
   Loader2, RefreshCw, LogOut, ShieldCheck, Lock, History, ClipboardCheck, StickyNote, UserCog,
   Folder, FolderPlus, ChevronDown, ChevronRight, PlayCircle, Video, Code2,
   Bold, Italic, Underline, List, PartyPopper, MessageSquare, PieChart, AlertTriangle, Menu, UserPlus, Boxes,
-  CircleDot, Lightbulb, Home, Wrench, KeyRound, Copy,
+  CircleDot, Lightbulb, Home, Wrench, KeyRound, Copy, Star,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import logoMark from './assets/logo-s-mark.png';
@@ -7616,6 +7616,366 @@ function EquiposElectricosView({ plantillas, onAdd, onUpdate, onDelete }) {
   );
 }
 
+/* ============================================================================
+   5C. CANALIZACIONES — plantillas reutilizables de secciones de zanja para
+   líneas eléctricas/comunicaciones enterradas (basado en el documento de
+   "Criterios de zanjas y canalizaciones": NTC 2050, RETIE, normas de OR).
+   Cada TIPO tiene una profundidad sugerida por la norma (Tabla 3 del
+   documento), editable. Dentro de un mismo tipo puede haber varias
+   plantillas a través del tiempo; solo UNA se marca como "Principal" (la
+   vigente/más actualizada) — la app garantiza que no quede más de una
+   marcada por tipo.
+   Fase 2 (pendiente, turno futuro): pestaña de "Cruces" que combina 2+ de
+   estas plantillas aplicando las reglas de profundidad de la Tabla 4.
+   ============================================================================ */
+
+/* "profundidadNorma"/"distanciaCintaNorma" vienen de la Tabla 3 y de la      */
+/* sección "Cinta de señalización de peligro" del documento de criterios —   */
+/* son SUGERENCIAS iniciales (editables), no valores forzados.               */
+/* "tieneTuberia": false solo para SPT (cable desnudo, sin ducto ni arenilla) */
+/* y AC-BT directamente enterrado (según el documento, sin tubería).         */
+const CANALIZACION_TIPOS = [
+  { id: 'dc', label: 'DC (Paneles → Inversor)', profundidadNorma: 0.45, tieneTuberia: true, colorCinta: '#DC2626', distanciaCintaNorma: 0.25, diametroPlaceholder: 'Flexible — ej. 3/4"' },
+  { id: 'comunicaciones', label: 'Comunicaciones (F.O. / UTP)', profundidadNorma: 0.40, tieneTuberia: true, colorCinta: '#F97316', distanciaCintaNorma: 0.20, diametroPlaceholder: 'ej. 3/4", 1 1/4", 2"' },
+  { id: 'energia_ssaa', label: 'Energía SSAA (220 V)', profundidadNorma: 0.45, tieneTuberia: true, colorCinta: '#DC2626', distanciaCintaNorma: 0.25, diametroPlaceholder: 'ej. 3/4"' },
+  { id: 'acbt_tuberia', label: 'AC-BT con tubería (800 V)', profundidadNorma: 0.45, tieneTuberia: true, colorCinta: '#DC2626', distanciaCintaNorma: 0.25, diametroPlaceholder: 'ej. 4"' },
+  { id: 'acbt_directo', label: 'AC-BT directamente enterrado (800 V, sin tubería)', profundidadNorma: 0.60, tieneTuberia: false, colorCinta: '#DC2626', distanciaCintaNorma: 0.25, diametroPlaceholder: '' },
+  { id: 'mt', label: 'AC-MT (13.8 kV / 34.5 kV)', profundidadNorma: 0.75, tieneTuberia: true, colorCinta: '#DC2626', distanciaCintaNorma: 0.25, diametroPlaceholder: '4" (13.8kV, AFINIA/AIR-E) o 6" (34.5kV, ESSA)' },
+  { id: 'spt', label: 'SPT (puesta a tierra)', profundidadNorma: 0.50, tieneTuberia: false, colorCinta: null, distanciaCintaNorma: null, diametroPlaceholder: 'ej. 1/0 AWG' },
+];
+
+function emptyDatosCanalizacion(tipoDef) {
+  return {
+    diametro: '',
+    profundidad: String(tipoDef.profundidadNorma),
+    ancho_zanja: '0.30',
+    distancia_cinta: tipoDef.distanciaCintaNorma != null ? String(tipoDef.distanciaCintaNorma) : '',
+    espesor_arenilla: tipoDef.tieneTuberia ? '0.05' : '',
+    separacion_lateral: '0.15',
+    notas: '',
+  };
+}
+
+/* Corte transversal simple (no isométrico — así se ven los planos reales de */
+/* referencia): terreno arriba, material de excavación, cinta de            */
+/* señalización, arenilla y la tubería/cable a su profundidad. Reacciona a   */
+/* los valores digitados, igual criterio que las previews de Cimentaciones. */
+function CanalizacionPreview({ tipoId, datos, className = 'w-full h-auto' }) {
+  const tipoDef = CANALIZACION_TIPOS.find((t) => t.id === tipoId) || CANALIZACION_TIPOS[0];
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const scale = 220; // px por metro
+
+  const profundidad = parseFloat(datos?.profundidad) || tipoDef.profundidadNorma;
+  const anchoZanja = parseFloat(datos?.ancho_zanja) || 0.3;
+  const distanciaCinta = datos?.distancia_cinta !== '' && datos?.distancia_cinta != null ? parseFloat(datos.distancia_cinta) : tipoDef.distanciaCintaNorma;
+  const espesorArenilla = parseFloat(datos?.espesor_arenilla) || 0;
+
+  const profPx = clamp(profundidad * scale, 60, 220);
+  const anchoPx = clamp(anchoZanja * scale, 50, 160);
+  const cintaOffsetPx = tipoDef.tieneTuberia || tipoDef.colorCinta
+    ? clamp((distanciaCinta || 0) * scale, 15, profPx - 10)
+    : 0;
+  const arenillaPx = clamp(espesorArenilla * scale, 4, 18);
+
+  const marginTop = 34;
+  const zanjaX0 = 60;
+  const zanjaTopY = marginTop;
+  const zanjaBotY = marginTop + profPx + (tipoDef.tieneTuberia ? arenillaPx + 10 : 10);
+  const tuboY = zanjaTopY + profPx; // profundidad medida a la generatriz superior del ducto/cable
+  const svgW = zanjaX0 + anchoPx + 90;
+  const svgH = zanjaBotY + 30;
+
+  const tuboRadioPx = tipoDef.tieneTuberia ? clamp(anchoPx * 0.16, 7, 16) : 0;
+
+  return (
+    <svg viewBox={`0 0 ${svgW} ${svgH}`} className={className}>
+      {/* Nivel de piso existente */}
+      <line x1={zanjaX0 - 20} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 20} y2={zanjaTopY} stroke="#152644" strokeWidth="1.4" />
+      <polygon points={`${zanjaX0 + anchoPx / 2 - 5},${zanjaTopY - 11} ${zanjaX0 + anchoPx / 2 + 5},${zanjaTopY - 11} ${zanjaX0 + anchoPx / 2},${zanjaTopY - 2}`} fill="#152644" />
+      <text x={zanjaX0 + anchoPx / 2} y={zanjaTopY - 16} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">Nivel de piso existente</text>
+
+      {/* Material de excavación compactado (relleno) */}
+      <rect x={zanjaX0} y={zanjaTopY} width={anchoPx} height={zanjaBotY - zanjaTopY} fill="#F2E8D5" stroke="#152644" strokeWidth="1.3" />
+      {Array.from({ length: 26 }).map((_, i) => (
+        <circle key={i} cx={zanjaX0 + 8 + (i * 37) % (anchoPx - 12)} cy={zanjaTopY + 8 + Math.floor(i / 4) * 14} r="1" fill="#B8A67D" opacity="0.7" />
+      ))}
+      <text x={zanjaX0 - 8} y={zanjaTopY + 14} textAnchor="end" fontSize="7.5" fill="#152644">Material de la</text>
+      <text x={zanjaX0 - 8} y={zanjaTopY + 23} textAnchor="end" fontSize="7.5" fill="#152644">excavación</text>
+      <text x={zanjaX0 - 8} y={zanjaTopY + 32} textAnchor="end" fontSize="7.5" fill="#152644">compactado</text>
+
+      {/* Cinta de señalización */}
+      {tipoDef.colorCinta && (
+        <>
+          <line x1={zanjaX0 + 6} y1={zanjaTopY + cintaOffsetPx} x2={zanjaX0 + anchoPx - 6} y2={zanjaTopY + cintaOffsetPx} stroke={tipoDef.colorCinta} strokeWidth="3" />
+          <text x={zanjaX0 - 8} y={zanjaTopY + cintaOffsetPx + 3} textAnchor="end" fontSize="7.5" fill="#152644">Cinta de</text>
+          <text x={zanjaX0 - 8} y={zanjaTopY + cintaOffsetPx + 12} textAnchor="end" fontSize="7.5" fill="#152644">señalización</text>
+        </>
+      )}
+
+      {/* Arenilla (encima y debajo de la tubería) */}
+      {tipoDef.tieneTuberia && (
+        <rect x={zanjaX0} y={tuboY - arenillaPx} width={anchoPx} height={arenillaPx * 2 + tuboRadioPx * 2} fill="#EFE3C8" stroke="#152644" strokeWidth="1" strokeDasharray="3 2" />
+      )}
+      {tipoDef.tieneTuberia && (
+        <text x={zanjaX0 - 8} y={tuboY - arenillaPx + 4} textAnchor="end" fontSize="7.5" fill="#152644">Arenilla</text>
+      )}
+
+      {/* Tubería (círculo) o cable (línea gruesa), a la profundidad digitada */}
+      {tipoDef.tieneTuberia ? (
+        <>
+          <circle cx={zanjaX0 + anchoPx / 2} cy={tuboY + tuboRadioPx} r={tuboRadioPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.3" />
+          <text x={zanjaX0 - 8} y={tuboY + tuboRadioPx + 4} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#152644">{tipoDef.label.split(' ')[0]}</text>
+        </>
+      ) : (
+        <>
+          <line x1={zanjaX0 + 10} y1={tuboY} x2={zanjaX0 + anchoPx - 10} y2={tuboY} stroke="#059669" strokeWidth="3" strokeLinecap="round" />
+          <text x={zanjaX0 - 8} y={tuboY + 4} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#152644">{tipoDef.label.split(' ')[0]}</text>
+        </>
+      )}
+
+      {/* Cota de profundidad total (a la derecha) */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={zanjaX0 + anchoPx + 16} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 16} y2={tuboY} />
+        <line x1={zanjaX0 + anchoPx + 12} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 20} y2={zanjaTopY} />
+        <line x1={zanjaX0 + anchoPx + 12} y1={tuboY} x2={zanjaX0 + anchoPx + 20} y2={tuboY} />
+      </g>
+      <text x={zanjaX0 + anchoPx + 28} y={(zanjaTopY + tuboY) / 2} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${zanjaX0 + anchoPx + 28}, ${(zanjaTopY + tuboY) / 2})`}>
+        {profundidad.toFixed(2)} m
+      </text>
+
+      {/* Cota de ancho de zanja (abajo) */}
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={zanjaX0} y1={zanjaBotY + 14} x2={zanjaX0 + anchoPx} y2={zanjaBotY + 14} />
+        <line x1={zanjaX0} y1={zanjaBotY + 10} x2={zanjaX0} y2={zanjaBotY + 18} />
+        <line x1={zanjaX0 + anchoPx} y1={zanjaBotY + 10} x2={zanjaX0 + anchoPx} y2={zanjaBotY + 18} />
+      </g>
+      <text x={zanjaX0 + anchoPx / 2} y={zanjaBotY + 26} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">
+        {anchoZanja.toFixed(2)} m
+      </text>
+    </svg>
+  );
+}
+
+/* Resumen en líneas (mismo patrón que ResumenLineas de Cimentaciones) para  */
+/* mostrar esta plantilla en las tarjetas y en los selectores de proyecto.  */
+function resumenCanalizacion(tipoId, d) {
+  const tipoDef = CANALIZACION_TIPOS.find((t) => t.id === tipoId) || CANALIZACION_TIPOS[0];
+  const lineas = [];
+  if (d.diametro) lineas.push(`${tipoDef.tieneTuberia ? 'Diámetro' : 'Calibre'}: ${d.diametro}`);
+  lineas.push(`Profundidad: ${d.profundidad || tipoDef.profundidadNorma} m`);
+  lineas.push(`Ancho de zanja: ${d.ancho_zanja || '—'} m`);
+  if (tipoDef.colorCinta && d.distancia_cinta) lineas.push(`Distancia a la cinta: ${d.distancia_cinta} m`);
+  return lineas;
+}
+
+function CanalizacionForm({ tipoDef, plantilla, onCancel, onSave }) {
+  const [nombre, setNombre] = useState(plantilla?.nombre || '');
+  const [esPrincipal, setEsPrincipal] = useState(plantilla?.es_principal || false);
+  const [datos, setDatos] = useState(() => ({ ...emptyDatosCanalizacion(tipoDef), ...(plantilla?.datos || {}) }));
+
+  function set(key, val) {
+    setDatos((prev) => ({ ...prev, [key]: val }));
+  }
+  function submit(e) {
+    e.preventDefault();
+    if (!nombre.trim()) return;
+    onSave(nombre.trim(), datos, esPrincipal);
+  }
+  const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+
+  return (
+    <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
+      <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
+        {plantilla ? 'Editar plantilla' : 'Nueva plantilla'} · {tipoDef.label}
+      </p>
+
+      <div className="flex justify-center bg-navy-50 rounded-lg p-4 mb-5">
+        <div className="w-full max-w-xl">
+          <CanalizacionPreview tipoId={tipoDef.id} datos={datos} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre de la plantilla</label>
+          <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={`${tipoDef.label} Tipo 1`} className={cellInput} required />
+        </div>
+        <div>
+          <label className="block text-xs text-navy-500 mb-1">{tipoDef.tieneTuberia ? 'Diámetro de tubería' : 'Calibre'}</label>
+          <input value={datos.diametro} onChange={(e) => set('diametro', e.target.value)} placeholder={tipoDef.diametroPlaceholder} className={cellInput} />
+        </div>
+        <div>
+          <label className="block text-xs text-navy-500 mb-1">Profundidad (m)</label>
+          <input value={datos.profundidad} onChange={(e) => set('profundidad', e.target.value)} className={cellInput} />
+          <p className="text-[11px] text-navy-400 mt-0.5">Sugerida por la norma: {tipoDef.profundidadNorma} m (editable).</p>
+        </div>
+        <div>
+          <label className="block text-xs text-navy-500 mb-1">Ancho de zanja (m)</label>
+          <input value={datos.ancho_zanja} onChange={(e) => set('ancho_zanja', e.target.value)} className={cellInput} />
+        </div>
+        {tipoDef.colorCinta && (
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Distancia de la cinta al ducto (m)</label>
+            <input value={datos.distancia_cinta} onChange={(e) => set('distancia_cinta', e.target.value)} className={cellInput} />
+            <p className="text-[11px] text-navy-400 mt-0.5">Sugerida: {tipoDef.distanciaCintaNorma} m (mín. 0.20 m del piso).</p>
+          </div>
+        )}
+        {tipoDef.tieneTuberia && (
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Espesor de arenilla (m)</label>
+            <input value={datos.espesor_arenilla} onChange={(e) => set('espesor_arenilla', e.target.value)} className={cellInput} />
+            <p className="text-[11px] text-navy-400 mt-0.5">Por encima y por debajo del tubo (norma: 0.05 m).</p>
+          </div>
+        )}
+        <div>
+          <label className="block text-xs text-navy-500 mb-1">Separación lateral zanja–tubería (m)</label>
+          <input value={datos.separacion_lateral} onChange={(e) => set('separacion_lateral', e.target.value)} className={cellInput} />
+          <p className="text-[11px] text-navy-400 mt-0.5">A lado y lado, borde externo (norma: 0.15 m).</p>
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block text-xs text-navy-500 mb-1">Notas</label>
+          <input value={datos.notas} onChange={(e) => set('notas', e.target.value)} className={cellInput} />
+        </div>
+      </div>
+
+      <label className="flex items-center gap-2 mb-5 cursor-pointer">
+        <input type="checkbox" checked={esPrincipal} onChange={(e) => setEsPrincipal(e.target.checked)} className="w-4 h-4 accent-lime-500" />
+        <span className="text-sm text-navy-700">Marcar como <strong>Principal</strong> de "{tipoDef.label}" (la vigente/más actualizada)</span>
+      </label>
+      {esPrincipal && (
+        <p className="text-xs text-navy-400 -mt-4 mb-5 italic">Al guardar, cualquier otra plantilla de este mismo tipo dejará de ser Principal.</p>
+      )}
+
+      <div className="flex items-center gap-3">
+        <button type="submit" className="bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
+          {plantilla ? 'Guardar cambios' : 'Crear plantilla'}
+        </button>
+        <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrincipal }) {
+  const [tipoActivo, setTipoActivo] = useState(CANALIZACION_TIPOS[0].id);
+  const [creando, setCreando] = useState(false);
+  const [editandoId, setEditandoId] = useState(null);
+  const [confirmandoId, setConfirmandoId] = useState(null);
+
+  const tipoDef = CANALIZACION_TIPOS.find((t) => t.id === tipoActivo);
+  const plantillasDelTipo = plantillas.filter((p) => p.tipo === tipoActivo);
+
+  function cerrarFormulario() {
+    setCreando(false);
+    setEditandoId(null);
+  }
+
+  return (
+    <div className="p-4 md:p-8 max-w-5xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-navy-800">Canalizaciones</h1>
+        <p className="text-navy-500 text-sm mt-1">
+          Secciones de zanja para líneas eléctricas y de comunicaciones enterradas — basadas en NTC 2050, RETIE y normas de los OR.
+          La plantilla marcada como <strong>Principal</strong> es la vigente/más actualizada de cada tipo.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        {CANALIZACION_TIPOS.map((t) => {
+          const activo = tipoActivo === t.id;
+          const cantidad = plantillas.filter((p) => p.tipo === t.id).length;
+          return (
+            <button
+              key={t.id}
+              onClick={() => { setTipoActivo(t.id); cerrarFormulario(); }}
+              className={`flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-lg border transition-colors ${
+                activo ? 'bg-navy-800 text-white border-navy-800' : 'bg-white text-navy-600 border-navy-200 hover:border-navy-400'
+              }`}
+            >
+              {t.label}
+              <span className={activo ? 'text-navy-300' : 'text-navy-400'}>({cantidad})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {!creando && !editandoId && (
+        <button
+          onClick={() => setCreando(true)}
+          className="flex items-center gap-1.5 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg mb-5 transition-colors"
+        >
+          <Plus className="w-4 h-4" /> Nueva plantilla de {tipoDef.label}
+        </button>
+      )}
+
+      {(creando || editandoId) && (
+        <CanalizacionForm
+          tipoDef={tipoDef}
+          plantilla={editandoId ? plantillasDelTipo.find((p) => p.id === editandoId) : null}
+          onCancel={cerrarFormulario}
+          onSave={(nombre, datos, esPrincipal) => {
+            if (editandoId) onUpdate(editandoId, { nombre, datos }, esPrincipal, tipoActivo);
+            else onAdd(tipoActivo, nombre, datos, esPrincipal);
+            cerrarFormulario();
+          }}
+        />
+      )}
+
+      {!creando && !editandoId && (
+        plantillasDelTipo.length === 0 ? (
+          <p className="text-sm text-navy-400 italic text-center py-10">Aún no hay plantillas de {tipoDef.label}.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {plantillasDelTipo.map((p) => (
+              <div key={p.id} className={`bg-white border rounded-xl p-4 relative ${p.es_principal ? 'border-lime-400 ring-1 ring-lime-300' : 'border-navy-200'}`}>
+                {p.es_principal && (
+                  <span className="absolute top-3 right-3 flex items-center gap-1 text-[11px] font-bold uppercase text-lime-700 bg-lime-100 px-2 py-0.5 rounded-full">
+                    <Star className="w-3 h-3 fill-lime-600 text-lime-600" /> Principal
+                  </span>
+                )}
+                <div className="flex items-center justify-center mb-2">
+                  <CanalizacionPreview tipoId={p.tipo} datos={p.datos} className="w-full h-auto" />
+                </div>
+                <p className="font-semibold text-navy-800 text-sm text-center mb-1">{p.nombre}</p>
+                <div className="mb-3">
+                  <ResumenLineas lineas={resumenCanalizacion(p.tipo, p.datos)} size="text-xs" align="center" />
+                </div>
+                <div className="flex items-center justify-center gap-4 flex-wrap">
+                  <button onClick={() => setEditandoId(p.id)} className="text-xs font-semibold text-lime-600 hover:text-lime-700 flex items-center gap-1">
+                    <Pencil className="w-3.5 h-3.5" /> Editar
+                  </button>
+                  {!p.es_principal && (
+                    <button onClick={() => onSetPrincipal(p.id, tipoActivo)} className="text-xs font-semibold text-navy-500 hover:text-navy-700 flex items-center gap-1">
+                      <Star className="w-3.5 h-3.5" /> Marcar Principal
+                    </button>
+                  )}
+                  {confirmandoId === p.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-navy-500">¿Eliminar?</span>
+                      <button onClick={() => { onDelete(p.id); setConfirmandoId(null); }} className="text-xs font-bold text-red-600 hover:text-red-700">
+                        Sí
+                      </button>
+                      <button onClick={() => setConfirmandoId(null)} className="text-xs text-navy-400 hover:text-navy-600">
+                        No
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmandoId(p.id)} className="text-xs font-semibold text-navy-400 hover:text-red-500 flex items-center gap-1">
+                      <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
 /* --- Proyección isométrica simple, para que el ancho/profundo/alto se      */
 /* distingan claramente en la previsualización. x = ancho, y = profundo,    */
 /* z = altura (hacia arriba). Devuelve coordenadas de pantalla [sx, sy].     */
@@ -9773,6 +10133,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile,
     { key: 'resumen_inversionistas', label: 'Resumen por Inversionista', icon: PieChart },
     { key: 'cimentaciones', label: 'Cimentaciones', icon: Boxes },
     { key: 'equipos_electricos', label: 'Equipos eléctricos', icon: Zap },
+    { key: 'canalizaciones', label: 'Canalizaciones', icon: Cog },
     { key: 'equipo', label: 'Equipo', icon: UserCog },
     { key: 'instructivos', label: 'Instructivos', icon: Video },
     { key: 'enlaces', label: 'Enlaces de Interés', icon: Link2 },
@@ -12195,6 +12556,7 @@ export default function App() {
   const [proveedores, setProveedores] = useState([]);
   const [plantillasCimentacion, setPlantillasCimentacion] = useState([]);
   const [plantillasEquipos, setPlantillasEquipos] = useState([]);
+  const [plantillasCanalizaciones, setPlantillasCanalizaciones] = useState([]);
   const [mallas, setMallas] = useState([]);
   const [parametrosIngenieria, setParametrosIngenieria] = useState({ recubrimiento: RECUBRIMIENTO_CIMENTACION, barras: BARRA_ACERO, traslapos: TRASLAPO_TABLE });
   const [dataLoaded, setDataLoaded] = useState(false);
@@ -12382,6 +12744,9 @@ export default function App() {
     } else {
       setPlantillasEquipos(equipoRows.map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {} })));
     }
+
+    const { data: canalizacionRows } = await supabase.from('canalizacion_plantillas').select('*').order('created_at', { ascending: true });
+    setPlantillasCanalizaciones((canalizacionRows || []).map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {}, es_principal: r.es_principal || false })));
 
     const { data: mallaRows } = await supabase.from('mallas').select('*').order('created_at', { ascending: true });
     if (!mallaRows || mallaRows.length === 0) {
@@ -12696,6 +13061,64 @@ export default function App() {
       }
     });
   }
+  /* "es_principal": al crear/marcar una plantilla como principal, primero    */
+  /* desmarca cualquier otra del MISMO tipo (nunca puede haber 2 principales  */
+  /* a la vez para un mismo tipo de canalización).                           */
+  function handleAddPlantillaCanalizacion(tipo, nombre, datos, esPrincipal) {
+    const nueva = { id: makeId('canal'), tipo, nombre, datos, es_principal: !!esPrincipal };
+    setPlantillasCanalizaciones((prev) => {
+      const resto = esPrincipal ? prev.map((p) => (p.tipo === tipo ? { ...p, es_principal: false } : p)) : prev;
+      return [...resto, nueva];
+    });
+    if (esPrincipal) {
+      supabase.from('canalizacion_plantillas').update({ es_principal: false }).eq('tipo', tipo).then(() => {});
+    }
+    supabase.from('canalizacion_plantillas').insert({ id: nueva.id, tipo, nombre, datos, es_principal: !!esPrincipal, creado_por: perfil?.nombre || null }).then(({ error }) => {
+      if (error) {
+        console.error('Error creando plantilla de canalización:', error);
+        alert('No se pudo guardar la plantilla. Detalle: ' + error.message);
+      }
+    });
+  }
+  function handleUpdatePlantillaCanalizacion(id, patch, esPrincipal, tipo) {
+    setPlantillasCanalizaciones((prev) => prev.map((p) => {
+      if (esPrincipal && p.tipo === tipo && p.id !== id) return { ...p, es_principal: false };
+      if (p.id === id) return { ...p, ...patch, es_principal: !!esPrincipal };
+      return p;
+    }));
+    if (esPrincipal) {
+      supabase.from('canalizacion_plantillas').update({ es_principal: false }).eq('tipo', tipo).neq('id', id).then(() => {});
+    }
+    supabase.from('canalizacion_plantillas').update({ ...patch, es_principal: !!esPrincipal, updated_at: new Date().toISOString() }).eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error('Error editando plantilla de canalización:', error);
+        alert('No se pudo guardar el cambio. Detalle: ' + error.message);
+      }
+    });
+  }
+  function handleDeletePlantillaCanalizacion(id) {
+    setPlantillasCanalizaciones((prev) => prev.filter((p) => p.id !== id));
+    supabase.from('canalizacion_plantillas').delete().eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error('Error eliminando plantilla de canalización:', error);
+        alert('No se pudo eliminar la plantilla. Detalle: ' + error.message);
+      }
+    });
+  }
+  function handleSetPrincipalCanalizacion(id, tipo) {
+    setPlantillasCanalizaciones((prev) => prev.map((p) => {
+      if (p.tipo !== tipo) return p;
+      return { ...p, es_principal: p.id === id };
+    }));
+    supabase.from('canalizacion_plantillas').update({ es_principal: false }).eq('tipo', tipo).neq('id', id).then(() => {
+      supabase.from('canalizacion_plantillas').update({ es_principal: true }).eq('id', id).then(({ error }) => {
+        if (error) {
+          console.error('Error marcando plantilla principal:', error);
+          alert('No se pudo marcar como Principal. Detalle: ' + error.message);
+        }
+      });
+    });
+  }
   function handleAddCarpeta(nombre) {
     const nueva = { id: makeId('carpeta'), nombre };
     setCarpetas((prev) => [...prev, nueva]);
@@ -12940,6 +13363,15 @@ export default function App() {
             onAdd={handleAddPlantillaEquipo}
             onUpdate={handleUpdatePlantillaEquipo}
             onDelete={handleDeletePlantillaEquipo}
+          />
+        )}
+        {view === 'canalizaciones' && (
+          <CanalizacionesView
+            plantillas={plantillasCanalizaciones}
+            onAdd={handleAddPlantillaCanalizacion}
+            onUpdate={handleUpdatePlantillaCanalizacion}
+            onDelete={handleDeletePlantillaCanalizacion}
+            onSetPrincipal={handleSetPrincipalCanalizacion}
           />
         )}
         {view === 'equipo' && (

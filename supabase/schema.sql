@@ -249,6 +249,19 @@ create table if not exists equipo_plantillas (
   updated_at timestamptz default now()
 );
 
+-- Plantillas de canalizaciones (zanjas). "es_principal": dentro de un mismo
+-- tipo solo una queda marcada como la vigente/más actualizada.
+create table if not exists canalizacion_plantillas (
+  id text primary key,
+  tipo text not null,
+  nombre text not null,
+  datos jsonb not null default '{}'::jsonb,
+  es_principal boolean not null default false,
+  creado_por text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 -- Lista de tipos de malla electrosoldada disponibles en el selector de la
 -- losa de Inversores (y de cualquier otra cimentación que use malla más
 -- adelante). Empieza con D84; cualquiera puede agregar otra.
@@ -448,6 +461,16 @@ create policy "Crear plantillas de equipos" on equipo_plantillas
 create policy "Editar plantillas de equipos" on equipo_plantillas
   for update using (auth.role() = 'authenticated');
 create policy "Eliminar plantillas de equipos" on equipo_plantillas
+  for delete using (auth.role() = 'authenticated');
+
+alter table canalizacion_plantillas enable row level security;
+create policy "Lectura de plantillas de canalizacion" on canalizacion_plantillas
+  for select using (auth.role() = 'authenticated');
+create policy "Crear plantillas de canalizacion" on canalizacion_plantillas
+  for insert with check (auth.role() = 'authenticated');
+create policy "Editar plantillas de canalizacion" on canalizacion_plantillas
+  for update using (auth.role() = 'authenticated');
+create policy "Eliminar plantillas de canalizacion" on canalizacion_plantillas
   for delete using (auth.role() = 'authenticated');
 
 alter table mallas enable row level security;
