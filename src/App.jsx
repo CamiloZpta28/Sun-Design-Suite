@@ -7641,7 +7641,7 @@ function EquiposElectricosView({ plantillas, onAdd, onUpdate, onDelete }) {
 const CANALIZACION_TIPOS = [
   { id: 'dc', label: 'DC', profundidadNorma: 0.45, tieneTuberia: true, distanciaCintaNorma: 0.25 },
   { id: 'acbt_tuberia', label: 'AC-BT Tubería', profundidadNorma: 0.45, tieneTuberia: true, distanciaCintaNorma: 0.25 },
-  { id: 'acbt_directo', label: 'AC-BT Enterrado', profundidadNorma: 0.60, tieneTuberia: false, distanciaCintaNorma: 0.25 },
+  { id: 'acbt_directo', label: 'AC-BT Enterrado', profundidadNorma: 0.60, tieneTuberia: false, distanciaCintaNorma: 0.25, esCableFino: true },
   { id: 'mt', label: 'AC-MT', profundidadNorma: 0.75, tieneTuberia: true, distanciaCintaNorma: 0.25 },
   { id: 'comunicaciones', label: 'Comunicaciones', profundidadNorma: 0.40, tieneTuberia: true, distanciaCintaNorma: 0.20 },
   { id: 'energia_ssaa', label: 'Energía', profundidadNorma: 0.45, tieneTuberia: true, distanciaCintaNorma: 0.25 },
@@ -7728,6 +7728,28 @@ function emptyDatosCanalizacion(tipoDef) {
 /* si hay más de una, la separación mínima entre caras externas (0.10 m).  */
 /* Para SPT/AC-BT Enterrado (sin tubería) se usa un ancho de cable nominal  */
 /* pequeño, ya que no hay un ducto real que mida.                          */
+/* Sub-categoría dentro de un tipo: el diámetro (y cantidad de tuberías) o    */
+/* el calibre del cable definen combinaciones distintas (ej. "DC 2\" × 2     */
+/* tuberías" es una sub-categoría distinta de "DC 2\" × 3 tuberías") — cada  */
+/* una tiene su PROPIA plantilla "Principal", independiente de las demás:    */
+/* puede haber una "DC 2\" × 2 tuberías" principal a 0.45 m de profundidad y */
+/* otra "DC 2\" × 2 tuberías" (no principal) a 0.60 m, sin que se pisen.     */
+function subcategoriaKey(tipo, datos) {
+  const tipoDef = CANALIZACION_TIPOS.find((t) => t.id === tipo);
+  if (!tipoDef || tipoDef.esCombinacion) return tipo;
+  if (tipoDef.tieneTuberia) return `${tipo}::${datos?.diametro || '—'}::${datos?.cantidad_tuberias || '1'}`;
+  return `${tipo}::${datos?.calibre_cable || '—'}`;
+}
+function subcategoriaLabel(tipo, datos) {
+  const tipoDef = CANALIZACION_TIPOS.find((t) => t.id === tipo);
+  if (!tipoDef) return '';
+  if (tipoDef.tieneTuberia) {
+    const cantidad = Math.max(1, parseInt(datos?.cantidad_tuberias, 10) || 1);
+    return `${datos?.diametro || 'Sin diámetro'} × ${cantidad} tubería${cantidad > 1 ? 's' : ''}`;
+  }
+  return datos?.calibre_cable ? `Calibre ${datos.calibre_cable}` : 'Sin calibre definido';
+}
+
 function calcAnchoZanjaCanalizacion(tipoDef, datos) {
   const sepLateral = parseFloat(datos?.separacion_lateral) || 0.15;
   if (!tipoDef.tieneTuberia) {
@@ -7799,6 +7821,9 @@ function CanalizacionPreview({ tipoId, datos, className = 'w-full h-auto' }) {
 
   // Centros de cada tubería, repartidas simétricamente con separación sepEntrePx.
   const centroZanja = zanjaX0 + anchoPx / 2;
+  // La cinta de señalización NO va de lado a lado: tiene un ancho fijo de
+  // 0.25 m y siempre queda centrada en la zanja (nunca a todo lo ancho).
+  const cintaAnchoPx = clamp(0.25 * scale, 20, anchoPx - 4);
   const anchoGrupoTuberias = cantidad * (tuboRadioPx * 2) + (cantidad - 1) * sepEntrePx;
   const primerCentroX = centroZanja - anchoGrupoTuberias / 2 + tuboRadioPx;
   const centrosX = Array.from({ length: cantidad }, (_, i) => primerCentroX + i * (tuboRadioPx * 2 + sepEntrePx));
@@ -7843,22 +7868,21 @@ function CanalizacionPreview({ tipoId, datos, className = 'w-full h-auto' }) {
       <text x={zanjaX0 - 8} y={arenillaTopY + 4} textAnchor="end" fontSize="7.5" fill="#152644">Arenilla</text>
       <text x={zanjaX0 - 8} y={tuboY + alturaElementoPx / 2 + 4} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#152644">{tipoDef.label}</text>
 
-      {/* Cinta de señalización — TODOS los tipos, incluido SPT */}
-      <line x1={zanjaX0 + 6} y1={zanjaTopY + cintaYPx} x2={zanjaX0 + anchoPx - 6} y2={zanjaTopY + cintaYPx} stroke="#DC2626" strokeWidth="3" />
+      {/* Cinta de señalización — TODOS los tipos, incluido SPT. Ancho fijo   */}
+      {/* de 0.25 m, siempre centrada (no de lado a lado de la zanja).       */}
+      <line x1={centroZanja - cintaAnchoPx / 2} y1={zanjaTopY + cintaYPx} x2={centroZanja + cintaAnchoPx / 2} y2={zanjaTopY + cintaYPx} stroke="#DC2626" strokeWidth="3" />
 
       {/* Arenilla: franja de LADO A LADO de la zanja (no un recuadro angosto */}
       {/* alrededor del tubo) — igual encima que debajo del elemento.        */}
       <rect x={zanjaX0} y={arenillaTopY} width={anchoPx} height={arenillaBotY - arenillaTopY} fill="#EFE3C8" stroke="#152644" strokeWidth="1" strokeDasharray="3 2" />
 
-      {/* Tubería(s) (círculos) o cable (línea/punto fino), a la profundidad digitada */}
+      {/* Tubería(s) (círculos) o cable delgado (punto), a la profundidad digitada */}
       {tipoDef.tieneTuberia ? (
         centrosX.map((cx, i) => (
           <circle key={i} cx={cx} cy={tuboY + tuboRadioPx} r={tuboRadioPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.3" />
         ))
-      ) : tipoDef.esCableFino ? (
-        <circle cx={centroZanja} cy={tuboY + alturaElementoPx / 2} r="2.2" fill="#059669" stroke="#152644" strokeWidth="0.8" />
       ) : (
-        <line x1={zanjaX0 + sepLateralPx} y1={tuboY + alturaElementoPx / 2} x2={zanjaX0 + anchoPx - sepLateralPx} y2={tuboY + alturaElementoPx / 2} stroke="#059669" strokeWidth="3" strokeLinecap="round" />
+        <circle cx={centroZanja} cy={tuboY + alturaElementoPx / 2} r="2.2" fill="#059669" stroke="#152644" strokeWidth="0.8" />
       )}
 
       {/* Cotas a la DERECHA, con jerarquía: primero (más cerca del dibujo)  */}
@@ -8118,77 +8142,132 @@ function CombinacionPreview({ lineaIds, plantillasCanalizaciones, className = 'w
     );
   }
 
-  const marginTop = 30;
-  const zanjaX0 = 8;
+  /* Reglas de una zanja combinada (distintas a una zanja de una sola línea):
+     - NO es pegar una zanja junto a otra: la separación mínima entre los
+       grupos de tubería/cable de líneas distintas es 0.10 m (sin importar
+       el tipo), no la suma de las separaciones laterales de cada una.
+     - Una sola cinta de señalización compartida (0.25 m de ancho,
+       centrada en TODO el ancho combinado) — no una por línea.
+     - El FONDO de la zanja es uniforme, a la profundidad de la línea más
+       profunda; las líneas menos profundas rellenan ese espacio de más
+       con arenilla (no se escalona la excavación, solo la tubería queda
+       a su propia profundidad).
+     - Sin línea divisoria entre columnas: es una sola excavación. */
+  const GAP_ENTRE_LINEAS_M = 0.10;
+  const sepLateralM = Math.max(...lineas.map((l) => l.sepLateralM));
+  const gruposM = lineas.map((l) => (l.tipoDef.tieneTuberia ? l.diametroM * l.cantidad + l.sepEntreM * (l.cantidad - 1) : 0.03));
+  const anchoTotalM = sepLateralM * 2 + gruposM.reduce((a, b) => a + b, 0) + GAP_ENTRE_LINEAS_M * (lineas.length - 1);
+  const maxArenillaBotM = Math.max(...lineas.map((l) => l.profundidadM + (l.tipoDef.tieneTuberia ? l.diametroM : 0.01) + l.espesorArenillaM));
+  const cintaDesdeSuperficieCompartidaM = Math.min(...lineas.map((l) => l.cintaDesdeSuperficieM));
+
+  const marginTop = 34;
+  const zanjaX0 = 96;
   const zanjaTopY = marginTop;
-  const maxProfPx = clamp(Math.max(...lineas.map((l) => l.profundidadM)) * scale, 60, 220);
+  const anchoTotalPx = clamp(anchoTotalM * scale, 120, 420);
+  const pxPorM = anchoTotalPx / anchoTotalM;
+  const maxArenillaBotY = zanjaTopY + maxArenillaBotM * pxPorM;
+  const cintaYPx = clamp(cintaDesdeSuperficieCompartidaM * pxPorM, 10, (maxArenillaBotY - zanjaTopY) - 6);
+  const sepLateralPx = sepLateralM * pxPorM;
+  const gapPx = GAP_ENTRE_LINEAS_M * pxPorM;
 
-  let cursorX = zanjaX0;
-  const columnas = lineas.map((l) => {
-    const anchoPx = clamp(l.anchoM * scale, 40, 150);
-    const profPx = clamp(l.profundidadM * scale, 50, maxProfPx);
-    const cintaYPx = clamp(l.cintaDesdeSuperficieM * scale, 8, profPx - 6);
-    const arenillaPx = clamp(l.espesorArenillaM * scale, 4, 16);
-    const tuboRadioPx = l.tipoDef.tieneTuberia
-      ? clamp((anchoPx - 2 * clamp(l.sepLateralM * scale, 5, anchoPx / 2 - 5) - clamp(l.sepEntreM * scale, 3, 26) * (l.cantidad - 1)) / (2 * l.cantidad), 4, 14)
-      : 0;
-    const alturaElementoPx = l.tipoDef.tieneTuberia ? tuboRadioPx * 2 : (l.tipoDef.esCableFino ? 4 : 3);
+  let cursorX = zanjaX0 + sepLateralPx;
+  const columnas = lineas.map((l, i) => {
+    const grupoAnchoPx = gruposM[i] * pxPorM;
     const x0 = cursorX;
-    cursorX += anchoPx;
-    const tuboY = zanjaTopY + profPx;
-    const arenillaBotY = tuboY + alturaElementoPx + arenillaPx;
-    return { ...l, x0, anchoPx, profPx, cintaYPx, arenillaPx, tuboRadioPx, alturaElementoPx, tuboY, arenillaBotY };
+    cursorX += grupoAnchoPx + (i < lineas.length - 1 ? gapPx : 0);
+    const tuboY = zanjaTopY + l.profundidadM * pxPorM;
+    const arenillaPx = l.espesorArenillaM * pxPorM;
+    const arenillaTopY = tuboY - arenillaPx;
+    const tuboRadioPx = l.tipoDef.tieneTuberia
+      ? clamp((grupoAnchoPx - l.sepEntreM * pxPorM * (l.cantidad - 1)) / (2 * l.cantidad), 3, 16)
+      : 0;
+    return { ...l, x0, grupoAnchoPx, tuboY, arenillaTopY, tuboRadioPx };
   });
+  const anchoTotalRealPx = cursorX - zanjaX0 + sepLateralPx;
+  const centroTotal = zanjaX0 + anchoTotalRealPx / 2;
+  const cintaAnchoPx = clamp(0.25 * pxPorM, 20, anchoTotalRealPx - 8);
 
-  // Las etiquetas/cotas de cada columna van todas a la MISMA altura, debajo
-  // de la columna que más abajo llegue (la más profunda) — así nunca quedan
-  // montadas sobre las tuberías/cable de esa columna.
-  const maxArenillaBotY = Math.max(...columnas.map((c) => c.arenillaBotY));
-  const svgW = cursorX + 16;
-  const svgH = maxArenillaBotY + 62;
+  const svgW = zanjaX0 + anchoTotalRealPx + 66;
+  const svgH = maxArenillaBotY + 66;
 
   return (
     <svg viewBox={`0 0 ${svgW} ${svgH}`} className={className}>
-      <line x1={zanjaX0 - 6} y1={zanjaTopY} x2={cursorX + 6} y2={zanjaTopY} stroke="#152644" strokeWidth="1.4" />
-      <text x={(zanjaX0 + cursorX) / 2} y={zanjaTopY - 10} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644">Nivel de piso existente</text>
+      <line x1={zanjaX0 - 6} y1={zanjaTopY} x2={zanjaX0 + anchoTotalRealPx + 6} y2={zanjaTopY} stroke="#152644" strokeWidth="1.4" />
+      <polygon points={`${centroTotal - 5},${zanjaTopY - 11} ${centroTotal + 5},${zanjaTopY - 11} ${centroTotal},${zanjaTopY - 2}`} fill="#152644" />
+      <text x={centroTotal} y={zanjaTopY - 16} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">Nivel de piso existente</text>
+
+      {/* UNA sola excavación (sin escalones ni línea divisoria entre líneas) */}
+      <rect x={zanjaX0} y={zanjaTopY} width={anchoTotalRealPx} height={maxArenillaBotY - zanjaTopY} fill="#F2E8D5" stroke="#152644" strokeWidth="1.3" />
+      {Array.from({ length: 30 }).map((_, i) => (
+        <circle key={i} cx={zanjaX0 + 8 + (i * 37) % (anchoTotalRealPx - 12)} cy={zanjaTopY + 8 + Math.floor(i / 6) * 14} r="1" fill="#B8A67D" opacity="0.7" />
+      ))}
+
+      {/* Descripciones a la izquierda */}
+      <text x={zanjaX0 - 8} y={zanjaTopY + (cintaYPx > 30 ? cintaYPx / 2 - 6 : 12)} textAnchor="end" fontSize="7" fill="#152644">Material de la</text>
+      <text x={zanjaX0 - 8} y={zanjaTopY + (cintaYPx > 30 ? cintaYPx / 2 + 2 : 20)} textAnchor="end" fontSize="7" fill="#152644">excavación</text>
+      <text x={zanjaX0 - 8} y={zanjaTopY + (cintaYPx > 30 ? cintaYPx / 2 + 10 : 28)} textAnchor="end" fontSize="7" fill="#152644">compactado</text>
+      <text x={zanjaX0 - 8} y={zanjaTopY + cintaYPx + 3} textAnchor="end" fontSize="7.5" fill="#152644">Cinta de</text>
+      <text x={zanjaX0 - 8} y={zanjaTopY + cintaYPx + 12} textAnchor="end" fontSize="7.5" fill="#152644">señalización</text>
+      <text x={zanjaX0 - 8} y={(zanjaTopY + cintaYPx + maxArenillaBotY) / 2} textAnchor="end" fontSize="7.5" fill="#152644">Arenilla</text>
+
+      {/* Cinta de señalización: UNA sola, 0.25 m de ancho, centrada en TODO el ancho combinado */}
+      <line x1={centroTotal - cintaAnchoPx / 2} y1={zanjaTopY + cintaYPx} x2={centroTotal + cintaAnchoPx / 2} y2={zanjaTopY + cintaYPx} stroke="#DC2626" strokeWidth="3" />
 
       {columnas.map((c, i) => {
-        const tuboY = c.tuboY;
-        const arenillaTopY = tuboY - c.arenillaPx;
-        const arenillaBotY = c.arenillaBotY;
-        const centro = c.x0 + c.anchoPx / 2;
-        const anchoGrupo = c.cantidad * (c.tuboRadioPx * 2) + (c.cantidad - 1) * clamp(c.sepEntreM * scale, 3, 26);
+        const centro = c.x0 + c.grupoAnchoPx / 2;
+        const sepEntrePxCol = clamp(c.sepEntreM * pxPorM, 2, 30);
+        const anchoGrupo = c.cantidad * (c.tuboRadioPx * 2) + (c.cantidad - 1) * sepEntrePxCol;
         const primerCentro = centro - anchoGrupo / 2 + c.tuboRadioPx;
         return (
           <g key={i}>
-            <rect x={c.x0} y={zanjaTopY} width={c.anchoPx} height={arenillaBotY - zanjaTopY} fill="#F2E8D5" stroke="#152644" strokeWidth="1.1" />
-            <line x1={c.x0 + 4} y1={zanjaTopY + c.cintaYPx} x2={c.x0 + c.anchoPx - 4} y2={zanjaTopY + c.cintaYPx} stroke="#DC2626" strokeWidth="2.5" />
-            <rect x={c.x0} y={arenillaTopY} width={c.anchoPx} height={arenillaBotY - arenillaTopY} fill="#EFE3C8" stroke="#152644" strokeWidth="0.8" strokeDasharray="3 2" />
+            {/* Arenilla de esta línea: desde justo encima de SU propia        */}
+            {/* profundidad hasta el fondo COMPARTIDO (rellena lo que falta). */}
+            <rect x={c.x0} y={c.arenillaTopY} width={c.grupoAnchoPx} height={maxArenillaBotY - c.arenillaTopY} fill="#EFE3C8" stroke="#152644" strokeWidth="0.8" strokeDasharray="3 2" />
             {c.tipoDef.tieneTuberia ? (
               Array.from({ length: c.cantidad }).map((_, j) => (
-                <circle key={j} cx={primerCentro + j * (c.tuboRadioPx * 2 + clamp(c.sepEntreM * scale, 3, 26))} cy={tuboY + c.tuboRadioPx} r={c.tuboRadioPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.1" />
+                <circle key={j} cx={primerCentro + j * (c.tuboRadioPx * 2 + sepEntrePxCol)} cy={c.tuboY + c.tuboRadioPx} r={c.tuboRadioPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.1" />
               ))
-            ) : c.tipoDef.esCableFino ? (
-              <circle cx={centro} cy={tuboY + c.alturaElementoPx / 2} r="1.8" fill="#059669" stroke="#152644" strokeWidth="0.7" />
             ) : (
-              <line x1={c.x0 + 4} y1={tuboY + c.alturaElementoPx / 2} x2={c.x0 + c.anchoPx - 4} y2={tuboY + c.alturaElementoPx / 2} stroke="#059669" strokeWidth="2.5" strokeLinecap="round" />
+              <circle cx={centro} cy={c.tuboY} r="2" fill="#059669" stroke="#152644" strokeWidth="0.7" />
             )}
             <text x={centro} y={maxArenillaBotY + 16} textAnchor="middle" fontSize="7" fontWeight="600" fill="#152644">{c.tipoDef.label}</text>
             <text x={centro} y={maxArenillaBotY + 28} textAnchor="middle" fontSize="7" fill="#3C64AA">{c.profundidadM.toFixed(2)} m</text>
-            {i < columnas.length - 1 && (
-              <line x1={c.x0 + c.anchoPx} y1={zanjaTopY} x2={c.x0 + c.anchoPx} y2={maxArenillaBotY} stroke="#152644" strokeWidth="1" strokeDasharray="2 2" opacity="0.5" />
-            )}
           </g>
         );
       })}
 
-      <g stroke="#152644" strokeWidth="1">
-        <line x1={zanjaX0} y1={maxArenillaBotY + 40} x2={cursorX} y2={maxArenillaBotY + 40} />
-        <line x1={zanjaX0} y1={maxArenillaBotY + 36} x2={zanjaX0} y2={maxArenillaBotY + 44} />
-        <line x1={cursorX} y1={maxArenillaBotY + 36} x2={cursorX} y2={maxArenillaBotY + 44} />
+      {/* Cotas a la derecha: piso→cinta, cinta→fondo, y en paralelo el total */}
+      <g stroke="#3C64AA" strokeWidth="1">
+        <line x1={zanjaX0 + anchoTotalRealPx + 14} y1={zanjaTopY} x2={zanjaX0 + anchoTotalRealPx + 14} y2={zanjaTopY + cintaYPx} />
+        <line x1={zanjaX0 + anchoTotalRealPx + 10} y1={zanjaTopY} x2={zanjaX0 + anchoTotalRealPx + 18} y2={zanjaTopY} />
+        <line x1={zanjaX0 + anchoTotalRealPx + 10} y1={zanjaTopY + cintaYPx} x2={zanjaX0 + anchoTotalRealPx + 18} y2={zanjaTopY + cintaYPx} />
       </g>
-      <text x={(zanjaX0 + cursorX) / 2} y={maxArenillaBotY + 54} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644">
-        {((cursorX - zanjaX0) / scale).toFixed(2)} m (ancho total)
+      <text x={zanjaX0 + anchoTotalRealPx + 23} y={zanjaTopY + cintaYPx / 2} textAnchor="middle" fontSize="7" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${zanjaX0 + anchoTotalRealPx + 23}, ${zanjaTopY + cintaYPx / 2})`}>
+        {cintaDesdeSuperficieCompartidaM.toFixed(2)} m
+      </text>
+      <g stroke="#3C64AA" strokeWidth="1">
+        <line x1={zanjaX0 + anchoTotalRealPx + 14} y1={zanjaTopY + cintaYPx} x2={zanjaX0 + anchoTotalRealPx + 14} y2={maxArenillaBotY} />
+        <line x1={zanjaX0 + anchoTotalRealPx + 10} y1={maxArenillaBotY} x2={zanjaX0 + anchoTotalRealPx + 18} y2={maxArenillaBotY} />
+      </g>
+      <text x={zanjaX0 + anchoTotalRealPx + 23} y={zanjaTopY + cintaYPx + ((maxArenillaBotY - zanjaTopY - cintaYPx) / 2)} textAnchor="middle" fontSize="7" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${zanjaX0 + anchoTotalRealPx + 23}, ${zanjaTopY + cintaYPx + ((maxArenillaBotY - zanjaTopY - cintaYPx) / 2)})`}>
+        {((maxArenillaBotY - zanjaTopY - cintaYPx) / pxPorM).toFixed(2)} m
+      </text>
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={zanjaX0 + anchoTotalRealPx + 40} y1={zanjaTopY} x2={zanjaX0 + anchoTotalRealPx + 40} y2={maxArenillaBotY} />
+        <line x1={zanjaX0 + anchoTotalRealPx + 36} y1={zanjaTopY} x2={zanjaX0 + anchoTotalRealPx + 44} y2={zanjaTopY} />
+        <line x1={zanjaX0 + anchoTotalRealPx + 36} y1={maxArenillaBotY} x2={zanjaX0 + anchoTotalRealPx + 44} y2={maxArenillaBotY} />
+      </g>
+      <text x={zanjaX0 + anchoTotalRealPx + 52} y={(zanjaTopY + maxArenillaBotY) / 2} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${zanjaX0 + anchoTotalRealPx + 52}, ${(zanjaTopY + maxArenillaBotY) / 2})`}>
+        {((maxArenillaBotY - zanjaTopY) / pxPorM).toFixed(2)} m
+      </text>
+
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={zanjaX0} y1={maxArenillaBotY + 40} x2={zanjaX0 + anchoTotalRealPx} y2={maxArenillaBotY + 40} />
+        <line x1={zanjaX0} y1={maxArenillaBotY + 36} x2={zanjaX0} y2={maxArenillaBotY + 44} />
+        <line x1={zanjaX0 + anchoTotalRealPx} y1={maxArenillaBotY + 36} x2={zanjaX0 + anchoTotalRealPx} y2={maxArenillaBotY + 44} />
+      </g>
+      <text x={zanjaX0 + anchoTotalRealPx / 2} y={maxArenillaBotY + 54} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644">
+        {(anchoTotalRealPx / pxPorM).toFixed(2)} m (ancho total)
       </text>
     </svg>
   );
@@ -8366,9 +8445,9 @@ function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrinci
           <p className="text-sm text-navy-400 italic text-center py-10">
             {tipoDef.esCombinacion ? 'Aún no hay combinaciones.' : `Aún no hay plantillas de ${tipoDef.label}.`}
           </p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {plantillasDelTipo.map((p) => (
+        ) : (() => {
+          function Tarjeta({ p }) {
+            return (
               <div key={p.id} className={`bg-white border rounded-xl p-4 relative ${p.es_principal ? 'border-lime-400 ring-1 ring-lime-300' : 'border-navy-200'}`}>
                 {p.es_principal && (
                   <span className="absolute top-3 right-3 flex items-center gap-1 text-[11px] font-bold uppercase text-lime-700 bg-lime-100 px-2 py-0.5 rounded-full">
@@ -8394,7 +8473,7 @@ function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrinci
                     <Pencil className="w-3.5 h-3.5" /> Editar
                   </button>
                   {!p.es_principal && (
-                    <button onClick={() => onSetPrincipal(p.id, tipoActivo)} className="text-xs font-semibold text-navy-500 hover:text-navy-700 flex items-center gap-1">
+                    <button onClick={() => onSetPrincipal(p.id, tipoActivo, p.datos)} className="text-xs font-semibold text-navy-500 hover:text-navy-700 flex items-center gap-1">
                       <Star className="w-3.5 h-3.5" /> Marcar Principal
                     </button>
                   )}
@@ -8415,9 +8494,41 @@ function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrinci
                   )}
                 </div>
               </div>
-            ))}
-          </div>
-        )
+            );
+          }
+
+          if (tipoDef.esCombinacion) {
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {plantillasDelTipo.map((p) => <Tarjeta key={p.id} p={p} />)}
+              </div>
+            );
+          }
+
+          // Agrupadas por sub-categoría (diámetro × cantidad, o calibre) —
+          // cada una con su propia "Principal", independiente de las demás.
+          const grupos = [];
+          plantillasDelTipo.forEach((p) => {
+            const key = subcategoriaKey(p.tipo, p.datos);
+            let g = grupos.find((x) => x.key === key);
+            if (!g) { g = { key, label: subcategoriaLabel(p.tipo, p.datos), items: [] }; grupos.push(g); }
+            g.items.push(p);
+          });
+          return (
+            <div className="space-y-6">
+              {grupos.map((g) => (
+                <div key={g.key}>
+                  <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-2 border-b border-navy-100 pb-1.5">
+                    {g.label} <span className="text-navy-300 font-normal">({g.items.length})</span>
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {g.items.map((p) => <Tarjeta key={p.id} p={p} />)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()
       )}
     </div>
   );
@@ -13544,12 +13655,19 @@ export default function App() {
   }
   function handleAddPlantillaCanalizacion(tipo, nombre, datos, esPrincipal) {
     const nueva = { id: makeId('canal'), tipo, nombre, datos, es_principal: !!esPrincipal };
+    const key = subcategoriaKey(tipo, datos);
+    // "Principal" es por sub-categoría (mismo tipo + mismo diámetro/cantidad
+    // o calibre), no por todo el tipo — así puede haber una "DC 2" × 2
+    // tuberías" principal a 0.45 m sin afectar una "DC 2" × 3 tuberías".
+    const idsAUnDesmarcar = esPrincipal
+      ? plantillasCanalizaciones.filter((p) => p.es_principal && subcategoriaKey(p.tipo, p.datos) === key).map((p) => p.id)
+      : [];
     setPlantillasCanalizaciones((prev) => {
-      const resto = esPrincipal ? prev.map((p) => (p.tipo === tipo ? { ...p, es_principal: false } : p)) : prev;
+      const resto = idsAUnDesmarcar.length > 0 ? prev.map((p) => (idsAUnDesmarcar.includes(p.id) ? { ...p, es_principal: false } : p)) : prev;
       return [...resto, nueva];
     });
-    if (esPrincipal) {
-      supabase.from('canalizacion_plantillas').update({ es_principal: false }).eq('tipo', tipo).then(() => {});
+    if (idsAUnDesmarcar.length > 0) {
+      supabase.from('canalizacion_plantillas').update({ es_principal: false }).in('id', idsAUnDesmarcar).then(() => {});
     }
     supabase.from('canalizacion_plantillas').insert({ id: nueva.id, tipo, nombre, datos, es_principal: !!esPrincipal, creado_por: perfil?.nombre || null }).then(({ error }) => {
       if (error) {
@@ -13559,13 +13677,17 @@ export default function App() {
     });
   }
   function handleUpdatePlantillaCanalizacion(id, patch, esPrincipal, tipo) {
+    const key = subcategoriaKey(tipo, patch.datos);
+    const idsAUnDesmarcar = esPrincipal
+      ? plantillasCanalizaciones.filter((p) => p.id !== id && p.es_principal && subcategoriaKey(p.tipo, p.datos) === key).map((p) => p.id)
+      : [];
     setPlantillasCanalizaciones((prev) => prev.map((p) => {
-      if (esPrincipal && p.tipo === tipo && p.id !== id) return { ...p, es_principal: false };
+      if (idsAUnDesmarcar.includes(p.id)) return { ...p, es_principal: false };
       if (p.id === id) return { ...p, ...patch, es_principal: !!esPrincipal };
       return p;
     }));
-    if (esPrincipal) {
-      supabase.from('canalizacion_plantillas').update({ es_principal: false }).eq('tipo', tipo).neq('id', id).then(() => {});
+    if (idsAUnDesmarcar.length > 0) {
+      supabase.from('canalizacion_plantillas').update({ es_principal: false }).in('id', idsAUnDesmarcar).then(() => {});
     }
     supabase.from('canalizacion_plantillas').update({ ...patch, es_principal: !!esPrincipal, updated_at: new Date().toISOString() }).eq('id', id).then(({ error }) => {
       if (error) {
@@ -13583,12 +13705,20 @@ export default function App() {
       }
     });
   }
-  function handleSetPrincipalCanalizacion(id, tipo) {
+  function handleSetPrincipalCanalizacion(id, tipo, datos) {
+    const key = subcategoriaKey(tipo, datos);
+    const idsAUnDesmarcar = plantillasCanalizaciones
+      .filter((p) => p.id !== id && p.es_principal && subcategoriaKey(p.tipo, p.datos) === key)
+      .map((p) => p.id);
     setPlantillasCanalizaciones((prev) => prev.map((p) => {
-      if (p.tipo !== tipo) return p;
-      return { ...p, es_principal: p.id === id };
+      if (p.id === id) return { ...p, es_principal: true };
+      if (idsAUnDesmarcar.includes(p.id)) return { ...p, es_principal: false };
+      return p;
     }));
-    supabase.from('canalizacion_plantillas').update({ es_principal: false }).eq('tipo', tipo).neq('id', id).then(() => {
+    const desmarcar = idsAUnDesmarcar.length > 0
+      ? supabase.from('canalizacion_plantillas').update({ es_principal: false }).in('id', idsAUnDesmarcar)
+      : Promise.resolve({ error: null });
+    desmarcar.then(() => {
       supabase.from('canalizacion_plantillas').update({ es_principal: true }).eq('id', id).then(({ error }) => {
         if (error) {
           console.error('Error marcando plantilla principal:', error);
