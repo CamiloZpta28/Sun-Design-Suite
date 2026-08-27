@@ -8458,10 +8458,15 @@ function CrucePreview({ datos, plantillasCanalizaciones, className = 'w-full h-a
 
   // La línea profunda (longitudinal): a su propia profundidad, con su
   // propia arenilla si tiene tubería (si no, va directa, sin arenilla).
-  const profTuboY = zanjaTopY + clamp(prof.profundidadM * scale, profPx + 24, 420);
+  const profTuboY = zanjaTopY + clamp(prof.profundidadM * scale, profPx + 24, 460);
   const profArenillaPx = prof.tipoDef.tieneTuberia ? clamp(prof.espesorArenillaM * scale, 4, 16) : 0;
-  const profAlturaPx = prof.tipoDef.tieneTuberia ? clamp(prof.diametroM * scale, 6, 24) : 3;
-  const profFondoY = profTuboY + profAlturaPx + profArenillaPx;
+  // El grosor de la línea longitudinal representa el DIÁMETRO real de esa
+  // línea (no un trazo arbitrario) — un cable delgado se ve delgado, una
+  // tubería de 6" se ve más gruesa que una de 2".
+  const profAlturaPx = prof.tipoDef.tieneTuberia ? clamp(prof.diametroM * scale, 6, 28) : 3;
+  // Margen extra debajo de la línea profunda para que nunca quede pegada al
+  // borde inferior del dibujo (antes se veía "cortada").
+  const profFondoY = profTuboY + profAlturaPx + profArenillaPx + 16;
 
   const centroZanja = zanjaX0 + anchoPx / 2;
   const cintaAnchoPx = clamp(0.25 * scale, 20, anchoPx - 4);
@@ -8469,8 +8474,28 @@ function CrucePreview({ datos, plantillasCanalizaciones, className = 'w-full h-a
   const primerCentroX = centroZanja - anchoGrupoTuberias / 2 + tuboRadioPx;
   const centrosX = Array.from({ length: sup.cantidad }, (_, i) => primerCentroX + i * (tuboRadioPx * 2 + sepEntrePx));
 
+  // Separación real entre las 2 líneas (borde inferior de la de arriba al
+  // borde superior de la de abajo) — debe ser mínimo 0.10 m (ver notasCruce).
+  const separacionRealM = prof.profundidadM - (sup.profundidadM + (sup.tipoDef.tieneTuberia ? sup.diametroM : 0.01));
+
   const svgW = zanjaX0 + anchoPx + 96;
-  const svgH = profFondoY + 62;
+  const svgH = profFondoY + 50;
+
+  function CotaVertical({ y0, y1, x, valor }) {
+    if (y1 - y0 < 0.5) return null;
+    return (
+      <g>
+        <g stroke="#3C64AA" strokeWidth="1">
+          <line x1={x} y1={y0} x2={x} y2={y1} />
+          <line x1={x - 4} y1={y0} x2={x + 4} y2={y0} />
+          <line x1={x - 4} y1={y1} x2={x + 4} y2={y1} />
+        </g>
+        <text x={x + 9} y={(y0 + y1) / 2} textAnchor="middle" fontSize="6.2" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${x + 9}, ${(y0 + y1) / 2})`}>
+          {valor.toFixed(2)} m
+        </text>
+      </g>
+    );
+  }
 
   return (
     <svg viewBox={`0 0 ${svgW} ${svgH}`} className={className}>
@@ -8511,19 +8536,27 @@ function CrucePreview({ datos, plantillasCanalizaciones, className = 'w-full h-a
       )}
 
       {/* Línea más profunda: LONGITUDINAL — atraviesa de un lado a otro,     */}
-      {/* a SU propia profundidad. Con su propia arenilla si tiene tubería.  */}
+      {/* a SU propia profundidad, con el grosor de SU propio diámetro real. */}
       {prof.tipoDef.tieneTuberia && (
         <rect x={zanjaX0} y={profTuboY - profArenillaPx} width={anchoPx} height={profAlturaPx + profArenillaPx * 2} fill="#EFE3C8" stroke="#152644" strokeWidth="1" strokeDasharray="3 2" />
       )}
-      <line x1={zanjaX0 + 6} y1={profTuboY + profAlturaPx / 2} x2={zanjaX0 + anchoPx - 6} y2={profTuboY + profAlturaPx / 2} stroke={prof.tipoDef.color} strokeWidth={prof.tipoDef.tieneTuberia ? 4 : 2.5} strokeLinecap="round" />
+      <line x1={zanjaX0 + 6} y1={profTuboY + profAlturaPx / 2} x2={zanjaX0 + anchoPx - 6} y2={profTuboY + profAlturaPx / 2} stroke={prof.tipoDef.color} strokeWidth={profAlturaPx} strokeLinecap="round" />
+
+      {/* Cotas jerárquicas a la derecha: piso→cinta, cinta→línea superior,   */}
+      {/* separación entre ambas líneas (¡el valor clave del cruce!), y en   */}
+      {/* paralelo, más alejada, la profundidad total de la zanja.          */}
+      <CotaVertical y0={zanjaTopY} y1={zanjaTopY + cintaYPx} x={zanjaX0 + anchoPx + 14} valor={cintaYPx / scale} />
+      <CotaVertical y0={zanjaTopY + cintaYPx} y1={tuboY} x={zanjaX0 + anchoPx + 14} valor={(tuboY - zanjaTopY - cintaYPx) / scale} />
+      <CotaVertical y0={tuboY + alturaElementoPx} y1={profTuboY} x={zanjaX0 + anchoPx + 14} valor={separacionRealM} />
+      <CotaVertical y0={profTuboY} y1={profTuboY + profAlturaPx} x={zanjaX0 + anchoPx + 14} valor={profAlturaPx / scale} />
 
       <g stroke="#152644" strokeWidth="1">
-        <line x1={zanjaX0 + anchoPx + 16} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 16} y2={profFondoY} />
-        <line x1={zanjaX0 + anchoPx + 12} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 20} y2={zanjaTopY} />
-        <line x1={zanjaX0 + anchoPx + 12} y1={profFondoY} x2={zanjaX0 + anchoPx + 20} y2={profFondoY} />
+        <line x1={zanjaX0 + anchoPx + 40} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 40} y2={profFondoY - 16} />
+        <line x1={zanjaX0 + anchoPx + 36} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 44} y2={zanjaTopY} />
+        <line x1={zanjaX0 + anchoPx + 36} y1={profFondoY - 16} x2={zanjaX0 + anchoPx + 44} y2={profFondoY - 16} />
       </g>
-      <text x={zanjaX0 + anchoPx + 28} y={(zanjaTopY + profFondoY) / 2} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644" transform={`rotate(90, ${zanjaX0 + anchoPx + 28}, ${(zanjaTopY + profFondoY) / 2})`}>
-        {((profFondoY - zanjaTopY) / scale).toFixed(2)} m
+      <text x={zanjaX0 + anchoPx + 52} y={(zanjaTopY + profFondoY - 16) / 2} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644" transform={`rotate(90, ${zanjaX0 + anchoPx + 52}, ${(zanjaTopY + profFondoY - 16) / 2})`}>
+        {((profFondoY - 16 - zanjaTopY) / scale).toFixed(2)} m
       </text>
 
       <g stroke="#152644" strokeWidth="1">
@@ -8532,10 +8565,8 @@ function CrucePreview({ datos, plantillasCanalizaciones, className = 'w-full h-a
         <line x1={zanjaX0 + anchoPx} y1={profFondoY + 10} x2={zanjaX0 + anchoPx} y2={profFondoY + 18} />
       </g>
       <text x={centroZanja} y={profFondoY + 26} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644">
-        {anchoZanjaM.toFixed(2)} m (ancho total)
+        {anchoZanjaM.toFixed(2)} m
       </text>
-      <text x={zanjaX0 + anchoPx * 0.25} y={profFondoY - 6} textAnchor="middle" fontSize="7" fill="#3C64AA">{sup.tipoDef.label}: {sup.profundidadM.toFixed(2)} m</text>
-      <text x={zanjaX0 + anchoPx * 0.75} y={profFondoY - 6} textAnchor="middle" fontSize="7" fill="#3C64AA">{prof.tipoDef.label}: {prof.profundidadM.toFixed(2)} m</text>
     </svg>
   );
 }
@@ -8561,12 +8592,21 @@ function notasCruce(datos, plantillasCanalizaciones) {
     else notas.push(NOTA_SPT_SIEMPRE_ABAJO);
   }
   const idsACBT_MT = ['acbt_tuberia', 'acbt_directo', 'mt'];
-  if (idsACBT_MT.includes(lineaA.tipoDef.id) && idsACBT_MT.includes(lineaB.tipoDef.id) && lineaA.tipoDef.id !== lineaB.tipoDef.id) {
+  const esParAcbtMt = idsACBT_MT.includes(lineaA.tipoDef.id) && idsACBT_MT.includes(lineaB.tipoDef.id) && lineaA.tipoDef.id !== lineaB.tipoDef.id;
+  if (esParAcbtMt) {
     const acbt = lineaA.tipoDef.id === 'mt' ? lineaB : lineaA;
     const mt = lineaA.tipoDef.id === 'mt' ? lineaA : lineaB;
     const generatrizInferiorAcbt = acbt.profundidadM + (acbt.tipoDef.tieneTuberia ? acbt.diametroM : 0.01);
     const diferencia = mt.profundidadM - generatrizInferiorAcbt;
     if (diferencia < 0.20) notas.push(`⚠️ La diferencia entre la generatriz inferior de AC-BT y la superior de AC-MT es de ${diferencia.toFixed(2)} m (debe ser mínimo 0.20 m).`);
+  } else {
+    // Regla general: mínimo 0.10 m entre el borde inferior de la línea de
+    // arriba y el borde superior de la de abajo (AC-BT×MT usa su propia
+    // regla más estricta de 0.20 m, de arriba, así que no se repite aquí).
+    const [sup, prof] = lineaA.profundidadM <= lineaB.profundidadM ? [lineaA, lineaB] : [lineaB, lineaA];
+    const bordeInferiorSup = sup.profundidadM + (sup.tipoDef.tieneTuberia ? sup.diametroM : 0.01);
+    const separacion = prof.profundidadM - bordeInferiorSup;
+    if (separacion < 0.10) notas.push(`⚠️ La separación entre ${sup.tipoDef.label} y ${prof.tipoDef.label} es de ${separacion.toFixed(2)} m (debe ser mínimo 0.10 m entre líneas que se cruzan).`);
   }
   notas.push('Queda a criterio de campo si cortar la cinta de señalización de la línea más profunda en el cruce, o dejarla, según facilidad constructiva.');
   return notas;
@@ -8708,12 +8748,10 @@ function CruceForm({ plantilla, plantillasCanalizaciones, onCancel, onSave }) {
           <div>
             <label className="block text-xs text-navy-500 mb-1">Profundidad Línea A (m)</label>
             <input value={datos.profundidadA} onChange={(e) => set('profundidadA', e.target.value)} className={cellInput} />
-            <p className="text-[11px] text-navy-400 mt-0.5">Sugerida por la Tabla 4 (editable).</p>
           </div>
           <div>
             <label className="block text-xs text-navy-500 mb-1">Profundidad Línea B (m)</label>
             <input value={datos.profundidadB} onChange={(e) => set('profundidadB', e.target.value)} className={cellInput} />
-            <p className="text-[11px] text-navy-400 mt-0.5">Sugerida por la Tabla 4 (editable).</p>
           </div>
           <div className="sm:col-span-2">
             <label className="block text-xs text-navy-500 mb-1">Notas</label>
