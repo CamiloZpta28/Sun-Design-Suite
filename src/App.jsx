@@ -7804,7 +7804,8 @@ function CanalizacionPreview({ tipoId, datos, className = 'w-full h-auto' }) {
   const sepLateralPx = clamp(sepLateralM * scale, 6, anchoPx / 2 - 6);
   const sepEntrePx = clamp(sepEntreM * scale, 3, 30);
 
-  const marginTop = (d.cruzaConVia ? 50 : 34);
+  const viaPx = d.cruzaConVia ? clamp((parseFloat(d.espesor_via) || 0.10) * scale, 10, 40) : 0;
+  const marginTop = 34 + (d.cruzaConVia ? viaPx + 18 : 0);
   const marginLeft = 88;
   const zanjaX0 = marginLeft;
   const zanjaTopY = marginTop;
@@ -7834,6 +7835,7 @@ function CanalizacionPreview({ tipoId, datos, className = 'w-full h-auto' }) {
   // Cota vertical pequeña (segmento) — para la pila de cotas de la derecha, cercana al dibujo.
   function CotaVertical({ y0, y1, x, valor }) {
     if (y1 - y0 < 0.5) return null;
+    const alto = y1 - y0;
     return (
       <g>
         <g stroke="#3C64AA" strokeWidth="1">
@@ -7841,9 +7843,15 @@ function CanalizacionPreview({ tipoId, datos, className = 'w-full h-auto' }) {
           <line x1={x - 4} y1={y0} x2={x + 4} y2={y0} />
           <line x1={x - 4} y1={y1} x2={x + 4} y2={y1} />
         </g>
-        <text x={x + 9} y={(y0 + y1) / 2} textAnchor="middle" fontSize="6.2" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${x + 9}, ${(y0 + y1) / 2})`}>
-          {valor.toFixed(2)} m
-        </text>
+        {alto < 18 ? (
+          <text x={x + 6} y={y1 + 2.5} textAnchor="start" fontSize="6" fontWeight="600" fill="#3C64AA">
+            {valor.toFixed(2)} m
+          </text>
+        ) : (
+          <text x={x + 9} y={(y0 + y1) / 2} textAnchor="middle" fontSize="6.2" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${x + 9}, ${(y0 + y1) / 2})`}>
+            {valor.toFixed(2)} m
+          </text>
+        )}
       </g>
     );
   }
@@ -7852,17 +7860,25 @@ function CanalizacionPreview({ tipoId, datos, className = 'w-full h-auto' }) {
     <svg viewBox={`0 0 ${svgW} ${svgH}`} className={className}>
       {d.cruzaConVia && (
         <>
-          <rect x={zanjaX0 - 6} y={zanjaTopY - 16} width={anchoPx + 12} height={16} fill="#B9BEC7" stroke="#152644" strokeWidth="1" />
+          <rect x={zanjaX0 - 6} y={zanjaTopY - viaPx} width={anchoPx + 12} height={viaPx} fill="#B9BEC7" stroke="#152644" strokeWidth="1" />
           {Array.from({ length: 6 }).map((_, i) => (
-            <line key={i} x1={zanjaX0 - 4 + i * ((anchoPx + 8) / 6)} y1={zanjaTopY - 16} x2={zanjaX0 - 4 + i * ((anchoPx + 8) / 6) + 16} y2={zanjaTopY} stroke="#8A93A6" strokeWidth="1" />
+            <line key={i} x1={zanjaX0 - 4 + i * ((anchoPx + 8) / 6)} y1={zanjaTopY} x2={zanjaX0 - 4 + i * ((anchoPx + 8) / 6) + viaPx} y2={zanjaTopY - viaPx} stroke="#8A93A6" strokeWidth="1" />
           ))}
-          <text x={zanjaX0 - 10} y={zanjaTopY - 8 + 3} textAnchor="end" fontSize="7" fill="#152644">Espesor de vía</text>
+          <text x={zanjaX0 - 10} y={zanjaTopY - viaPx / 2 + 3} textAnchor="end" fontSize="7" fill="#152644">Espesor de vía</text>
+          {/* El "Nivel de piso existente" es la SUPERFICIE de la vía (arriba */}
+          {/* del todo), no la línea natural del terreno debajo del pavimento. */}
+          <line x1={zanjaX0 - 20} y1={zanjaTopY - viaPx} x2={zanjaX0 + anchoPx + 20} y2={zanjaTopY - viaPx} stroke="#152644" strokeWidth="1.4" />
+          <polygon points={`${centroZanja - 5},${zanjaTopY - viaPx - 11} ${centroZanja + 5},${zanjaTopY - viaPx - 11} ${centroZanja},${zanjaTopY - viaPx - 2}`} fill="#152644" />
+          <text x={centroZanja} y={zanjaTopY - viaPx - 16} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">Nivel de piso existente</text>
         </>
       )}
-      {/* Nivel de piso existente */}
-      <line x1={zanjaX0 - 20} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 20} y2={zanjaTopY} stroke="#152644" strokeWidth="1.4" />
-      <polygon points={`${centroZanja - 5},${zanjaTopY - 11} ${centroZanja + 5},${zanjaTopY - 11} ${centroZanja},${zanjaTopY - 2}`} fill="#152644" />
-      <text x={centroZanja} y={zanjaTopY - 16 - (d.cruzaConVia ? 16 : 0)} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">Nivel de piso existente</text>
+      {!d.cruzaConVia && (
+        <>
+          <line x1={zanjaX0 - 20} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 20} y2={zanjaTopY} stroke="#152644" strokeWidth="1.4" />
+          <polygon points={`${centroZanja - 5},${zanjaTopY - 11} ${centroZanja + 5},${zanjaTopY - 11} ${centroZanja},${zanjaTopY - 2}`} fill="#152644" />
+          <text x={centroZanja} y={zanjaTopY - 16} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">Nivel de piso existente</text>
+        </>
+      )}
 
       {/* Material de excavación compactado (relleno) */}
       <rect x={zanjaX0} y={zanjaTopY} width={anchoPx} height={zanjaBotY - zanjaTopY} fill="#F2E8D5" stroke="#152644" strokeWidth="1.3" />
@@ -8447,7 +8463,7 @@ function CrucePreview({ datos, plantillasCanalizaciones, className = 'w-full h-a
   const sepEntrePx = clamp(sup.sepEntreM * scale, 3, 30);
 
   const marginTop = 34;
-  const marginLeft = 96;
+  const marginLeft = 108;
   const zanjaX0 = marginLeft;
   const zanjaTopY = marginTop;
   const tuboY = zanjaTopY + profPx;
@@ -8483,6 +8499,7 @@ function CrucePreview({ datos, plantillasCanalizaciones, className = 'w-full h-a
 
   function CotaVertical({ y0, y1, x, valor }) {
     if (y1 - y0 < 0.5) return null;
+    const alto = y1 - y0;
     return (
       <g>
         <g stroke="#3C64AA" strokeWidth="1">
@@ -8490,9 +8507,15 @@ function CrucePreview({ datos, plantillasCanalizaciones, className = 'w-full h-a
           <line x1={x - 4} y1={y0} x2={x + 4} y2={y0} />
           <line x1={x - 4} y1={y1} x2={x + 4} y2={y1} />
         </g>
-        <text x={x + 9} y={(y0 + y1) / 2} textAnchor="middle" fontSize="6.2" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${x + 9}, ${(y0 + y1) / 2})`}>
-          {valor.toFixed(2)} m
-        </text>
+        {alto < 18 ? (
+          <text x={x + 6} y={y1 + 2.5} textAnchor="start" fontSize="6" fontWeight="600" fill="#3C64AA">
+            {valor.toFixed(2)} m
+          </text>
+        ) : (
+          <text x={x + 9} y={(y0 + y1) / 2} textAnchor="middle" fontSize="6.2" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${x + 9}, ${(y0 + y1) / 2})`}>
+            {valor.toFixed(2)} m
+          </text>
+        )}
       </g>
     );
   }
@@ -8508,19 +8531,19 @@ function CrucePreview({ datos, plantillasCanalizaciones, className = 'w-full h-a
         <circle key={i} cx={zanjaX0 + 8 + (i * 37) % (anchoPx - 12)} cy={zanjaTopY + 8 + Math.floor(i / 4) * 14} r="1" fill="#B8A67D" opacity="0.7" />
       ))}
 
-      <text x={zanjaX0 - 8} y={zanjaTopY + (cintaYPx > 30 ? cintaYPx / 2 - 6 : 12)} textAnchor="end" fontSize="7" fill="#152644">Material de la</text>
-      <text x={zanjaX0 - 8} y={zanjaTopY + (cintaYPx > 30 ? cintaYPx / 2 + 2 : 20)} textAnchor="end" fontSize="7" fill="#152644">excavación</text>
-      <text x={zanjaX0 - 8} y={zanjaTopY + (cintaYPx > 30 ? cintaYPx / 2 + 10 : 28)} textAnchor="end" fontSize="7" fill="#152644">compactado</text>
-      <text x={zanjaX0 - 8} y={zanjaTopY + cintaYPx + 3} textAnchor="end" fontSize="7.5" fill="#152644">Cinta de</text>
-      <text x={zanjaX0 - 8} y={zanjaTopY + cintaYPx + 12} textAnchor="end" fontSize="7.5" fill="#152644">señalización</text>
+      <text x={zanjaX0 - 12} y={zanjaTopY + (cintaYPx > 30 ? cintaYPx / 2 - 6 : 12)} textAnchor="end" fontSize="7" fill="#152644">Material de la</text>
+      <text x={zanjaX0 - 12} y={zanjaTopY + (cintaYPx > 30 ? cintaYPx / 2 + 2 : 20)} textAnchor="end" fontSize="7" fill="#152644">excavación</text>
+      <text x={zanjaX0 - 12} y={zanjaTopY + (cintaYPx > 30 ? cintaYPx / 2 + 10 : 28)} textAnchor="end" fontSize="7" fill="#152644">compactado</text>
+      <text x={zanjaX0 - 12} y={zanjaTopY + cintaYPx + 3} textAnchor="end" fontSize="7.5" fill="#152644">Cinta de</text>
+      <text x={zanjaX0 - 12} y={zanjaTopY + cintaYPx + 12} textAnchor="end" fontSize="7.5" fill="#152644">señalización</text>
       {sup.tipoDef.tieneTuberia && (
-        <text x={zanjaX0 - 8} y={arenillaTopY + 4} textAnchor="end" fontSize="7.5" fill="#152644">Arenilla</text>
+        <text x={zanjaX0 - 12} y={arenillaTopY + 4} textAnchor="end" fontSize="7.5" fill="#152644">Arenilla</text>
       )}
-      <text x={zanjaX0 - 8} y={tuboY + alturaElementoPx / 2 + 4} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#152644">{sup.tipoDef.label}</text>
+      <text x={zanjaX0 - 12} y={tuboY + alturaElementoPx / 2 + 4} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#152644">{sup.tipoDef.label}</text>
       {prof.tipoDef.tieneTuberia && (
-        <text x={zanjaX0 - 8} y={profTuboY + profAlturaPx / 2 + 4 - 9} textAnchor="end" fontSize="7" fill="#152644">Arenilla</text>
+        <text x={zanjaX0 - 12} y={profTuboY + profAlturaPx / 2 + 4 - 9} textAnchor="end" fontSize="7" fill="#152644">Arenilla</text>
       )}
-      <text x={zanjaX0 - 8} y={profTuboY + profAlturaPx / 2 + 4} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#152644">{prof.tipoDef.label}</text>
+      <text x={zanjaX0 - 12} y={profTuboY + profAlturaPx / 2 + 4} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#152644">{prof.tipoDef.label}</text>
 
       <line x1={centroZanja - cintaAnchoPx / 2} y1={zanjaTopY + cintaYPx} x2={centroZanja + cintaAnchoPx / 2} y2={zanjaTopY + cintaYPx} stroke="#DC2626" strokeWidth="3" />
 
@@ -8545,10 +8568,10 @@ function CrucePreview({ datos, plantillasCanalizaciones, className = 'w-full h-a
       {/* Cotas jerárquicas a la derecha: piso→cinta, cinta→línea superior,   */}
       {/* separación entre ambas líneas (¡el valor clave del cruce!), y en   */}
       {/* paralelo, más alejada, la profundidad total de la zanja.          */}
-      <CotaVertical y0={zanjaTopY} y1={zanjaTopY + cintaYPx} x={zanjaX0 + anchoPx + 14} valor={cintaYPx / scale} />
-      <CotaVertical y0={zanjaTopY + cintaYPx} y1={tuboY} x={zanjaX0 + anchoPx + 14} valor={(tuboY - zanjaTopY - cintaYPx) / scale} />
-      <CotaVertical y0={tuboY + alturaElementoPx} y1={profTuboY} x={zanjaX0 + anchoPx + 14} valor={separacionRealM} />
-      <CotaVertical y0={profTuboY} y1={profTuboY + profAlturaPx} x={zanjaX0 + anchoPx + 14} valor={profAlturaPx / scale} />
+      <CotaVertical y0={zanjaTopY} y1={zanjaTopY + cintaYPx} x={zanjaX0 + anchoPx + 18} valor={cintaYPx / scale} />
+      <CotaVertical y0={zanjaTopY + cintaYPx} y1={tuboY} x={zanjaX0 + anchoPx + 18} valor={(tuboY - zanjaTopY - cintaYPx) / scale} />
+      <CotaVertical y0={tuboY + alturaElementoPx} y1={profTuboY} x={zanjaX0 + anchoPx + 18} valor={separacionRealM} />
+      <CotaVertical y0={profTuboY} y1={profTuboY + profAlturaPx} x={zanjaX0 + anchoPx + 18} valor={profAlturaPx / scale} />
 
       <g stroke="#152644" strokeWidth="1">
         <line x1={zanjaX0 + anchoPx + 40} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 40} y2={profFondoY - 16} />
@@ -8670,7 +8693,7 @@ function CruceForm({ plantilla, plantillasCanalizaciones, onCancel, onSave }) {
   const notas = datos.esCruceConVia ? [] : notasCruce(datos, plantillasCanalizaciones);
   const plantillaVia = plantillasCanalizaciones.find((p) => p.id === datos.lineaId);
   const tipoDefVia = plantillaVia ? CANALIZACION_TIPOS.find((t) => t.id === plantillaVia.tipo) : null;
-  const datosPreviewVia = plantillaVia ? { ...plantillaVia.datos, profundidad: datos.profundidad || plantillaVia.datos?.profundidad, cruzaConVia: true } : null;
+  const datosPreviewVia = plantillaVia ? { ...plantillaVia.datos, profundidad: datos.profundidad || plantillaVia.datos?.profundidad, espesor_via: datos.espesor_via, cruzaConVia: true } : null;
 
   return (
     <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
@@ -8719,6 +8742,10 @@ function CruceForm({ plantilla, plantillasCanalizaciones, onCancel, onSave }) {
             <label className="block text-xs text-navy-500 mb-1">Profundidad (m)</label>
             <input value={datos.profundidad} onChange={(e) => set('profundidad', e.target.value)} placeholder={tipoDefVia ? String(tipoDefVia.profundidadNorma) : ''} className={cellInput} />
             <p className="text-[11px] text-navy-400 mt-0.5">Mínimo 0.60 m desde la rasante de la vía hasta la generatriz superior del ducto.</p>
+          </div>
+          <div>
+            <label className="block text-xs text-navy-500 mb-1">Espesor de vía (m)</label>
+            <input value={datos.espesor_via} onChange={(e) => set('espesor_via', e.target.value)} placeholder="0.10" className={cellInput} />
           </div>
           <div className="sm:col-span-2">
             <label className="block text-xs text-navy-500 mb-1">Notas</label>
@@ -8838,7 +8865,7 @@ function CrucesView({ plantillas, plantillasCanalizaciones, onAdd, onUpdate, onD
                   <div className="flex items-center justify-center mb-2">
                     {p.datos?.esCruceConVia ? (
                       tipoDefVia && plantillaViaBase ? (
-                        <CanalizacionPreview tipoId={tipoDefVia.id} datos={{ ...plantillaViaBase.datos, profundidad: p.datos.profundidad || plantillaViaBase.datos?.profundidad, cruzaConVia: true }} className="w-full h-auto" />
+                        <CanalizacionPreview tipoId={tipoDefVia.id} datos={{ ...plantillaViaBase.datos, profundidad: p.datos.profundidad || plantillaViaBase.datos?.profundidad, espesor_via: p.datos.espesor_via, cruzaConVia: true }} className="w-full h-auto" />
                       ) : null
                     ) : (
                       <CrucePreview datos={p.datos} plantillasCanalizaciones={plantillasCanalizaciones} className="w-full h-auto" />
