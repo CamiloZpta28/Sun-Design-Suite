@@ -8920,6 +8920,12 @@ const ACTUALIZACION_CATEGORIAS_SEED = [
   { id: 'act_cerramiento', nombre: 'Cerramiento' },
 ];
 
+/* Quita tildes/mayúsculas para comparar texto "a ojo" (ej. para que        */
+/* "tuberia" y "Tubería" se reconozcan como la misma etiqueta).             */
+function normalizarTexto(s) {
+  return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
 function formatoFechaHora(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -8928,17 +8934,39 @@ function formatoFechaHora(iso) {
   return `${fecha} · ${hora}`;
 }
 
-function ActualizacionForm({ actualizacion, onCancel, onSave }) {
+function ActualizacionForm({ actualizacion, etiquetasConocidas, onCancel, onSave }) {
   const [nombre, setNombre] = useState(actualizacion?.nombre || '');
   const [descripcion, setDescripcion] = useState(actualizacion?.descripcion || '');
   const [interesados, setInteresados] = useState(actualizacion?.interesados || []);
   const [ubicacion, setUbicacion] = useState(actualizacion?.ubicacion || '');
-  const [etiquetasTexto, setEtiquetasTexto] = useState((actualizacion?.etiquetas || []).join(', '));
+  const [etiquetas, setEtiquetas] = useState(actualizacion?.etiquetas || []);
+  const [etiquetaEnCurso, setEtiquetaEnCurso] = useState('');
   const [imagen, setImagen] = useState(actualizacion?.imagen || null);
   const [errorImagen, setErrorImagen] = useState('');
 
   function toggleInteresado(key) {
     setInteresados((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  }
+  function agregarEtiqueta(valorCrudo) {
+    // Si lo que se digitó/eligió coincide (sin importar mayúsculas ni       */
+    // tildes) con una etiqueta YA usada antes, se guarda con la            */
+    // ORTOGRAFÍA EXACTA de esa etiqueta existente — así nunca queda        */
+    // "Tubería" y "tuberia" como dos etiquetas distintas por accidente.    */
+    const limpio = valorCrudo.trim();
+    if (!limpio) return;
+    const existente = (etiquetasConocidas || []).find((e) => normalizarTexto(e) === normalizarTexto(limpio));
+    const final = existente || limpio;
+    setEtiquetas((prev) => (prev.some((e) => normalizarTexto(e) === normalizarTexto(final)) ? prev : [...prev, final]));
+    setEtiquetaEnCurso('');
+  }
+  function quitarEtiqueta(et) {
+    setEtiquetas((prev) => prev.filter((e) => e !== et));
+  }
+  function handleEtiquetaKeyDown(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      agregarEtiqueta(etiquetaEnCurso);
+    }
   }
   function handleImagenChange(e) {
     const file = e.target.files?.[0];
@@ -8957,8 +8985,6 @@ function ActualizacionForm({ actualizacion, onCancel, onSave }) {
   function submit(e) {
     e.preventDefault();
     if (!nombre.trim()) return;
-    // "una, dos, tres" -> ['una', 'dos', 'tres'] — sin espacios de sobra ni vacías.
-    const etiquetas = etiquetasTexto.split(',').map((t) => t.trim()).filter(Boolean);
     onSave({ nombre: nombre.trim(), descripcion: descripcion.trim(), interesados, ubicacion: ubicacion.trim(), etiquetas, imagen });
   }
   const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
@@ -8995,8 +9021,37 @@ function ActualizacionForm({ actualizacion, onCancel, onSave }) {
         </div>
         <div>
           <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Etiquetas</label>
-          <input value={etiquetasTexto} onChange={(e) => setEtiquetasTexto(e.target.value)} placeholder="Ej. tubería, luminarias, cámaras (separadas por comas)" className={cellInput} />
-          <p className="text-[11px] text-navy-400 mt-0.5">Separadas por comas — sirven para encontrar esta actualización en el buscador.</p>
+          {etiquetas.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {etiquetas.map((et) => (
+                <span key={et} className="inline-flex items-center gap-1 text-xs font-medium text-sky-700 bg-sky-50 px-2 py-1 rounded-full">
+                  #{et}
+                  <button type="button" onClick={() => quitarEtiqueta(et)} className="text-sky-400 hover:text-sky-700" title="Quitar">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input
+              list="etiquetas-conocidas"
+              value={etiquetaEnCurso}
+              onChange={(e) => setEtiquetaEnCurso(e.target.value)}
+              onKeyDown={handleEtiquetaKeyDown}
+              placeholder="Escribe una etiqueta y presiona Enter…"
+              className={cellInput}
+            />
+            <datalist id="etiquetas-conocidas">
+              {(etiquetasConocidas || []).map((et) => <option key={et} value={et} />)}
+            </datalist>
+            <button type="button" onClick={() => agregarEtiqueta(etiquetaEnCurso)} className="shrink-0 text-sm font-semibold text-lime-600 hover:text-lime-700 px-3">
+              + Agregar
+            </button>
+          </div>
+          <p className="text-[11px] text-navy-400 mt-0.5">
+            Si ya existe una etiqueta parecida, elígela de la lista para que quede escrita igual — así se encuentra mejor en el buscador.
+          </p>
         </div>
         <div>
           <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Imagen de la actualización</label>
@@ -9086,6 +9141,7 @@ function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategor
   const [confirmandoId, setConfirmandoId] = useState(null);
   const [confirmandoCategoria, setConfirmandoCategoria] = useState(null);
   const [busqueda, setBusqueda] = useState('');
+  const [imagenAmpliada, setImagenAmpliada] = useState(null);
 
   // Al llegar desde una notificación de actualización, salta directo a la
   // categoría correspondiente (en vez de quedarse en la primera).
@@ -9093,15 +9149,20 @@ function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategor
     if (categoriaPreseleccionada) setCategoriaActiva(categoriaPreseleccionada);
   }, [categoriaPreseleccionada]);
 
+  // Todas las etiquetas que ya se han usado alguna vez, en cualquier
+  // categoría — para sugerirlas al escribir una nueva (así queda escrita
+  // igual que la vez anterior, sin duplicados por mayúsculas/tildes).
+  const etiquetasConocidas = Array.from(new Set(actualizaciones.flatMap((a) => a.etiquetas || []))).sort();
+
   const categoriaObj = categorias.find((c) => c.id === categoriaActiva) || categorias[0];
-  const busquedaLimpia = busqueda.trim().toLowerCase();
+  const busquedaLimpia = normalizarTexto(busqueda.trim());
   const deEstaCategoria = actualizaciones
     .filter((a) => a.categoria_id === categoriaObj?.id)
     .filter((a) => {
       if (!busquedaLimpia) return true;
-      const enEtiquetas = (a.etiquetas || []).some((et) => et.toLowerCase().includes(busquedaLimpia));
-      const enNombre = (a.nombre || '').toLowerCase().includes(busquedaLimpia);
-      const enDescripcion = (a.descripcion || '').toLowerCase().includes(busquedaLimpia);
+      const enEtiquetas = (a.etiquetas || []).some((et) => normalizarTexto(et).includes(busquedaLimpia));
+      const enNombre = normalizarTexto(a.nombre).includes(busquedaLimpia);
+      const enDescripcion = normalizarTexto(a.descripcion).includes(busquedaLimpia);
       return enEtiquetas || enNombre || enDescripcion;
     })
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // más reciente primero
@@ -9193,6 +9254,7 @@ function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategor
       {(creando || editandoId) && (
         <ActualizacionForm
           actualizacion={editandoId ? deEstaCategoria.find((a) => a.id === editandoId) : null}
+          etiquetasConocidas={etiquetasConocidas}
           onCancel={cerrarFormulario}
           onSave={(datos) => {
             if (editandoId) onUpdate(editandoId, datos);
@@ -9236,7 +9298,15 @@ function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategor
                   </div>
                 </div>
                 {a.descripcion && <p className="text-sm text-navy-600 mt-2">{a.descripcion}</p>}
-                {a.imagen && <img src={a.imagen} alt="" className="mt-3 max-h-56 rounded-lg border border-navy-200 object-contain" />}
+                {a.imagen && (
+                  <img
+                    src={a.imagen}
+                    alt=""
+                    onClick={() => setImagenAmpliada(a.imagen)}
+                    className="mt-3 max-h-56 rounded-lg border border-navy-200 object-contain cursor-zoom-in hover:opacity-90 transition-opacity"
+                    title="Click para ampliar"
+                  />
+                )}
 
                 {/* Ubicación: separada de Interesados/Etiquetas — línea propia, */}
                 {/* estilo de texto simple (no una "pastilla" más), para que no */}
@@ -9276,6 +9346,24 @@ function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategor
             ))}
           </div>
         )
+      )}
+
+      {/* Lightbox: clic en una imagen la agranda sobre toda la pantalla;    */}
+      {/* clic afuera o en la X la cierra.                                   */}
+      {imagenAmpliada && (
+        <div
+          className="fixed inset-0 z-50 bg-navy-900/90 flex items-center justify-center p-6 cursor-zoom-out"
+          onClick={() => setImagenAmpliada(null)}
+        >
+          <button
+            onClick={() => setImagenAmpliada(null)}
+            className="absolute top-4 right-4 text-white bg-navy-800/70 hover:bg-navy-800 rounded-full p-2"
+            title="Cerrar"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <img src={imagenAmpliada} alt="" className="max-w-full max-h-full object-contain rounded-lg cursor-default" onClick={(e) => e.stopPropagation()} />
+        </div>
       )}
     </div>
   );
