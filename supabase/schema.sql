@@ -269,6 +269,17 @@ create table if not exists diametros_tuberia (
   created_at timestamptz default now()
 );
 
+-- Plantillas de "Cruces" (detalles de cruce entre 2 canalizaciones ya
+-- creadas, según la Tabla 4 del documento de criterios).
+create table if not exists cruce_plantillas (
+  id text primary key,
+  nombre text not null,
+  datos jsonb not null default '{}'::jsonb,
+  creado_por text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 -- Lista de tipos de malla electrosoldada disponibles en el selector de la
 -- losa de Inversores (y de cualquier otra cimentación que use malla más
 -- adelante). Empieza con D84; cualquiera puede agregar otra.
@@ -485,6 +496,16 @@ create policy "Lectura de diametros de tuberia" on diametros_tuberia
   for select using (auth.role() = 'authenticated');
 create policy "Crear diametros de tuberia" on diametros_tuberia
   for insert with check (auth.role() = 'authenticated');
+
+alter table cruce_plantillas enable row level security;
+create policy "Lectura de cruces" on cruce_plantillas
+  for select using (auth.role() = 'authenticated');
+create policy "Crear cruces" on cruce_plantillas
+  for insert with check (auth.role() = 'authenticated');
+create policy "Editar cruces" on cruce_plantillas
+  for update using (auth.role() = 'authenticated');
+create policy "Eliminar cruces" on cruce_plantillas
+  for delete using (auth.role() = 'authenticated');
 
 alter table mallas enable row level security;
 create policy "Lectura de mallas" on mallas

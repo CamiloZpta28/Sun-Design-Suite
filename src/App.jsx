@@ -7,7 +7,7 @@ import {
   Loader2, RefreshCw, LogOut, ShieldCheck, Lock, History, ClipboardCheck, StickyNote, UserCog,
   Folder, FolderPlus, ChevronDown, ChevronRight, PlayCircle, Video, Code2,
   Bold, Italic, Underline, List, PartyPopper, MessageSquare, PieChart, AlertTriangle, Menu, UserPlus, Boxes,
-  CircleDot, Lightbulb, Home, Wrench, KeyRound, Copy, Star,
+  CircleDot, Lightbulb, Home, Wrench, KeyRound, Copy, Star, GitBranch,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import logoMark from './assets/logo-s-mark.png';
@@ -8314,9 +8314,490 @@ function resumenCombinacion(lineaIds, plantillasCanalizaciones) {
   return lineas.map((l) => `${l.tipoDef.label} (${l.nombre}): ${l.profundidadM.toFixed(2)} m`);
 }
 
+/* ============================================================================
+   5D. CRUCES — ventana aparte de Canalizaciones. Un "Cruce" combina 2
+   plantillas YA CREADAS que se cruzan entre sí (perpendicular, no paralelas
+   como en Combinaciones), aplicando la Tabla 4 del documento de criterios:
+   cada pareja de tipos tiene una profundidad MANDATORIA distinta a la
+   profundidad normal de cada línea. Por defecto se usan esas profundidades,
+   pero quedan editables. Si el cruce es con una vía, la arenilla se
+   reemplaza por concreto (criterio simple, sin distinguir por tipo).
+   ============================================================================ */
+
+/* "ACBT" en la Tabla 4 no distingue AC-BT con tubería de AC-BT Enterrado —  */
+/* ambas mapean a la misma categoría del documento.                        */
+const CATEGORIA_TABLA4 = {
+  dc: 'DC',
+  acbt_tuberia: 'ACBT',
+  acbt_directo: 'ACBT',
+  mt: 'MT',
+  comunicaciones: 'Comunicaciones',
+  energia_ssaa: 'Energía-SSAA',
+  spt: 'SPT',
+};
+/* Las 15 parejas de la Tabla 4 (todas las combinaciones posibles de las 6   */
+/* categorías del documento). "obs" es la nota especial de esa pareja.      */
+const TABLA4_CRUCES = [
+  { a: 'Energía-SSAA', aProf: 0.45, b: 'DC', bProf: 0.60 },
+  { a: 'Energía-SSAA', aProf: 0.45, b: 'ACBT', bProf: 0.60 },
+  { a: 'Energía-SSAA', aProf: 0.45, b: 'MT', bProf: 0.75 },
+  { a: 'Energía-SSAA', aProf: 0.45, b: 'SPT', bProf: 0.75 },
+  { a: 'Energía-SSAA', aProf: 0.60, b: 'Comunicaciones', bProf: 0.40, obs: 'Si el cruce es distinto a 90°, se debe garantizar una separación de 0.30 m entre tuberías.' },
+  { a: 'ACBT', aProf: 0.45, b: 'DC', bProf: 0.60 },
+  { a: 'ACBT', aProf: 0.45, b: 'MT', bProf: 0.75, obs: 'Debe haber una diferencia de mínimo 0.20 m entre la generatriz inferior de AC-BT y la generatriz superior de AC-MT.' },
+  { a: 'ACBT', aProf: 0.45, b: 'SPT', bProf: 0.75 },
+  { a: 'ACBT', aProf: 0.60, b: 'Comunicaciones', bProf: 0.40 },
+  { a: 'DC', aProf: 0.60, b: 'Comunicaciones', bProf: 0.40 },
+  { a: 'DC', aProf: 0.45, b: 'MT', bProf: 0.75 },
+  { a: 'DC', aProf: 0.45, b: 'SPT', bProf: 0.75 },
+  { a: 'Comunicaciones', aProf: 0.40, b: 'MT', bProf: 0.75 },
+  { a: 'Comunicaciones', aProf: 0.40, b: 'SPT', bProf: 0.75 },
+  { a: 'MT', aProf: 0.45, b: 'SPT', bProf: 0.75 },
+];
+/* Busca la pareja de la Tabla 4 para 2 tipos de línea (en cualquier orden)  */
+/* y devuelve las profundidades YA orientadas (profA para tipoA, profB      */
+/* para tipoB) — o null si esa pareja no está en la tabla.                 */
+function buscarTabla4(tipoA, tipoB) {
+  const catA = CATEGORIA_TABLA4[tipoA];
+  const catB = CATEGORIA_TABLA4[tipoB];
+  if (!catA || !catB) return null;
+  const par = TABLA4_CRUCES.find((p) => (p.a === catA && p.b === catB) || (p.a === catB && p.b === catA));
+  if (!par) return null;
+  return par.a === catA
+    ? { profA: par.aProf, profB: par.bProf, obs: par.obs || '' }
+    : { profA: par.bProf, profB: par.aProf, obs: par.obs || '' };
+}
+/* Nota especial de la norma: el cableado de SPT SIEMPRE debe quedar por    */
+/* debajo de la otra línea en un cruce (es curvable, se agacha localmente). */
+const NOTA_SPT_SIEMPRE_ABAJO = 'El cableado de SPT siempre debe quedar por debajo de la otra línea en el cruce (es curvable).';
+
+function datosLineaCruce(plantillaLinea, profundidadOverride) {
+  const tipoDef = CANALIZACION_TIPOS.find((t) => t.id === plantillaLinea?.tipo);
+  if (!tipoDef) return null;
+  const d = plantillaLinea.datos || {};
+  const profundidadM = profundidadOverride != null && profundidadOverride !== ''
+    ? parseFloat(profundidadOverride)
+    : (parseFloat(d.profundidad) || tipoDef.profundidadNorma);
+  return {
+    tipoDef,
+    nombre: plantillaLinea.nombre,
+    profundidadM,
+    cintaDesdeSuperficieM: calcCintaDesdeSuperficie(tipoDef, { ...d, profundidad: String(profundidadM) }),
+    espesorArenillaM: parseFloat(d.espesor_arenilla) || 0.05,
+    sepLateralM: parseFloat(d.separacion_lateral) || 0.15,
+    cantidad: tipoDef.tieneTuberia ? Math.max(1, parseInt(d.cantidad_tuberias, 10) || 1) : 1,
+    sepEntreM: parseFloat(d.separacion_entre_tuberias) || 0.10,
+    diametroM: tipoDef.tieneTuberia ? (pulgadasAMetros(d.diametro) || 0.02) : (tipoDef.esCableFino ? 0.01 : 0.02),
+  };
+}
+
+/* Mismo estilo visual que CombinacionPreview (columnas una junto a otra,   */
+/* cada una a su propia profundidad, fondo uniforme relleno de arenilla) —  */
+/* con 2 diferencias: las profundidades vienen de datos.profundidadA/B (que */
+/* por defecto sugiere la Tabla 4, pero son editables), y si "cruzaConVia"  */
+/* está activo, la arenilla se reemplaza por concreto.                     */
+function CrucePreview({ datos, plantillasCanalizaciones, className = 'w-full h-auto' }) {
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const scale = 200;
+  const d = datos || {};
+  const plantillaA = plantillasCanalizaciones.find((p) => p.id === d.lineaAId);
+  const plantillaB = plantillasCanalizaciones.find((p) => p.id === d.lineaBId);
+  const lineaA = plantillaA ? datosLineaCruce(plantillaA, d.profundidadA) : null;
+  const lineaB = plantillaB ? datosLineaCruce(plantillaB, d.profundidadB) : null;
+
+  if (!lineaA || !lineaB) {
+    return (
+      <svg viewBox="0 0 200 60" className={className}>
+        <text x="100" y="32" textAnchor="middle" fontSize="9" fill="#8A93A6">Elige las 2 líneas que se cruzan</text>
+      </svg>
+    );
+  }
+
+  const lineas = [lineaA, lineaB].sort((a, b) => a.profundidadM - b.profundidadM);
+  const cruzaConVia = !!d.cruzaConVia;
+  const GAP_ENTRE_LINEAS_M = parseFloat(d.separacionEntreLineas) || 0.10;
+  const sepLateralM = Math.max(...lineas.map((l) => l.sepLateralM));
+  const gruposM = lineas.map((l) => (l.tipoDef.tieneTuberia ? l.diametroM * l.cantidad + l.sepEntreM * (l.cantidad - 1) : 0.03));
+  const anchoTotalM = sepLateralM * 2 + gruposM.reduce((a, b) => a + b, 0) + GAP_ENTRE_LINEAS_M;
+  const maxFondoM = Math.max(...lineas.map((l) =>
+    l.tipoDef.tieneTuberia ? l.profundidadM + l.diametroM + l.espesorArenillaM : l.profundidadM + 0.016
+  ));
+  const cintaDesdeSuperficieCompartidaM = Math.min(...lineas.map((l) => l.cintaDesdeSuperficieM));
+  const espesorViaM = 0.10;
+
+  const marginTop = cruzaConVia ? 50 : 34;
+  const zanjaX0 = 96;
+  const zanjaTopY = marginTop;
+  const anchoTotalPx = clamp(anchoTotalM * scale, 120, 420);
+  const pxPorM = anchoTotalPx / anchoTotalM;
+  const maxFondoY = zanjaTopY + maxFondoM * pxPorM;
+  const cintaYPx = clamp(cintaDesdeSuperficieCompartidaM * pxPorM, 10, (maxFondoY - zanjaTopY) - 6);
+  const sepLateralPx = sepLateralM * pxPorM;
+  const gapPx = GAP_ENTRE_LINEAS_M * pxPorM;
+  const viaPx = espesorViaM * pxPorM;
+
+  let cursorX = zanjaX0 + sepLateralPx;
+  const columnas = lineas.map((l, i) => {
+    const grupoAnchoPx = gruposM[i] * pxPorM;
+    const x0 = cursorX;
+    cursorX += grupoAnchoPx + (i === 0 ? gapPx : 0);
+    const tuboY = zanjaTopY + l.profundidadM * pxPorM;
+    const arenillaPx = l.espesorArenillaM * pxPorM;
+    const arenillaTopY = tuboY - arenillaPx;
+    const tuboRadioPx = l.tipoDef.tieneTuberia
+      ? clamp((grupoAnchoPx - l.sepEntreM * pxPorM * (l.cantidad - 1)) / (2 * l.cantidad), 3, 16)
+      : 0;
+    return { ...l, x0, grupoAnchoPx, tuboY, arenillaTopY, tuboRadioPx };
+  });
+  const anchoTotalRealPx = cursorX - zanjaX0 + sepLateralPx;
+  const centroTotal = zanjaX0 + anchoTotalRealPx / 2;
+  const cintaAnchoPx = clamp(0.25 * pxPorM, 20, anchoTotalRealPx - 8);
+  const columnasConTuberia = columnas.filter((c) => c.tipoDef.tieneTuberia);
+  const rellenoTopY = columnasConTuberia.length > 0 ? Math.min(...columnasConTuberia.map((c) => c.arenillaTopY)) : null;
+  const colorRelleno = cruzaConVia ? '#C8CDD6' : '#EFE3C8';
+  const nombreRelleno = cruzaConVia ? 'Concreto' : 'Arenilla';
+
+  const svgW = zanjaX0 + anchoTotalRealPx + 66;
+  const svgH = maxFondoY + 66;
+
+  return (
+    <svg viewBox={`0 0 ${svgW} ${svgH}`} className={className}>
+      {cruzaConVia && (
+        <>
+          <rect x={zanjaX0 - 6} y={zanjaTopY - viaPx} width={anchoTotalRealPx + 12} height={viaPx} fill="#B9BEC7" stroke="#152644" strokeWidth="1" />
+          {Array.from({ length: 10 }).map((_, i) => (
+            <line key={i} x1={zanjaX0 - 4 + i * ((anchoTotalRealPx + 8) / 10)} y1={zanjaTopY - viaPx} x2={zanjaX0 - 4 + i * ((anchoTotalRealPx + 8) / 10) + viaPx} y2={zanjaTopY} stroke="#8A93A6" strokeWidth="1" />
+          ))}
+          <text x={zanjaX0 - 10} y={zanjaTopY - viaPx / 2 + 3} textAnchor="end" fontSize="7" fill="#152644">Espesor de vía</text>
+        </>
+      )}
+      <line x1={zanjaX0 - 20} y1={zanjaTopY} x2={zanjaX0 + anchoTotalRealPx + 20} y2={zanjaTopY} stroke="#152644" strokeWidth="1.4" />
+      <polygon points={`${centroTotal - 5},${zanjaTopY - 11} ${centroTotal + 5},${zanjaTopY - 11} ${centroTotal},${zanjaTopY - 2}`} fill="#152644" />
+      <text x={centroTotal} y={zanjaTopY - 16} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644">Nivel de piso existente</text>
+
+      <rect x={zanjaX0} y={zanjaTopY} width={anchoTotalRealPx} height={maxFondoY - zanjaTopY} fill="#F2E8D5" stroke="#152644" strokeWidth="1.3" />
+      {Array.from({ length: 30 }).map((_, i) => (
+        <circle key={i} cx={zanjaX0 + 8 + (i * 37) % (anchoTotalRealPx - 12)} cy={zanjaTopY + 8 + Math.floor(i / 6) * 14} r="1" fill="#B8A67D" opacity="0.7" />
+      ))}
+
+      <text x={zanjaX0 - 8} y={zanjaTopY + (cintaYPx > 30 ? cintaYPx / 2 - 6 : 12)} textAnchor="end" fontSize="7" fill="#152644">Material de la</text>
+      <text x={zanjaX0 - 8} y={zanjaTopY + (cintaYPx > 30 ? cintaYPx / 2 + 2 : 20)} textAnchor="end" fontSize="7" fill="#152644">excavación</text>
+      <text x={zanjaX0 - 8} y={zanjaTopY + (cintaYPx > 30 ? cintaYPx / 2 + 10 : 28)} textAnchor="end" fontSize="7" fill="#152644">compactado</text>
+      <text x={zanjaX0 - 8} y={zanjaTopY + cintaYPx + 3} textAnchor="end" fontSize="7.5" fill="#152644">Cinta de</text>
+      <text x={zanjaX0 - 8} y={zanjaTopY + cintaYPx + 12} textAnchor="end" fontSize="7.5" fill="#152644">señalización</text>
+      {rellenoTopY != null && (
+        <text x={zanjaX0 - 8} y={(rellenoTopY + maxFondoY) / 2} textAnchor="end" fontSize="7.5" fill="#152644">{nombreRelleno}</text>
+      )}
+
+      <line x1={centroTotal - cintaAnchoPx / 2} y1={zanjaTopY + cintaYPx} x2={centroTotal + cintaAnchoPx / 2} y2={zanjaTopY + cintaYPx} stroke="#DC2626" strokeWidth="3" />
+
+      {rellenoTopY != null && (
+        <rect x={zanjaX0} y={rellenoTopY} width={anchoTotalRealPx} height={maxFondoY - rellenoTopY} fill={colorRelleno} stroke="#152644" strokeWidth="0.8" strokeDasharray={cruzaConVia ? '0' : '3 2'} />
+      )}
+
+      {columnas.map((c, i) => {
+        const centro = c.x0 + c.grupoAnchoPx / 2;
+        const sepEntrePxCol = clamp(c.sepEntreM * pxPorM, 2, 30);
+        const anchoGrupo = c.cantidad * (c.tuboRadioPx * 2) + (c.cantidad - 1) * sepEntrePxCol;
+        const primerCentro = centro - anchoGrupo / 2 + c.tuboRadioPx;
+        return (
+          <g key={i}>
+            {c.tipoDef.tieneTuberia ? (
+              Array.from({ length: c.cantidad }).map((_, j) => (
+                <circle key={j} cx={primerCentro + j * (c.tuboRadioPx * 2 + sepEntrePxCol)} cy={c.tuboY + c.tuboRadioPx} r={c.tuboRadioPx} fill={`${c.tipoDef.color}33`} stroke={c.tipoDef.color} strokeWidth="1.4" />
+              ))
+            ) : (
+              <circle cx={centro} cy={c.tuboY} r="2" fill={c.tipoDef.color} stroke="#152644" strokeWidth="0.7" />
+            )}
+            <text x={centro} y={maxFondoY + 16} textAnchor="middle" fontSize="7" fontWeight="600" fill="#152644">{c.tipoDef.label}</text>
+            <text x={centro} y={maxFondoY + 28} textAnchor="middle" fontSize="7" fill="#3C64AA">{c.profundidadM.toFixed(2)} m</text>
+          </g>
+        );
+      })}
+
+      <g stroke="#3C64AA" strokeWidth="1">
+        <line x1={zanjaX0 + anchoTotalRealPx + 14} y1={zanjaTopY} x2={zanjaX0 + anchoTotalRealPx + 14} y2={zanjaTopY + cintaYPx} />
+        <line x1={zanjaX0 + anchoTotalRealPx + 10} y1={zanjaTopY} x2={zanjaX0 + anchoTotalRealPx + 18} y2={zanjaTopY} />
+        <line x1={zanjaX0 + anchoTotalRealPx + 10} y1={zanjaTopY + cintaYPx} x2={zanjaX0 + anchoTotalRealPx + 18} y2={zanjaTopY + cintaYPx} />
+      </g>
+      <text x={zanjaX0 + anchoTotalRealPx + 23} y={zanjaTopY + cintaYPx / 2} textAnchor="middle" fontSize="6.2" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${zanjaX0 + anchoTotalRealPx + 23}, ${zanjaTopY + cintaYPx / 2})`}>
+        {cintaDesdeSuperficieCompartidaM.toFixed(2)} m
+      </text>
+      <g stroke="#3C64AA" strokeWidth="1">
+        <line x1={zanjaX0 + anchoTotalRealPx + 14} y1={zanjaTopY + cintaYPx} x2={zanjaX0 + anchoTotalRealPx + 14} y2={maxFondoY} />
+        <line x1={zanjaX0 + anchoTotalRealPx + 10} y1={maxFondoY} x2={zanjaX0 + anchoTotalRealPx + 18} y2={maxFondoY} />
+      </g>
+      <text x={zanjaX0 + anchoTotalRealPx + 23} y={zanjaTopY + cintaYPx + ((maxFondoY - zanjaTopY - cintaYPx) / 2)} textAnchor="middle" fontSize="6.2" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${zanjaX0 + anchoTotalRealPx + 23}, ${zanjaTopY + cintaYPx + ((maxFondoY - zanjaTopY - cintaYPx) / 2)})`}>
+        {((maxFondoY - zanjaTopY - cintaYPx) / pxPorM).toFixed(2)} m
+      </text>
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={zanjaX0 + anchoTotalRealPx + 40} y1={zanjaTopY} x2={zanjaX0 + anchoTotalRealPx + 40} y2={maxFondoY} />
+        <line x1={zanjaX0 + anchoTotalRealPx + 36} y1={zanjaTopY} x2={zanjaX0 + anchoTotalRealPx + 44} y2={zanjaTopY} />
+        <line x1={zanjaX0 + anchoTotalRealPx + 36} y1={maxFondoY} x2={zanjaX0 + anchoTotalRealPx + 44} y2={maxFondoY} />
+      </g>
+      <text x={zanjaX0 + anchoTotalRealPx + 52} y={(zanjaTopY + maxFondoY) / 2} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644" transform={`rotate(90, ${zanjaX0 + anchoTotalRealPx + 52}, ${(zanjaTopY + maxFondoY) / 2})`}>
+        {((maxFondoY - zanjaTopY) / pxPorM).toFixed(2)} m
+      </text>
+
+      <g stroke="#152644" strokeWidth="1">
+        <line x1={zanjaX0} y1={maxFondoY + 40} x2={zanjaX0 + anchoTotalRealPx} y2={maxFondoY + 40} />
+        <line x1={zanjaX0} y1={maxFondoY + 36} x2={zanjaX0} y2={maxFondoY + 44} />
+        <line x1={zanjaX0 + anchoTotalRealPx} y1={maxFondoY + 36} x2={zanjaX0 + anchoTotalRealPx} y2={maxFondoY + 44} />
+      </g>
+      <text x={zanjaX0 + anchoTotalRealPx / 2} y={maxFondoY + 54} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644">
+        {(anchoTotalRealPx / pxPorM).toFixed(2)} m (ancho total)
+      </text>
+    </svg>
+  );
+}
+
+/* Notas automáticas (observación de la Tabla 4 + validaciones dinámicas —  */
+/* SPT siempre abajo, y la diferencia mínima de 0.20 m entre AC-BT y MT).  */
+function notasCruce(datos, plantillasCanalizaciones) {
+  const d = datos || {};
+  const plantillaA = plantillasCanalizaciones.find((p) => p.id === d.lineaAId);
+  const plantillaB = plantillasCanalizaciones.find((p) => p.id === d.lineaBId);
+  if (!plantillaA || !plantillaB) return [];
+  const lineaA = datosLineaCruce(plantillaA, d.profundidadA);
+  const lineaB = datosLineaCruce(plantillaB, d.profundidadB);
+  const notas = [];
+  const tabla4 = buscarTabla4(lineaA.tipoDef.id, lineaB.tipoDef.id);
+  if (tabla4?.obs) notas.push(tabla4.obs);
+  else if (!tabla4) notas.push('Esta pareja no está en la Tabla 4 del documento — se usan las profundidades normales de cada línea; ajústalas manualmente si aplica algún criterio especial.');
+  const tieneSpt = lineaA.tipoDef.id === 'spt' || lineaB.tipoDef.id === 'spt';
+  if (tieneSpt) {
+    const spt = lineaA.tipoDef.id === 'spt' ? lineaA : lineaB;
+    const otra = lineaA.tipoDef.id === 'spt' ? lineaB : lineaA;
+    if (spt.profundidadM <= otra.profundidadM) notas.push(`⚠️ ${NOTA_SPT_SIEMPRE_ABAJO} Ajusta la profundidad: SPT está a ${spt.profundidadM.toFixed(2)} m, no más profundo que ${otra.tipoDef.label} (${otra.profundidadM.toFixed(2)} m).`);
+    else notas.push(NOTA_SPT_SIEMPRE_ABAJO);
+  }
+  const idsACBT_MT = ['acbt_tuberia', 'acbt_directo', 'mt'];
+  if (idsACBT_MT.includes(lineaA.tipoDef.id) && idsACBT_MT.includes(lineaB.tipoDef.id) && lineaA.tipoDef.id !== lineaB.tipoDef.id) {
+    const acbt = lineaA.tipoDef.id === 'mt' ? lineaB : lineaA;
+    const mt = lineaA.tipoDef.id === 'mt' ? lineaA : lineaB;
+    const generatrizInferiorAcbt = acbt.profundidadM + (acbt.tipoDef.tieneTuberia ? acbt.diametroM : 0.01);
+    const diferencia = mt.profundidadM - generatrizInferiorAcbt;
+    if (diferencia < 0.20) notas.push(`⚠️ La diferencia entre la generatriz inferior de AC-BT y la superior de AC-MT es de ${diferencia.toFixed(2)} m (debe ser mínimo 0.20 m).`);
+  }
+  notas.push('Queda a criterio de campo si cortar la cinta de señalización de la línea más profunda en el cruce, o dejarla, según facilidad constructiva.');
+  return notas;
+}
+
+function resumenCruce(datos, plantillasCanalizaciones) {
+  const d = datos || {};
+  const plantillaA = plantillasCanalizaciones.find((p) => p.id === d.lineaAId);
+  const plantillaB = plantillasCanalizaciones.find((p) => p.id === d.lineaBId);
+  if (!plantillaA || !plantillaB) return ['Sin líneas elegidas'];
+  const lineaA = datosLineaCruce(plantillaA, d.profundidadA);
+  const lineaB = datosLineaCruce(plantillaB, d.profundidadB);
+  const lineas = [lineaA, lineaB].sort((a, b) => a.profundidadM - b.profundidadM);
+  const out = lineas.map((l) => `${l.tipoDef.label} (${l.nombre}): ${l.profundidadM.toFixed(2)} m`);
+  if (d.cruzaConVia) out.push('Cruza con vía (arenilla → concreto)');
+  return out;
+}
+
+function CruceForm({ plantilla, plantillasCanalizaciones, onCancel, onSave }) {
+  const [nombre, setNombre] = useState(plantilla?.nombre || '');
+  const [datos, setDatos] = useState(() => plantilla?.datos || { lineaAId: '', lineaBId: '', profundidadA: '', profundidadB: '', separacionEntreLineas: '0.10', cruzaConVia: false, notas: '' });
+
+  function set(key, val) {
+    setDatos((prev) => ({ ...prev, [key]: val }));
+  }
+  // Al elegir/cambiar cualquiera de las 2 líneas, sugiere las profundidades
+  // de la Tabla 4 automáticamente (si la pareja está en la tabla) — el
+  // ingeniero puede seguir editándolas después.
+  function elegirLinea(campo, id) {
+    const nuevosDatos = { ...datos, [campo]: id };
+    const otroCampo = campo === 'lineaAId' ? 'lineaBId' : 'lineaAId';
+    const plantillaEsta = plantillasCanalizaciones.find((p) => p.id === id);
+    const plantillaOtra = plantillasCanalizaciones.find((p) => p.id === nuevosDatos[otroCampo]);
+    if (plantillaEsta && plantillaOtra) {
+      const tabla4 = buscarTabla4(plantillaEsta.tipo, plantillaOtra.tipo);
+      if (tabla4) {
+        const [profEsta, profOtra] = campo === 'lineaAId' ? [tabla4.profA, tabla4.profB] : [tabla4.profB, tabla4.profA];
+        nuevosDatos.profundidadA = campo === 'lineaAId' ? String(profEsta) : String(profOtra);
+        nuevosDatos.profundidadB = campo === 'lineaAId' ? String(profOtra) : String(profEsta);
+      }
+    }
+    setDatos(nuevosDatos);
+  }
+  function submit(e) {
+    e.preventDefault();
+    if (!nombre.trim() || !datos.lineaAId || !datos.lineaBId || datos.lineaAId === datos.lineaBId) return;
+    onSave(nombre.trim(), datos);
+  }
+  const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+  const notas = notasCruce(datos, plantillasCanalizaciones);
+
+  return (
+    <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
+      <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
+        {plantilla ? 'Editar cruce' : 'Nuevo cruce'}
+      </p>
+
+      <div className="flex justify-center bg-navy-50 rounded-lg p-4 mb-5">
+        <div className="w-full max-w-2xl">
+          <CrucePreview datos={datos} plantillasCanalizaciones={plantillasCanalizaciones} />
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre del cruce</label>
+        <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder='Ej. Cruce AC-MT con SPT' className={cellInput} required />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label className="block text-xs text-navy-500 mb-1">Línea A</label>
+          <select value={datos.lineaAId} onChange={(e) => elegirLinea('lineaAId', e.target.value)} className={cellInput} required>
+            <option value="">— Elegir —</option>
+            {plantillasCanalizaciones.filter((p) => p.tipo !== 'combinacion' && p.id !== datos.lineaBId).map((p) => (
+              <option key={p.id} value={p.id}>{p.nombre}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-navy-500 mb-1">Línea B</label>
+          <select value={datos.lineaBId} onChange={(e) => elegirLinea('lineaBId', e.target.value)} className={cellInput} required>
+            <option value="">— Elegir —</option>
+            {plantillasCanalizaciones.filter((p) => p.tipo !== 'combinacion' && p.id !== datos.lineaAId).map((p) => (
+              <option key={p.id} value={p.id}>{p.nombre}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-navy-500 mb-1">Profundidad Línea A (m)</label>
+          <input value={datos.profundidadA} onChange={(e) => set('profundidadA', e.target.value)} className={cellInput} />
+          <p className="text-[11px] text-navy-400 mt-0.5">Sugerida por la Tabla 4 (editable).</p>
+        </div>
+        <div>
+          <label className="block text-xs text-navy-500 mb-1">Profundidad Línea B (m)</label>
+          <input value={datos.profundidadB} onChange={(e) => set('profundidadB', e.target.value)} className={cellInput} />
+          <p className="text-[11px] text-navy-400 mt-0.5">Sugerida por la Tabla 4 (editable).</p>
+        </div>
+        <div>
+          <label className="block text-xs text-navy-500 mb-1">Separación entre líneas (m)</label>
+          <input value={datos.separacionEntreLineas} onChange={(e) => set('separacionEntreLineas', e.target.value)} className={cellInput} />
+          <p className="text-[11px] text-navy-400 mt-0.5">Mínimo 0.10 m (0.30 m si Energía-SSAA cruza Comunicaciones a menos/más de 90°).</p>
+        </div>
+        <div className="flex items-end pb-1.5">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={!!datos.cruzaConVia} onChange={(e) => set('cruzaConVia', e.target.checked)} className="w-4 h-4 accent-lime-500" />
+            <span className="text-sm text-navy-700">Cruza con vía (la arenilla se reemplaza por concreto)</span>
+          </label>
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block text-xs text-navy-500 mb-1">Notas</label>
+          <input value={datos.notas} onChange={(e) => set('notas', e.target.value)} className={cellInput} />
+        </div>
+      </div>
+
+      {notas.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-5 space-y-1">
+          {notas.map((n, i) => (
+            <p key={i} className="text-xs text-amber-800">{n}</p>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3">
+        <button type="submit" disabled={!nombre.trim() || !datos.lineaAId || !datos.lineaBId || datos.lineaAId === datos.lineaBId} className="bg-lime-500 hover:bg-lime-600 disabled:opacity-40 disabled:cursor-not-allowed text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
+          {plantilla ? 'Guardar cambios' : 'Crear cruce'}
+        </button>
+        <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function CrucesView({ plantillas, plantillasCanalizaciones, onAdd, onUpdate, onDelete }) {
+  const [creando, setCreando] = useState(false);
+  const [editandoId, setEditandoId] = useState(null);
+  const [confirmandoId, setConfirmandoId] = useState(null);
+
+  function cerrarFormulario() {
+    setCreando(false);
+    setEditandoId(null);
+  }
+
+  return (
+    <div className="p-4 md:p-8 max-w-5xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-navy-800">Cruces</h1>
+        <p className="text-navy-500 text-sm mt-1">
+          Detalles de cruce entre 2 canalizaciones ya creadas, según la Tabla 4 del documento de criterios de zanjas — con la opción de marcar si el cruce es con una vía.
+        </p>
+      </div>
+
+      {!creando && !editandoId && (
+        <button
+          onClick={() => setCreando(true)}
+          className="flex items-center gap-1.5 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg mb-5 transition-colors"
+        >
+          <Plus className="w-4 h-4" /> Nuevo cruce
+        </button>
+      )}
+
+      {(creando || editandoId) && (
+        <CruceForm
+          plantilla={editandoId ? plantillas.find((p) => p.id === editandoId) : null}
+          plantillasCanalizaciones={plantillasCanalizaciones}
+          onCancel={cerrarFormulario}
+          onSave={(nombre, datos) => {
+            if (editandoId) onUpdate(editandoId, { nombre, datos });
+            else onAdd(nombre, datos);
+            cerrarFormulario();
+          }}
+        />
+      )}
+
+      {!creando && !editandoId && (
+        plantillas.length === 0 ? (
+          <p className="text-sm text-navy-400 italic text-center py-10">Aún no hay cruces creados.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {plantillas.map((p) => (
+              <div key={p.id} className="bg-white border border-navy-200 rounded-xl p-4">
+                <div className="flex items-center justify-center mb-2">
+                  <CrucePreview datos={p.datos} plantillasCanalizaciones={plantillasCanalizaciones} className="w-full h-auto" />
+                </div>
+                <p className="font-semibold text-navy-800 text-sm text-center mb-1">{p.nombre}</p>
+                <div className="mb-3">
+                  <ResumenLineas lineas={resumenCruce(p.datos, plantillasCanalizaciones)} size="text-xs" align="center" />
+                </div>
+                <div className="flex items-center justify-center gap-4 flex-wrap">
+                  <button onClick={() => setEditandoId(p.id)} className="text-xs font-semibold text-lime-600 hover:text-lime-700 flex items-center gap-1">
+                    <Pencil className="w-3.5 h-3.5" /> Editar
+                  </button>
+                  {confirmandoId === p.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-navy-500">¿Eliminar?</span>
+                      <button onClick={() => { onDelete(p.id); setConfirmandoId(null); }} className="text-xs font-bold text-red-600 hover:text-red-700">
+                        Sí
+                      </button>
+                      <button onClick={() => setConfirmandoId(null)} className="text-xs text-navy-400 hover:text-navy-600">
+                        No
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmandoId(p.id)} className="text-xs font-semibold text-navy-400 hover:text-red-500 flex items-center gap-1">
+                      <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
 function CombinacionForm({ plantilla, plantillasCanalizaciones, onCancel, onSave }) {
   const [nombre, setNombre] = useState(plantilla?.nombre || '');
-  const [esPrincipal, setEsPrincipal] = useState(plantilla?.es_principal || false);
   const [lineaIds, setLineaIds] = useState(plantilla?.datos?.lineas || []);
 
   const opciones = plantillasCanalizaciones.filter((p) => p.tipo !== 'combinacion');
@@ -8329,7 +8810,7 @@ function CombinacionForm({ plantilla, plantillasCanalizaciones, onCancel, onSave
   function submit(e) {
     e.preventDefault();
     if (!nombre.trim() || lineaIds.length < 2) return;
-    onSave(nombre.trim(), { lineas: lineaIds }, esPrincipal);
+    onSave(nombre.trim(), { lineas: lineaIds });
   }
   const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
 
@@ -8371,11 +8852,6 @@ function CombinacionForm({ plantilla, plantillasCanalizaciones, onCancel, onSave
         </div>
       )}
       {lineaIds.length === 1 && <p className="text-xs text-amber-600 mb-4">Elige al menos una línea más (una combinación necesita 2 o más).</p>}
-
-      <label className="flex items-center gap-2 mb-5 cursor-pointer">
-        <input type="checkbox" checked={esPrincipal} onChange={(e) => setEsPrincipal(e.target.checked)} className="w-4 h-4 accent-lime-500" />
-        <span className="text-sm text-navy-700">Marcar como <strong>Principal</strong> de "Combinaciones"</span>
-      </label>
 
       <div className="flex items-center gap-3">
         <button type="submit" disabled={lineaIds.length < 2 || !nombre.trim()} className="bg-lime-500 hover:bg-lime-600 disabled:opacity-40 disabled:cursor-not-allowed text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
@@ -8448,9 +8924,9 @@ function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrinci
             plantilla={editandoId ? plantillasDelTipo.find((p) => p.id === editandoId) : null}
             plantillasCanalizaciones={plantillas}
             onCancel={cerrarFormulario}
-            onSave={(nombre, datos, esPrincipal) => {
-              if (editandoId) onUpdate(editandoId, { nombre, datos }, esPrincipal, tipoActivo);
-              else onAdd(tipoActivo, nombre, datos, esPrincipal);
+            onSave={(nombre, datos) => {
+              if (editandoId) onUpdate(editandoId, { nombre, datos }, false, tipoActivo);
+              else onAdd(tipoActivo, nombre, datos, false);
               cerrarFormulario();
             }}
           />
@@ -8478,8 +8954,8 @@ function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrinci
         ) : (() => {
           function Tarjeta({ p }) {
             return (
-              <div key={p.id} className={`bg-white border rounded-xl p-4 relative ${p.es_principal ? 'border-lime-400 ring-1 ring-lime-300' : 'border-navy-200'}`}>
-                {p.es_principal && (
+              <div key={p.id} className={`bg-white border rounded-xl p-4 relative ${p.es_principal && !tipoDef.esCombinacion ? 'border-lime-400 ring-1 ring-lime-300' : 'border-navy-200'}`}>
+                {p.es_principal && !tipoDef.esCombinacion && (
                   <span className="absolute top-3 right-3 flex items-center gap-1 text-[11px] font-bold uppercase text-lime-700 bg-lime-100 px-2 py-0.5 rounded-full">
                     <Star className="w-3 h-3 fill-lime-600 text-lime-600" /> Principal
                   </span>
@@ -8502,7 +8978,7 @@ function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrinci
                   <button onClick={() => setEditandoId(p.id)} className="text-xs font-semibold text-lime-600 hover:text-lime-700 flex items-center gap-1">
                     <Pencil className="w-3.5 h-3.5" /> Editar
                   </button>
-                  {!p.es_principal && (
+                  {!p.es_principal && !tipoDef.esCombinacion && (
                     <button onClick={() => onSetPrincipal(p.id, tipoActivo, p.datos)} className="text-xs font-semibold text-navy-500 hover:text-navy-700 flex items-center gap-1">
                       <Star className="w-3.5 h-3.5" /> Marcar Principal
                     </button>
@@ -10722,6 +11198,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile,
     { key: 'cimentaciones', label: 'Cimentaciones', icon: Boxes },
     { key: 'equipos_electricos', label: 'Equipos eléctricos', icon: Zap },
     { key: 'canalizaciones', label: 'Canalizaciones', icon: Cog },
+    { key: 'cruces', label: 'Cruces', icon: GitBranch },
     { key: 'equipo', label: 'Equipo', icon: UserCog },
     { key: 'instructivos', label: 'Instructivos', icon: Video },
     { key: 'enlaces', label: 'Enlaces de Interés', icon: Link2 },
@@ -13145,6 +13622,7 @@ export default function App() {
   const [plantillasCimentacion, setPlantillasCimentacion] = useState([]);
   const [plantillasEquipos, setPlantillasEquipos] = useState([]);
   const [plantillasCanalizaciones, setPlantillasCanalizaciones] = useState([]);
+  const [plantillasCruces, setPlantillasCruces] = useState([]);
   const [diametrosTuberia, setDiametrosTuberia] = useState([]);
   const [mallas, setMallas] = useState([]);
   const [parametrosIngenieria, setParametrosIngenieria] = useState({ recubrimiento: RECUBRIMIENTO_CIMENTACION, barras: BARRA_ACERO, traslapos: TRASLAPO_TABLE });
@@ -13358,6 +13836,9 @@ export default function App() {
     } else {
       setDiametrosTuberia(diametroRows.map((r) => r.nombre));
     }
+
+    const { data: cruceRows } = await supabase.from('cruce_plantillas').select('*').order('created_at', { ascending: true });
+    setPlantillasCruces((cruceRows || []).map((r) => ({ id: r.id, nombre: r.nombre, datos: r.datos || {} })));
 
     const { data: mallaRows } = await supabase.from('mallas').select('*').order('created_at', { ascending: true });
     if (!mallaRows || mallaRows.length === 0) {
@@ -13757,6 +14238,34 @@ export default function App() {
       });
     });
   }
+  function handleAddCruce(nombre, datos) {
+    const nueva = { id: makeId('cruce'), nombre, datos };
+    setPlantillasCruces((prev) => [...prev, nueva]);
+    supabase.from('cruce_plantillas').insert({ id: nueva.id, nombre, datos, creado_por: perfil?.nombre || null }).then(({ error }) => {
+      if (error) {
+        console.error('Error creando cruce:', error);
+        alert('No se pudo guardar el cruce. Detalle: ' + error.message);
+      }
+    });
+  }
+  function handleUpdateCruce(id, patch) {
+    setPlantillasCruces((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    supabase.from('cruce_plantillas').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error('Error editando cruce:', error);
+        alert('No se pudo guardar el cambio. Detalle: ' + error.message);
+      }
+    });
+  }
+  function handleDeleteCruce(id) {
+    setPlantillasCruces((prev) => prev.filter((p) => p.id !== id));
+    supabase.from('cruce_plantillas').delete().eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error('Error eliminando cruce:', error);
+        alert('No se pudo eliminar el cruce. Detalle: ' + error.message);
+      }
+    });
+  }
   function handleAddCarpeta(nombre) {
     const nueva = { id: makeId('carpeta'), nombre };
     setCarpetas((prev) => [...prev, nueva]);
@@ -14012,6 +14521,15 @@ export default function App() {
             onSetPrincipal={handleSetPrincipalCanalizacion}
             diametrosTuberia={diametrosTuberia}
             onAddDiametro={handleAddDiametro}
+          />
+        )}
+        {view === 'cruces' && (
+          <CrucesView
+            plantillas={plantillasCruces}
+            plantillasCanalizaciones={plantillasCanalizaciones}
+            onAdd={handleAddCruce}
+            onUpdate={handleUpdateCruce}
+            onDelete={handleDeleteCruce}
           />
         )}
         {view === 'equipo' && (
