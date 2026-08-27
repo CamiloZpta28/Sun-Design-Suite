@@ -7,7 +7,7 @@ import {
   Loader2, RefreshCw, LogOut, ShieldCheck, Lock, History, ClipboardCheck, StickyNote, UserCog,
   Folder, FolderPlus, ChevronDown, ChevronRight, PlayCircle, Video, Code2,
   Bold, Italic, Underline, List, PartyPopper, MessageSquare, PieChart, AlertTriangle, Menu, UserPlus, Boxes,
-  CircleDot, Lightbulb, Home, Wrench, KeyRound, Copy, Star, GitBranch,
+  CircleDot, Lightbulb, Home, Wrench, KeyRound, Copy, Star, GitBranch, Bell,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import logoMark from './assets/logo-s-mark.png';
@@ -8905,6 +8905,277 @@ function CrucesView({ plantillas, plantillasCanalizaciones, onAdd, onUpdate, onD
   );
 }
 
+/* ============================================================================
+   6. ACTUALIZACIONES — registro global (no por proyecto) de actualizaciones
+   de diseño, organizado por categoría. Las categorías son 100% editables
+   desde la plataforma (crear/renombrar/eliminar), a diferencia de los tipos
+   fijos de Canalizaciones.
+   ============================================================================ */
+const ACTUALIZACION_CATEGORIAS_SEED = [
+  { id: 'act_paneles_inversores_tracker', nombre: 'Paneles, inversores y tracker' },
+  { id: 'act_spt_apantallamiento', nombre: 'SPT y apantallamiento' },
+  { id: 'act_shelter', nombre: 'Shelter' },
+  { id: 'act_canalizaciones', nombre: 'Canalizaciones' },
+  { id: 'act_postes_recos', nombre: 'Postes y recos' },
+  { id: 'act_cerramiento', nombre: 'Cerramiento' },
+];
+
+function formatoFechaHora(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const fecha = d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+  const hora = d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  return `${fecha} · ${hora}`;
+}
+
+function ActualizacionForm({ actualizacion, onCancel, onSave }) {
+  const [nombre, setNombre] = useState(actualizacion?.nombre || '');
+  const [descripcion, setDescripcion] = useState(actualizacion?.descripcion || '');
+  const [interesados, setInteresados] = useState(actualizacion?.interesados || []);
+  const [ubicacion, setUbicacion] = useState(actualizacion?.ubicacion || '');
+  const [imagen, setImagen] = useState(actualizacion?.imagen || null);
+  const [errorImagen, setErrorImagen] = useState('');
+
+  function toggleInteresado(key) {
+    setInteresados((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  }
+  function handleImagenChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErrorImagen('');
+    if (file.size > 3 * 1024 * 1024) {
+      setErrorImagen('La imagen no puede pesar más de 3 MB.');
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setImagen(reader.result);
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }
+  function submit(e) {
+    e.preventDefault();
+    if (!nombre.trim()) return;
+    onSave({ nombre: nombre.trim(), descripcion: descripcion.trim(), interesados, ubicacion: ubicacion.trim(), imagen });
+  }
+  const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+
+  return (
+    <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
+      <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
+        {actualizacion ? 'Editar actualización' : 'Nueva actualización'}
+      </p>
+
+      <div className="grid grid-cols-1 gap-4 mb-4">
+        <div>
+          <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre de la actualización</label>
+          <input value={nombre} onChange={(e) => setNombre(e.target.value)} className={cellInput} required />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Descripción de la actualización</label>
+          <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} className={cellInput} />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Interesados</label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 border border-navy-100 rounded-lg p-3">
+            {ALL_ROLE_DEFS.map((r) => (
+              <label key={r.key} className="flex items-center gap-1.5 py-0.5 cursor-pointer">
+                <input type="checkbox" checked={interesados.includes(r.key)} onChange={() => toggleInteresado(r.key)} className="w-3.5 h-3.5 accent-lime-500" />
+                <span className="text-sm text-navy-700">{r.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Ubicación de la actualización</label>
+          <input value={ubicacion} onChange={(e) => setUbicacion(e.target.value)} placeholder="Ej. Plano estructural — hoja 3" className={cellInput} />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Imagen de la actualización</label>
+          <div className="flex items-center gap-3">
+            {imagen && <img src={imagen} alt="" className="max-h-20 rounded border border-navy-200 object-contain" />}
+            <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-lime-600 hover:text-lime-700 cursor-pointer">
+              <UploadCloud className="w-3.5 h-3.5" />
+              {imagen ? 'Cambiar imagen' : 'Subir imagen'}
+              <input type="file" accept="image/*" className="hidden" onChange={handleImagenChange} />
+            </label>
+            {imagen && (
+              <button type="button" onClick={() => setImagen(null)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:text-red-600">
+                <Trash2 className="w-3.5 h-3.5" /> Eliminar imagen
+              </button>
+            )}
+          </div>
+          {errorImagen && <p className="text-xs text-red-500 mt-1">{errorImagen}</p>}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button type="submit" disabled={!nombre.trim()} className="bg-lime-500 hover:bg-lime-600 disabled:opacity-40 disabled:cursor-not-allowed text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
+          {actualizacion ? 'Guardar cambios' : 'Crear actualización'}
+        </button>
+        <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategoria, onRenameCategoria, onDeleteCategoria, onAdd, onUpdate, onDelete }) {
+  const [categoriaActiva, setCategoriaActiva] = useState(categorias[0]?.id || null);
+  const [creando, setCreando] = useState(false);
+  const [editandoId, setEditandoId] = useState(null);
+  const [confirmandoId, setConfirmandoId] = useState(null);
+  const [confirmandoCategoria, setConfirmandoCategoria] = useState(null);
+
+  const categoriaObj = categorias.find((c) => c.id === categoriaActiva) || categorias[0];
+  const deEstaCategoria = actualizaciones
+    .filter((a) => a.categoria_id === categoriaObj?.id)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // más reciente primero
+
+  function cerrarFormulario() {
+    setCreando(false);
+    setEditandoId(null);
+  }
+  function crearCategoria() {
+    const nombre = prompt('Nombre de la nueva categoría:');
+    if (nombre && nombre.trim()) onAddCategoria(nombre.trim());
+  }
+  function renombrarCategoria(cat) {
+    const nombre = prompt('Nuevo nombre para esta categoría:', cat.nombre);
+    if (nombre && nombre.trim() && nombre.trim() !== cat.nombre) onRenameCategoria(cat.id, nombre.trim());
+  }
+
+  if (!categoriaObj) {
+    return (
+      <div className="p-4 md:p-8 max-w-5xl mx-auto">
+        <h1 className="text-2xl font-bold text-navy-800 mb-4">Actualizaciones</h1>
+        <button onClick={crearCategoria} className="flex items-center gap-1.5 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
+          <Plus className="w-4 h-4" /> Nueva categoría
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 md:p-8 max-w-5xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-navy-800">Actualizaciones</h1>
+        <p className="text-navy-500 text-sm mt-1">Registro de actualizaciones de diseño, por categoría. Se muestra primero la más reciente.</p>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-6">
+        {categorias.map((c) => {
+          const activo = categoriaActiva === c.id;
+          const cantidad = actualizaciones.filter((a) => a.categoria_id === c.id).length;
+          return (
+            <div key={c.id} className={`flex items-center gap-1 rounded-lg border ${activo ? 'bg-navy-800 border-navy-800' : 'bg-white border-navy-200'}`}>
+              <button
+                onClick={() => { setCategoriaActiva(c.id); cerrarFormulario(); }}
+                className={`text-sm font-semibold pl-3 pr-1.5 py-2 ${activo ? 'text-white' : 'text-navy-600 hover:text-navy-800'}`}
+              >
+                {c.nombre} <span className={activo ? 'text-navy-300' : 'text-navy-400'}>({cantidad})</span>
+              </button>
+              <button onClick={() => renombrarCategoria(c)} title="Renombrar" className={`p-1.5 ${activo ? 'text-navy-300 hover:text-white' : 'text-navy-400 hover:text-navy-700'}`}>
+                <Pencil className="w-3 h-3" />
+              </button>
+              {confirmandoCategoria === c.id ? (
+                <span className="flex items-center gap-1 pr-2 text-xs">
+                  <button onClick={() => { onDeleteCategoria(c.id); setConfirmandoCategoria(null); if (categoriaActiva === c.id) setCategoriaActiva(null); }} className="font-bold text-red-500">Sí</button>
+                  <button onClick={() => setConfirmandoCategoria(null)} className={activo ? 'text-navy-300' : 'text-navy-400'}>No</button>
+                </span>
+              ) : (
+                <button onClick={() => setConfirmandoCategoria(c.id)} title="Eliminar categoría" className={`p-1.5 pr-2.5 ${activo ? 'text-navy-300 hover:text-red-300' : 'text-navy-400 hover:text-red-500'}`}>
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          );
+        })}
+        <button onClick={crearCategoria} className="flex items-center gap-1 text-sm font-semibold px-3 py-2 rounded-lg border border-dashed border-navy-300 text-navy-500 hover:border-navy-500 hover:text-navy-700">
+          <Plus className="w-3.5 h-3.5" /> Nueva categoría
+        </button>
+      </div>
+
+      {!creando && !editandoId && (
+        <button
+          onClick={() => setCreando(true)}
+          className="flex items-center gap-1.5 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg mb-5 transition-colors"
+        >
+          <Plus className="w-4 h-4" /> Nueva actualización en "{categoriaObj.nombre}"
+        </button>
+      )}
+
+      {(creando || editandoId) && (
+        <ActualizacionForm
+          actualizacion={editandoId ? deEstaCategoria.find((a) => a.id === editandoId) : null}
+          onCancel={cerrarFormulario}
+          onSave={(datos) => {
+            if (editandoId) onUpdate(editandoId, datos);
+            else onAdd(categoriaObj.id, datos);
+            cerrarFormulario();
+          }}
+        />
+      )}
+
+      {!creando && !editandoId && (
+        deEstaCategoria.length === 0 ? (
+          <p className="text-sm text-navy-400 italic text-center py-10">Aún no hay actualizaciones en "{categoriaObj.nombre}".</p>
+        ) : (
+          <div className="space-y-4">
+            {deEstaCategoria.map((a) => (
+              <div key={a.id} className="bg-white border border-navy-200 rounded-xl p-4">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-navy-800">{a.nombre}</p>
+                    <p className="text-xs text-navy-400 mt-0.5">
+                      Agregada por {a.creado_por || 'alguien del equipo'} · {formatoFechaHora(a.created_at)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <button onClick={() => setEditandoId(a.id)} className="text-xs font-semibold text-lime-600 hover:text-lime-700 flex items-center gap-1">
+                      <Pencil className="w-3.5 h-3.5" /> Editar
+                    </button>
+                    {confirmandoId === a.id ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-navy-500">¿Eliminar?</span>
+                        <button onClick={() => { onDelete(a.id); setConfirmandoId(null); }} className="text-xs font-bold text-red-600 hover:text-red-700">Sí</button>
+                        <button onClick={() => setConfirmandoId(null)} className="text-xs text-navy-400 hover:text-navy-600">No</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setConfirmandoId(a.id)} className="text-xs font-semibold text-navy-400 hover:text-red-500 flex items-center gap-1">
+                        <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {a.descripcion && <p className="text-sm text-navy-600 mt-2">{a.descripcion}</p>}
+                {a.imagen && <img src={a.imagen} alt="" className="mt-3 max-h-56 rounded-lg border border-navy-200 object-contain" />}
+                <div className="flex flex-wrap gap-3 mt-3">
+                  {a.ubicacion && (
+                    <span className="inline-flex items-center gap-1 text-xs text-navy-500 bg-navy-50 px-2 py-1 rounded-full">
+                      <MapPin className="w-3 h-3" /> {a.ubicacion}
+                    </span>
+                  )}
+                  {(a.interesados || []).map((key) => {
+                    const rol = ALL_ROLE_DEFS.find((r) => r.key === key);
+                    if (!rol) return null;
+                    return (
+                      <span key={key} className="inline-flex items-center gap-1 text-xs text-navy-500 bg-navy-50 px-2 py-1 rounded-full">
+                        {rol.label}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
 function CombinacionForm({ plantilla, plantillasCanalizaciones, onCancel, onSave }) {
   const [nombre, setNombre] = useState(plantilla?.nombre || '');
   const [lineaIds, setLineaIds] = useState(plantilla?.datos?.lineas || []);
@@ -11308,6 +11579,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile,
     { key: 'equipos_electricos', label: 'Equipos eléctricos', icon: Zap },
     { key: 'canalizaciones', label: 'Canalizaciones', icon: Cog },
     { key: 'cruces', label: 'Cruces', icon: GitBranch },
+    { key: 'actualizaciones', label: 'Actualizaciones', icon: Bell },
     { key: 'equipo', label: 'Equipo', icon: UserCog },
     { key: 'instructivos', label: 'Instructivos', icon: Video },
     { key: 'enlaces', label: 'Enlaces de Interés', icon: Link2 },
@@ -13732,6 +14004,8 @@ export default function App() {
   const [plantillasEquipos, setPlantillasEquipos] = useState([]);
   const [plantillasCanalizaciones, setPlantillasCanalizaciones] = useState([]);
   const [plantillasCruces, setPlantillasCruces] = useState([]);
+  const [actualizacionCategorias, setActualizacionCategorias] = useState([]);
+  const [actualizaciones, setActualizaciones] = useState([]);
   const [diametrosTuberia, setDiametrosTuberia] = useState([]);
   const [mallas, setMallas] = useState([]);
   const [parametrosIngenieria, setParametrosIngenieria] = useState({ recubrimiento: RECUBRIMIENTO_CIMENTACION, barras: BARRA_ACERO, traslapos: TRASLAPO_TABLE });
@@ -13948,6 +14222,19 @@ export default function App() {
 
     const { data: cruceRows } = await supabase.from('cruce_plantillas').select('*').order('created_at', { ascending: true });
     setPlantillasCruces((cruceRows || []).map((r) => ({ id: r.id, nombre: r.nombre, datos: r.datos || {} })));
+
+    const { data: catRows } = await supabase.from('actualizacion_categorias').select('*').order('orden', { ascending: true });
+    if (!catRows || catRows.length === 0) {
+      const semillaCat = ACTUALIZACION_CATEGORIAS_SEED.map((c, i) => ({ ...c, orden: i }));
+      await supabase.from('actualizacion_categorias').insert(semillaCat).then(({ error }) => {
+        if (error) console.error('Error creando categorías semilla de actualizaciones:', error);
+      });
+      setActualizacionCategorias(semillaCat);
+    } else {
+      setActualizacionCategorias(catRows);
+    }
+    const { data: actRows } = await supabase.from('actualizaciones').select('*').order('created_at', { ascending: false });
+    setActualizaciones((actRows || []).map((r) => ({ id: r.id, categoria_id: r.categoria_id, nombre: r.nombre, descripcion: r.descripcion || '', interesados: r.interesados || [], ubicacion: r.ubicacion || '', imagen: r.imagen || null, creado_por: r.creado_por, created_at: r.created_at })));
 
     const { data: mallaRows } = await supabase.from('mallas').select('*').order('created_at', { ascending: true });
     if (!mallaRows || mallaRows.length === 0) {
@@ -14375,6 +14662,63 @@ export default function App() {
       }
     });
   }
+  function handleAddCategoriaActualizacion(nombre) {
+    const nueva = { id: makeId('actcat'), nombre, orden: actualizacionCategorias.length };
+    setActualizacionCategorias((prev) => [...prev, nueva]);
+    supabase.from('actualizacion_categorias').insert(nueva).then(({ error }) => {
+      if (error) {
+        console.error('Error creando categoría de actualizaciones:', error);
+        alert('No se pudo crear la categoría. Detalle: ' + error.message);
+      }
+    });
+  }
+  function handleRenameCategoriaActualizacion(id, nombre) {
+    setActualizacionCategorias((prev) => prev.map((c) => (c.id === id ? { ...c, nombre } : c)));
+    supabase.from('actualizacion_categorias').update({ nombre }).eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error('Error renombrando categoría de actualizaciones:', error);
+        alert('No se pudo renombrar la categoría. Detalle: ' + error.message);
+      }
+    });
+  }
+  function handleDeleteCategoriaActualizacion(id) {
+    setActualizacionCategorias((prev) => prev.filter((c) => c.id !== id));
+    setActualizaciones((prev) => prev.filter((a) => a.categoria_id !== id)); // la BD ya cascadea, esto es solo para que la UI no espere al refresh
+    supabase.from('actualizacion_categorias').delete().eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error('Error eliminando categoría de actualizaciones:', error);
+        alert('No se pudo eliminar la categoría. Detalle: ' + error.message);
+      }
+    });
+  }
+  function handleAddActualizacion(categoriaId, datos) {
+    const nueva = { id: makeId('act'), categoria_id: categoriaId, ...datos, creado_por: perfil?.nombre || null, created_at: new Date().toISOString() };
+    setActualizaciones((prev) => [nueva, ...prev]);
+    supabase.from('actualizaciones').insert({ id: nueva.id, categoria_id: categoriaId, nombre: datos.nombre, descripcion: datos.descripcion, interesados: datos.interesados, ubicacion: datos.ubicacion, imagen: datos.imagen, creado_por: perfil?.nombre || null }).then(({ error }) => {
+      if (error) {
+        console.error('Error creando actualización:', error);
+        alert('No se pudo guardar la actualización. Detalle: ' + error.message);
+      }
+    });
+  }
+  function handleUpdateActualizacion(id, datos) {
+    setActualizaciones((prev) => prev.map((a) => (a.id === id ? { ...a, ...datos } : a)));
+    supabase.from('actualizaciones').update(datos).eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error('Error editando actualización:', error);
+        alert('No se pudo guardar el cambio. Detalle: ' + error.message);
+      }
+    });
+  }
+  function handleDeleteActualizacion(id) {
+    setActualizaciones((prev) => prev.filter((a) => a.id !== id));
+    supabase.from('actualizaciones').delete().eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error('Error eliminando actualización:', error);
+        alert('No se pudo eliminar la actualización. Detalle: ' + error.message);
+      }
+    });
+  }
   function handleAddCarpeta(nombre) {
     const nueva = { id: makeId('carpeta'), nombre };
     setCarpetas((prev) => [...prev, nueva]);
@@ -14639,6 +14983,19 @@ export default function App() {
             onAdd={handleAddCruce}
             onUpdate={handleUpdateCruce}
             onDelete={handleDeleteCruce}
+          />
+        )}
+        {view === 'actualizaciones' && (
+          <ActualizacionesView
+            categorias={actualizacionCategorias}
+            actualizaciones={actualizaciones}
+            perfil={perfil}
+            onAddCategoria={handleAddCategoriaActualizacion}
+            onRenameCategoria={handleRenameCategoriaActualizacion}
+            onDeleteCategoria={handleDeleteCategoriaActualizacion}
+            onAdd={handleAddActualizacion}
+            onUpdate={handleUpdateActualizacion}
+            onDelete={handleDeleteActualizacion}
           />
         )}
         {view === 'equipo' && (

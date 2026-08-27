@@ -280,6 +280,27 @@ create table if not exists cruce_plantillas (
   updated_at timestamptz default now()
 );
 
+-- "Actualizaciones" — registro de actualizaciones de diseño por categoría
+-- (global, no por proyecto). Las categorías empiezan con 6 iniciales, pero
+-- cualquiera puede crear/renombrar/eliminar más desde la plataforma.
+create table if not exists actualizacion_categorias (
+  id text primary key,
+  nombre text not null,
+  orden integer default 0,
+  created_at timestamptz default now()
+);
+create table if not exists actualizaciones (
+  id text primary key,
+  categoria_id text not null references actualizacion_categorias(id) on delete cascade,
+  nombre text not null,
+  descripcion text,
+  interesados jsonb not null default '[]'::jsonb,
+  ubicacion text,
+  imagen text,
+  creado_por text,
+  created_at timestamptz default now()
+);
+
 -- Lista de tipos de malla electrosoldada disponibles en el selector de la
 -- losa de Inversores (y de cualquier otra cimentación que use malla más
 -- adelante). Empieza con D84; cualquiera puede agregar otra.
@@ -505,6 +526,26 @@ create policy "Crear cruces" on cruce_plantillas
 create policy "Editar cruces" on cruce_plantillas
   for update using (auth.role() = 'authenticated');
 create policy "Eliminar cruces" on cruce_plantillas
+  for delete using (auth.role() = 'authenticated');
+
+alter table actualizacion_categorias enable row level security;
+create policy "Lectura de categorias de actualizaciones" on actualizacion_categorias
+  for select using (auth.role() = 'authenticated');
+create policy "Crear categorias de actualizaciones" on actualizacion_categorias
+  for insert with check (auth.role() = 'authenticated');
+create policy "Editar categorias de actualizaciones" on actualizacion_categorias
+  for update using (auth.role() = 'authenticated');
+create policy "Eliminar categorias de actualizaciones" on actualizacion_categorias
+  for delete using (auth.role() = 'authenticated');
+
+alter table actualizaciones enable row level security;
+create policy "Lectura de actualizaciones" on actualizaciones
+  for select using (auth.role() = 'authenticated');
+create policy "Crear actualizaciones" on actualizaciones
+  for insert with check (auth.role() = 'authenticated');
+create policy "Editar actualizaciones" on actualizaciones
+  for update using (auth.role() = 'authenticated');
+create policy "Eliminar actualizaciones" on actualizaciones
   for delete using (auth.role() = 'authenticated');
 
 alter table mallas enable row level security;
