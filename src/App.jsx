@@ -7639,13 +7639,13 @@ function EquiposElectricosView({ plantillas, onAdd, onUpdate, onDelete }) {
 /* (cable directamente enterrado) y SPT (cable de puesta a tierra, muy      */
 /* delgado — ver "esCableFino"). Todos llevan cinta de señalización.        */
 const CANALIZACION_TIPOS = [
-  { id: 'dc', label: 'DC', profundidadNorma: 0.45, tieneTuberia: true, distanciaCintaNorma: 0.25 },
-  { id: 'acbt_tuberia', label: 'AC-BT Tubería', profundidadNorma: 0.45, tieneTuberia: true, distanciaCintaNorma: 0.25 },
-  { id: 'acbt_directo', label: 'AC-BT Enterrado', profundidadNorma: 0.60, tieneTuberia: false, distanciaCintaNorma: 0.25, esCableFino: true },
-  { id: 'mt', label: 'AC-MT', profundidadNorma: 0.75, tieneTuberia: true, distanciaCintaNorma: 0.25 },
-  { id: 'comunicaciones', label: 'Comunicaciones', profundidadNorma: 0.40, tieneTuberia: true, distanciaCintaNorma: 0.20 },
-  { id: 'energia_ssaa', label: 'Energía', profundidadNorma: 0.45, tieneTuberia: true, distanciaCintaNorma: 0.25 },
-  { id: 'spt', label: 'SPT', profundidadNorma: 0.50, tieneTuberia: false, distanciaCintaNorma: 0.25, esCableFino: true },
+  { id: 'dc', label: 'DC', profundidadNorma: 0.45, tieneTuberia: true, distanciaCintaNorma: 0.25, color: '#06B6D4' },
+  { id: 'acbt_tuberia', label: 'AC-BT Tubería', profundidadNorma: 0.45, tieneTuberia: true, distanciaCintaNorma: 0.25, color: '#84CC16' },
+  { id: 'acbt_directo', label: 'AC-BT Enterrado', profundidadNorma: 0.60, tieneTuberia: false, distanciaCintaNorma: 0.25, esCableFino: true, color: '#84CC16' },
+  { id: 'mt', label: 'AC-MT', profundidadNorma: 0.75, tieneTuberia: true, distanciaCintaNorma: 0.25, color: '#B45309' },
+  { id: 'comunicaciones', label: 'Comunicaciones', profundidadNorma: 0.40, tieneTuberia: true, distanciaCintaNorma: 0.20, color: '#D946EF' },
+  { id: 'energia_ssaa', label: 'Energía', profundidadNorma: 0.45, tieneTuberia: true, distanciaCintaNorma: 0.25, color: '#D946EF' },
+  { id: 'spt', label: 'SPT', profundidadNorma: 0.50, tieneTuberia: false, distanciaCintaNorma: 0.25, esCableFino: true, color: '#065F46' },
   /* "Combinaciones" no es un tipo de línea con su propia norma — es una      */
   /* zanja compuesta que junta 2 o más plantillas YA CREADAS (de cualquiera  */
   /* de los tipos de arriba), cada una a SU PROPIA profundidad (escalonada). */
@@ -7810,12 +7810,15 @@ function CanalizacionPreview({ tipoId, datos, className = 'w-full h-auto' }) {
   const zanjaTopY = marginTop;
   const tuboY = zanjaTopY + profPx; // profundidad = a la generatriz superior del ducto/cable/elemento
   const tuboRadioPx = tipoDef.tieneTuberia ? clamp((anchoPx - 2 * sepLateralPx - sepEntrePx * (cantidad - 1)) / (2 * cantidad), 5, 16) : 0;
-  // "Altura" del elemento enterrado, para poder calcular dónde termina la arenilla de abajo:
-  // el diámetro completo si es tubería, un cable finito si es SPT, o un trazo delgado si es directamente enterrado.
-  const alturaElementoPx = tipoDef.tieneTuberia ? tuboRadioPx * 2 : (tipoDef.esCableFino ? 4.4 : 3);
+  // "Altura" del elemento enterrado: el diámetro completo si es tubería, o un
+  // cable muy delgado si es SPT/AC-BT Enterrado (estos NO llevan arenilla).
+  const alturaElementoPx = tipoDef.tieneTuberia ? tuboRadioPx * 2 : 3;
   const arenillaTopY = tuboY - arenillaPx;
-  const arenillaBotY = tuboY + alturaElementoPx + arenillaPx;
-  const zanjaBotY = arenillaBotY + 12;
+  // "fondoY": punto más bajo del contenido de la zanja — con tubería, el
+  // fondo de su arenilla; sin tubería (cable), justo debajo del cable mismo
+  // (no hay arenilla que sumar).
+  const fondoY = tipoDef.tieneTuberia ? (tuboY + alturaElementoPx + arenillaPx) : (tuboY + alturaElementoPx + 6);
+  const zanjaBotY = fondoY + 12;
   const svgW = zanjaX0 + anchoPx + 96;
   const svgH = zanjaBotY + 62;
 
@@ -7838,7 +7841,7 @@ function CanalizacionPreview({ tipoId, datos, className = 'w-full h-auto' }) {
           <line x1={x - 4} y1={y0} x2={x + 4} y2={y0} />
           <line x1={x - 4} y1={y1} x2={x + 4} y2={y1} />
         </g>
-        <text x={x + 9} y={(y0 + y1) / 2} textAnchor="middle" fontSize="7" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${x + 9}, ${(y0 + y1) / 2})`}>
+        <text x={x + 9} y={(y0 + y1) / 2} textAnchor="middle" fontSize="6.2" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${x + 9}, ${(y0 + y1) / 2})`}>
           {valor.toFixed(2)} m
         </text>
       </g>
@@ -7865,44 +7868,56 @@ function CanalizacionPreview({ tipoId, datos, className = 'w-full h-auto' }) {
       <text x={zanjaX0 - 8} y={zanjaTopY + (cintaYPx > 30 ? cintaYPx / 2 + 10 : 28)} textAnchor="end" fontSize="7" fill="#152644">compactado</text>
       <text x={zanjaX0 - 8} y={zanjaTopY + cintaYPx + 3} textAnchor="end" fontSize="7.5" fill="#152644">Cinta de</text>
       <text x={zanjaX0 - 8} y={zanjaTopY + cintaYPx + 12} textAnchor="end" fontSize="7.5" fill="#152644">señalización</text>
-      <text x={zanjaX0 - 8} y={arenillaTopY + 4} textAnchor="end" fontSize="7.5" fill="#152644">Arenilla</text>
+      {tipoDef.tieneTuberia && (
+        <text x={zanjaX0 - 8} y={arenillaTopY + 4} textAnchor="end" fontSize="7.5" fill="#152644">Arenilla</text>
+      )}
       <text x={zanjaX0 - 8} y={tuboY + alturaElementoPx / 2 + 4} textAnchor="end" fontSize="7.5" fontWeight="600" fill="#152644">{tipoDef.label}</text>
 
       {/* Cinta de señalización — TODOS los tipos, incluido SPT. Ancho fijo   */}
       {/* de 0.25 m, siempre centrada (no de lado a lado de la zanja).       */}
       <line x1={centroZanja - cintaAnchoPx / 2} y1={zanjaTopY + cintaYPx} x2={centroZanja + cintaAnchoPx / 2} y2={zanjaTopY + cintaYPx} stroke="#DC2626" strokeWidth="3" />
 
-      {/* Arenilla: franja de LADO A LADO de la zanja (no un recuadro angosto */}
-      {/* alrededor del tubo) — igual encima que debajo del elemento.        */}
-      <rect x={zanjaX0} y={arenillaTopY} width={anchoPx} height={arenillaBotY - arenillaTopY} fill="#EFE3C8" stroke="#152644" strokeWidth="1" strokeDasharray="3 2" />
+      {/* Arenilla: franja de LADO A LADO de la zanja — SOLO si hay tubería   */}
+      {/* (SPT y AC-BT Enterrado son cable directo, sin arenilla).           */}
+      {tipoDef.tieneTuberia && (
+        <rect x={zanjaX0} y={arenillaTopY} width={anchoPx} height={fondoY - arenillaTopY} fill="#EFE3C8" stroke="#152644" strokeWidth="1" strokeDasharray="3 2" />
+      )}
 
-      {/* Tubería(s) (círculos) o cable delgado (punto), a la profundidad digitada */}
+      {/* Tubería(s) (círculos) o cable delgado (punto), coloreados según el  */}
+      {/* tipo de línea — a la profundidad digitada.                        */}
       {tipoDef.tieneTuberia ? (
         centrosX.map((cx, i) => (
-          <circle key={i} cx={cx} cy={tuboY + tuboRadioPx} r={tuboRadioPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.3" />
+          <circle key={i} cx={cx} cy={tuboY + tuboRadioPx} r={tuboRadioPx} fill={`${tipoDef.color}33`} stroke={tipoDef.color} strokeWidth="1.6" />
         ))
       ) : (
-        <circle cx={centroZanja} cy={tuboY + alturaElementoPx / 2} r="2.2" fill="#059669" stroke="#152644" strokeWidth="0.8" />
+        <circle cx={centroZanja} cy={tuboY + alturaElementoPx / 2} r="2.2" fill={tipoDef.color} stroke="#152644" strokeWidth="0.8" />
       )}
 
       {/* Cotas a la DERECHA, con jerarquía: primero (más cerca del dibujo)  */}
-      {/* los 4 segmentos (piso→cinta, cinta→arenilla, arenilla→elemento,    */}
-      {/* elemento→arenilla), y en paralelo, más alejada, la profundidad     */}
-      {/* total de la zanja (piso hasta el fondo de la arenilla).           */}
+      {/* piso→cinta, y luego según haya o no tubería: cinta→arenilla,       */}
+      {/* arenilla→elemento, elemento→arenilla (con tubería) o solo          */}
+      {/* cinta→cable (sin tubería, no hay arenilla que medir). En paralelo, */}
+      {/* más alejada, la profundidad total de la zanja.                    */}
       <CotaVertical y0={zanjaTopY} y1={zanjaTopY + cintaYPx} x={zanjaX0 + anchoPx + 14} valor={cintaDesdeSuperficieM} />
-      <CotaVertical y0={zanjaTopY + cintaYPx} y1={arenillaTopY} x={zanjaX0 + anchoPx + 14} valor={(arenillaTopY - (zanjaTopY + cintaYPx)) / scale} />
-      <CotaVertical y0={arenillaTopY} y1={tuboY} x={zanjaX0 + anchoPx + 14} valor={espesorArenilla} />
-      <CotaVertical y0={tuboY + alturaElementoPx} y1={arenillaBotY} x={zanjaX0 + anchoPx + 14} valor={espesorArenilla} />
+      {tipoDef.tieneTuberia ? (
+        <>
+          <CotaVertical y0={zanjaTopY + cintaYPx} y1={arenillaTopY} x={zanjaX0 + anchoPx + 14} valor={(arenillaTopY - (zanjaTopY + cintaYPx)) / scale} />
+          <CotaVertical y0={arenillaTopY} y1={tuboY} x={zanjaX0 + anchoPx + 14} valor={espesorArenilla} />
+          <CotaVertical y0={tuboY + alturaElementoPx} y1={fondoY} x={zanjaX0 + anchoPx + 14} valor={espesorArenilla} />
+        </>
+      ) : (
+        <CotaVertical y0={zanjaTopY + cintaYPx} y1={tuboY} x={zanjaX0 + anchoPx + 14} valor={(tuboY - (zanjaTopY + cintaYPx)) / scale} />
+      )}
 
       <g stroke="#152644" strokeWidth="1">
-        <line x1={zanjaX0 + anchoPx + 40} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 40} y2={arenillaBotY} />
+        <line x1={zanjaX0 + anchoPx + 40} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 40} y2={fondoY} />
         <line x1={zanjaX0 + anchoPx + 36} y1={zanjaTopY} x2={zanjaX0 + anchoPx + 44} y2={zanjaTopY} />
-        <line x1={zanjaX0 + anchoPx + 36} y1={arenillaBotY} x2={zanjaX0 + anchoPx + 44} y2={arenillaBotY} />
+        <line x1={zanjaX0 + anchoPx + 36} y1={fondoY} x2={zanjaX0 + anchoPx + 44} y2={fondoY} />
       </g>
-      <text x={zanjaX0 + anchoPx + 52} y={(zanjaTopY + arenillaBotY) / 2} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${zanjaX0 + anchoPx + 52}, ${(zanjaTopY + arenillaBotY) / 2})`}>
-        {((arenillaBotY - zanjaTopY) / scale).toFixed(2)} m
+      <text x={zanjaX0 + anchoPx + 52} y={(zanjaTopY + fondoY) / 2} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644" transform={`rotate(90, ${zanjaX0 + anchoPx + 52}, ${(zanjaTopY + fondoY) / 2})`}>
+        {((fondoY - zanjaTopY) / scale).toFixed(2)} m
       </text>
-      <text x={zanjaX0 + anchoPx + 62} y={(zanjaTopY + arenillaBotY) / 2} textAnchor="middle" fontSize="6" fill="#8A93A6" transform={`rotate(90, ${zanjaX0 + anchoPx + 62}, ${(zanjaTopY + arenillaBotY) / 2})`}>
+      <text x={zanjaX0 + anchoPx + 62} y={(zanjaTopY + fondoY) / 2} textAnchor="middle" fontSize="5.5" fill="#8A93A6" transform={`rotate(90, ${zanjaX0 + anchoPx + 62}, ${(zanjaTopY + fondoY) / 2})`}>
         profundidad total de la zanja
       </text>
 
@@ -8157,7 +8172,12 @@ function CombinacionPreview({ lineaIds, plantillasCanalizaciones, className = 'w
   const sepLateralM = Math.max(...lineas.map((l) => l.sepLateralM));
   const gruposM = lineas.map((l) => (l.tipoDef.tieneTuberia ? l.diametroM * l.cantidad + l.sepEntreM * (l.cantidad - 1) : 0.03));
   const anchoTotalM = sepLateralM * 2 + gruposM.reduce((a, b) => a + b, 0) + GAP_ENTRE_LINEAS_M * (lineas.length - 1);
-  const maxArenillaBotM = Math.max(...lineas.map((l) => l.profundidadM + (l.tipoDef.tieneTuberia ? l.diametroM : 0.01) + l.espesorArenillaM));
+  // El fondo de la zanja: para líneas CON tubería, incluye su arenilla; para
+  // cable (SPT / AC-BT Enterrado, que no llevan arenilla) es solo un margen
+  // pequeño bajo el cable mismo.
+  const maxArenillaBotM = Math.max(...lineas.map((l) =>
+    l.tipoDef.tieneTuberia ? l.profundidadM + l.diametroM + l.espesorArenillaM : l.profundidadM + 0.016
+  ));
   const cintaDesdeSuperficieCompartidaM = Math.min(...lineas.map((l) => l.cintaDesdeSuperficieM));
 
   const marginTop = 34;
@@ -8186,6 +8206,11 @@ function CombinacionPreview({ lineaIds, plantillasCanalizaciones, className = 'w
   const anchoTotalRealPx = cursorX - zanjaX0 + sepLateralPx;
   const centroTotal = zanjaX0 + anchoTotalRealPx / 2;
   const cintaAnchoPx = clamp(0.25 * pxPorM, 20, anchoTotalRealPx - 8);
+  // La arenilla cubre TODO el ancho de la zanja de lado a lado (no un
+  // recuadro por línea) — solo aplica si al menos una línea lleva tubería;
+  // el cable (SPT / AC-BT Enterrado) no la necesita.
+  const columnasConTuberia = columnas.filter((c) => c.tipoDef.tieneTuberia);
+  const arenillaTopYCompartida = columnasConTuberia.length > 0 ? Math.min(...columnasConTuberia.map((c) => c.arenillaTopY)) : null;
 
   const svgW = zanjaX0 + anchoTotalRealPx + 66;
   const svgH = maxArenillaBotY + 66;
@@ -8208,10 +8233,18 @@ function CombinacionPreview({ lineaIds, plantillasCanalizaciones, className = 'w
       <text x={zanjaX0 - 8} y={zanjaTopY + (cintaYPx > 30 ? cintaYPx / 2 + 10 : 28)} textAnchor="end" fontSize="7" fill="#152644">compactado</text>
       <text x={zanjaX0 - 8} y={zanjaTopY + cintaYPx + 3} textAnchor="end" fontSize="7.5" fill="#152644">Cinta de</text>
       <text x={zanjaX0 - 8} y={zanjaTopY + cintaYPx + 12} textAnchor="end" fontSize="7.5" fill="#152644">señalización</text>
-      <text x={zanjaX0 - 8} y={(zanjaTopY + cintaYPx + maxArenillaBotY) / 2} textAnchor="end" fontSize="7.5" fill="#152644">Arenilla</text>
+      {arenillaTopYCompartida != null && (
+        <text x={zanjaX0 - 8} y={(arenillaTopYCompartida + maxArenillaBotY) / 2} textAnchor="end" fontSize="7.5" fill="#152644">Arenilla</text>
+      )}
 
       {/* Cinta de señalización: UNA sola, 0.25 m de ancho, centrada en TODO el ancho combinado */}
       <line x1={centroTotal - cintaAnchoPx / 2} y1={zanjaTopY + cintaYPx} x2={centroTotal + cintaAnchoPx / 2} y2={zanjaTopY + cintaYPx} stroke="#DC2626" strokeWidth="3" />
+
+      {/* Arenilla: UNA franja continua de lado a lado (no un recuadro por    */}
+      {/* línea) — solo si alguna línea de la combinación lleva tubería.     */}
+      {arenillaTopYCompartida != null && (
+        <rect x={zanjaX0} y={arenillaTopYCompartida} width={anchoTotalRealPx} height={maxArenillaBotY - arenillaTopYCompartida} fill="#EFE3C8" stroke="#152644" strokeWidth="0.8" strokeDasharray="3 2" />
+      )}
 
       {columnas.map((c, i) => {
         const centro = c.x0 + c.grupoAnchoPx / 2;
@@ -8220,15 +8253,12 @@ function CombinacionPreview({ lineaIds, plantillasCanalizaciones, className = 'w
         const primerCentro = centro - anchoGrupo / 2 + c.tuboRadioPx;
         return (
           <g key={i}>
-            {/* Arenilla de esta línea: desde justo encima de SU propia        */}
-            {/* profundidad hasta el fondo COMPARTIDO (rellena lo que falta). */}
-            <rect x={c.x0} y={c.arenillaTopY} width={c.grupoAnchoPx} height={maxArenillaBotY - c.arenillaTopY} fill="#EFE3C8" stroke="#152644" strokeWidth="0.8" strokeDasharray="3 2" />
             {c.tipoDef.tieneTuberia ? (
               Array.from({ length: c.cantidad }).map((_, j) => (
-                <circle key={j} cx={primerCentro + j * (c.tuboRadioPx * 2 + sepEntrePxCol)} cy={c.tuboY + c.tuboRadioPx} r={c.tuboRadioPx} fill="#F6F7F9" stroke="#152644" strokeWidth="1.1" />
+                <circle key={j} cx={primerCentro + j * (c.tuboRadioPx * 2 + sepEntrePxCol)} cy={c.tuboY + c.tuboRadioPx} r={c.tuboRadioPx} fill={`${c.tipoDef.color}33`} stroke={c.tipoDef.color} strokeWidth="1.4" />
               ))
             ) : (
-              <circle cx={centro} cy={c.tuboY} r="2" fill="#059669" stroke="#152644" strokeWidth="0.7" />
+              <circle cx={centro} cy={c.tuboY} r="2" fill={c.tipoDef.color} stroke="#152644" strokeWidth="0.7" />
             )}
             <text x={centro} y={maxArenillaBotY + 16} textAnchor="middle" fontSize="7" fontWeight="600" fill="#152644">{c.tipoDef.label}</text>
             <text x={centro} y={maxArenillaBotY + 28} textAnchor="middle" fontSize="7" fill="#3C64AA">{c.profundidadM.toFixed(2)} m</text>
@@ -8242,14 +8272,14 @@ function CombinacionPreview({ lineaIds, plantillasCanalizaciones, className = 'w
         <line x1={zanjaX0 + anchoTotalRealPx + 10} y1={zanjaTopY} x2={zanjaX0 + anchoTotalRealPx + 18} y2={zanjaTopY} />
         <line x1={zanjaX0 + anchoTotalRealPx + 10} y1={zanjaTopY + cintaYPx} x2={zanjaX0 + anchoTotalRealPx + 18} y2={zanjaTopY + cintaYPx} />
       </g>
-      <text x={zanjaX0 + anchoTotalRealPx + 23} y={zanjaTopY + cintaYPx / 2} textAnchor="middle" fontSize="7" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${zanjaX0 + anchoTotalRealPx + 23}, ${zanjaTopY + cintaYPx / 2})`}>
+      <text x={zanjaX0 + anchoTotalRealPx + 23} y={zanjaTopY + cintaYPx / 2} textAnchor="middle" fontSize="6.2" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${zanjaX0 + anchoTotalRealPx + 23}, ${zanjaTopY + cintaYPx / 2})`}>
         {cintaDesdeSuperficieCompartidaM.toFixed(2)} m
       </text>
       <g stroke="#3C64AA" strokeWidth="1">
         <line x1={zanjaX0 + anchoTotalRealPx + 14} y1={zanjaTopY + cintaYPx} x2={zanjaX0 + anchoTotalRealPx + 14} y2={maxArenillaBotY} />
         <line x1={zanjaX0 + anchoTotalRealPx + 10} y1={maxArenillaBotY} x2={zanjaX0 + anchoTotalRealPx + 18} y2={maxArenillaBotY} />
       </g>
-      <text x={zanjaX0 + anchoTotalRealPx + 23} y={zanjaTopY + cintaYPx + ((maxArenillaBotY - zanjaTopY - cintaYPx) / 2)} textAnchor="middle" fontSize="7" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${zanjaX0 + anchoTotalRealPx + 23}, ${zanjaTopY + cintaYPx + ((maxArenillaBotY - zanjaTopY - cintaYPx) / 2)})`}>
+      <text x={zanjaX0 + anchoTotalRealPx + 23} y={zanjaTopY + cintaYPx + ((maxArenillaBotY - zanjaTopY - cintaYPx) / 2)} textAnchor="middle" fontSize="6.2" fontWeight="600" fill="#3C64AA" transform={`rotate(90, ${zanjaX0 + anchoTotalRealPx + 23}, ${zanjaTopY + cintaYPx + ((maxArenillaBotY - zanjaTopY - cintaYPx) / 2)})`}>
         {((maxArenillaBotY - zanjaTopY - cintaYPx) / pxPorM).toFixed(2)} m
       </text>
       <g stroke="#152644" strokeWidth="1">
@@ -8257,7 +8287,7 @@ function CombinacionPreview({ lineaIds, plantillasCanalizaciones, className = 'w
         <line x1={zanjaX0 + anchoTotalRealPx + 36} y1={zanjaTopY} x2={zanjaX0 + anchoTotalRealPx + 44} y2={zanjaTopY} />
         <line x1={zanjaX0 + anchoTotalRealPx + 36} y1={maxArenillaBotY} x2={zanjaX0 + anchoTotalRealPx + 44} y2={maxArenillaBotY} />
       </g>
-      <text x={zanjaX0 + anchoTotalRealPx + 52} y={(zanjaTopY + maxArenillaBotY) / 2} textAnchor="middle" fontSize="8.5" fontWeight="600" fill="#152644" transform={`rotate(90, ${zanjaX0 + anchoTotalRealPx + 52}, ${(zanjaTopY + maxArenillaBotY) / 2})`}>
+      <text x={zanjaX0 + anchoTotalRealPx + 52} y={(zanjaTopY + maxArenillaBotY) / 2} textAnchor="middle" fontSize="8" fontWeight="600" fill="#152644" transform={`rotate(90, ${zanjaX0 + anchoTotalRealPx + 52}, ${(zanjaTopY + maxArenillaBotY) / 2})`}>
         {((maxArenillaBotY - zanjaTopY) / pxPorM).toFixed(2)} m
       </text>
 
