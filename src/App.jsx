@@ -8933,6 +8933,7 @@ function ActualizacionForm({ actualizacion, onCancel, onSave }) {
   const [descripcion, setDescripcion] = useState(actualizacion?.descripcion || '');
   const [interesados, setInteresados] = useState(actualizacion?.interesados || []);
   const [ubicacion, setUbicacion] = useState(actualizacion?.ubicacion || '');
+  const [etiquetasTexto, setEtiquetasTexto] = useState((actualizacion?.etiquetas || []).join(', '));
   const [imagen, setImagen] = useState(actualizacion?.imagen || null);
   const [errorImagen, setErrorImagen] = useState('');
 
@@ -8956,7 +8957,9 @@ function ActualizacionForm({ actualizacion, onCancel, onSave }) {
   function submit(e) {
     e.preventDefault();
     if (!nombre.trim()) return;
-    onSave({ nombre: nombre.trim(), descripcion: descripcion.trim(), interesados, ubicacion: ubicacion.trim(), imagen });
+    // "una, dos, tres" -> ['una', 'dos', 'tres'] — sin espacios de sobra ni vacías.
+    const etiquetas = etiquetasTexto.split(',').map((t) => t.trim()).filter(Boolean);
+    onSave({ nombre: nombre.trim(), descripcion: descripcion.trim(), interesados, ubicacion: ubicacion.trim(), etiquetas, imagen });
   }
   const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
 
@@ -8991,6 +8994,11 @@ function ActualizacionForm({ actualizacion, onCancel, onSave }) {
           <input value={ubicacion} onChange={(e) => setUbicacion(e.target.value)} placeholder="Ej. Plano estructural — hoja 3" className={cellInput} />
         </div>
         <div>
+          <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Etiquetas</label>
+          <input value={etiquetasTexto} onChange={(e) => setEtiquetasTexto(e.target.value)} placeholder="Ej. tubería, luminarias, cámaras (separadas por comas)" className={cellInput} />
+          <p className="text-[11px] text-navy-400 mt-0.5">Separadas por comas — sirven para encontrar esta actualización en el buscador.</p>
+        </div>
+        <div>
           <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Imagen de la actualización</label>
           <div className="flex items-center gap-3">
             {imagen && <img src={imagen} alt="" className="max-h-20 rounded border border-navy-200 object-contain" />}
@@ -9021,16 +9029,81 @@ function ActualizacionForm({ actualizacion, onCancel, onSave }) {
   );
 }
 
-function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategoria, onRenameCategoria, onDeleteCategoria, onAdd, onUpdate, onDelete }) {
+/* Campanita de notificaciones — "sin leer" en rojo (+9 si hay más de 9),   */
+/* clic abre un panel con el resumen y navega al lugar en cuestión.        */
+function NotificationBell({ notificaciones, onAbrirNotificacion, dark }) {
+  const [abierto, setAbierto] = useState(false);
+  const sinLeer = notificaciones.filter((n) => !n.leida).length;
+  const textoContador = sinLeer > 9 ? '+9' : String(sinLeer);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setAbierto((v) => !v)}
+        title="Notificaciones"
+        className={`relative p-1.5 rounded-lg shrink-0 ${dark ? 'text-navy-300 hover:text-white hover:bg-navy-800' : 'text-navy-500 hover:text-navy-800 hover:bg-navy-100'}`}
+      >
+        <Bell className="w-5 h-5" />
+        {sinLeer > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 leading-none">
+            {textoContador}
+          </span>
+        )}
+      </button>
+      {abierto && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setAbierto(false)} />
+          <div className="absolute left-0 top-full mt-2 w-80 max-h-[26rem] overflow-y-auto bg-white rounded-xl shadow-xl border border-navy-200 z-50">
+            <p className="px-4 py-3 text-xs font-bold uppercase text-navy-500 border-b border-navy-100 sticky top-0 bg-white">Notificaciones</p>
+            {notificaciones.length === 0 ? (
+              <p className="px-4 py-8 text-sm text-navy-400 italic text-center">Sin notificaciones todavía.</p>
+            ) : (
+              notificaciones.slice(0, 30).map((n) => (
+                <button
+                  key={n.id}
+                  onClick={() => { setAbierto(false); onAbrirNotificacion(n); }}
+                  className={`w-full text-left px-4 py-3 border-b border-navy-50 hover:bg-navy-50 flex items-start gap-2 ${!n.leida ? 'bg-lime-50' : ''}`}
+                >
+                  <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${!n.leida ? 'bg-lime-500' : 'bg-transparent'}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-navy-700">{n.mensaje}</p>
+                    <p className="text-[11px] text-navy-400 mt-0.5">{formatoFechaHora(n.created_at)}</p>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategoria, onRenameCategoria, onDeleteCategoria, onAdd, onUpdate, onDelete, categoriaPreseleccionada }) {
   const [categoriaActiva, setCategoriaActiva] = useState(categorias[0]?.id || null);
   const [creando, setCreando] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
   const [confirmandoId, setConfirmandoId] = useState(null);
   const [confirmandoCategoria, setConfirmandoCategoria] = useState(null);
+  const [busqueda, setBusqueda] = useState('');
+
+  // Al llegar desde una notificación de actualización, salta directo a la
+  // categoría correspondiente (en vez de quedarse en la primera).
+  useEffect(() => {
+    if (categoriaPreseleccionada) setCategoriaActiva(categoriaPreseleccionada);
+  }, [categoriaPreseleccionada]);
 
   const categoriaObj = categorias.find((c) => c.id === categoriaActiva) || categorias[0];
+  const busquedaLimpia = busqueda.trim().toLowerCase();
   const deEstaCategoria = actualizaciones
     .filter((a) => a.categoria_id === categoriaObj?.id)
+    .filter((a) => {
+      if (!busquedaLimpia) return true;
+      const enEtiquetas = (a.etiquetas || []).some((et) => et.toLowerCase().includes(busquedaLimpia));
+      const enNombre = (a.nombre || '').toLowerCase().includes(busquedaLimpia);
+      const enDescripcion = (a.descripcion || '').toLowerCase().includes(busquedaLimpia);
+      return enEtiquetas || enNombre || enDescripcion;
+    })
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // más reciente primero
 
   function cerrarFormulario() {
@@ -9098,12 +9171,23 @@ function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategor
       </div>
 
       {!creando && !editandoId && (
-        <button
-          onClick={() => setCreando(true)}
-          className="flex items-center gap-1.5 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg mb-5 transition-colors"
-        >
-          <Plus className="w-4 h-4" /> Nueva actualización en "{categoriaObj.nombre}"
-        </button>
+        <div className="flex items-center gap-3 mb-5 flex-wrap">
+          <button
+            onClick={() => setCreando(true)}
+            className="flex items-center gap-1.5 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Nueva actualización en "{categoriaObj.nombre}"
+          </button>
+          <div className="relative flex-1 min-w-[200px] max-w-xs">
+            <Search className="w-4 h-4 text-navy-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar por etiqueta, nombre o descripción…"
+              className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-navy-200 focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+            />
+          </div>
+        </div>
       )}
 
       {(creando || editandoId) && (
@@ -9120,7 +9204,9 @@ function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategor
 
       {!creando && !editandoId && (
         deEstaCategoria.length === 0 ? (
-          <p className="text-sm text-navy-400 italic text-center py-10">Aún no hay actualizaciones en "{categoriaObj.nombre}".</p>
+          <p className="text-sm text-navy-400 italic text-center py-10">
+            {busquedaLimpia ? `Ninguna actualización de "${categoriaObj.nombre}" coincide con "${busqueda}".` : `Aún no hay actualizaciones en "${categoriaObj.nombre}".`}
+          </p>
         ) : (
           <div className="space-y-4">
             {deEstaCategoria.map((a) => (
@@ -9151,22 +9237,41 @@ function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategor
                 </div>
                 {a.descripcion && <p className="text-sm text-navy-600 mt-2">{a.descripcion}</p>}
                 {a.imagen && <img src={a.imagen} alt="" className="mt-3 max-h-56 rounded-lg border border-navy-200 object-contain" />}
-                <div className="flex flex-wrap gap-3 mt-3">
-                  {a.ubicacion && (
-                    <span className="inline-flex items-center gap-1 text-xs text-navy-500 bg-navy-50 px-2 py-1 rounded-full">
-                      <MapPin className="w-3 h-3" /> {a.ubicacion}
-                    </span>
-                  )}
-                  {(a.interesados || []).map((key) => {
-                    const rol = ALL_ROLE_DEFS.find((r) => r.key === key);
-                    if (!rol) return null;
-                    return (
-                      <span key={key} className="inline-flex items-center gap-1 text-xs text-navy-500 bg-navy-50 px-2 py-1 rounded-full">
-                        {rol.label}
+
+                {/* Ubicación: separada de Interesados/Etiquetas — línea propia, */}
+                {/* estilo de texto simple (no una "pastilla" más), para que no */}
+                {/* se confunda visualmente con los demás badges.              */}
+                {a.ubicacion && (
+                  <p className="flex items-center gap-1.5 text-sm text-navy-600 mt-3">
+                    <MapPin className="w-3.5 h-3.5 text-navy-400 shrink-0" /> {a.ubicacion}
+                  </p>
+                )}
+
+                {(a.interesados || []).length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                    <span className="text-[11px] font-semibold uppercase text-navy-400 mr-0.5">Interesados:</span>
+                    {a.interesados.map((key) => {
+                      const rol = ALL_ROLE_DEFS.find((r) => r.key === key);
+                      if (!rol) return null;
+                      return (
+                        <span key={key} className="inline-flex items-center gap-1 text-xs font-medium text-lime-800 bg-lime-100 px-2 py-1 rounded-full">
+                          {rol.label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {(a.etiquetas || []).length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span className="text-[11px] font-semibold uppercase text-navy-400 mr-0.5">Etiquetas:</span>
+                    {a.etiquetas.map((et) => (
+                      <span key={et} className="inline-flex items-center gap-0.5 text-xs font-medium text-sky-700 bg-sky-50 px-2 py-1 rounded-full">
+                        #{et}
                       </span>
-                    );
-                  })}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -11568,7 +11673,7 @@ function LoadingScreen({ mensaje = 'Cargando…' }) {
 /* ============================================================================
    7. NAVEGACIÓN Y LAYOUT
    ============================================================================ */
-function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile, onRefresh, onLogout, mobileOpen, onCloseMobile }) {
+function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile, onRefresh, onLogout, mobileOpen, onCloseMobile, notificaciones, onAbrirNotificacion }) {
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { key: 'mis', label: 'Mis Proyectos', icon: FolderKanban },
@@ -11607,6 +11712,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile,
             <p className="text-white font-bold leading-tight">Sun Design Suite</p>
             <p className="text-xs text-navy-300 tracking-wide">Minigranjas Fotovoltaicas</p>
           </div>
+          <NotificationBell notificaciones={notificaciones} onAbrirNotificacion={onAbrirNotificacion} dark />
           <button onClick={onRefresh} title="Actualizar datos compartidos" className="text-navy-300 hover:text-white shrink-0">
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -14006,6 +14112,8 @@ export default function App() {
   const [plantillasCruces, setPlantillasCruces] = useState([]);
   const [actualizacionCategorias, setActualizacionCategorias] = useState([]);
   const [actualizaciones, setActualizaciones] = useState([]);
+  const [misNotificaciones, setMisNotificaciones] = useState([]);
+  const [categoriaActualizacionDestino, setCategoriaActualizacionDestino] = useState(null);
   const [diametrosTuberia, setDiametrosTuberia] = useState([]);
   const [mallas, setMallas] = useState([]);
   const [parametrosIngenieria, setParametrosIngenieria] = useState({ recubrimiento: RECUBRIMIENTO_CIMENTACION, barras: BARRA_ACERO, traslapos: TRASLAPO_TABLE });
@@ -14109,6 +14217,10 @@ export default function App() {
     if (ownUserId) {
       const yo = merged.find((u) => u.id === ownUserId);
       if (yo) setPerfil(yo);
+      // Mis propias notificaciones (RLS ya las filtra por usuario, pero
+      // igual filtramos explícito para dejarlo claro).
+      const { data: notifRows } = await supabase.from('notificaciones').select('*').eq('usuario_id', ownUserId).order('created_at', { ascending: false }).limit(50);
+      setMisNotificaciones(notifRows || []);
     }
 
     const { data: carpetaRows } = await supabase.from('instructivo_carpetas').select('*').order('created_at', { ascending: true });
@@ -14316,6 +14428,47 @@ export default function App() {
     }
   }
 
+  /* Avisa a todo el equipo ASIGNADO de un proyecto (menos a quien hizo el   */
+  /* cambio) cuando alguien más edita algo — mismo criterio de "asignado"    */
+  /* que el resto de la app (equipoNombres ya excluye aprobador/ingeniero   */
+  /* de proyectos, que no son parte del equipo que trabaja el proyecto).    */
+  async function crearNotificacionesProyecto(project, accion) {
+    if (!accion || !perfil) return;
+    const asignados = equipoNombres(project.equipo);
+    const destinatarios = directorio.filter((p) => p.id !== perfil.id && asignados.includes(p.nombre));
+    if (destinatarios.length === 0) return;
+    const accionMinuscula = accion.charAt(0).toLowerCase() + accion.slice(1);
+    const filas = destinatarios.map((p) => ({
+      id: makeId('notif'),
+      usuario_id: p.id,
+      tipo: 'proyecto',
+      mensaje: `${perfil.nombre} ${accionMinuscula} en "${project.nombre}"`,
+      proyecto_id: project.id,
+      leida: false,
+    }));
+    const { error } = await supabase.from('notificaciones').insert(filas);
+    if (error) console.error('Error creando notificaciones de proyecto:', error);
+  }
+
+  /* Avisa a quien tenga alguno de los roles marcados como "interesados" en */
+  /* una actualización recién creada (menos a quien la creó).               */
+  async function crearNotificacionesActualizacion(actualizacionId, categoriaId, interesados, nombreActualizacion) {
+    if (!interesados || interesados.length === 0 || !perfil) return;
+    const destinatarios = directorio.filter((p) => p.id !== perfil.id && (p.roles || []).some((r) => interesados.includes(r)));
+    if (destinatarios.length === 0) return;
+    const filas = destinatarios.map((p) => ({
+      id: makeId('notif'),
+      usuario_id: p.id,
+      tipo: 'actualizacion',
+      mensaje: `${perfil.nombre} agregó una actualización de diseño: "${nombreActualizacion}"`,
+      actualizacion_id: actualizacionId,
+      categoria_actualizacion_id: categoriaId,
+      leida: false,
+    }));
+    const { error } = await supabase.from('notificaciones').insert(filas);
+    if (error) console.error('Error creando notificaciones de actualización:', error);
+  }
+
   // "persist" es opcional: si se da, se usa para guardar SOLO lo que cambió
   // (una columna puntual, o un merge parcial vía función de Postgres) en vez
   // de sobrescribir la fila completa — así dos personas editando cosas
@@ -14355,6 +14508,7 @@ export default function App() {
       });
     }
     logActivity(id, accion, categoria);
+    if (updatedProject) crearNotificacionesProyecto(updatedProject, accion);
   }
   function handleCreate(newProject) {
     setProjects((prev) => [...prev, newProject]);
@@ -14694,12 +14848,13 @@ export default function App() {
   function handleAddActualizacion(categoriaId, datos) {
     const nueva = { id: makeId('act'), categoria_id: categoriaId, ...datos, creado_por: perfil?.nombre || null, created_at: new Date().toISOString() };
     setActualizaciones((prev) => [nueva, ...prev]);
-    supabase.from('actualizaciones').insert({ id: nueva.id, categoria_id: categoriaId, nombre: datos.nombre, descripcion: datos.descripcion, interesados: datos.interesados, ubicacion: datos.ubicacion, imagen: datos.imagen, creado_por: perfil?.nombre || null }).then(({ error }) => {
+    supabase.from('actualizaciones').insert({ id: nueva.id, categoria_id: categoriaId, nombre: datos.nombre, descripcion: datos.descripcion, interesados: datos.interesados, ubicacion: datos.ubicacion, etiquetas: datos.etiquetas, imagen: datos.imagen, creado_por: perfil?.nombre || null }).then(({ error }) => {
       if (error) {
         console.error('Error creando actualización:', error);
         alert('No se pudo guardar la actualización. Detalle: ' + error.message);
       }
     });
+    crearNotificacionesActualizacion(nueva.id, categoriaId, datos.interesados, datos.nombre);
   }
   function handleUpdateActualizacion(id, datos) {
     setActualizaciones((prev) => prev.map((a) => (a.id === id ? { ...a, ...datos } : a)));
@@ -14718,6 +14873,25 @@ export default function App() {
         alert('No se pudo eliminar la actualización. Detalle: ' + error.message);
       }
     });
+  }
+  function handleMarcarNotificacionLeida(id) {
+    setMisNotificaciones((prev) => prev.map((n) => (n.id === id ? { ...n, leida: true } : n)));
+    supabase.from('notificaciones').update({ leida: true }).eq('id', id).then(({ error }) => {
+      if (error) console.error('Error marcando notificación como leída:', error);
+    });
+  }
+  /* Al hacer clic en una notificación: la marca como leída y navega al       */
+  /* lugar en cuestión — el proyecto (si es de tipo "proyecto"), o la         */
+  /* categoría correspondiente en Actualizaciones (si es de ese tipo).       */
+  function handleAbrirNotificacion(n) {
+    if (!n.leida) handleMarcarNotificacionLeida(n.id);
+    if (n.tipo === 'proyecto' && n.proyecto_id) {
+      openProject(n.proyecto_id);
+    } else if (n.tipo === 'actualizacion') {
+      setCategoriaActualizacionDestino(n.categoria_actualizacion_id || null);
+      setView('actualizaciones');
+      setSidebarOpen(false);
+    }
   }
   function handleAddCarpeta(nombre) {
     const nueva = { id: makeId('carpeta'), nombre };
@@ -14882,6 +15056,8 @@ export default function App() {
         onLogout={handleLogout}
         mobileOpen={sidebarOpen}
         onCloseMobile={() => setSidebarOpen(false)}
+        notificaciones={misNotificaciones}
+        onAbrirNotificacion={handleAbrirNotificacion}
       />
 
       <main className="app-main flex-1 overflow-y-auto overflow-x-hidden min-w-0">
@@ -14895,7 +15071,8 @@ export default function App() {
           <div className="w-7 h-7 rounded-md bg-lime-300 flex items-center justify-center shrink-0">
             <img src={logoMark} alt="" className="w-4 h-4 object-contain" />
           </div>
-          <p className="text-white font-bold text-sm">Sun Design Suite</p>
+          <p className="text-white font-bold text-sm flex-1">Sun Design Suite</p>
+          <NotificationBell notificaciones={misNotificaciones} onAbrirNotificacion={handleAbrirNotificacion} dark />
         </div>
         {view === 'dashboard' && (
           <Dashboard
@@ -14996,6 +15173,7 @@ export default function App() {
             onAdd={handleAddActualizacion}
             onUpdate={handleUpdateActualizacion}
             onDelete={handleDeleteActualizacion}
+            categoriaPreseleccionada={categoriaActualizacionDestino}
           />
         )}
         {view === 'equipo' && (

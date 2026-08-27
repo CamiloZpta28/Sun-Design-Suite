@@ -32,6 +32,9 @@ create table if not exists actualizaciones (
   creado_por text,
   created_at timestamptz default now()
 );
+-- Si ya habías corrido una versión anterior de este archivo (sin
+-- "etiquetas"), esta línea la agrega sin romper nada:
+alter table actualizaciones add column if not exists etiquetas jsonb not null default '[]'::jsonb;
 
 alter table actualizacion_categorias enable row level security;
 

@@ -296,8 +296,24 @@ create table if not exists actualizaciones (
   descripcion text,
   interesados jsonb not null default '[]'::jsonb,
   ubicacion text,
+  etiquetas jsonb not null default '[]'::jsonb,
   imagen text,
   creado_por text,
+  created_at timestamptz default now()
+);
+
+-- Sistema de notificaciones: se generan cuando alguien más edita un
+-- proyecto donde el usuario está asignado, o agrega una actualización de
+-- diseño marcando como interesado un rol que el usuario tiene.
+create table if not exists notificaciones (
+  id text primary key,
+  usuario_id uuid not null references auth.users(id) on delete cascade,
+  tipo text not null, -- 'proyecto' | 'actualizacion'
+  mensaje text not null,
+  proyecto_id text references projects(id) on delete cascade,
+  actualizacion_id text references actualizaciones(id) on delete cascade,
+  categoria_actualizacion_id text,
+  leida boolean not null default false,
   created_at timestamptz default now()
 );
 
@@ -547,6 +563,14 @@ create policy "Editar actualizaciones" on actualizaciones
   for update using (auth.role() = 'authenticated');
 create policy "Eliminar actualizaciones" on actualizaciones
   for delete using (auth.role() = 'authenticated');
+
+alter table notificaciones enable row level security;
+create policy "Lectura de mis notificaciones" on notificaciones
+  for select using (auth.uid() = usuario_id);
+create policy "Crear notificaciones" on notificaciones
+  for insert with check (auth.role() = 'authenticated');
+create policy "Marcar mis notificaciones como leidas" on notificaciones
+  for update using (auth.uid() = usuario_id);
 
 alter table mallas enable row level security;
 create policy "Lectura de mallas" on mallas
