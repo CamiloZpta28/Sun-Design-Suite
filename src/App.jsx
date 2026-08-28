@@ -6954,6 +6954,11 @@ function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete, mallas, onAd
   const [duplicandoDesde, setDuplicandoDesde] = useState(null);
   const [confirmandoId, setConfirmandoId] = useState(null);
   const [mostrandoParametros, setMostrandoParametros] = useState(false);
+  const [previewAmpliada, setPreviewAmpliada] = useState(null);
+
+  // Solo Ing. Estructural (o Desarrollador) puede crear/editar/eliminar
+  // plantillas de Cimentaciones — el resto solo las visualiza.
+  const puedeEditar = isDeveloper(perfil) || (perfil?.roles || []).includes('estructural');
 
   const tipoDef = CIMENTACION_TIPOS.find((t) => t.id === tipoActivo);
   const plantillasDelTipo = plantillas.filter((p) => p.tipo === tipoActivo);
@@ -7032,7 +7037,7 @@ function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete, mallas, onAd
         </div>
       ) : (
         <div>
-          {!creando && !editandoId && (
+          {!creando && !editandoId && puedeEditar && (
             <button
               onClick={() => setCreando(true)}
               className="flex items-center gap-1.5 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg mb-5 transition-colors"
@@ -7040,8 +7045,13 @@ function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete, mallas, onAd
               <Plus className="w-4 h-4" /> Nueva plantilla de {tipoDef.label}
             </button>
           )}
+          {!puedeEditar && (
+            <p className="flex items-center gap-1.5 text-xs text-navy-400 mb-5">
+              <Lock className="w-3.5 h-3.5" /> Solo Ing. Estructural puede crear o editar estas plantillas — aquí puedes verlas.
+            </p>
+          )}
 
-          {(creando || editandoId) && (
+          {(creando || editandoId) && puedeEditar && (
             <componentes.Form
               plantilla={
                 editandoId
@@ -7066,41 +7076,63 @@ function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete, mallas, onAd
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {plantillasDelTipo.map((p) => (
                   <div key={p.id} className="bg-white border border-navy-200 rounded-xl p-4">
-                    <div className="flex items-center justify-center mb-2">
+                    <button
+                      onClick={() => setPreviewAmpliada(p)}
+                      className="flex items-center justify-center mb-2 w-full cursor-zoom-in hover:opacity-90 transition-opacity"
+                      title="Click para ampliar"
+                    >
                       <componentes.Preview datos={p.datos} className="w-full h-auto" />
-                    </div>
+                    </button>
                     <p className="font-semibold text-navy-800 text-sm text-center mb-1">{p.nombre}</p>
                     <div className="mb-3">
                       <ResumenLineas lineas={componentes.resumen(p.datos)} size="text-xs" align="center" />
                     </div>
-                    <div className="flex items-center justify-center gap-4 flex-wrap">
-                      <button onClick={() => setEditandoId(p.id)} className="text-xs font-semibold text-lime-600 hover:text-lime-700 flex items-center gap-1">
-                        <Pencil className="w-3.5 h-3.5" /> Editar
-                      </button>
-                      <button onClick={() => duplicar(p)} className="text-xs font-semibold text-navy-500 hover:text-navy-700 flex items-center gap-1">
-                        <Copy className="w-3.5 h-3.5" /> Duplicar
-                      </button>
-                      {confirmandoId === p.id ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-navy-500">¿Eliminar?</span>
-                          <button onClick={() => { onDelete(p.id); setConfirmandoId(null); }} className="text-xs font-bold text-red-600 hover:text-red-700">
-                            Sí
-                          </button>
-                          <button onClick={() => setConfirmandoId(null)} className="text-xs text-navy-400 hover:text-navy-600">
-                            No
-                          </button>
-                        </div>
-                      ) : (
-                        <button onClick={() => setConfirmandoId(p.id)} className="text-xs font-semibold text-navy-400 hover:text-red-500 flex items-center gap-1">
-                          <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                    {puedeEditar && (
+                      <div className="flex items-center justify-center gap-4 flex-wrap">
+                        <button onClick={() => setEditandoId(p.id)} className="text-xs font-semibold text-lime-600 hover:text-lime-700 flex items-center gap-1">
+                          <Pencil className="w-3.5 h-3.5" /> Editar
                         </button>
-                      )}
-                    </div>
+                        <button onClick={() => duplicar(p)} className="text-xs font-semibold text-navy-500 hover:text-navy-700 flex items-center gap-1">
+                          <Copy className="w-3.5 h-3.5" /> Duplicar
+                        </button>
+                        {confirmandoId === p.id ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-navy-500">¿Eliminar?</span>
+                            <button onClick={() => { onDelete(p.id); setConfirmandoId(null); }} className="text-xs font-bold text-red-600 hover:text-red-700">
+                              Sí
+                            </button>
+                            <button onClick={() => setConfirmandoId(null)} className="text-xs text-navy-400 hover:text-navy-600">
+                              No
+                            </button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setConfirmandoId(p.id)} className="text-xs font-semibold text-navy-400 hover:text-red-500 flex items-center gap-1">
+                            <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             )
           )}
+        </div>
+      )}
+
+      {/* Vista de visualización ampliada — clic afuera o en la X la cierra. */}
+      {previewAmpliada && (
+        <div className="fixed inset-0 z-50 bg-navy-900/90 flex items-center justify-center p-6 cursor-zoom-out" onClick={() => setPreviewAmpliada(null)}>
+          <button onClick={() => setPreviewAmpliada(null)} className="absolute top-4 right-4 text-white bg-navy-800/70 hover:bg-navy-800 rounded-full p-2" title="Cerrar">
+            <X className="w-5 h-5" />
+          </button>
+          <div className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-full overflow-y-auto cursor-default" onClick={(e) => e.stopPropagation()}>
+            <p className="font-semibold text-navy-800 text-center mb-3">{previewAmpliada.nombre}</p>
+            <componentes.Preview datos={previewAmpliada.datos} className="w-full h-auto" />
+            <div className="mt-3">
+              <ResumenLineas lineas={componentes.resumen(previewAmpliada.datos)} size="text-sm" align="center" />
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -8811,14 +8843,29 @@ function CruceForm({ plantilla, plantillasCanalizaciones, onCancel, onSave }) {
   );
 }
 
-function CrucesView({ plantillas, plantillasCanalizaciones, onAdd, onUpdate, onDelete }) {
+function CrucesView({ plantillas, plantillasCanalizaciones, onAdd, onUpdate, onDelete, perfil }) {
   const [creando, setCreando] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
   const [confirmandoId, setConfirmandoId] = useState(null);
+  const [previewAmpliada, setPreviewAmpliada] = useState(null);
+
+  // Mismo criterio que Canalizaciones: solo Ing. Civil o Líder Civil (o
+  // Desarrollador) puede crear/editar/eliminar cruces.
+  const puedeEditar = isDeveloper(perfil) || (perfil?.roles || []).some((r) => r === 'civil' || r === 'lider_civil');
 
   function cerrarFormulario() {
     setCreando(false);
     setEditandoId(null);
+  }
+  function renderPreview(p, className) {
+    const tipoDefVia = p.datos?.esCruceConVia ? CANALIZACION_TIPOS.find((t) => t.id === plantillasCanalizaciones.find((pl) => pl.id === p.datos.lineaId)?.tipo) : null;
+    const plantillaViaBase = p.datos?.esCruceConVia ? plantillasCanalizaciones.find((pl) => pl.id === p.datos.lineaId) : null;
+    if (p.datos?.esCruceConVia) {
+      return tipoDefVia && plantillaViaBase ? (
+        <CanalizacionPreview tipoId={tipoDefVia.id} datos={{ ...plantillaViaBase.datos, profundidad: p.datos.profundidad || plantillaViaBase.datos?.profundidad, espesor_via: p.datos.espesor_via, cruzaConVia: true }} className={className} />
+      ) : null;
+    }
+    return <CrucePreview datos={p.datos} plantillasCanalizaciones={plantillasCanalizaciones} className={className} />;
   }
 
   return (
@@ -8830,7 +8877,7 @@ function CrucesView({ plantillas, plantillasCanalizaciones, onAdd, onUpdate, onD
         </p>
       </div>
 
-      {!creando && !editandoId && (
+      {!creando && !editandoId && puedeEditar && (
         <button
           onClick={() => setCreando(true)}
           className="flex items-center gap-1.5 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg mb-5 transition-colors"
@@ -8838,8 +8885,13 @@ function CrucesView({ plantillas, plantillasCanalizaciones, onAdd, onUpdate, onD
           <Plus className="w-4 h-4" /> Nuevo cruce
         </button>
       )}
+      {!puedeEditar && (
+        <p className="flex items-center gap-1.5 text-xs text-navy-400 mb-5">
+          <Lock className="w-3.5 h-3.5" /> Solo Ing. Civil o Líder Civil puede crear o editar cruces — aquí puedes verlos (clic en el dibujo para verlo más grande).
+        </p>
+      )}
 
-      {(creando || editandoId) && (
+      {(creando || editandoId) && puedeEditar && (
         <CruceForm
           plantilla={editandoId ? plantillas.find((p) => p.id === editandoId) : null}
           plantillasCanalizaciones={plantillasCanalizaciones}
@@ -8857,24 +8909,20 @@ function CrucesView({ plantillas, plantillasCanalizaciones, onAdd, onUpdate, onD
           <p className="text-sm text-navy-400 italic text-center py-10">Aún no hay cruces creados.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {plantillas.map((p) => {
-              const tipoDefVia = p.datos?.esCruceConVia ? CANALIZACION_TIPOS.find((t) => t.id === plantillasCanalizaciones.find((pl) => pl.id === p.datos.lineaId)?.tipo) : null;
-              const plantillaViaBase = p.datos?.esCruceConVia ? plantillasCanalizaciones.find((pl) => pl.id === p.datos.lineaId) : null;
-              return (
-                <div key={p.id} className="bg-white border border-navy-200 rounded-xl p-4">
-                  <div className="flex items-center justify-center mb-2">
-                    {p.datos?.esCruceConVia ? (
-                      tipoDefVia && plantillaViaBase ? (
-                        <CanalizacionPreview tipoId={tipoDefVia.id} datos={{ ...plantillaViaBase.datos, profundidad: p.datos.profundidad || plantillaViaBase.datos?.profundidad, espesor_via: p.datos.espesor_via, cruzaConVia: true }} className="w-full h-auto" />
-                      ) : null
-                    ) : (
-                      <CrucePreview datos={p.datos} plantillasCanalizaciones={plantillasCanalizaciones} className="w-full h-auto" />
-                    )}
-                  </div>
-                  <p className="font-semibold text-navy-800 text-sm text-center mb-1">{p.nombre}</p>
-                  <div className="mb-3">
-                    <ResumenLineas lineas={resumenCruce(p.datos, plantillasCanalizaciones)} size="text-xs" align="center" />
-                  </div>
+            {plantillas.map((p) => (
+              <div key={p.id} className="bg-white border border-navy-200 rounded-xl p-4">
+                <button
+                  onClick={() => setPreviewAmpliada(p)}
+                  className="flex items-center justify-center mb-2 w-full cursor-zoom-in hover:opacity-90 transition-opacity"
+                  title="Click para ampliar"
+                >
+                  {renderPreview(p, 'w-full h-auto')}
+                </button>
+                <p className="font-semibold text-navy-800 text-sm text-center mb-1">{p.nombre}</p>
+                <div className="mb-3">
+                  <ResumenLineas lineas={resumenCruce(p.datos, plantillasCanalizaciones)} size="text-xs" align="center" />
+                </div>
+                {puedeEditar && (
                   <div className="flex items-center justify-center gap-4 flex-wrap">
                     <button onClick={() => setEditandoId(p.id)} className="text-xs font-semibold text-lime-600 hover:text-lime-700 flex items-center gap-1">
                       <Pencil className="w-3.5 h-3.5" /> Editar
@@ -8895,11 +8943,27 @@ function CrucesView({ plantillas, plantillasCanalizaciones, onAdd, onUpdate, onD
                       </button>
                     )}
                   </div>
-                </div>
-              );
-            })}
+                )}
+              </div>
+            ))}
           </div>
         )
+      )}
+
+      {/* Vista de visualización ampliada — clic afuera o en la X la cierra. */}
+      {previewAmpliada && (
+        <div className="fixed inset-0 z-50 bg-navy-900/90 flex items-center justify-center p-6 cursor-zoom-out" onClick={() => setPreviewAmpliada(null)}>
+          <button onClick={() => setPreviewAmpliada(null)} className="absolute top-4 right-4 text-white bg-navy-800/70 hover:bg-navy-800 rounded-full p-2" title="Cerrar">
+            <X className="w-5 h-5" />
+          </button>
+          <div className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-full overflow-y-auto cursor-default" onClick={(e) => e.stopPropagation()}>
+            <p className="font-semibold text-navy-800 text-center mb-3">{previewAmpliada.nombre}</p>
+            {renderPreview(previewAmpliada, 'w-full h-auto')}
+            <div className="mt-3">
+              <ResumenLineas lineas={resumenCruce(previewAmpliada.datos, plantillasCanalizaciones)} size="text-sm" align="center" />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -9156,15 +9220,18 @@ function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategor
 
   const categoriaObj = categorias.find((c) => c.id === categoriaActiva) || categorias[0];
   const busquedaLimpia = normalizarTexto(busqueda.trim());
-  const deEstaCategoria = actualizaciones
-    .filter((a) => a.categoria_id === categoriaObj?.id)
-    .filter((a) => {
-      if (!busquedaLimpia) return true;
-      const enEtiquetas = (a.etiquetas || []).some((et) => normalizarTexto(et).includes(busquedaLimpia));
-      const enNombre = normalizarTexto(a.nombre).includes(busquedaLimpia);
-      const enDescripcion = normalizarTexto(a.descripcion).includes(busquedaLimpia);
-      return enEtiquetas || enNombre || enDescripcion;
-    })
+  // Con una búsqueda activa, el buscador es GLOBAL (no hace falta entrar a
+  // la categoría): se buscan TODAS las actualizaciones, de cualquier
+  // categoría, y cada resultado muestra a qué categoría pertenece.
+  const buscandoGlobal = !!busquedaLimpia;
+  function coincideBusqueda(a) {
+    const enEtiquetas = (a.etiquetas || []).some((et) => normalizarTexto(et).includes(busquedaLimpia));
+    const enNombre = normalizarTexto(a.nombre).includes(busquedaLimpia);
+    const enDescripcion = normalizarTexto(a.descripcion).includes(busquedaLimpia);
+    return enEtiquetas || enNombre || enDescripcion;
+  }
+  const deEstaCategoria = (buscandoGlobal ? actualizaciones : actualizaciones.filter((a) => a.categoria_id === categoriaObj?.id))
+    .filter((a) => (buscandoGlobal ? coincideBusqueda(a) : true))
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // más reciente primero
 
   function cerrarFormulario() {
@@ -9179,6 +9246,7 @@ function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategor
     const nombre = prompt('Nuevo nombre para esta categoría:', cat.nombre);
     if (nombre && nombre.trim() && nombre.trim() !== cat.nombre) onRenameCategoria(cat.id, nombre.trim());
   }
+  const puedeGestionarCategorias = isLeader(perfil);
 
   if (!categoriaObj) {
     return (
@@ -9205,23 +9273,27 @@ function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategor
           return (
             <div key={c.id} className={`flex items-center gap-1 rounded-lg border ${activo ? 'bg-navy-800 border-navy-800' : 'bg-white border-navy-200'}`}>
               <button
-                onClick={() => { setCategoriaActiva(c.id); cerrarFormulario(); }}
+                onClick={() => { setCategoriaActiva(c.id); setBusqueda(''); cerrarFormulario(); }}
                 className={`text-sm font-semibold pl-3 pr-1.5 py-2 ${activo ? 'text-white' : 'text-navy-600 hover:text-navy-800'}`}
               >
                 {c.nombre} <span className={activo ? 'text-navy-300' : 'text-navy-400'}>({cantidad})</span>
               </button>
-              <button onClick={() => renombrarCategoria(c)} title="Renombrar" className={`p-1.5 ${activo ? 'text-navy-300 hover:text-white' : 'text-navy-400 hover:text-navy-700'}`}>
-                <Pencil className="w-3 h-3" />
-              </button>
-              {confirmandoCategoria === c.id ? (
-                <span className="flex items-center gap-1 pr-2 text-xs">
-                  <button onClick={() => { onDeleteCategoria(c.id); setConfirmandoCategoria(null); if (categoriaActiva === c.id) setCategoriaActiva(null); }} className="font-bold text-red-500">Sí</button>
-                  <button onClick={() => setConfirmandoCategoria(null)} className={activo ? 'text-navy-300' : 'text-navy-400'}>No</button>
-                </span>
-              ) : (
-                <button onClick={() => setConfirmandoCategoria(c.id)} title="Eliminar categoría" className={`p-1.5 pr-2.5 ${activo ? 'text-navy-300 hover:text-red-300' : 'text-navy-400 hover:text-red-500'}`}>
-                  <Trash2 className="w-3 h-3" />
-                </button>
+              {puedeGestionarCategorias && (
+                <>
+                  <button onClick={() => renombrarCategoria(c)} title="Renombrar" className={`p-1.5 ${activo ? 'text-navy-300 hover:text-white' : 'text-navy-400 hover:text-navy-700'}`}>
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                  {confirmandoCategoria === c.id ? (
+                    <span className="flex items-center gap-1 pr-2 text-xs">
+                      <button onClick={() => { onDeleteCategoria(c.id); setConfirmandoCategoria(null); if (categoriaActiva === c.id) setCategoriaActiva(null); }} className="font-bold text-red-500">Sí</button>
+                      <button onClick={() => setConfirmandoCategoria(null)} className={activo ? 'text-navy-300' : 'text-navy-400'}>No</button>
+                    </span>
+                  ) : (
+                    <button onClick={() => setConfirmandoCategoria(c.id)} title="Eliminar categoría" className={`p-1.5 pr-2.5 ${activo ? 'text-navy-300 hover:text-red-300' : 'text-navy-400 hover:text-red-500'}`}>
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </>
               )}
             </div>
           );
@@ -9244,10 +9316,20 @@ function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategor
             <input
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por etiqueta, nombre o descripción…"
-              className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-navy-200 focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+              placeholder="Buscar en TODAS las categorías…"
+              className="w-full pl-9 pr-8 py-2.5 text-sm rounded-lg border border-navy-200 focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
             />
+            {busqueda && (
+              <button onClick={() => setBusqueda('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-navy-400 hover:text-navy-600" title="Limpiar búsqueda">
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
+          {buscandoGlobal && (
+            <span className="text-xs text-navy-400 italic">
+              Buscando en todas las categorías — {deEstaCategoria.length} resultado{deEstaCategoria.length === 1 ? '' : 's'}
+            </span>
+          )}
         </div>
       )}
 
@@ -9267,7 +9349,7 @@ function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategor
       {!creando && !editandoId && (
         deEstaCategoria.length === 0 ? (
           <p className="text-sm text-navy-400 italic text-center py-10">
-            {busquedaLimpia ? `Ninguna actualización de "${categoriaObj.nombre}" coincide con "${busqueda}".` : `Aún no hay actualizaciones en "${categoriaObj.nombre}".`}
+            {busquedaLimpia ? `Ninguna actualización (en ninguna categoría) coincide con "${busqueda}".` : `Aún no hay actualizaciones en "${categoriaObj.nombre}".`}
           </p>
         ) : (
           <div className="space-y-4">
@@ -9275,6 +9357,14 @@ function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategor
               <div key={a.id} className="bg-white border border-navy-200 rounded-xl p-4">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
+                    {buscandoGlobal && (
+                      <button
+                        onClick={() => { setCategoriaActiva(a.categoria_id); setBusqueda(''); }}
+                        className="text-[11px] font-semibold uppercase text-lime-700 bg-lime-100 px-2 py-0.5 rounded-full mb-1.5 inline-block hover:bg-lime-200"
+                      >
+                        {categorias.find((c) => c.id === a.categoria_id)?.nombre || 'Sin categoría'}
+                      </button>
+                    )}
                     <p className="font-semibold text-navy-800">{a.nombre}</p>
                     <p className="text-xs text-navy-400 mt-0.5">
                       Agregada por {a.creado_por || 'alguien del equipo'} · {formatoFechaHora(a.created_at)}
@@ -9438,12 +9528,18 @@ function CombinacionForm({ plantilla, plantillasCanalizaciones, onCancel, onSave
   );
 }
 
-function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrincipal, diametrosTuberia, onAddDiametro }) {
+function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrincipal, diametrosTuberia, onAddDiametro, perfil }) {
 
   const [tipoActivo, setTipoActivo] = useState(CANALIZACION_TIPOS[0].id);
   const [creando, setCreando] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
   const [confirmandoId, setConfirmandoId] = useState(null);
+  const [previewAmpliada, setPreviewAmpliada] = useState(null);
+
+  // Solo Ing. Civil o Líder Civil (o Desarrollador) puede crear/editar/
+  // eliminar plantillas de Canalizaciones — el resto solo las visualiza
+  // (con la vista ampliada para ver bien el detalle).
+  const puedeEditar = isDeveloper(perfil) || (perfil?.roles || []).some((r) => r === 'civil' || r === 'lider_civil');
 
   const tipoDef = CANALIZACION_TIPOS.find((t) => t.id === tipoActivo);
   const plantillasDelTipo = plantillas.filter((p) => p.tipo === tipoActivo);
@@ -9482,7 +9578,7 @@ function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrinci
         })}
       </div>
 
-      {!creando && !editandoId && (
+      {!creando && !editandoId && puedeEditar && (
         <button
           onClick={() => setCreando(true)}
           className="flex items-center gap-1.5 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg mb-5 transition-colors"
@@ -9490,8 +9586,13 @@ function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrinci
           <Plus className="w-4 h-4" /> {tipoDef.esCombinacion ? 'Nueva combinación' : `Nueva plantilla de ${tipoDef.label}`}
         </button>
       )}
+      {!puedeEditar && (
+        <p className="flex items-center gap-1.5 text-xs text-navy-400 mb-5">
+          <Lock className="w-3.5 h-3.5" /> Solo Ing. Civil o Líder Civil puede crear o editar estas plantillas — aquí puedes verlas (clic en el dibujo para verlo más grande).
+        </p>
+      )}
 
-      {(creando || editandoId) && (
+      {(creando || editandoId) && puedeEditar && (
         tipoDef.esCombinacion ? (
           <CombinacionForm
             plantilla={editandoId ? plantillasDelTipo.find((p) => p.id === editandoId) : null}
@@ -9533,13 +9634,17 @@ function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrinci
                     <Star className="w-3 h-3 fill-lime-600 text-lime-600" /> Principal
                   </span>
                 )}
-                <div className="flex items-center justify-center mb-2">
+                <button
+                  onClick={() => setPreviewAmpliada(p)}
+                  className="flex items-center justify-center mb-2 w-full cursor-zoom-in hover:opacity-90 transition-opacity"
+                  title="Click para ampliar"
+                >
                   {tipoDef.esCombinacion ? (
                     <CombinacionPreview lineaIds={p.datos?.lineas} plantillasCanalizaciones={plantillas} className="w-full h-auto" />
                   ) : (
                     <CanalizacionPreview tipoId={p.tipo} datos={p.datos} className="w-full h-auto" />
                   )}
-                </div>
+                </button>
                 <p className="font-semibold text-navy-800 text-sm text-center mb-1">{p.nombre}</p>
                 <div className="mb-3">
                   <ResumenLineas
@@ -9547,31 +9652,33 @@ function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrinci
                     size="text-xs" align="center"
                   />
                 </div>
-                <div className="flex items-center justify-center gap-4 flex-wrap">
-                  <button onClick={() => setEditandoId(p.id)} className="text-xs font-semibold text-lime-600 hover:text-lime-700 flex items-center gap-1">
-                    <Pencil className="w-3.5 h-3.5" /> Editar
-                  </button>
-                  {!p.es_principal && !tipoDef.esCombinacion && (
-                    <button onClick={() => onSetPrincipal(p.id, tipoActivo, p.datos)} className="text-xs font-semibold text-navy-500 hover:text-navy-700 flex items-center gap-1">
-                      <Star className="w-3.5 h-3.5" /> Marcar Principal
+                {puedeEditar && (
+                  <div className="flex items-center justify-center gap-4 flex-wrap">
+                    <button onClick={() => setEditandoId(p.id)} className="text-xs font-semibold text-lime-600 hover:text-lime-700 flex items-center gap-1">
+                      <Pencil className="w-3.5 h-3.5" /> Editar
                     </button>
-                  )}
-                  {confirmandoId === p.id ? (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-navy-500">¿Eliminar?</span>
-                      <button onClick={() => { onDelete(p.id); setConfirmandoId(null); }} className="text-xs font-bold text-red-600 hover:text-red-700">
-                        Sí
+                    {!p.es_principal && !tipoDef.esCombinacion && (
+                      <button onClick={() => onSetPrincipal(p.id, tipoActivo, p.datos)} className="text-xs font-semibold text-navy-500 hover:text-navy-700 flex items-center gap-1">
+                        <Star className="w-3.5 h-3.5" /> Marcar Principal
                       </button>
-                      <button onClick={() => setConfirmandoId(null)} className="text-xs text-navy-400 hover:text-navy-600">
-                        No
+                    )}
+                    {confirmandoId === p.id ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-navy-500">¿Eliminar?</span>
+                        <button onClick={() => { onDelete(p.id); setConfirmandoId(null); }} className="text-xs font-bold text-red-600 hover:text-red-700">
+                          Sí
+                        </button>
+                        <button onClick={() => setConfirmandoId(null)} className="text-xs text-navy-400 hover:text-navy-600">
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setConfirmandoId(p.id)} className="text-xs font-semibold text-navy-400 hover:text-red-500 flex items-center gap-1">
+                        <Trash2 className="w-3.5 h-3.5" /> Eliminar
                       </button>
-                    </div>
-                  ) : (
-                    <button onClick={() => setConfirmandoId(p.id)} className="text-xs font-semibold text-navy-400 hover:text-red-500 flex items-center gap-1">
-                      <Trash2 className="w-3.5 h-3.5" /> Eliminar
-                    </button>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           }
@@ -9608,6 +9715,29 @@ function CanalizacionesView({ plantillas, onAdd, onUpdate, onDelete, onSetPrinci
             </div>
           );
         })()
+      )}
+
+      {/* Vista de visualización ampliada — clic afuera o en la X la cierra. */}
+      {previewAmpliada && (
+        <div className="fixed inset-0 z-50 bg-navy-900/90 flex items-center justify-center p-6 cursor-zoom-out" onClick={() => setPreviewAmpliada(null)}>
+          <button onClick={() => setPreviewAmpliada(null)} className="absolute top-4 right-4 text-white bg-navy-800/70 hover:bg-navy-800 rounded-full p-2" title="Cerrar">
+            <X className="w-5 h-5" />
+          </button>
+          <div className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-full overflow-y-auto cursor-default" onClick={(e) => e.stopPropagation()}>
+            <p className="font-semibold text-navy-800 text-center mb-3">{previewAmpliada.nombre}</p>
+            {tipoDef.esCombinacion ? (
+              <CombinacionPreview lineaIds={previewAmpliada.datos?.lineas} plantillasCanalizaciones={plantillas} className="w-full h-auto" />
+            ) : (
+              <CanalizacionPreview tipoId={previewAmpliada.tipo} datos={previewAmpliada.datos} className="w-full h-auto" />
+            )}
+            <div className="mt-3">
+              <ResumenLineas
+                lineas={tipoDef.esCombinacion ? resumenCombinacion(previewAmpliada.datos?.lineas, plantillas) : resumenCanalizacion(previewAmpliada.tipo, previewAmpliada.datos)}
+                size="text-sm" align="center"
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -14434,7 +14564,7 @@ export default function App() {
       setActualizacionCategorias(catRows);
     }
     const { data: actRows } = await supabase.from('actualizaciones').select('*').order('created_at', { ascending: false });
-    setActualizaciones((actRows || []).map((r) => ({ id: r.id, categoria_id: r.categoria_id, nombre: r.nombre, descripcion: r.descripcion || '', interesados: r.interesados || [], ubicacion: r.ubicacion || '', imagen: r.imagen || null, creado_por: r.creado_por, created_at: r.created_at })));
+    setActualizaciones((actRows || []).map((r) => ({ id: r.id, categoria_id: r.categoria_id, nombre: r.nombre, descripcion: r.descripcion || '', interesados: r.interesados || [], ubicacion: r.ubicacion || '', etiquetas: r.etiquetas || [], imagen: r.imagen || null, creado_por: r.creado_por, created_at: r.created_at })));
 
     const { data: mallaRows } = await supabase.from('mallas').select('*').order('created_at', { ascending: true });
     if (!mallaRows || mallaRows.length === 0) {
@@ -15239,6 +15369,7 @@ export default function App() {
             onSetPrincipal={handleSetPrincipalCanalizacion}
             diametrosTuberia={diametrosTuberia}
             onAddDiametro={handleAddDiametro}
+            perfil={perfil}
           />
         )}
         {view === 'cruces' && (
@@ -15248,6 +15379,7 @@ export default function App() {
             onAdd={handleAddCruce}
             onUpdate={handleUpdateCruce}
             onDelete={handleDeleteCruce}
+            perfil={perfil}
           />
         )}
         {view === 'actualizaciones' && (
