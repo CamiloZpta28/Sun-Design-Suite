@@ -303,6 +303,8 @@ const SCHEMA = [
     id: 'civil', label: 'Civil', icon: HardHat,
     fields: [
       { key: 'arboles_intervenir', label: 'Árboles a intervenir', type: 'text' },
+      { key: 'area_aprovechada', label: 'Área aprovechada (m²)', type: 'text' },
+      { key: 'perimetro_aprovechado', label: 'Perímetro aprovechado (m)', type: 'text' },
       { key: 'descripcion_acceso', label: 'Descripción del acceso', type: 'textarea' },
       { key: 'mvtos_tierra', label: 'Movimientos de tierra', type: 'boolean' },
       { key: 'topografia_insumo', label: 'Topografía (insumo disponible)', type: 'boolean' },
