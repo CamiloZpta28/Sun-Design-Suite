@@ -265,10 +265,12 @@ const SCHEMA = [
       { key: 'propietario_predio', label: 'Propietario de predio', type: 'text' },
       { key: 'telefono_propietario', label: 'Teléfono de propietario', type: 'text' },
       { key: 'magna_sirgas', label: 'Coord. MAGNA-SIRGAS (Bogotá)', type: 'text' },
-      { key: 'lat_long', label: 'Coordenadas Lat/Long', type: 'text' },
+      { key: 'lat_long', label: 'Coordenadas Lat/Long', type: 'coordenadas' },
       { key: 'altitud', label: 'Altitud (m.s.n.m.)', type: 'text' },
       { key: 'direccion_proyecto', label: 'Dirección del proyecto', type: 'text' },
       { key: 'tipo_predio', label: 'Tipo predio (rural o urbano)', type: 'text' },
+      { key: 'area_legal', label: 'Área legal (m²)', type: 'text' },
+      { key: 'perimetro_legal', label: 'Perímetro legal (m)', type: 'text' },
       { key: 'fecha_inicio', label: 'Fecha de Inicio', type: 'date' },
       { key: 'fecha_entrega', label: 'Fecha de Entrega', type: 'date' },
 
@@ -301,8 +303,6 @@ const SCHEMA = [
     id: 'civil', label: 'Civil', icon: HardHat,
     fields: [
       { key: 'arboles_intervenir', label: 'Árboles a intervenir', type: 'text' },
-      { key: 'area_legal', label: 'Área legal (m²)', type: 'text' },
-      { key: 'perimetro_legal', label: 'Perímetro legal (m)', type: 'text' },
       { key: 'descripcion_acceso', label: 'Descripción del acceso', type: 'textarea' },
       { key: 'mvtos_tierra', label: 'Movimientos de tierra', type: 'boolean' },
       { key: 'topografia_insumo', label: 'Topografía (insumo disponible)', type: 'boolean' },
@@ -9786,12 +9786,77 @@ function IsoBoxLineArt({ x0, y0, w, d, z0, z1, ox, oy, fillTop = 'white', fillSi
     </g>
   );
 }
+/* Convierte grados decimales a grados-minutos-segundos, ej. 4.70432 ->      */
+/* 4°42'15.5"N. "esLatitud" decide si el hemisferio es N/S (latitud) o       */
+/* E/O (longitud).                                                          */
+function decimalAGMS(decimal, esLatitud) {
+  if (decimal === null || decimal === undefined || Number.isNaN(decimal)) return '';
+  const abs = Math.abs(decimal);
+  const grados = Math.floor(abs);
+  const minutosDecimales = (abs - grados) * 60;
+  const minutos = Math.floor(minutosDecimales);
+  const segundos = (minutosDecimales - minutos) * 60;
+  const hemisferio = esLatitud ? (decimal >= 0 ? 'N' : 'S') : (decimal >= 0 ? 'E' : 'O');
+  return `${grados}°${minutos}'${segundos.toFixed(1)}"${hemisferio}`;
+}
+
 function FieldRenderer({
   field, value, editMode, onChange, siblingData, inversionistas, onAddInversionista, paises, onAddPais,
   proveedores, onAddProveedor, plantillasCimentacion, plantillasEquipos,
   inversionistasDetalle, operadoresRed, onAddOperadorRed, instaladores, onAddInstalador,
   ingenierosProyectos, onUpdateCatalogoAtributo,
 }) {
+  if (field.type === 'coordenadas') {
+    // Se guarda como "lat, lng" en grados decimales (texto plano, para que
+    // cualquier otro lugar que muestre este campo — impresión, exportes —
+    // lo siga viendo como texto normal sin tener que cambiar nada más).
+    const partes = (value || '').split(',').map((s) => s.trim());
+    const latTexto = partes[0] || '';
+    const lngTexto = partes[1] || '';
+    const latNum = latTexto !== '' && !Number.isNaN(parseFloat(latTexto)) ? parseFloat(latTexto) : null;
+    const lngNum = lngTexto !== '' && !Number.isNaN(parseFloat(lngTexto)) ? parseFloat(lngTexto) : null;
+    const gms = (latNum !== null && lngNum !== null) ? `${decimalAGMS(latNum, true)}  ${decimalAGMS(lngNum, false)}` : '';
+
+    if (!editMode) {
+      return (
+        <div className="py-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-1">{field.label}</p>
+          {value ? (
+            <>
+              <p className="text-sm text-navy-700 font-mono">{value}</p>
+              {gms && <p className="text-xs text-navy-400 mt-0.5">{gms}</p>}
+            </>
+          ) : (
+            <p className="text-sm text-navy-300 italic">Sin definir</p>
+          )}
+        </div>
+      );
+    }
+    const baseInputCoord = 'w-full rounded-lg border border-navy-300 px-3 py-2 text-sm text-navy-800 font-mono focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+    return (
+      <div className="py-1">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-[11px] text-navy-400 mb-0.5">Latitud (grados decimales)</label>
+            <input
+              type="text" inputMode="decimal" placeholder="Ej. 4.70432" className={baseInputCoord}
+              value={latTexto} onChange={(e) => onChange(`${e.target.value}, ${lngTexto}`)}
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] text-navy-400 mb-0.5">Longitud (grados decimales)</label>
+            <input
+              type="text" inputMode="decimal" placeholder="Ej. -74.05030" className={baseInputCoord}
+              value={lngTexto} onChange={(e) => onChange(`${latTexto}, ${e.target.value}`)}
+            />
+          </div>
+        </div>
+        {gms && <p className="text-xs text-navy-500 mt-1.5">≈ {gms}</p>}
+      </div>
+    );
+  }
+
   if (field.type === 'departamento') {
     if (!editMode) return <ReadOnlyValue label={field.label} value={value} mono={false} />;
     return (
@@ -11613,6 +11678,12 @@ function PrintableReport({ project, plantillasCimentacion, plantillasEquipos }) 
                   nota = v.nota || '';
                 } else if (field.type === 'date') {
                   val = raw ? formatDate(raw) : '—';
+                } else if (field.type === 'coordenadas' && raw) {
+                  const partes = String(raw).split(',').map((s) => s.trim());
+                  const latNum = partes[0] !== undefined && !Number.isNaN(parseFloat(partes[0])) ? parseFloat(partes[0]) : null;
+                  const lngNum = partes[1] !== undefined && !Number.isNaN(parseFloat(partes[1])) ? parseFloat(partes[1]) : null;
+                  const gms = (latNum !== null && lngNum !== null) ? `${decimalAGMS(latNum, true)}  ${decimalAGMS(lngNum, false)}` : '';
+                  val = gms ? `${raw}  (${gms})` : raw;
                 } else if (val === '' || val === null || val === undefined) {
                   val = '—';
                 }
