@@ -177,11 +177,17 @@ ingeniero. Cada persona:
   vez que alguien la abre (mientras tanto se ve "Cargando sección…", que
   suele durar menos de lo que toma leerlo, y después queda en la caché).
   - Ya movidas: **Instructivos, Actualizaciones, Equipos eléctricos,
-    Canalizaciones y Cruces**. El paquete inicial bajó de 569 kB a 491 kB.
-  - **Falta la parte grande**: Cimentaciones (con sus 9 formularios y todos
-    los dibujos técnicos) y la ficha de un proyecto. Son más de la mitad de
-    lo que queda, pero van juntas porque la pestaña Estructural de un
-    proyecto muestra las mismas previsualizaciones de cimentación.
+    Canalizaciones, Cruces y Cimentaciones**. El paquete inicial bajó de
+    569 kB a **333 kB**, y `src/App.jsx` de 15.544 a 7.090 renglones.
+  - **Cimentaciones se partió en dos**: lo pesado (los 9 formularios y todos
+    los dibujos técnicos, 162 kB) se descarga aparte, y lo liviano —tipos,
+    parámetros de acero y los resúmenes "Etiqueta: valor"— se queda siempre
+    disponible en `cimentacionesDatos.js`, porque la ficha de un proyecto y
+    la hoja de vida imprimible los necesitan. Dentro de un proyecto, el
+    DIBUJO de la plantilla elegida también llega aparte, solo si esa pestaña
+    tiene una plantilla puesta.
+  - **Falta**: la ficha de un proyecto (con sus pestañas técnicas, Control
+    Documental y la hoja de vida imprimible). Es lo último grande.
   - Lo que se comparte entre secciones (roles y permisos, el selector con
     "+ Agregar nuevo…", los resúmenes) quedó en `src/shared/`. Nada cambió de
     comportamiento: es el mismo código, movido de archivo.
