@@ -3,7 +3,7 @@
    ============================================================================ */
 
 import { describe, it, expect } from 'vitest';
-import { getResolvedTechnicalNotes, STATUS, isResolvedStatus } from '../index.js';
+import { getResolvedTechnicalNotes, STATUS } from '../index.js';
 import { CONFIRMED_TECHNICAL_DEFAULTS, hasConfirmedDefault, effectiveDefaultFor } from '../confirmedDefaults.js';
 import { CERRAMIENTO_PERIMETRAL, PORTON_METALICO } from '../catalog/categories/index.js';
 import { FIELD_DISPLAY_LABELS, displayLabelFor, allFieldGroups, allGroupedFieldKeys } from '../fieldGroups.js';

@@ -5,9 +5,10 @@
    para reutilizarse fuera de la UI (planos, PDF, DOCX, otros reportes) sin
    depender de React ni de components de src/App.jsx.
 
-   El catálogo se sirve a través de un provider (catalogProvider.js) para
-   que más adelante pueda existir un SupabaseCatalogProvider sin cambiar el
-   motor ni esta API.
+   El catálogo se ensambla en catalog/bundler.js a partir de catalog/manifest.js:
+   ese es el único punto que sabe de dónde salen las notas, así que más
+   adelante puede leerse de Supabase (en vez de los módulos de
+   catalog/categories/) sin cambiar el motor ni esta API.
    ============================================================================ */
 
 import { resolveTechnicalNotes, STATUS, isResolvedStatus, extractPlaceholderIds } from './engine.js';
