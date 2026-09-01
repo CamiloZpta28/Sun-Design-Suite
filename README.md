@@ -176,9 +176,10 @@ ingeniero. Cada persona:
   propio archivo dentro de `src/secciones/` y llega por separado la primera
   vez que alguien la abre (mientras tanto se ve "Cargando sección…", que
   suele durar menos de lo que toma leerlo, y después queda en la caché).
-  - Ya movidas: **Instructivos, Actualizaciones, Equipos eléctricos,
-    Canalizaciones, Cruces y Cimentaciones**. El paquete inicial bajó de
-    569 kB a **333 kB**, y `src/App.jsx` de 15.544 a 7.090 renglones.
+  - Ya movidas **todas**: Instructivos, Actualizaciones, Equipos eléctricos,
+    Canalizaciones, Cruces, Cimentaciones y la ficha de un proyecto. El
+    paquete inicial bajó de 569 kB a **217 kB** (55 kB comprimidos), y
+    `src/App.jsx` de 15.544 a **2.886** renglones.
   - **Cimentaciones se partió en dos**: lo pesado (los 9 formularios y todos
     los dibujos técnicos, 162 kB) se descarga aparte, y lo liviano —tipos,
     parámetros de acero y los resúmenes "Etiqueta: valor"— se queda siempre
@@ -186,8 +187,17 @@ ingeniero. Cada persona:
     la hoja de vida imprimible los necesitan. Dentro de un proyecto, el
     DIBUJO de la plantilla elegida también llega aparte, solo si esa pestaña
     tiene una plantilla puesta.
-  - **Falta**: la ficha de un proyecto (con sus pestañas técnicas, Control
-    Documental y la hoja de vida imprimible). Es lo último grande.
+  - **La ficha de un proyecto** (pestañas técnicas, Control Documental,
+    Notas, Historial, Notas Técnicas y la hoja de vida imprimible) vive ahora
+    en `src/secciones/Proyecto.jsx` y llega al abrir el primer proyecto. Lo
+    que comparte con el resto de la aplicación —SCHEMA, los departamentos y
+    municipios, las listas de documentos, el semáforo de estado, la torta de
+    avance, los selectores de listas compartidas— quedó en
+    `src/shared/dominio.jsx`.
+  - Cómo queda repartido: armazón 217 kB · ficha de proyecto 117 kB ·
+    Cimentaciones 162 kB · Canalizaciones y Cruces 47 kB · Actualizaciones
+    14 kB · Instructivos 12 kB · Equipos 8 kB. Nadie descarga más de lo que
+    abre, y lo que abre le queda en la caché.
   - Lo que se comparte entre secciones (roles y permisos, el selector con
     "+ Agregar nuevo…", los resúmenes) quedó en `src/shared/`. Nada cambió de
     comportamiento: es el mismo código, movido de archivo.

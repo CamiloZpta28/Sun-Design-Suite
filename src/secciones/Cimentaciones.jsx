@@ -12,17 +12,14 @@
    ============================================================================ */
 
 import React, { useState } from 'react';
-import {
-  Building2, ChevronLeft, CircleDot, Copy, Home, KeyRound, Lightbulb, Lock,
-  Pencil, Plus, Trash2, Video, Wrench, X, Zap,
-} from 'lucide-react';
+import { ChevronLeft, Copy, KeyRound, Lock, Pencil, Plus, Trash2, Wrench, X } from 'lucide-react';
 import { ResumenLineas } from '../shared/ui.jsx';
 import { isDeveloper } from '../shared/permisos.js';
 import AddableSelect from '../shared/AddableSelect.jsx';
 import SelectOrOtro from '../technical-notes/SelectOrOtro.jsx';
 import {
-  CIMENTACION_TIPOS, CIMENTACION_RESUMENES, RECUBRIMIENTO_CIMENTACION,
-  BARRA_ACERO, TRASLAPO_TABLE, CALIBRES_DISPONIBLES, obtenerTraslapo,
+  CIMENTACION_TIPOS, CIMENTACION_RESUMENES, RECUBRIMIENTO_CIMENTACION, BARRA_ACERO,
+  CALIBRES_DISPONIBLES, obtenerTraslapo
 } from './cimentacionesDatos.js';
 
 export function MallaPicker({ value, mallas, onChange, onAddNew }) {
@@ -1454,7 +1451,6 @@ export function InversoresIsometrico({ datos, className = INV_ISO_CSS_SIZE }) {
   const ox = -minX;
   const oy = -minY;
 
-
   // Altura del pedestal: esquina trasera-derecha, hacia la derecha.
   const [rightTopX, rightTopY] = isoPt(centroX + halfPed, -halfProf, bodyZ1, ox, oy);
   const [rightBotX, rightBotY] = isoPt(centroX + halfPed, -halfProf, bodyZ0, ox, oy);
@@ -2760,7 +2756,6 @@ export function PortonVigaCorte({ datos }) {
     </svg>
   );
 }
-
 
 /* Vista posterior (elevación) de la viga a lo largo de su longitud: la      */
 /* línea de arriba y la de abajo (cada una representa las 2 barras de esa    */
@@ -4899,7 +4894,6 @@ export const CIMENTACION_COMPONENTES = {
   },
 };
 
-
 /* Vista principal de "Cimentaciones": elige el tipo (6 en total, hoy solo   */
 /* Postes MT está construido) y administra sus plantillas (crear, editar,   */
 /* eliminar). Las que no están listas muestran un aviso de "muy pronto".    */
@@ -5265,7 +5259,6 @@ export function CimentacionesView({ plantillas, onAdd, onUpdate, onDelete, malla
 /* "profundidadNorma"/"distanciaCintaNorma" vienen de la Tabla 3 y de la      */
 /* sección "Cinta de señalización de peligro" del documento de criterios —   */
 /* son SUGERENCIAS iniciales (editables), no valores forzados.               */
-
 
 /* --- Proyección isométrica simple, para que el ancho/profundo/alto se      */
 /* distingan claramente en la previsualización. x = ancho, y = profundo,    */

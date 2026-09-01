@@ -20,7 +20,18 @@ const dir = dirname(fileURLToPath(import.meta.url));
 const leer = (ruta) => readFileSync(join(dir, ruta), 'utf8');
 
 const PANEL = leer('../TechnicalNotesPanel.jsx');
-const APP = leer('../../App.jsx');
+/* Lo que estas pruebas llaman "APP" es la interfaz que pinta los campos de un
+   proyecto. Ya no está toda en App.jsx: al partir la aplicación para que cada
+   sección se descargue aparte, el formulario de las pestañas técnicas se mudó
+   a secciones/Proyecto.jsx y el esqueleto de campos a shared/dominio.jsx. Se
+   leen los tres juntos para seguir comprobando lo mismo de antes —y para que
+   las comprobaciones en negativo ("esto ya no aparece") sigan cubriendo todo
+   el recorrido, no solo el archivo donde el código estaba en su momento. */
+const APP = [
+  leer('../../App.jsx'),
+  leer('../../secciones/Proyecto.jsx'),
+  leer('../../shared/dominio.jsx'),
+].join('\n');
 
 describe('1 — la lista visual de notas individuales ya no se renderiza', () => {
   it('el panel no recorre las notas de cada sección para pintarlas', () => {
