@@ -38,3 +38,20 @@ export function atributosLineas(datos) {
     .filter(([, v]) => v && String(v).trim() !== '')
     .map(([k, v]) => `${k}: ${v}`);
 }
+
+export function initialsOf(nombre) {
+  return (nombre || '').split(' ').filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+}
+
+export function Avatar({ name, foto, title, size = 'md' }) {
+  if (!name) return null;
+  const sizeClass = size === 'sm' ? 'w-7 h-7 text-xs' : size === 'lg' ? 'w-28 h-28 text-3xl' : 'w-9 h-9 text-sm';
+  if (foto) {
+    return <img src={foto} alt={name} title={title ? `${title}: ${name}` : name} className={`${sizeClass} rounded-full object-cover border-2 border-white shrink-0`} />;
+  }
+  return (
+    <div title={title ? `${title}: ${name}` : name} className={`${sizeClass} rounded-full bg-navy-700 text-white flex items-center justify-center font-bold border-2 border-white shrink-0`}>
+      {initialsOf(name)}
+    </div>
+  );
+}

@@ -170,6 +170,30 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Se ve quién más tiene abierto el proyecto** (primera parte del trabajo
+  contra la superposición). Al abrir un proyecto, arriba de las pestañas
+  aparece quién más lo está mirando y, si alguien está editando, en qué
+  pestaña: *"Beto está editando Civil"*. Al entrar a esa misma pestaña sale
+  además un aviso dentro de ella.
+  - Usa la **presencia de Supabase Realtime**: cada quien se anuncia en un
+    canal propio de ese proyecto. No toca la base de datos, no cambia cómo se
+    guarda y **no necesita migración** — Realtime ya viene activo.
+  - Es información, no un candado: nadie queda bloqueado. La idea es evitar el
+    choque antes de que pase; el aviso de conflicto al guardar sigue estando
+    como última red.
+  - **Lo que sigue sin resolver**: dos personas escribiendo el mismo campo a
+    la vez. Ahí sigue mandando quien guarde de último.
+  - **Sobre privacidad**: los canales de Realtime son públicos por defecto, así
+    que en teoría alguien con la llave anónima (que va en el código de la
+    página, como en cualquier app de este tipo) podría escuchar quién está
+    conectado a un proyecto. Solo se comparten nombre, foto y qué pestaña se
+    está mirando — ningún dato del proyecto. Si algún día se quiere cerrar,
+    Supabase permite canales privados con las mismas políticas de siempre.
+  - **Siguiente paso, si resulta útil**: avisar en pantalla cuando otra persona
+    guarda ("Ana actualizó este proyecto — Ver cambios"), sin recargar nada
+    por su cuenta. Eso sí necesita habilitar la tabla `projects` para
+    Realtime.
+
 - **Supervisión técnica**: pestaña nueva dentro de un proyecto, después de
   Control Documental, para llevar el ida y vuelta con Supervisión.
   - Muestra el dossier del proyecto (código y nombre) y en qué va cada

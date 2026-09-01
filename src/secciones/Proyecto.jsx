@@ -28,6 +28,7 @@ import {
   isLeader, isQA,
 } from '../shared/permisos.js';
 import { ResumenLineas, atributosLineas } from '../shared/ui.jsx';
+import { usePresenciaProyecto, quienEdita, PresenciaBarra, AvisoPestanaOcupada } from '../shared/presencia.jsx';
 import {
   camposPlegables, MESES_ENERGIA, COLOMBIA, DOC_ESTADOS, DOC_ESTADO_CONFIG, DOC_ESTADO_CORTO, EquipoField, EquipoSelect,
   EspecialidadBarra, GRUPO_NOTAS_TECNICAS, IngenieroProyectosField, InstaladorPicker,
@@ -2194,6 +2195,19 @@ export function HistorialPanel({ historial, loading, onRefresh }) {
   );
 }
 
+/* Nombre legible de una pestaña, para los avisos de presencia. */
+const ETIQUETAS_DE_TAB = {
+  documentos: 'Control Documental',
+  supervision: 'Supervisión técnica',
+  notas_tecnicas: 'Notas Técnicas',
+  notas: 'Notas',
+  historial: 'Historial',
+};
+export function etiquetaDeTab(id) {
+  const seccion = SCHEMA.find((s) => s.id === id);
+  return seccion ? seccion.label : (ETIQUETAS_DE_TAB[id] || id);
+}
+
 export function ProjectDetail({
   project, updateProject, onBack, onDelete, directorio, perfil, inversionistas, onAddInversionista, paises, onAddPais,
   proveedores, onAddProveedor, plantillasCimentacion, plantillasEquipos,
@@ -2501,6 +2515,16 @@ export function ProjectDetail({
   const general = project.data?.general || {};
   const llevaSupervision = requiereSupervisionTecnica(general.inversionista, inversionistasDetalle);
 
+  /* Quién más tiene este proyecto abierto, y en qué pestaña. Solo informa:
+     no cambia nada de cómo se guarda (ver shared/presencia.jsx). */
+  const { otros } = usePresenciaProyecto({
+    projectId: project.id,
+    perfil,
+    tab: activeTab,
+    editando: editMode ? activeTab : null,
+  });
+  const editandoEstaPestana = quienEdita(otros, activeTab);
+
   return (
     <div className="max-w-6xl mx-auto">
       {showConfetti && <Confetti />}
@@ -2770,6 +2794,8 @@ export function ProjectDetail({
           </div>
         </div>
 
+        <PresenciaBarra otros={otros} etiquetaDeTab={etiquetaDeTab} />
+
         <div className="bg-white rounded-xl border border-navy-200 overflow-hidden">
           <div className="flex items-center border-b border-navy-200 overflow-x-auto">
             {SCHEMA.map((section) => {
@@ -2834,6 +2860,7 @@ export function ProjectDetail({
           </div>
 
           <div className="p-6">
+            <AvisoPestanaOcupada personas={editandoEstaPestana} etiqueta={etiquetaDeTab(activeTab)} />
             {activeTab !== 'historial' && activeTab !== 'documentos' && activeTab !== 'notas' && activeTab !== 'notas_tecnicas' && activeSection && (
               <>
                 <div className="flex items-center justify-between mb-2">
