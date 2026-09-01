@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   LayoutDashboard, FolderKanban, Layers, Link2, HardHat, Droplets,
   Building2, Zap, Cog, Mountain, PenTool, Plus, Search, X, Printer,
-  Paperclip, Trash2, ChevronLeft, Pencil, Save, MapPin, Calendar,
+  Trash2, ChevronLeft, Pencil, Save, MapPin, Calendar,
   Users, ExternalLink, Check, FileText, UploadCloud, XCircle, ClipboardList,
   Loader2, RefreshCw, LogOut, ShieldCheck, Lock, History, ClipboardCheck, StickyNote, UserCog,
   Folder, FolderPlus, ChevronDown, ChevronRight, PlayCircle, Video, Code2,
@@ -10,6 +10,7 @@ import {
   CircleDot, Lightbulb, Home, Wrench, KeyRound, Copy, Star, GitBranch, Bell,
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
+import { rutaDe, estadoDeRuta } from './routes.js';
 import logoMark from './assets/logo-s-mark.png';
 import { isBlank, sumMetersFormatted } from './technical-notes/formatters.js';
 import { CATEGORIES } from './technical-notes/catalog/categories/index.js';
@@ -993,13 +994,6 @@ function diffSectionData(section, before, after) {
     }
   });
   return cambios;
-}
-
-function formatBytes(bytes) {
-  if (!bytes) return '0 KB';
-  const kb = bytes / 1024;
-  if (kb < 1024) return `${kb.toFixed(0)} KB`;
-  return `${(kb / 1024).toFixed(1)} MB`;
 }
 
 function findUserByName(directorio, nombre) {
@@ -14410,7 +14404,11 @@ export default function App() {
   const [parametrosIngenieria, setParametrosIngenieria] = useState({ recubrimiento: RECUBRIMIENTO_CIMENTACION, barras: BARRA_ACERO, traslapos: TRASLAPO_TABLE });
   const [dataLoaded, setDataLoaded] = useState(false);
 
-  const [view, setViewState] = useState('dashboard');
+  /* La app arranca donde diga la dirección del navegador, no siempre en el
+     Dashboard: así un link a /cimentaciones o a /proyecto/<id> abre ahí, y
+     recargar la página deja al usuario justo donde estaba. */
+  const rutaInicial = estadoDeRuta(window.location.pathname);
+  const [view, setViewState] = useState(rutaInicial.view);
   const [previousView, setPreviousView] = useState('dashboard');
 
   // Conecta el botón "atrás" del navegador con la navegación de la app: en
@@ -14418,26 +14416,36 @@ export default function App() {
   // Proyectos, un proyecto abierto, etc.) — igual que esperaría cualquiera
   // que use las flechas del navegador en cualquier otra página.
   useEffect(() => {
-    window.history.replaceState({ view: 'dashboard' }, '');
+    window.history.replaceState(rutaInicial, '', rutaDe(rutaInicial));
     function onPopState(e) {
-      if (e.state && e.state.view) {
-        setViewState(e.state.view);
-        setSelectedId(e.state.selectedId || null);
-        setSelectedPersonId(e.state.selectedPersonId || null);
-      } else {
-        setViewState('dashboard');
-        setSelectedId(null);
-        setSelectedPersonId(null);
-      }
+      /* Si el punto del historial no trae estado (ej. alguien editó la
+         dirección a mano), se deduce de la dirección misma. */
+      const estado = e.state && e.state.view ? e.state : estadoDeRuta(window.location.pathname);
+      setViewState(estado.view);
+      setSelectedId(estado.selectedId || null);
+      setSelectedPersonId(estado.selectedPersonId || null);
       setSidebarOpen(false);
     }
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
-  const [selectedId, setSelectedId] = useState(null);
-  const [selectedPersonId, setSelectedPersonId] = useState(null);
+  const [selectedId, setSelectedId] = useState(rutaInicial.selectedId);
+  const [selectedPersonId, setSelectedPersonId] = useState(rutaInicial.selectedPersonId);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+
+  /* Un link a un proyecto que ya no existe (o que se eliminó desde otro
+     computador) no puede dejar la pantalla vacía: apenas terminan de cargar
+     los proyectos se vuelve al Dashboard, corrigiendo también la dirección. */
+  useEffect(() => {
+    if (!dataLoaded || view !== 'detalle' || !selectedId) return;
+    if (projects.some((p) => p.id === selectedId)) return;
+    setViewState('dashboard');
+    setSelectedId(null);
+    /* Reemplaza en vez de agregar: el link roto no debe quedar en el
+       historial, o el botón "atrás" volvería a él una y otra vez. */
+    navegar({ view: 'dashboard' }, { reemplazar: true });
+  }, [dataLoaded, view, selectedId, projects]);
 
   // Sesión de Supabase
   useEffect(() => {
@@ -14668,12 +14676,21 @@ export default function App() {
     setDataLoaded(true);
   }
 
+  /* Único punto por donde se registra un movimiento en el historial del
+     navegador: guarda el estado (para el botón "atrás") y escribe la
+     dirección correspondiente (para poder compartir el link). */
+  function navegar({ view: vista, selectedId: proyecto = null, selectedPersonId: persona = null }, { reemplazar = false } = {}) {
+    const estado = { view: vista, selectedId: proyecto, selectedPersonId: persona };
+    const ruta = rutaDe(estado);
+    if (reemplazar) window.history.replaceState(estado, '', ruta);
+    else window.history.pushState(estado, '', ruta);
+  }
   function setView(v) {
     setViewState(v);
     setSelectedId(null);
     setSelectedPersonId(null);
     setSidebarOpen(false);
-    window.history.pushState({ view: v }, '');
+    navegar({ view: v });
   }
   function openProject(id) {
     setPreviousView(view === 'detalle' ? previousView : view);
@@ -14681,8 +14698,27 @@ export default function App() {
     setSelectedPersonId(null);
     setViewState('detalle');
     setSidebarOpen(false);
-    window.history.pushState({ view: 'detalle', selectedId: id }, '');
+    navegar({ view: 'detalle', selectedId: id });
     registrarVisitaProyecto(id);
+  }
+  /* La ficha de una persona también es un punto propio del historial (antes
+     no lo era): así "atrás" vuelve a la lista del Equipo y el link a una
+     ficha se puede compartir. */
+  function abrirPersona(id) {
+    setSelectedPersonId(id);
+    setSidebarOpen(false);
+    navegar({ view: 'equipo', selectedPersonId: id });
+  }
+  function volverAListaEquipo() {
+    setSelectedPersonId(null);
+    navegar({ view: 'equipo' });
+  }
+  function verMiPerfil() {
+    setViewState('equipo');
+    setSelectedId(null);
+    setSelectedPersonId(perfil.id);
+    setSidebarOpen(false);
+    navegar({ view: 'equipo', selectedPersonId: perfil.id });
   }
   /* Deja constancia de que YO abrí este proyecto ahora — solo para poder    */
   /* ordenar "Mis proyectos" por el último con el que interactué (no es un   */
@@ -14822,7 +14858,7 @@ export default function App() {
       if (selectedId === id) {
         setViewState(previousView);
         setSelectedId(null);
-        window.history.pushState({ view: previousView }, '');
+        navegar({ view: previousView });
       }
     } catch (e) {
       console.error('Error eliminando proyecto:', e);
@@ -15342,7 +15378,7 @@ export default function App() {
         stats={stats}
         perfil={perfil}
         onEditProfile={() => setShowProfileEdit(true)}
-        onViewMyProfile={() => { setView('equipo'); setSelectedPersonId(perfil.id); }}
+        onViewMyProfile={verMiPerfil}
         onRefresh={handleRefresh}
         onLogout={handleLogout}
         mobileOpen={sidebarOpen}
@@ -15475,8 +15511,8 @@ export default function App() {
             perfil={perfil}
             projects={projects}
             selectedPersonId={selectedPersonId}
-            onOpenPerson={(id) => setSelectedPersonId(id)}
-            onBackToList={() => setSelectedPersonId(null)}
+            onOpenPerson={abrirPersona}
+            onBackToList={volverAListaEquipo}
             onToggleRole={handleToggleRole}
             onDeleteUser={handleDeleteUser}
             onUpdatePersonaInfo={handleUpdatePersonaInfo}

@@ -169,6 +169,47 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Cada sección tiene ahora su propia dirección**: `/cimentaciones`,
+  `/canalizaciones`, `/equipo`, `/proyecto/<id>`, `/equipo/<id>`, etc. Con
+  esto se puede mandar por WhatsApp o correo el link directo a un proyecto o
+  a una sección, recargar la página (F5) ya no devuelve al Dashboard, y el
+  historial del navegador muestra por dónde se estuvo. La ficha de una
+  persona también quedó como un paso propio del historial, así que "atrás"
+  vuelve a la lista del Equipo en vez de salirse de la sección.
+  - Un link a un proyecto que ya no existe (o que se eliminó desde otro
+    computador) **no** deja la pantalla en blanco: vuelve solo al Dashboard.
+    Cualquier dirección inventada hace lo mismo.
+  - **Necesita `vercel.json`** (ya incluido): le dice a Vercel que sirva la
+    app en cualquier dirección. Sin ese archivo, abrir el link directo a
+    `/cimentaciones` daría un 404, porque el servidor buscaría un archivo
+    con ese nombre. No hay que configurar nada a mano — con volver a
+    desplegar basta.
+  - Sigue siendo una sola página, sin ninguna librería nueva: es el mismo
+    mecanismo de historial que ya usaba el botón "atrás", ahora escribiendo
+    también la dirección. Las reglas viven en `src/routes.js`, con sus
+    pruebas en `src/routes.test.js`.
+  - **Lo que todavía no queda en la dirección**: la pestaña abierta dentro de
+    un proyecto (Civil, Estructural, Control Documental…). El link lleva al
+    proyecto, pero siempre abre en su primera pestaña. Si te sirve compartir
+    el link a una pestaña puntual, se puede agregar.
+
+- **Limpieza de código muerto**: se eliminó el motor de notas técnicas
+  anterior (`technical-notes/engine.test.js`, `resolvers.js`, `specs.js`,
+  `catalog.js` y `templates/`), que ya nadie usaba y que mantenía 13 pruebas
+  fallando contra una API que dejó de existir — la suite quedó en verde. De
+  paso salieron dos archivos sueltos que se habían subido por accidente
+  (`env.example`, copia de `.env.example`, y `download`, copia del
+  `.gitignore`) y una función y un ícono sin usar en `src/App.jsx`.
+  - **Las librerías ahora se descargan aparte del código de la app**
+    (`vite.config.js`): React, Supabase y los íconos quedaron en archivos
+    propios, así el equipo baja ~570 kB en cada despliegue nuevo en vez de
+    ~950 kB — el resto lo reutiliza el navegador de su caché.
+  - **Pendiente si se quiere bajar más el peso inicial**: cargar cada
+    sección solo cuando se abre (hoy se descargan los 9 formularios de
+    cimentación, canalizaciones, cruces e instructivos aunque solo se mire
+    el Dashboard). Eso exige sacar esas secciones de `src/App.jsx` a
+    módulos propios.
+
 - **Correcciones a Shelter antes de seguir con las 9 vistas**:
   - **Peso de acero del pedestal**: la información por campo ya estaba
     (la viste en tu captura), lo que realmente faltaba era el panel
