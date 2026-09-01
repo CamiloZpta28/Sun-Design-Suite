@@ -134,6 +134,32 @@ describe('ProjectDetail', () => {
   });
 });
 
+describe('aviso de que otra persona guardó', () => {
+  it('no aparece si no hay nada nuevo', () => {
+    render(<ProjectDetail project={proyecto()} perfil={perfilLider} {...props} cambioPendiente={null} />);
+    expect(screen.queryByText('Ver cambios')).toBe(null);
+  });
+
+  /* Aparece, pero NO recarga nada: los datos en pantalla siguen siendo los
+     que estaban hasta que la persona lo pide. */
+  it('aparece con quién y qué, y solo trae los cambios al pedirlo', () => {
+    const onVerCambios = vi.fn();
+    render(
+      <ProjectDetail
+        project={proyecto()}
+        perfil={perfilLider}
+        {...props}
+        cambioPendiente={{ projectId: 'proj-1', texto: 'Beto · Actualizó la pestaña Civil' }}
+        onVerCambios={onVerCambios}
+      />,
+    );
+    expect(screen.getByText('Beto · Actualizó la pestaña Civil')).toBeTruthy();
+    expect(onVerCambios).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Ver cambios'));
+    expect(onVerCambios).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('pestaña de Supervisión técnica', () => {
   const detalleCFM = [{ nombre: 'FENOGE', supervision_tecnica: false }, { nombre: 'CFM', supervision_tecnica: true }];
 

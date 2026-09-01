@@ -45,7 +45,8 @@ Sigue los pasos en orden. No necesitas experiencia previa con Supabase.
 > `supabase/migration_proveedores.sql` y
 > `supabase/migration_perfil_fechas.sql` y
 > `supabase/migration_cimentacion_plantillas.sql` y
-> `supabase/migration_supervision_tecnica.sql`. Cada uno agrega
+> `supabase/migration_supervision_tecnica.sql` y
+> `supabase/migration_cambios_en_vivo.sql`. Cada uno agrega
 > solo lo nuevo sin tocar lo que ya tenías. Si no recuerdas si ya corriste
 > alguno, no pasa nada por intentarlo de nuevo: en el peor caso te marcará
 > un error de "ya existe", que puedes ignorar.
@@ -189,10 +190,20 @@ ingeniero. Cada persona:
     conectado a un proyecto. Solo se comparten nombre, foto y qué pestaña se
     está mirando — ningún dato del proyecto. Si algún día se quiere cerrar,
     Supabase permite canales privados con las mismas políticas de siempre.
-  - **Siguiente paso, si resulta útil**: avisar en pantalla cuando otra persona
-    guarda ("Ana actualizó este proyecto — Ver cambios"), sin recargar nada
-    por su cuenta. Eso sí necesita habilitar la tabla `projects` para
-    Realtime.
+
+- **Los cambios de los demás llegan solos**: cuando otra persona guarda algo,
+  los proyectos que NADIE está mirando se refrescan en silencio (Dashboard,
+  listas, resumen por inversionista). El proyecto que uno tiene abierto **no**
+  se recarga por su cuenta: sale un aviso con quién guardó y qué
+  (*"Beto · Actualizó la pestaña Civil"*) y un botón **"Ver cambios"** que
+  trae la versión al día cuando uno quiera. Así nadie pierde de vista lo que
+  estaba leyendo ni se le mueve la pantalla a mitad de una edición.
+  - Un proyecto creado o eliminado por otra persona también aparece o
+    desaparece solo de las listas.
+  - Lo que uno mismo guarda no se avisa: ya está en su pantalla.
+  - **Necesita migración**: `supabase/migration_cambios_en_vivo.sql` (habilita
+    `projects` y `activity_log` para Realtime). Sin ella no pasa nada malo:
+    simplemente todo sigue como antes, con el botón de refrescar.
 
 - **Supervisión técnica**: pestaña nueva dentro de un proyecto, después de
   Control Documental, para llevar el ida y vuelta con Supervisión.

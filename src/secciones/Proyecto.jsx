@@ -2208,11 +2208,31 @@ export function etiquetaDeTab(id) {
   return seccion ? seccion.label : (ETIQUETAS_DE_TAB[id] || id);
 }
 
+/* Aviso de que otra persona guardó algo en ESTE proyecto. No recarga nada
+   por su cuenta: quien lo tiene abierto decide cuándo traer los cambios —
+   puede estar leyendo, o a mitad de una edición. */
+export function AvisoCambioEnVivo({ cambio, onVerCambios }) {
+  if (!cambio) return null;
+  return (
+    <div className="no-print flex items-center gap-3 flex-wrap bg-nashville-50 border border-nashville-300 rounded-xl px-3 py-2 mb-4">
+      <RefreshCw className="w-4 h-4 text-nashville-600 shrink-0" />
+      <span className="text-sm text-navy-700 flex-1 min-w-[12rem]">{cambio.texto}</span>
+      <button
+        onClick={onVerCambios}
+        className="text-sm font-semibold text-navy-800 bg-white border border-nashville-400 rounded-lg px-3 py-1.5 hover:bg-nashville-100"
+      >
+        Ver cambios
+      </button>
+    </div>
+  );
+}
+
 export function ProjectDetail({
   project, updateProject, onBack, onDelete, directorio, perfil, inversionistas, onAddInversionista, paises, onAddPais,
   proveedores, onAddProveedor, plantillasCimentacion, plantillasEquipos,
   inversionistasDetalle, operadoresRed, onAddOperadorRed, instaladores, onAddInstalador,
   ingenierosProyectos, onAddIngenieroProyectos, onUpdateCatalogoAtributo,
+  cambioPendiente, onVerCambios,
 }) {
   const [activeTab, setActiveTab] = useState(SCHEMA[0].id);
   const [editMode, setEditMode] = useState(false);
@@ -2794,6 +2814,7 @@ export function ProjectDetail({
           </div>
         </div>
 
+        <AvisoCambioEnVivo cambio={cambioPendiente} onVerCambios={onVerCambios} />
         <PresenciaBarra otros={otros} etiquetaDeTab={etiquetaDeTab} />
 
         <div className="bg-white rounded-xl border border-navy-200 overflow-hidden">

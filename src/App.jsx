@@ -9,6 +9,7 @@ import { supabase } from './supabaseClient';
 import { rutaDe, estadoDeRuta } from './routes.js';
 import { formatoFechaHora } from './shared/formatos.js';
 import { Avatar } from './shared/ui.jsx';
+import { useCambiosEnVivo, textoDeCambio } from './shared/cambiosEnVivo.js';
 
 import {
   SCHEMA, emptyStations, emptyEnergiaMensual, COLOMBIA, DOC_ESTADOS, EquipoField, EspecialidadBarra, InversionistaPicker, PaisPicker,
@@ -1722,6 +1723,9 @@ export default function App() {
   const [selectedPersonId, setSelectedPersonId] = useState(rutaInicial.selectedPersonId);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  /* Aviso de que OTRA persona guardó algo en el proyecto que tengo abierto.
+     Nunca se aplica solo: se muestra y la persona decide (ver más abajo). */
+  const [cambioPendiente, setCambioPendiente] = useState(null);
 
   /* Un link a un proyecto que ya no existe (o que se eliminó desde otro
      computador) no puede dejar la pantalla vacía: apenas terminan de cargar
@@ -2126,6 +2130,44 @@ export default function App() {
     logActivity(id, accion, categoria);
     if (updatedProject) crearNotificacionesProyecto(updatedProject, accion);
   }
+  /* --------------------- CAMBIOS EN VIVO (Realtime) ----------------------
+     Lo que otra persona guarda llega solo. Los proyectos que nadie está
+     mirando se refrescan en silencio; el que está abierto se avisa y lo
+     decide quien lo tiene en pantalla. */
+  useCambiosEnVivo({
+    perfilId: perfil?.id,
+    activo: !!perfil && dataLoaded,
+    onProyectoCambiado: (row) => {
+      const actualizado = rowToProject(row);
+      if (actualizado.id === selectedId) return; // el abierto se avisa, no se pisa
+      setProjects((prev) => (prev.some((p) => p.id === actualizado.id)
+        ? prev.map((p) => (p.id === actualizado.id ? actualizado : p))
+        : [...prev, actualizado]));
+    },
+    onProyectoEliminado: (id) => {
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+    },
+    onActividadAjena: (registro) => {
+      if (!registro.project_id || registro.project_id !== selectedId) return;
+      setCambioPendiente({ projectId: registro.project_id, texto: textoDeCambio(registro) });
+    },
+  });
+
+  /* Al cambiar de proyecto (o cerrarlo), el aviso del anterior ya no aplica. */
+  useEffect(() => { setCambioPendiente(null); }, [selectedId]);
+
+  /* "Ver cambios": se vuelve a pedir el proyecto a la base en vez de confiar
+     en la copia que trajo el aviso — así llega completo y al día, sin
+     depender de qué pieza cambió. */
+  async function verCambiosDelProyecto() {
+    const id = cambioPendiente?.projectId;
+    setCambioPendiente(null);
+    if (!id) return;
+    const { data, error } = await supabase.from('projects').select('*').eq('id', id).maybeSingle();
+    if (error) { console.error('No se pudo traer el proyecto actualizado:', error); return; }
+    if (data) setProjects((prev) => prev.map((p) => (p.id === id ? rowToProject(data) : p)));
+  }
+
   function handleCreate(newProject) {
     setProjects((prev) => [...prev, newProject]);
     supabase.from('projects').insert(projectToRow(newProject)).then(({ error }) => {
@@ -2848,6 +2890,8 @@ export default function App() {
             ingenierosProyectos={ingenierosProyectos}
             onAddIngenieroProyectos={handleAddIngenieroProyectos}
             onUpdateCatalogoAtributo={handleUpdateCatalogoAtributo}
+            cambioPendiente={cambioPendiente && cambioPendiente.projectId === selectedProject.id ? cambioPendiente : null}
+            onVerCambios={verCambiosDelProyecto}
           />
         )}
         </Suspense>
