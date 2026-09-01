@@ -169,6 +169,29 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Las secciones ahora se descargan solo cuando se abren** (primera mitad
+  del trabajo de optimización). Antes, entrar a la aplicación bajaba TODO:
+  los formularios de equipos, los dibujos de canalizaciones y cruces, los
+  instructivos… aunque solo se mirara el Dashboard. Ahora cada una vive en su
+  propio archivo dentro de `src/secciones/` y llega por separado la primera
+  vez que alguien la abre (mientras tanto se ve "Cargando sección…", que
+  suele durar menos de lo que toma leerlo, y después queda en la caché).
+  - Ya movidas: **Instructivos, Actualizaciones, Equipos eléctricos,
+    Canalizaciones y Cruces**. El paquete inicial bajó de 569 kB a 491 kB.
+  - **Falta la parte grande**: Cimentaciones (con sus 9 formularios y todos
+    los dibujos técnicos) y la ficha de un proyecto. Son más de la mitad de
+    lo que queda, pero van juntas porque la pestaña Estructural de un
+    proyecto muestra las mismas previsualizaciones de cimentación.
+  - Lo que se comparte entre secciones (roles y permisos, el selector con
+    "+ Agregar nuevo…", los resúmenes) quedó en `src/shared/`. Nada cambió de
+    comportamiento: es el mismo código, movido de archivo.
+  - **Cada sección movida entra con una prueba que la RENDERIZA de verdad**
+    (`src/secciones/*.test.jsx`, en un navegador simulado). Es la única forma
+    de atrapar el error que más veces ha tumbado esta app: una referencia que
+    queda huérfana al mover código, que `npm run build` no detecta porque
+    JavaScript solo revienta con eso al ejecutarse. Los dibujos de
+    canalizaciones y cruces se pintan uno por uno, para todos los tipos.
+
 - **Cada sección tiene ahora su propia dirección**: `/cimentaciones`,
   `/canalizaciones`, `/equipo`, `/proyecto/<id>`, `/equipo/<id>`, etc. Con
   esto se puede mandar por WhatsApp o correo el link directo a un proyecto o
