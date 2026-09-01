@@ -29,8 +29,11 @@ vi.mock('../supabaseClient', () => {
   return { supabase: cadena() };
 });
 
-const { default: ProjectDetail, PrintableReport, FieldRenderer } = await import('./Proyecto.jsx');
-const { SCHEMA } = await import('../shared/dominio.jsx');
+const {
+  default: ProjectDetail, PrintableReport, FieldRenderer, VersionesTracker,
+  DESCRIPCION_PRIMERA_VERSION,
+} = await import('./Proyecto.jsx');
+const { SCHEMA, DOC_ESTADOS } = await import('../shared/dominio.jsx');
 
 afterEach(cleanup);
 
@@ -128,6 +131,66 @@ describe('ProjectDetail', () => {
       fireEvent.click(boton);
     });
     expect(screen.getAllByText(/Minigranja de prueba/).length).toBeGreaterThan(0);
+  });
+});
+
+describe('pestaña de Supervisión técnica', () => {
+  const detalleCFM = [{ nombre: 'FENOGE', supervision_tecnica: false }, { nombre: 'CFM', supervision_tecnica: true }];
+
+  it('no aparece si el inversionista no la requiere', () => {
+    render(<ProjectDetail project={proyecto()} perfil={perfilLider} {...props} inversionistasDetalle={detalleCFM} />);
+    expect(screen.queryByText('Supervisión técnica')).toBe(null);
+  });
+
+  it('aparece —y se abre— para un inversionista marcado', () => {
+    const conCFM = proyecto();
+    conCFM.data.general.inversionista = 'CFM';
+    render(<ProjectDetail project={conCFM} perfil={perfilLider} {...props} inversionistasDetalle={detalleCFM} />);
+    const boton = screen.getAllByRole('button').find((b) => b.textContent.trim().startsWith('Supervisión técnica'));
+    expect(boton).toBeTruthy();
+    fireEvent.click(boton);
+    expect(screen.getByText('Paquetes de entrega')).toBeTruthy();
+  });
+});
+
+describe('historial de entregas de un documento', () => {
+  it('la primera versión llega con la descripción de emisión inicial', () => {
+    const cambios = [];
+    render(<VersionesTracker versiones={[]} onChange={(v) => cambios.push(v)} disabled={false} />);
+    fireEvent.click(screen.getByText('Agregar versión'));
+    expect(cambios[0]).toHaveLength(1);
+    expect(cambios[0][0].descripcion).toBe(DESCRIPCION_PRIMERA_VERSION);
+    expect(cambios[0][0].entrega).toBe('');
+  });
+
+  it('las siguientes versiones llegan con la descripción en blanco', () => {
+    const cambios = [];
+    const previa = [{ id: 'v1', entrega: '2026-08-01', descripcion: DESCRIPCION_PRIMERA_VERSION }];
+    render(<VersionesTracker versiones={previa} onChange={(v) => cambios.push(v)} disabled={false} />);
+    fireEvent.click(screen.getByText('Agregar versión'));
+    expect(cambios[0][1].descripcion).toBe('');
+  });
+
+  /* El campo de fecha "Comentarios recibidos" se retiró: ahora esa vuelta se
+     lleva en Supervisión técnica. */
+  it('ya no pide la fecha de comentarios recibidos', () => {
+    render(
+      <VersionesTracker
+        versiones={[{ id: 'v1', entrega: '2026-08-01', descripcion: 'Emisión inicial de documento', comentarios_recibidos: '2026-08-20' }]}
+        onChange={() => {}}
+        disabled={false}
+      />,
+    );
+    expect(screen.queryByText(/Comentarios recibidos/)).toBe(null);
+    expect(screen.getByText('Actualizaciones:')).toBeTruthy();
+  });
+});
+
+describe('estados de documento', () => {
+  it('"Listo para entrega" existe y va entre revisión interna y entregado', () => {
+    expect(DOC_ESTADOS).toContain('Listo para entrega');
+    expect(DOC_ESTADOS.indexOf('Listo para entrega')).toBe(DOC_ESTADOS.indexOf('Revisión interna') + 1);
+    expect(DOC_ESTADOS.indexOf('Listo para entrega')).toBe(DOC_ESTADOS.indexOf('Entregado') - 1);
   });
 });
 

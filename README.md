@@ -44,7 +44,8 @@ Sigue los pasos en orden. No necesitas experiencia previa con Supabase.
 > `supabase/migration_guardado_parcial.sql`,
 > `supabase/migration_proveedores.sql` y
 > `supabase/migration_perfil_fechas.sql` y
-> `supabase/migration_cimentacion_plantillas.sql`. Cada uno agrega
+> `supabase/migration_cimentacion_plantillas.sql` y
+> `supabase/migration_supervision_tecnica.sql`. Cada uno agrega
 > solo lo nuevo sin tocar lo que ya tenías. Si no recuerdas si ya corriste
 > alguno, no pasa nada por intentarlo de nuevo: en el peor caso te marcará
 > un error de "ya existe", que puedes ignorar.
@@ -168,6 +169,38 @@ ingeniero. Cada persona:
 ---
 
 ## Notas y siguientes pasos
+
+- **Supervisión técnica**: pestaña nueva dentro de un proyecto, después de
+  Control Documental, para llevar el ida y vuelta con Supervisión.
+  - Muestra el dossier del proyecto (código y nombre) y en qué va cada
+    documento: sin enviar, en revisión, con comentarios o APC.
+  - Se arman **paquetes de entrega**: se eligen documentos (uno a uno, una
+    especialidad completa o todos) y se pone la fecha de entrega. Un documento
+    que ya está en un paquete sin responder no se puede volver a incluir, y
+    los que ya quedaron en APC tampoco se ofrecen.
+  - Cuando Supervisión responde se registra la fecha y, documento por
+    documento, si quedó **APC** o **con comentarios**. Con un botón se arma el
+    paquete siguiente con los que tienen comentarios, y así hasta que todo el
+    dossier queda aprobado.
+  - Al guardar la respuesta, la app **avisa qué documentos cambiarían de
+    estado en Control Documental** (APC / APCC) y se puede aplicar o guardar
+    sin tocarlos — el estado nunca se mueve a tus espaldas.
+  - **Quién ve la pestaña**: los inversionistas marcados con "Requiere
+    supervisión técnica" (casilla en la pestaña General, junto a los demás
+    datos del inversionista). La migración deja marcados a CFM y Skandia;
+    sumar otro después es marcar la casilla, sin tocar código.
+  - **Necesita migración**: `supabase/migration_supervision_tecnica.sql`.
+    Los paquetes en sí no usan tabla nueva: viven en `projects.data.supervision`.
+
+- **Historial de entregas de cada documento**: se quitó la fecha de
+  "Comentarios recibidos" (esa vuelta ahora se lleva en Supervisión técnica) y
+  en su lugar está **"Actualizaciones"**, para describir qué cambió en cada
+  versión. La Versión 1 llega escrita como "Emisión inicial de documento" y se
+  puede editar. Las fechas de comentarios ya guardadas no se borran de la base
+  de datos, solo dejan de mostrarse.
+
+- **Estado nuevo de documento: "Listo para entrega"**, entre *Revisión
+  interna* y *Entregado*, con su propio color en las píldoras y en la torta.
 
 - **Las secciones ahora se descargan solo cuando se abren** (primera mitad
   del trabajo de optimización). Antes, entrar a la aplicación bajaba TODO:

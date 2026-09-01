@@ -12,7 +12,7 @@
 import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import {
   AlertTriangle, Bold, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck,
-  ClipboardList, FileText, Folder, History, Italic, List, Lock, MessageSquare, Pencil,
+  ClipboardList, FileText, Folder, History, Italic, List, Lock, MessageSquare, Package, Pencil,
   Plus, Printer, RefreshCw, Save, StickyNote, Trash2, Underline, UploadCloud, Users, X,
   XCircle, Zap,
 } from 'lucide-react';
@@ -32,12 +32,14 @@ import {
   camposPlegables, MESES_ENERGIA, COLOMBIA, DOC_ESTADOS, DOC_ESTADO_CONFIG, DOC_ESTADO_CORTO, EquipoField, EquipoSelect,
   EspecialidadBarra, GRUPO_NOTAS_TECNICAS, IngenieroProyectosField, InstaladorPicker,
   InversionistaPicker, OperadorRedPicker, PaisPicker, ProgresoDonut, ProveedorPicker,
-  SCHEMA, STATUS_CONFIG, StatusBadge, buildProjectCode, categoriaLabel, emptyEnergiaMensual,
+  SCHEMA, STATUS_CONFIG, StatusBadge, buildProjectCode, categoriaLabel, dossierPorEspecialidad,
+  requiereSupervisionTecnica, emptyEnergiaMensual,
   emptyStations, formatDate, formatDateTime, inicioDeSemana, makeId, normalizeUrl,
   pickDocumentList, projectDisplayName, tieneValorParaConteo,
 } from '../shared/dominio.jsx';
 import { CIMENTACION_TIPOS, CIMENTACION_RESUMENES } from './cimentacionesDatos.js';
 import { EQUIPO_TIPOS, EquipoIcono } from './equiposDatos.jsx';
+import SupervisionTecnicaPanel from './SupervisionTecnica.jsx';
 
 /* El dibujo de la plantilla de cimentación elegida en una pestaña técnica.
    Llega aparte —igual que en App.jsx— para que abrir un proyecto no baje los
@@ -362,6 +364,31 @@ export function FieldRenderer({
 
     function guardarAtributo(nuevoValor) {
       onUpdateCatalogoAtributo(field.catalogo, nombreSeleccionado, field.campoAtributo, nuevoValor);
+    }
+
+    /* Atributo de Sí/No del catálogo (ej. si las entregas de este
+       inversionista pasan por Supervisión técnica). Como cualquier otro
+       atributo, el valor es del inversionista y se refleja en TODOS sus
+       proyectos, no solo en este. */
+    if (field.esBooleano) {
+      const texto = valorAtributo ? 'Sí' : 'No';
+      if (!editMode) return <ReadOnlyValue label={field.label} value={texto} mono={false} />;
+      return (
+        <div className="py-1">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
+          <select
+            value={valorAtributo ? 'si' : 'no'}
+            onChange={(e) => guardarAtributo(e.target.value === 'si')}
+            className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400"
+          >
+            <option value="no">No</option>
+            <option value="si">Sí</option>
+          </select>
+          <p className="text-[11px] text-navy-400 mt-1">
+            Este dato pertenece a "{nombreSeleccionado}" — se refleja en todos sus proyectos.
+          </p>
+        </div>
+      );
     }
 
     if (field.esImagen) {
@@ -1384,6 +1411,10 @@ export function DocEstadoBadge({ estado }) {
 /* devolución de comentarios (opcional, no todos los proyectos tienen       */
 /* interventoría) por cada versión. Se puede agregar cuantas versiones      */
 /* hagan falta.                                                             */
+/* La primera versión de cualquier documento es su emisión inicial; se
+   precarga con ese texto (editable, por si algún caso no lo es). */
+export const DESCRIPCION_PRIMERA_VERSION = 'Emisión inicial de documento';
+
 export function VersionesTracker({ versiones, onChange, disabled }) {
   const lista = versiones || [];
 
@@ -1391,7 +1422,12 @@ export function VersionesTracker({ versiones, onChange, disabled }) {
     onChange(lista.map((v, i) => (i === idx ? { ...v, ...patch } : v)));
   }
   function agregarVersion() {
-    onChange([...lista, { id: makeId('ver'), entrega: '', comentarios_recibidos: '' }]);
+    const esPrimera = lista.length === 0;
+    onChange([...lista, {
+      id: makeId('ver'),
+      entrega: '',
+      descripcion: esPrimera ? DESCRIPCION_PRIMERA_VERSION : '',
+    }]);
   }
   function quitarVersion(idx) {
     onChange(lista.filter((_, i) => i !== idx));
@@ -1415,18 +1451,19 @@ export function VersionesTracker({ versiones, onChange, disabled }) {
                 className="text-xs rounded-md border border-navy-300 px-2 py-1 disabled:bg-navy-100 disabled:text-navy-400"
               />
             </div>
-            <div className="flex items-center gap-1.5">
-              <label className="text-xs text-navy-500">Comentarios recibidos (si aplica):</label>
+            <div className="flex items-center gap-1.5 flex-1 min-w-[16rem]">
+              <label className="text-xs text-navy-500 shrink-0">Actualizaciones:</label>
               <input
-                type="date"
+                type="text"
                 disabled={disabled}
-                value={v.comentarios_recibidos || ''}
-                onChange={(e) => actualizarVersion(idx, { comentarios_recibidos: e.target.value })}
-                className="text-xs rounded-md border border-navy-300 px-2 py-1 disabled:bg-navy-100 disabled:text-navy-400"
+                value={v.descripcion || ''}
+                onChange={(e) => actualizarVersion(idx, { descripcion: e.target.value })}
+                placeholder={idx === 0 ? DESCRIPCION_PRIMERA_VERSION : 'Qué cambió en esta versión'}
+                className="text-xs rounded-md border border-navy-300 px-2 py-1 w-full disabled:bg-navy-100 disabled:text-navy-400"
               />
             </div>
             {!disabled && (
-              <button onClick={() => quitarVersion(idx)} title="Quitar esta versión" className="text-navy-300 hover:text-red-500 ml-auto shrink-0">
+              <button onClick={() => quitarVersion(idx)} title="Quitar esta versión" className="text-navy-300 hover:text-red-500 shrink-0">
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
@@ -2010,7 +2047,7 @@ export function PrintableReport({ project, plantillasCimentacion, plantillasEqui
                           <td className="px-2 py-1">{info.estado || 'Pendiente'}</td>
                           <td className="px-2 py-1">{info.comentarios || '—'}</td>
                           <td className="px-2 py-1">
-                            {ultima ? `V${versiones.length}: ${formatDate(ultima.entrega) || '—'}${ultima.comentarios_recibidos ? ` (com. ${formatDate(ultima.comentarios_recibidos)})` : ''}` : '—'}
+                            {ultima ? `V${versiones.length}: ${formatDate(ultima.entrega) || '—'}${ultima.descripcion ? ` — ${ultima.descripcion}` : ''}` : '—'}
                           </td>
                         </tr>
                       );
@@ -2280,6 +2317,44 @@ export function ProjectDetail({
   /* Tipo de estructura de las Notas Técnicas. Vive namespaced dentro de
      project.data (regla 22) y se guarda con la misma función de guardado
      parcial que las pestañas, así que no pisa cambios de otra persona. */
+  /* Supervisión técnica: los paquetes viven en data.supervision, y la
+     respuesta de Supervisión puede además mover el estado de sus documentos
+     en Control Documental (solo los que el usuario confirmó en el aviso). Se
+     guarda todo junto: primero la sección, después cada documento. */
+  function guardarSupervision(nuevaSupervision, accion, cambiosEstado) {
+    const cambios = cambiosEstado || [];
+    updateProject(
+      project.id,
+      (p) => ({
+        ...p,
+        data: { ...p.data, supervision: nuevaSupervision },
+        documentos: cambios.length === 0 ? p.documentos : {
+          ...(p.documentos || {}),
+          ...Object.fromEntries(cambios.map((c) => [
+            c.codigo,
+            { ...((p.documentos || {})[c.codigo] || {}), estado: c.nuevo },
+          ])),
+        },
+      }),
+      accion,
+      'supervision',
+      async () => {
+        const seccion = await supabase.rpc('merge_project_data_section', {
+          p_id: project.id, p_section: 'supervision', p_value: nuevaSupervision,
+        });
+        if (seccion && seccion.error) return seccion;
+        for (const c of cambios) {
+          const doc = await supabase.rpc('merge_project_documento', {
+            p_id: project.id, p_codigo: c.codigo, p_patch: { estado: c.nuevo },
+          });
+          if (doc && doc.error) return doc;
+        }
+        return { error: null };
+      },
+    );
+    setHistorial(null);
+  }
+
   function saveTechnicalNotes(nuevaSeccion, accion) {
     updateProject(
       project.id,
@@ -2424,6 +2499,7 @@ export function ProjectDetail({
   /* Un proyecto sin la sección "general" no puede dejar la pantalla en
      blanco: se trabaja sobre un objeto vacío. */
   const general = project.data?.general || {};
+  const llevaSupervision = requiereSupervisionTecnica(general.inversionista, inversionistasDetalle);
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -2719,6 +2795,18 @@ export function ProjectDetail({
             >
               <ClipboardCheck className="w-4 h-4" /> Control Documental
             </button>
+            {/* Solo para los inversionistas cuyas entregas pasan por
+                Supervisión técnica (se marca en la ficha del inversionista). */}
+            {llevaSupervision && (
+              <button
+                onClick={() => setActiveTab('supervision')}
+                className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                  activeTab === 'supervision' ? 'border-lime-500 text-lime-600 bg-lime-50' : 'border-transparent text-navy-500 hover:text-navy-700 hover:bg-navy-50'
+                }`}
+              >
+                <Package className="w-4 h-4" /> Supervisión técnica
+              </button>
+            )}
             <button
               onClick={() => setActiveTab('notas_tecnicas')}
               className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
@@ -2805,6 +2893,16 @@ export function ProjectDetail({
                 puedeEditarContenido={puedeEditarContenido}
                 puedeComentar={puedeComentar}
                 onDocChange={handleDocChange}
+              />
+            )}
+            {activeTab === 'supervision' && llevaSupervision && (
+              <SupervisionTecnicaPanel
+                grupos={dossierPorEspecialidad(general)}
+                supervision={project.data?.supervision}
+                estadoDocs={project.documentos}
+                puedeEditar={puedeEditarContenido}
+                perfil={perfil}
+                onGuardar={guardarSupervision}
               />
             )}
             {activeTab === 'notas_tecnicas' && (

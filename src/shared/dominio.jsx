@@ -158,6 +158,7 @@ export const SCHEMA = [
         { key: 'inv_telefono', label: 'Teléfono Inversionista', type: 'catalogo_atributo', catalogo: 'inversionistas', dependeDe: 'inversionista', dependeDeLabel: 'Inversionista', campoAtributo: 'telefono' },
         { key: 'inv_nit', label: 'NIT del inversionista', type: 'catalogo_atributo', catalogo: 'inversionistas', dependeDe: 'inversionista', dependeDeLabel: 'Inversionista', campoAtributo: 'nit' },
         { key: 'inv_logo', label: 'Logo Inversionista', type: 'catalogo_atributo', catalogo: 'inversionistas', dependeDe: 'inversionista', dependeDeLabel: 'Inversionista', campoAtributo: 'logo', esImagen: true },
+        { key: 'inv_supervision', label: 'Requiere supervisión técnica', type: 'catalogo_atributo', catalogo: 'inversionistas', dependeDe: 'inversionista', dependeDeLabel: 'Inversionista', campoAtributo: 'supervision_tecnica', esBooleano: true },
       ], 'inversionista_grupo', 'Inversionista'),
 
       ...camposPlegables([
@@ -731,6 +732,7 @@ export const HISTORIAL_CATEGORIAS = {
   estructural: 'Estructural', hidraulico: 'Hidráulico', electrico: 'Eléctrico',
   documentos: 'Control Documental', notas: 'Notas', archivos: 'Archivos',
   notas_tecnicas: 'Notas Técnicas',
+  supervision: 'Supervisión Técnica',
   estado: 'Estado del proyecto', nombre: 'Nombre del proyecto',
 };
 
@@ -1036,6 +1038,9 @@ export const DOC_ESTADOS = [
   'Pendiente',
   'En proceso',
   'Revisión interna',
+  /* Ya pasó revisión interna y está listo para salir, pero todavía no se ha
+     entregado — el paso que faltaba entre "Revisión interna" y "Entregado". */
+  'Listo para entrega',
   'Entregado',
   'Aprobado para construcción con comentarios (APCC)',
   'Aprobado para construcción (APC)',
@@ -1046,6 +1051,7 @@ export const DOC_ESTADO_CONFIG = {
   'Pendiente': { bg: 'bg-navy-100', text: 'text-navy-500', dot: 'bg-navy-400', border: 'border-navy-400', ring: 'ring-navy-400' },
   'En proceso': { bg: 'bg-lime-100', text: 'text-lime-700', dot: 'bg-lime-500', border: 'border-lime-500', ring: 'ring-lime-500' },
   'Revisión interna': { bg: 'bg-orange-100', text: 'text-orange-700', dot: 'bg-orange-500', border: 'border-orange-500', ring: 'ring-orange-500' },
+  'Listo para entrega': { bg: 'bg-amber-100', text: 'text-amber-700', dot: 'bg-amber-400', border: 'border-amber-400', ring: 'ring-amber-400' },
   'Entregado': { bg: 'bg-violet-100', text: 'text-violet-700', dot: 'bg-violet-500', border: 'border-violet-500', ring: 'ring-violet-500' },
   'Aprobado para construcción con comentarios (APCC)': { bg: 'bg-nashville-100', text: 'text-nashville-700', dot: 'bg-nashville-500', border: 'border-nashville-500', ring: 'ring-nashville-500' },
   'Aprobado para construcción (APC)': { bg: 'bg-emerald-100', text: 'text-emerald-700', dot: 'bg-emerald-500', border: 'border-emerald-500', ring: 'ring-emerald-500' },
@@ -1057,6 +1063,7 @@ export const DOC_ESTADO_HEX = {
   'Pendiente': '#6487C4',
   'En proceso': '#C2E723',
   'Revisión interna': '#F97316',
+  'Listo para entrega': '#FBBF24',
   'Entregado': '#8B5CF6',
   'Aprobado para construcción con comentarios (APCC)': '#61A9D1',
   'Aprobado para construcción (APC)': '#10B981',
@@ -1068,6 +1075,7 @@ export const DOC_ESTADO_CORTO = {
   'Pendiente': 'Pendiente',
   'En proceso': 'En proceso',
   'Revisión interna': 'Rev. interna',
+  'Listo para entrega': 'Listo p/ entrega',
   'Entregado': 'Entregado',
   'Aprobado para construcción con comentarios (APCC)': 'APCC',
   'Aprobado para construcción (APC)': 'APC',
@@ -1079,6 +1087,36 @@ export function pickDocumentList(inversionista) {
   if (v === 'CFM') return DOCS_CFM;
   if (v === 'FENOGE') return DOCS_FENOGE;
   return DOCS_ESTANDAR;
+}
+
+/* ¿Este proyecto lleva Supervisión técnica? Lo decide el inversionista, no el
+   proyecto: en la lista de inversionistas cada uno tiene una casilla que dice
+   si sus entregas pasan por Supervisión. Así, sumar un inversionista nuevo a
+   ese flujo es marcar una casilla, no cambiar el código. */
+export function requiereSupervisionTecnica(inversionista, inversionistasDetalle) {
+  const fila = (inversionistasDetalle || []).find((r) => r.nombre === inversionista);
+  return !!(fila && fila.supervision_tecnica);
+}
+
+/* El dossier del proyecto agrupado por especialidad, con el código real ya
+   armado (el de la plantilla trae el placeholder COLXXXXXXPX). Lo usan tanto
+   Control Documental como Supervisión técnica. */
+export function dossierPorEspecialidad(general) {
+  const datos = general || {};
+  const prefijo = buildProjectCode(datos);
+  const grupos = [];
+  const porEspecialidad = new Map();
+  pickDocumentList(datos.inversionista).forEach((doc) => {
+    if (!porEspecialidad.has(doc.especialidad)) {
+      porEspecialidad.set(doc.especialidad, grupos.length);
+      grupos.push({ especialidad: doc.especialidad, docs: [] });
+    }
+    grupos[porEspecialidad.get(doc.especialidad)].docs.push({
+      ...doc,
+      codigoFinal: prefijo ? doc.codigo.replace('COLXXXXXXPX', prefijo) : doc.codigo,
+    });
+  });
+  return grupos;
 }
 
 /* Arma el prefijo de código del proyecto (ej. COLBOYT147P1) a partir de los  */

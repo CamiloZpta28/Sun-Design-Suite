@@ -184,6 +184,9 @@ create table if not exists inversionistas (
   telefono text,
   nit text,
   logo text,
+  -- Si sus entregas pasan por Supervisión técnica (pestaña propia en cada
+  -- uno de sus proyectos).
+  supervision_tecnica boolean not null default false,
   created_at timestamptz default now()
 );
 
