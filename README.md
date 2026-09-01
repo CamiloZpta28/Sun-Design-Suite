@@ -178,10 +178,17 @@ ingeniero. Cada persona:
     especialidad completa o todos) y se pone la fecha de entrega. Un documento
     que ya está en un paquete sin responder no se puede volver a incluir, y
     los que ya quedaron en APC tampoco se ofrecen.
+  - Cada paquete puede llevar un **nombre** propio ("Civil — primera
+    entrega"), para no tener que acordarse de cuál era el 3 y cuál el 4. Se
+    puede poner al crearlo o cambiar después.
   - Cuando Supervisión responde se registra la fecha y, documento por
-    documento, si quedó **APC** o **con comentarios**. Con un botón se arma el
-    paquete siguiente con los que tienen comentarios, y así hasta que todo el
-    dossier queda aprobado.
+    documento, si quedó **APC**, **APCC** (aprobado con comentarios menores) o
+    **con comentarios**. El paquete siguiente se arma con un botón y arrastra
+    SOLO los que tienen comentarios: un APCC ya está aprobado, aunque se puede
+    volver a incluir a mano si se corrigen esos comentarios menores.
+  - Una respuesta ya registrada se puede **corregir**, mientras no se haya
+    armado todavía un paquete posterior con esos mismos documentos (si ya se
+    armó, la pantalla explica por qué no se puede y qué hacer).
   - Al guardar la respuesta, la app **avisa qué documentos cambiarían de
     estado en Control Documental** (APC / APCC) y se puede aplicar o guardar
     sin tocarlos — el estado nunca se mueve a tus espaldas.

@@ -7,10 +7,12 @@
 
      1. Se arma un PAQUETE con los documentos que se van a entregar y la fecha
         en que se entregan.
-     2. Supervisión responde en una fecha: unos documentos quedan aprobados
-        (APC) y otros vuelven con comentarios.
-     3. Con los que volvieron con comentarios se arma el paquete siguiente, y
-        así hasta que todo el dossier queda en APC.
+     2. Supervisión responde en una fecha: cada documento queda aprobado
+        (APC), aprobado con comentarios menores (APCC), o vuelve con
+        comentarios para otra vuelta.
+     3. Con los que volvieron CON COMENTARIOS se arma el paquete siguiente
+        (los APCC ya están aprobados y no se arrastran), y así hasta que todo
+        el dossier queda aprobado.
 
    El paquete es el registro de UNA vuelta completa. Un documento no puede
    estar en dos paquetes sin responder a la vez, y los que ya están en APC no
@@ -20,8 +22,8 @@
    pestañas técnicas), así que no hace falta ninguna tabla nueva.
    ============================================================================ */
 
-import React, { useState } from 'react';
-import { AlertTriangle, Check, ChevronDown, ChevronRight, MessageSquare, Package, Plus, Send, Trash2, X } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { AlertTriangle, Check, ChevronDown, ChevronRight, MessageSquare, Package, Pencil, Plus, Send, Trash2, X } from 'lucide-react';
 import { formatDate, makeId } from '../shared/dominio.jsx';
 
 /* Situación de un documento frente a Supervisión, deducida de los paquetes
@@ -30,21 +32,41 @@ export const SITUACION = Object.freeze({
   SIN_ENVIAR: 'sin_enviar',
   EN_REVISION: 'en_revision',
   CON_COMENTARIOS: 'con_comentarios',
+  APCC: 'apcc',
   APC: 'apc',
 });
 
 const SITUACION_CONFIG = {
   [SITUACION.SIN_ENVIAR]: { texto: 'Sin enviar', clase: 'bg-navy-100 text-navy-500 border-navy-300' },
   [SITUACION.EN_REVISION]: { texto: 'En revisión', clase: 'bg-violet-100 text-violet-700 border-violet-300' },
-  [SITUACION.CON_COMENTARIOS]: { texto: 'Con comentarios', clase: 'bg-nashville-100 text-nashville-700 border-nashville-300' },
+  [SITUACION.CON_COMENTARIOS]: { texto: 'Con comentarios', clase: 'bg-orange-100 text-orange-700 border-orange-300' },
+  [SITUACION.APCC]: { texto: 'APCC', clase: 'bg-nashville-100 text-nashville-700 border-nashville-300' },
   [SITUACION.APC]: { texto: 'APC', clase: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
 };
 
+/* Los tres resultados posibles de una revisión, en el orden en que se
+   ofrecen. "apcc" = aprobado, pero con comentarios menores; a diferencia de
+   "comentarios", NO obliga a otra vuelta. */
+export const RESULTADOS = [
+  { valor: 'apc', etiqueta: 'APC', clase: 'text-emerald-700', accent: 'accent-emerald-500' },
+  { valor: 'apcc', etiqueta: 'APCC', clase: 'text-nashville-700', accent: 'accent-nashville-500' },
+  { valor: 'comentarios', etiqueta: 'Con comentarios', clase: 'text-orange-700', accent: 'accent-orange-500' },
+];
+
 /* Estados de Control Documental que corresponden a cada resultado, para la
-   confirmación que se le muestra al usuario antes de aplicarlos. */
+   confirmación que se le muestra al usuario antes de aplicarlos. Un documento
+   que vuelve con comentarios regresa a trabajo ("En proceso"); los aprobados
+   toman su estado de aprobación. */
 export const ESTADO_POR_RESULTADO = {
   apc: 'Aprobado para construcción (APC)',
-  comentarios: 'Aprobado para construcción con comentarios (APCC)',
+  apcc: 'Aprobado para construcción con comentarios (APCC)',
+  comentarios: 'En proceso',
+};
+
+const SITUACION_POR_RESULTADO = {
+  apc: SITUACION.APC,
+  apcc: SITUACION.APCC,
+  comentarios: SITUACION.CON_COMENTARIOS,
 };
 
 /**
@@ -56,19 +78,55 @@ export function situacionPorDocumento(paquetes) {
   const mapa = new Map();
   (paquetes || []).forEach((paq) => {
     (paq.documentos || []).forEach((d) => {
-      let situacion = SITUACION.EN_REVISION;
-      if (paq.fecha_respuesta) {
-        situacion = d.resultado === 'apc' ? SITUACION.APC : SITUACION.CON_COMENTARIOS;
-      }
+      const situacion = paq.fecha_respuesta
+        ? (SITUACION_POR_RESULTADO[d.resultado] || SITUACION.CON_COMENTARIOS)
+        : SITUACION.EN_REVISION;
       mapa.set(d.codigo, { situacion, paquete: paq });
     });
   });
   return mapa;
 }
 
-/** ¿Se puede meter este documento en un paquete nuevo? */
+/** ¿Se puede meter este documento en un paquete nuevo?
+ *  No: los que están esperando respuesta y los que ya quedaron en APC.
+ *  Sí: los que nunca se han enviado, los que volvieron con comentarios y
+ *  también los APCC — están aprobados, así que no se arrastran solos al
+ *  paquete siguiente, pero se pueden volver a entregar a mano si se corrigen
+ *  esos comentarios menores. */
 export function sePuedeEnviar(situacion) {
   return situacion !== SITUACION.EN_REVISION && situacion !== SITUACION.APC;
+}
+
+/** ¿Este documento ya está aprobado (con o sin comentarios menores)? */
+export function estaAprobado(situacion) {
+  return situacion === SITUACION.APC || situacion === SITUACION.APCC;
+}
+
+/**
+ * ¿Se puede corregir la respuesta ya registrada de un paquete? Solo mientras
+ * ningún paquete POSTERIOR incluya alguno de sus documentos: si ya se armó la
+ * vuelta siguiente, cambiar la anterior dejaría dos registros contándose la
+ * misma historia de forma distinta.
+ * @returns {{permitido: boolean, motivo: string|null}}
+ */
+export function sePuedeEditarRespuesta(paquete, paquetes) {
+  if (!paquete.fecha_respuesta) return { permitido: false, motivo: 'Todavía no tiene respuesta registrada.' };
+  const lista = paquetes || [];
+  const idx = lista.findIndex((p) => p.id === paquete.id);
+  const suyos = new Set((paquete.documentos || []).map((d) => d.codigo));
+  const posterior = lista.slice(idx + 1).find((p) => (p.documentos || []).some((d) => suyos.has(d.codigo)));
+  if (posterior) {
+    return {
+      permitido: false,
+      motivo: `Ya se armó el paquete ${posterior.numero} con documentos de este. Para corregir esta respuesta, elimina primero ese paquete.`,
+    };
+  }
+  return { permitido: true, motivo: null };
+}
+
+/** Nombre visible de un paquete: "Paquete 2" o "Paquete 2 · Civil". */
+export function tituloPaquete(paquete) {
+  return paquete.nombre ? `Paquete ${paquete.numero} · ${paquete.nombre}` : `Paquete ${paquete.numero}`;
 }
 
 function Chip({ situacion }) {
@@ -79,9 +137,10 @@ function Chip({ situacion }) {
 /* ---------------------------------------------------------------------------
    Formulario de un paquete nuevo: qué se entrega y cuándo.
    ------------------------------------------------------------------------- */
-function PaqueteForm({ grupos, situaciones, preseleccion, onCancel, onSave }) {
+function PaqueteForm({ grupos, situaciones, preseleccion, numero, onCancel, onSave }) {
   const [seleccion, setSeleccion] = useState(() => new Set(preseleccion || []));
   const [fecha, setFecha] = useState('');
+  const [nombre, setNombre] = useState('');
 
   const disponibles = grupos.flatMap((g) => g.docs).filter((d) => sePuedeEnviar(situaciones.get(d.codigo)?.situacion || SITUACION.SIN_ENVIAR));
   const disponiblesPorEsp = new Map(grupos.map((g) => [
@@ -115,23 +174,40 @@ function PaqueteForm({ grupos, situaciones, preseleccion, onCancel, onSave }) {
   return (
     <div className="bg-white border border-navy-300 rounded-xl p-5 mb-5">
       <div className="flex items-center justify-between gap-3 mb-4">
-        <h3 className="text-sm font-bold text-navy-700">Nuevo paquete de entrega</h3>
+        <h3 className="text-sm font-bold text-navy-700">Nuevo paquete de entrega — Paquete {numero}</h3>
         <button onClick={onCancel} className="text-navy-400 hover:text-navy-600" title="Cancelar">
           <X className="w-4 h-4" />
         </button>
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap mb-4">
-        <label className="text-xs font-semibold uppercase tracking-wide text-navy-500">Fecha de entrega</label>
-        <input
-          type="date"
-          value={fecha}
-          onChange={(e) => setFecha(e.target.value)}
-          className="text-sm rounded-md border border-navy-300 px-2.5 py-1.5"
-        />
+      <div className="flex items-end gap-3 flex-wrap mb-4">
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">Fecha de entrega</label>
+          <input
+            type="date"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+            className="text-sm rounded-md border border-navy-300 px-2.5 py-1.5"
+          />
+        </div>
+        {/* Nombre opcional, para distinguir de un vistazo un paquete de Civil
+            de uno de Eléctrica. Si se deja vacío, el paquete se llama solo
+            por su número. */}
+        <div className="flex-1 min-w-[14rem]">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">
+            Nombre <span className="text-navy-400 font-normal normal-case">(opcional)</span>
+          </label>
+          <input
+            type="text"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Ej. Civil — primera entrega"
+            className="w-full text-sm rounded-md border border-navy-300 px-2.5 py-1.5"
+          />
+        </div>
         <button
           onClick={alternarTodos}
-          className="text-xs font-semibold text-lime-600 hover:text-lime-700 ml-auto"
+          className="text-xs font-semibold text-lime-600 hover:text-lime-700 pb-2"
         >
           {todosPuestos ? 'Quitar todos' : `Seleccionar todos (${disponibles.length})`}
         </button>
@@ -179,7 +255,11 @@ function PaqueteForm({ grupos, situaciones, preseleccion, onCancel, onSave }) {
                         />
                         <span className="font-mono text-xs shrink-0">{d.codigoFinal}</span>
                         <span className="flex-1">{d.nombre}</span>
-                        {!puede && <Chip situacion={situacion} />}
+                        {/* La situación se muestra siempre que haya pasado
+                            algo con el documento — también en los APCC, que
+                            sí se pueden volver a entregar: hay que poder ver
+                            que ya venían aprobados. */}
+                        {situacion !== SITUACION.SIN_ENVIAR && <Chip situacion={situacion} />}
                       </label>
                     );
                   })}
@@ -192,7 +272,7 @@ function PaqueteForm({ grupos, situaciones, preseleccion, onCancel, onSave }) {
 
       <div className="flex items-center gap-3">
         <button
-          onClick={() => onSave([...seleccion], fecha)}
+          onClick={() => onSave([...seleccion], fecha, nombre.trim())}
           disabled={seleccion.size === 0 || !fecha}
           className="bg-lime-500 hover:bg-lime-600 disabled:opacity-50 disabled:cursor-not-allowed text-navy-900 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
         >
@@ -209,8 +289,10 @@ function PaqueteForm({ grupos, situaciones, preseleccion, onCancel, onSave }) {
    Registro de la respuesta de Supervisión a un paquete: una sola fecha, y el
    resultado documento por documento.
    ------------------------------------------------------------------------- */
-function RespuestaForm({ paquete, nombrePorCodigo, codigoFinalPorCodigo, onCancel, onSave }) {
-  const [fecha, setFecha] = useState('');
+function RespuestaForm({ paquete, nombrePorCodigo, codigoFinalPorCodigo, esCorreccion, onCancel, onSave }) {
+  /* Al corregir una respuesta ya registrada se parte de lo que quedó
+     guardado, no de cero. */
+  const [fecha, setFecha] = useState(paquete.fecha_respuesta || '');
   const [resultados, setResultados] = useState(() => {
     const inicial = {};
     (paquete.documentos || []).forEach((d) => { inicial[d.codigo] = d.resultado || null; });
@@ -218,9 +300,9 @@ function RespuestaForm({ paquete, nombrePorCodigo, codigoFinalPorCodigo, onCance
   });
 
   const total = (paquete.documentos || []).length;
-  const decididos = Object.values(resultados).filter(Boolean).length;
-  const apc = Object.values(resultados).filter((r) => r === 'apc').length;
-  const conComentarios = decididos - apc;
+  const valores = Object.values(resultados);
+  const decididos = valores.filter(Boolean).length;
+  const cuenta = (valor) => valores.filter((r) => r === valor).length;
 
   function marcarTodos(resultado) {
     const nuevo = {};
@@ -230,6 +312,11 @@ function RespuestaForm({ paquete, nombrePorCodigo, codigoFinalPorCodigo, onCance
 
   return (
     <div className="border-t border-navy-200 mt-3 pt-3">
+      {esCorreccion && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+          Estás corrigiendo una respuesta ya registrada. Al guardar se vuelve a preguntar qué estados cambiar en Control Documental.
+        </p>
+      )}
       <div className="flex items-center gap-3 flex-wrap mb-3">
         <label className="text-xs font-semibold uppercase tracking-wide text-navy-500">Fecha de respuesta</label>
         <input
@@ -238,14 +325,13 @@ function RespuestaForm({ paquete, nombrePorCodigo, codigoFinalPorCodigo, onCance
           onChange={(e) => setFecha(e.target.value)}
           className="text-sm rounded-md border border-navy-300 px-2.5 py-1.5"
         />
-        <div className="flex items-center gap-2 ml-auto">
-          <button onClick={() => marcarTodos('apc')} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700">
-            Todos APC
-          </button>
-          <span className="text-navy-300">·</span>
-          <button onClick={() => marcarTodos('comentarios')} className="text-xs font-semibold text-nashville-600 hover:text-nashville-700">
-            Todos con comentarios
-          </button>
+        <div className="flex items-center gap-2 ml-auto flex-wrap">
+          <span className="text-xs text-navy-400">Marcar todos:</span>
+          {RESULTADOS.map((r) => (
+            <button key={r.valor} onClick={() => marcarTodos(r.valor)} className={`text-xs font-semibold ${r.clase} hover:underline`}>
+              {r.etiqueta}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -254,26 +340,18 @@ function RespuestaForm({ paquete, nombrePorCodigo, codigoFinalPorCodigo, onCance
           <div key={d.codigo} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm py-1.5 border-b border-navy-100 last:border-0">
             <span className="font-mono text-xs text-navy-500 shrink-0">{codigoFinalPorCodigo.get(d.codigo) || d.codigo}</span>
             <span className="flex-1 min-w-[12rem] text-navy-700">{nombrePorCodigo.get(d.codigo) || '(documento que ya no está en el dossier)'}</span>
-            <label className="flex items-center gap-1.5 text-xs text-emerald-700 cursor-pointer shrink-0">
-              <input
-                type="radio"
-                name={`res-${paquete.id}-${d.codigo}`}
-                checked={resultados[d.codigo] === 'apc'}
-                onChange={() => setResultados((prev) => ({ ...prev, [d.codigo]: 'apc' }))}
-                className="accent-emerald-500"
-              />
-              APC
-            </label>
-            <label className="flex items-center gap-1.5 text-xs text-nashville-700 cursor-pointer shrink-0">
-              <input
-                type="radio"
-                name={`res-${paquete.id}-${d.codigo}`}
-                checked={resultados[d.codigo] === 'comentarios'}
-                onChange={() => setResultados((prev) => ({ ...prev, [d.codigo]: 'comentarios' }))}
-                className="accent-nashville-500"
-              />
-              Con comentarios
-            </label>
+            {RESULTADOS.map((r) => (
+              <label key={r.valor} className={`flex items-center gap-1.5 text-xs cursor-pointer shrink-0 ${r.clase}`}>
+                <input
+                  type="radio"
+                  name={`res-${paquete.id}-${d.codigo}`}
+                  checked={resultados[d.codigo] === r.valor}
+                  onChange={() => setResultados((prev) => ({ ...prev, [d.codigo]: r.valor }))}
+                  className={r.accent}
+                />
+                {r.etiqueta}
+              </label>
+            ))}
           </div>
         ))}
       </div>
@@ -284,11 +362,11 @@ function RespuestaForm({ paquete, nombrePorCodigo, codigoFinalPorCodigo, onCance
           disabled={!fecha || decididos < total}
           className="bg-lime-500 hover:bg-lime-600 disabled:opacity-50 disabled:cursor-not-allowed text-navy-900 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
         >
-          Guardar respuesta
+          {esCorreccion ? 'Guardar corrección' : 'Guardar respuesta'}
         </button>
         <button onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700">Cancelar</button>
         <span className="text-xs text-navy-500">
-          {decididos} de {total} marcados · {apc} APC · {conComentarios} con comentarios
+          {decididos} de {total} marcados · {RESULTADOS.map((r) => `${cuenta(r.valor)} ${r.etiqueta}`).join(' · ')}
         </span>
       </div>
     </div>
@@ -352,16 +430,36 @@ export default function SupervisionTecnicaPanel({
   const [respondiendo, setRespondiendo] = useState(null); // id del paquete
   const [abiertos, setAbiertos] = useState(() => new Set());
   const [confirmacion, setConfirmacion] = useState(null);
+  const [renombrando, setRenombrando] = useState(null); // id del paquete
+  const formularioRef = useRef(null);
 
   const situaciones = situacionPorDocumento(paquetes);
   const todosLosDocs = grupos.flatMap((g) => g.docs);
   const nombrePorCodigo = new Map(todosLosDocs.map((d) => [d.codigo, d.nombre]));
   const codigoFinalPorCodigo = new Map(todosLosDocs.map((d) => [d.codigo, d.codigoFinal]));
 
-  const enApc = todosLosDocs.filter((d) => situaciones.get(d.codigo)?.situacion === SITUACION.APC).length;
-  const enRevision = todosLosDocs.filter((d) => situaciones.get(d.codigo)?.situacion === SITUACION.EN_REVISION).length;
-  const conComentarios = todosLosDocs.filter((d) => situaciones.get(d.codigo)?.situacion === SITUACION.CON_COMENTARIOS).length;
-  const sinEnviar = todosLosDocs.length - enApc - enRevision - conComentarios;
+  const cuantos = (situacion) => todosLosDocs.filter((d) => (situaciones.get(d.codigo)?.situacion || SITUACION.SIN_ENVIAR) === situacion).length;
+  const enApc = cuantos(SITUACION.APC);
+  const enApcc = cuantos(SITUACION.APCC);
+  const enRevision = cuantos(SITUACION.EN_REVISION);
+  const conComentarios = cuantos(SITUACION.CON_COMENTARIOS);
+  const sinEnviar = cuantos(SITUACION.SIN_ENVIAR);
+  const aprobados = enApc + enApcc;
+  const proximoNumero = paquetes.reduce((max, p) => Math.max(max, p.numero || 0), 0) + 1;
+
+  /* Al abrir el formulario, la pantalla sube hasta él: se abre arriba del
+     todo y desde un paquete de más abajo no se veía que hubiera pasado nada. */
+  function abrirFormulario(codigos) {
+    setPreseleccion(codigos || []);
+    setCreando(true);
+    /* En el siguiente ciclo, cuando el formulario ya está pintado. */
+    setTimeout(() => {
+      const el = formularioRef.current;
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 0);
+  }
 
   function alternarPaquete(id) {
     setAbiertos((prev) => {
@@ -371,11 +469,12 @@ export default function SupervisionTecnicaPanel({
     });
   }
 
-  function crearPaquete(codigos, fecha) {
-    const numero = paquetes.reduce((max, p) => Math.max(max, p.numero || 0), 0) + 1;
+  function crearPaquete(codigos, fecha, nombre) {
+    const numero = proximoNumero;
     const paquete = {
       id: makeId('paq'),
       numero,
+      nombre: nombre || '',
       fecha_entrega: fecha,
       fecha_respuesta: '',
       documentos: codigos.map((codigo) => ({ codigo, resultado: null })),
@@ -384,12 +483,23 @@ export default function SupervisionTecnicaPanel({
     };
     onGuardar(
       { ...(supervision || {}), paquetes: [...paquetes, paquete] },
-      `Supervisión técnica: creó el paquete ${numero} con ${codigos.length} documento(s)`,
+      `Supervisión técnica: creó el ${tituloPaquete(paquete).toLowerCase()} con ${codigos.length} documento(s)`,
       [],
     );
     setCreando(false);
     setPreseleccion([]);
     setAbiertos((prev) => new Set(prev).add(paquete.id));
+  }
+
+  function renombrarPaquete(paquete, nombre) {
+    const limpio = (nombre || '').trim();
+    if (limpio === (paquete.nombre || '')) { setRenombrando(null); return; }
+    onGuardar(
+      { ...(supervision || {}), paquetes: paquetes.map((p) => (p.id === paquete.id ? { ...p, nombre: limpio } : p)) },
+      `Supervisión técnica: renombró el paquete ${paquete.numero}${limpio ? ` como "${limpio}"` : ' (sin nombre)'}`,
+      [],
+    );
+    setRenombrando(null);
   }
 
   /* Antes de guardar la respuesta se calcula qué estados de Control Documental
@@ -414,7 +524,7 @@ export default function SupervisionTecnicaPanel({
       documentos: (p.documentos || []).map((d) => ({ ...d, resultado: resultados[d.codigo] || null })),
     }));
     const nuevaSupervision = { ...(supervision || {}), paquetes: paquetesActualizados };
-    const resumen = `Supervisión técnica: registró la respuesta del paquete ${paquete.numero}`;
+    const resumen = `Supervisión técnica: registró la respuesta del ${tituloPaquete(paquete).toLowerCase()}`;
 
     if (cambios.length === 0) {
       onGuardar(nuevaSupervision, resumen, []);
@@ -430,12 +540,11 @@ export default function SupervisionTecnicaPanel({
     setRespondiendo(null);
   }
 
+  /* La vuelta siguiente arrastra SOLO los que volvieron con comentarios: un
+     APCC ya está aprobado y no necesita otra revisión (si se quiere volver a
+     entregar corregido, se agrega a mano). */
   function nuevoPaqueteConComentarios(paquete) {
-    const codigos = (paquete.documentos || [])
-      .filter((d) => d.resultado === 'comentarios')
-      .map((d) => d.codigo);
-    setPreseleccion(codigos);
-    setCreando(true);
+    abrirFormulario((paquete.documentos || []).filter((d) => d.resultado === 'comentarios').map((d) => d.codigo));
   }
 
   const dossierVacio = todosLosDocs.length === 0;
@@ -451,7 +560,7 @@ export default function SupervisionTecnicaPanel({
         </div>
         {puedeEditar && !creando && !dossierVacio && (
           <button
-            onClick={() => { setPreseleccion([]); setCreando(true); }}
+            onClick={() => abrirFormulario([])}
             className="flex items-center gap-1.5 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" /> Nuevo paquete de entrega
@@ -465,10 +574,11 @@ export default function SupervisionTecnicaPanel({
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
             {[
               { label: 'En APC', valor: enApc, clase: 'text-emerald-600' },
-              { label: 'Con comentarios', valor: conComentarios, clase: 'text-nashville-600' },
+              { label: 'En APCC', valor: enApcc, clase: 'text-nashville-600' },
+              { label: 'Con comentarios', valor: conComentarios, clase: 'text-orange-600' },
               { label: 'En revisión', valor: enRevision, clase: 'text-violet-600' },
               { label: 'Sin enviar', valor: sinEnviar, clase: 'text-navy-500' },
             ].map((s) => (
@@ -479,15 +589,18 @@ export default function SupervisionTecnicaPanel({
             ))}
           </div>
 
-          {creando && (
-            <PaqueteForm
-              grupos={grupos}
-              situaciones={situaciones}
-              preseleccion={preseleccion}
-              onCancel={() => { setCreando(false); setPreseleccion([]); }}
-              onSave={crearPaquete}
-            />
-          )}
+          <div ref={formularioRef}>
+            {creando && (
+              <PaqueteForm
+                grupos={grupos}
+                situaciones={situaciones}
+                preseleccion={preseleccion}
+                numero={proximoNumero}
+                onCancel={() => { setCreando(false); setPreseleccion([]); }}
+                onSave={crearPaquete}
+              />
+            )}
+          </div>
 
           <h3 className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-2">
             Paquetes de entrega {paquetes.length > 0 && <span className="text-navy-400">({paquetes.length})</span>}
@@ -501,7 +614,9 @@ export default function SupervisionTecnicaPanel({
                 const respondido = !!paq.fecha_respuesta;
                 const docs = paq.documentos || [];
                 const apc = docs.filter((d) => d.resultado === 'apc').length;
+                const apcc = docs.filter((d) => d.resultado === 'apcc').length;
                 const conCom = docs.filter((d) => d.resultado === 'comentarios').length;
+                const correccion = sePuedeEditarRespuesta(paq, paquetes);
                 return (
                   <div key={paq.id} className="bg-white border border-navy-200 rounded-xl overflow-hidden">
                     <button
@@ -510,18 +625,25 @@ export default function SupervisionTecnicaPanel({
                     >
                       {abierto ? <ChevronDown className="w-4 h-4 text-navy-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-navy-400 shrink-0" />}
                       <Package className="w-4 h-4 text-navy-400 shrink-0" />
-                      <span className="font-semibold text-sm text-navy-700 shrink-0">Paquete {paq.numero}</span>
+                      <span className="font-semibold text-sm text-navy-700 shrink-0">{tituloPaquete(paq)}</span>
                       <span className="text-xs text-navy-500">
                         Entregado el {formatDate(paq.fecha_entrega) || '—'} · {docs.length} documento{docs.length === 1 ? '' : 's'}
                       </span>
                       <span className="sm:ml-auto flex flex-wrap items-center gap-2">
                         {respondido ? (
                           <>
-                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
-                              {apc} APC
-                            </span>
-                            {conCom > 0 && (
+                            {apc > 0 && (
+                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                {apc} APC
+                              </span>
+                            )}
+                            {apcc > 0 && (
                               <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-nashville-50 text-nashville-700 border-nashville-200">
+                                {apcc} APCC
+                              </span>
+                            )}
+                            {conCom > 0 && (
+                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-orange-50 text-orange-700 border-orange-200">
                                 {conCom} con comentarios
                               </span>
                             )}
@@ -540,13 +662,43 @@ export default function SupervisionTecnicaPanel({
                           <span>Entrega: <strong className="text-navy-700">{formatDate(paq.fecha_entrega) || '—'}</strong></span>
                           <span>Respuesta: <strong className="text-navy-700">{formatDate(paq.fecha_respuesta) || 'pendiente'}</strong></span>
                           {paq.creado_por && <span>Creado por {paq.creado_por}</span>}
+                          {puedeEditar && renombrando !== paq.id && (
+                            <button
+                              onClick={() => setRenombrando(paq.id)}
+                              className="flex items-center gap-1 text-navy-400 hover:text-navy-700"
+                            >
+                              <Pencil className="w-3 h-3" /> {paq.nombre ? 'Cambiar nombre' : 'Ponerle nombre'}
+                            </button>
+                          )}
                         </div>
+
+                        {renombrando === paq.id && (
+                          <form
+                            onSubmit={(e) => { e.preventDefault(); renombrarPaquete(paq, e.target.elements.nombre.value); }}
+                            className="flex items-center gap-2 flex-wrap mb-3"
+                          >
+                            <input
+                              name="nombre"
+                              defaultValue={paq.nombre || ''}
+                              placeholder="Ej. Civil — primera entrega"
+                              autoFocus
+                              className="text-sm rounded-md border border-navy-300 px-2.5 py-1.5 flex-1 min-w-[14rem]"
+                            />
+                            <button type="submit" className="text-sm font-semibold text-lime-700 border border-lime-400 bg-lime-50 rounded-lg px-3 py-1.5 hover:bg-lime-100">
+                              Guardar nombre
+                            </button>
+                            <button type="button" onClick={() => setRenombrando(null)} className="text-sm text-navy-500 hover:text-navy-700">
+                              Cancelar
+                            </button>
+                          </form>
+                        )}
 
                         {respondiendo === paq.id ? (
                           <RespuestaForm
                             paquete={paq}
                             nombrePorCodigo={nombrePorCodigo}
                             codigoFinalPorCodigo={codigoFinalPorCodigo}
+                            esCorreccion={respondido}
                             onCancel={() => setRespondiendo(null)}
                             onSave={(fecha, resultados) => prepararRespuesta(paq, fecha, resultados)}
                           />
@@ -558,9 +710,13 @@ export default function SupervisionTecnicaPanel({
                                   <span className="font-mono text-xs text-navy-500 shrink-0">{codigoFinalPorCodigo.get(d.codigo) || d.codigo}</span>
                                   <span className="flex-1 min-w-[12rem] text-navy-700">{nombrePorCodigo.get(d.codigo) || '(documento que ya no está en el dossier)'}</span>
                                   {respondido && (
-                                    d.resultado === 'apc'
-                                      ? <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 shrink-0"><Check className="w-3.5 h-3.5" /> APC</span>
-                                      : <span className="flex items-center gap-1 text-xs font-semibold text-nashville-600 shrink-0"><MessageSquare className="w-3.5 h-3.5" /> Con comentarios</span>
+                                    d.resultado === 'comentarios'
+                                      ? <span className="flex items-center gap-1 text-xs font-semibold text-orange-600 shrink-0"><MessageSquare className="w-3.5 h-3.5" /> Con comentarios</span>
+                                      : (
+                                        <span className={`flex items-center gap-1 text-xs font-semibold shrink-0 ${d.resultado === 'apcc' ? 'text-nashville-600' : 'text-emerald-600'}`}>
+                                          <Check className="w-3.5 h-3.5" /> {d.resultado === 'apcc' ? 'APCC' : 'APC'}
+                                        </span>
+                                      )
                                   )}
                                 </div>
                               ))}
@@ -576,6 +732,19 @@ export default function SupervisionTecnicaPanel({
                                     <Send className="w-3.5 h-3.5" /> Registrar respuesta
                                   </button>
                                 )}
+                                {respondido && correccion.permitido && (
+                                  <button
+                                    onClick={() => setRespondiendo(paq.id)}
+                                    className="flex items-center gap-1.5 text-sm font-semibold text-navy-700 border border-navy-300 rounded-lg px-3 py-1.5 hover:border-navy-400"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" /> Corregir respuesta
+                                  </button>
+                                )}
+                                {respondido && !correccion.permitido && (
+                                  <span className="flex items-start gap-1.5 text-xs text-navy-400 max-w-md">
+                                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" /> {correccion.motivo}
+                                  </span>
+                                )}
                                 {respondido && conCom > 0 && (
                                   <button
                                     onClick={() => nuevoPaqueteConComentarios(paq)}
@@ -586,10 +755,10 @@ export default function SupervisionTecnicaPanel({
                                 )}
                                 <button
                                   onClick={() => {
-                                    if (!window.confirm(`¿Eliminar el paquete ${paq.numero}? Esto no cambia el estado de ningún documento.`)) return;
+                                    if (!window.confirm(`¿Eliminar el ${tituloPaquete(paq).toLowerCase()}? Esto no cambia el estado de ningún documento.`)) return;
                                     onGuardar(
                                       { ...(supervision || {}), paquetes: paquetes.filter((p) => p.id !== paq.id) },
-                                      `Supervisión técnica: eliminó el paquete ${paq.numero}`,
+                                      `Supervisión técnica: eliminó el ${tituloPaquete(paq).toLowerCase()}`,
                                       [],
                                     );
                                   }}
@@ -629,9 +798,10 @@ export default function SupervisionTecnicaPanel({
             ))}
           </div>
 
-          {enApc === todosLosDocs.length && todosLosDocs.length > 0 && (
+          {aprobados === todosLosDocs.length && todosLosDocs.length > 0 && (
             <div className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-              <Check className="w-4 h-4" /> Todo el dossier quedó aprobado para construcción.
+              <Check className="w-4 h-4" />
+              Todo el dossier quedó aprobado para construcción{enApcc > 0 ? ` (${enApcc} con comentarios menores)` : ''}.
             </div>
           )}
         </>
