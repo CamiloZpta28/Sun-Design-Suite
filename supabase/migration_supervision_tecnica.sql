@@ -16,14 +16,14 @@
 alter table inversionistas
   add column if not exists supervision_tecnica boolean not null default false;
 
--- Skandia puede no existir todavía en la lista compartida.
+-- Skandia y COX pueden no existir todavía en la lista compartida.
 insert into inversionistas (nombre)
-values ('Skandia')
+values ('Skandia'), ('COX')
 on conflict (nombre) do nothing;
 
--- Los dos que hoy llevan supervisión técnica. Para sumar otro más adelante no
+-- Los que hoy llevan supervisión técnica. Para sumar otro más adelante no
 -- hace falta SQL: se marca la casilla "Requiere supervisión técnica" en la
 -- pestaña General de cualquier proyecto de ese inversionista.
 update inversionistas
 set supervision_tecnica = true
-where upper(nombre) in ('CFM', 'SKANDIA');
+where upper(nombre) in ('CFM', 'SKANDIA', 'COX');

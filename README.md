@@ -248,7 +248,7 @@ ingeniero. Cada persona:
     sin tocarlos — el estado nunca se mueve a tus espaldas.
   - **Quién ve la pestaña**: los inversionistas marcados con "Requiere
     supervisión técnica" (casilla en la pestaña General, junto a los demás
-    datos del inversionista). La migración deja marcados a CFM y Skandia;
+    datos del inversionista). La migración deja marcados a CFM, Skandia y COX;
     sumar otro después es marcar la casilla, sin tocar código.
   - **Necesita migración**: `supabase/migration_supervision_tecnica.sql`.
     Los paquetes en sí no usan tabla nueva: viven en `projects.data.supervision`.
