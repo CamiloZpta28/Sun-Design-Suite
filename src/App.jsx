@@ -7,9 +7,9 @@ import {
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { rutaDe, estadoDeRuta } from './routes.js';
-import { formatoFechaHora } from './shared/formatos.js';
 import { Avatar } from './shared/ui.jsx';
 import { useCambiosEnVivo, textoDeCambio } from './shared/cambiosEnVivo.js';
+import { NotificationBell, notificacionesVigentes, fechaDeCorte } from './shared/notificaciones.jsx';
 
 import {
   SCHEMA, emptyStations, emptyEnergiaMensual, COLOMBIA, DOC_ESTADOS, EquipoField, EspecialidadBarra, InversionistaPicker, PaisPicker,
@@ -273,56 +273,6 @@ function computeEspecialidadProgressMultiProyecto(proyectos) {
 /* ============================================================================
    6. AUTENTICACIÓN Y CUENTA DE INGENIERO
    ============================================================================ */
-/* Campanita de notificaciones — "sin leer" en rojo (+9 si hay más de 9),   */
-/* clic abre un panel con el resumen y navega al lugar en cuestión.        */
-function NotificationBell({ notificaciones, onAbrirNotificacion, dark }) {
-  const [abierto, setAbierto] = useState(false);
-  const sinLeer = notificaciones.filter((n) => !n.leida).length;
-  const textoContador = sinLeer > 9 ? '+9' : String(sinLeer);
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setAbierto((v) => !v)}
-        title="Notificaciones"
-        className={`relative p-1.5 rounded-lg shrink-0 ${dark ? 'text-navy-300 hover:text-white hover:bg-navy-800' : 'text-navy-500 hover:text-navy-800 hover:bg-navy-100'}`}
-      >
-        <Bell className="w-5 h-5" />
-        {sinLeer > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 leading-none">
-            {textoContador}
-          </span>
-        )}
-      </button>
-      {abierto && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setAbierto(false)} />
-          <div className="absolute left-0 top-full mt-2 w-80 max-h-[26rem] overflow-y-auto bg-white rounded-xl shadow-xl border border-navy-200 z-50">
-            <p className="px-4 py-3 text-xs font-bold uppercase text-navy-500 border-b border-navy-100 sticky top-0 bg-white">Notificaciones</p>
-            {notificaciones.length === 0 ? (
-              <p className="px-4 py-8 text-sm text-navy-400 italic text-center">Sin notificaciones todavía.</p>
-            ) : (
-              notificaciones.slice(0, 30).map((n) => (
-                <button
-                  key={n.id}
-                  onClick={() => { setAbierto(false); onAbrirNotificacion(n); }}
-                  className={`w-full text-left px-4 py-3 border-b border-navy-50 hover:bg-navy-50 flex items-start gap-2 ${!n.leida ? 'bg-lime-50' : ''}`}
-                >
-                  <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${!n.leida ? 'bg-lime-500' : 'bg-transparent'}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-navy-700">{n.mensaje}</p>
-                    <p className="text-[11px] text-navy-400 mt-0.5">{formatoFechaHora(n.created_at)}</p>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
 function AuthGate() {
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
@@ -515,7 +465,7 @@ function LoadingScreen({ mensaje = 'Cargando…' }) {
 /* ============================================================================
    7. NAVEGACIÓN Y LAYOUT
    ============================================================================ */
-function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile, onRefresh, onLogout, mobileOpen, onCloseMobile, notificaciones, onAbrirNotificacion }) {
+function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile, onRefresh, onLogout, mobileOpen, onCloseMobile, notificaciones, onAbrirNotificacion, onMarcarTodasLeidas }) {
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { key: 'mis', label: 'Mis Proyectos', icon: FolderKanban },
@@ -554,7 +504,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile,
             <p className="text-white font-bold leading-tight">Sun Design Suite</p>
             <p className="text-xs text-navy-300 tracking-wide">Minigranjas Fotovoltaicas</p>
           </div>
-          <NotificationBell notificaciones={notificaciones} onAbrirNotificacion={onAbrirNotificacion} dark />
+          <NotificationBell notificaciones={notificaciones} onAbrirNotificacion={onAbrirNotificacion} onMarcarTodasLeidas={onMarcarTodasLeidas} dark />
           <button onClick={onRefresh} title="Actualizar datos compartidos" className="text-navy-300 hover:text-white shrink-0">
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -1809,10 +1759,16 @@ export default function App() {
     if (ownUserId) {
       const yo = merged.find((u) => u.id === ownUserId);
       if (yo) setPerfil(yo);
-      // Mis propias notificaciones (RLS ya las filtra por usuario, pero
-      // igual filtramos explícito para dejarlo claro).
+      /* Mis propias notificaciones (RLS ya las filtra por usuario, pero
+         igual filtramos explícito para dejarlo claro). Antes de traerlas
+         se borran las que ya vencieron —leídas hace más de un día—:
+         entrar a la aplicación es el único momento en que hace falta
+         limpiarlas, y así la tabla no crece sin control. */
+      const { error: errorLimpieza } = await supabase.from('notificaciones').delete()
+        .eq('usuario_id', ownUserId).eq('leida', true).lt('leida_at', fechaDeCorte());
+      if (errorLimpieza) console.error('Error borrando notificaciones leídas:', errorLimpieza);
       const { data: notifRows } = await supabase.from('notificaciones').select('*').eq('usuario_id', ownUserId).order('created_at', { ascending: false }).limit(50);
-      setMisNotificaciones(notifRows || []);
+      setMisNotificaciones(notificacionesVigentes(notifRows || []));
     }
 
     const { data: carpetaRows } = await supabase.from('instructivo_carpetas').select('*').order('created_at', { ascending: true });
@@ -2532,11 +2488,24 @@ export default function App() {
       }
     });
   }
+  /* `leida_at` es lo que le da la hora al conteo: la notificación se borra
+     un día después de LEERLA, no un día después de que ocurrió. */
   function handleMarcarNotificacionLeida(id) {
-    setMisNotificaciones((prev) => prev.map((n) => (n.id === id ? { ...n, leida: true } : n)));
-    supabase.from('notificaciones').update({ leida: true }).eq('id', id).then(({ error }) => {
+    const leida_at = new Date().toISOString();
+    setMisNotificaciones((prev) => prev.map((n) => (n.id === id ? { ...n, leida: true, leida_at } : n)));
+    supabase.from('notificaciones').update({ leida: true, leida_at }).eq('id', id).then(({ error }) => {
       if (error) console.error('Error marcando notificación como leída:', error);
     });
+  }
+  function handleMarcarTodasLeidas() {
+    if (!perfil) return;
+    const leida_at = new Date().toISOString();
+    setMisNotificaciones((prev) => prev.map((n) => (n.leida ? n : { ...n, leida: true, leida_at })));
+    supabase.from('notificaciones').update({ leida: true, leida_at })
+      .eq('usuario_id', perfil.id).eq('leida', false)
+      .then(({ error }) => {
+        if (error) console.error('Error marcando todas las notificaciones como leídas:', error);
+      });
   }
   /* Al hacer clic en una notificación: la marca como leída y navega al       */
   /* lugar en cuestión — el proyecto (si es de tipo "proyecto"), o la         */
@@ -2716,6 +2685,7 @@ export default function App() {
         onCloseMobile={() => setSidebarOpen(false)}
         notificaciones={misNotificaciones}
         onAbrirNotificacion={handleAbrirNotificacion}
+        onMarcarTodasLeidas={handleMarcarTodasLeidas}
       />
 
       <main className="app-main flex-1 overflow-y-auto overflow-x-hidden min-w-0">
@@ -2730,7 +2700,7 @@ export default function App() {
             <img src={logoMark} alt="" className="w-4 h-4 object-contain" />
           </div>
           <p className="text-white font-bold text-sm flex-1">Sun Design Suite</p>
-          <NotificationBell notificaciones={misNotificaciones} onAbrirNotificacion={handleAbrirNotificacion} dark />
+          <NotificationBell notificaciones={misNotificaciones} onAbrirNotificacion={handleAbrirNotificacion} onMarcarTodasLeidas={handleMarcarTodasLeidas} dark />
         </div>
         {/* Las secciones pesadas se descargan al abrirlas (ver SECCIONES). */}
         <Suspense fallback={<LoadingScreen mensaje="Cargando sección…" />}>

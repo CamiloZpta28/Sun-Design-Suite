@@ -46,7 +46,8 @@ Sigue los pasos en orden. No necesitas experiencia previa con Supabase.
 > `supabase/migration_perfil_fechas.sql` y
 > `supabase/migration_cimentacion_plantillas.sql` y
 > `supabase/migration_supervision_tecnica.sql` y
-> `supabase/migration_cambios_en_vivo.sql`. Cada uno agrega
+> `supabase/migration_cambios_en_vivo.sql` y
+> `supabase/migration_notificaciones_limpieza.sql`. Cada uno agrega
 > solo lo nuevo sin tocar lo que ya tenías. Si no recuerdas si ya corriste
 > alguno, no pasa nada por intentarlo de nuevo: en el peor caso te marcará
 > un error de "ya existe", que puedes ignorar.
@@ -170,6 +171,18 @@ ingeniero. Cada persona:
 ---
 
 ## Notas y siguientes pasos
+
+- **La bandeja de notificaciones se vacía sola**: en la campanita hay ahora un
+  botón **"Marcar todas como leídas"** (aparece solo si queda alguna sin leer),
+  y una notificación leída se borra **un día después de haberla leído** —no de
+  haber ocurrido—, así que una del mes pasado que se abre hoy dura hasta
+  mañana. El panel lo dice al pie, para que nadie las extrañe.
+  - El borrado ocurre al entrar a la aplicación, sobre las propias de cada
+    quien. Lo vencido tampoco se pinta, por si ese borrado no alcanzó a correr.
+  - Las que están sin leer no caducan nunca, por viejas que sean.
+  - **Necesita migración**: `supabase/migration_notificaciones_limpieza.sql`
+    (guarda la hora de lectura y da permiso de borrar las propias). Sin ella
+    las notificaciones siguen funcionando igual, pero no se borra ninguna.
 
 - **Se ve quién más tiene abierto el proyecto** (primera parte del trabajo
   contra la superposición). Al abrir un proyecto, arriba de las pestañas

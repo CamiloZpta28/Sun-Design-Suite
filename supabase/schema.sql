@@ -317,6 +317,7 @@ create table if not exists notificaciones (
   actualizacion_id text references actualizaciones(id) on delete cascade,
   categoria_actualizacion_id text,
   leida boolean not null default false,
+  leida_at timestamptz, -- cuándo se leyó: la aplicación la borra un día después
   created_at timestamptz default now()
 );
 
@@ -574,6 +575,8 @@ create policy "Crear notificaciones" on notificaciones
   for insert with check (auth.role() = 'authenticated');
 create policy "Marcar mis notificaciones como leidas" on notificaciones
   for update using (auth.uid() = usuario_id);
+create policy "Borrar mis notificaciones" on notificaciones
+  for delete using (auth.uid() = usuario_id);
 
 alter table mallas enable row level security;
 create policy "Lectura de mallas" on mallas
