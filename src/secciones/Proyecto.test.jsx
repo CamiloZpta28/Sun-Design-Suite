@@ -179,6 +179,21 @@ describe('pestaña de Supervisión técnica', () => {
   });
 });
 
+describe('código de documento copiable', () => {
+  /* La cabecera de cada documento tiene un botón que despliega la tarjeta y,
+     dentro, el código: si el código vuelve a quedar ANIDADO en ese botón, el
+     navegador lo saca de su sitio y el clic deja de copiar. */
+  it('cada documento de Control Documental ofrece copiar su código', () => {
+    render(<ProjectDetail project={proyecto()} perfil={perfilLider} {...props} />);
+    const control = screen.getAllByRole('button')
+      .find((b) => b.textContent.trim().startsWith('Control Documental'));
+    fireEvent.click(control);
+    const copiables = screen.getAllByRole('button').filter((b) => (b.getAttribute('title') || '').startsWith('Copiar COL'));
+    expect(copiables.length).toBeGreaterThan(0);
+    expect(copiables.every((b) => b.parentElement.closest('button') === null)).toBe(true);
+  });
+});
+
 describe('historial de entregas de un documento', () => {
   it('la primera versión llega con la descripción de emisión inicial', () => {
     const cambios = [];

@@ -28,6 +28,7 @@ import {
   isLeader, isQA,
 } from '../shared/permisos.js';
 import { ResumenLineas, atributosLineas } from '../shared/ui.jsx';
+import { CodigoCopiable } from '../shared/copiar.jsx';
 import { usePresenciaProyecto, quienEdita, PresenciaBarra, AvisoPestanaOcupada } from '../shared/presencia.jsx';
 import {
   camposPlegables, MESES_ENERGIA, COLOMBIA, DOC_ESTADOS, DOC_ESTADO_CONFIG, DOC_ESTADO_CORTO, EquipoField, EquipoSelect,
@@ -1495,24 +1496,33 @@ export function DocumentoCard({ doc, codigoFinal, estadoDoc, estadoValor, puedeE
   return (
     <div className={`bg-white rounded-lg border-l-4 ${cfg.border} border-t border-r border-b border-t-navy-200 border-r-navy-200 border-b-navy-200 overflow-hidden`}>
       <div className="flex flex-wrap items-start justify-between gap-2 p-3">
-        <button onClick={() => setExpandido((v) => !v)} className="flex items-start gap-2 min-w-0 flex-1 text-left">
-          <span className="mt-0.5 text-navy-300 shrink-0">
+        <div className="flex items-start gap-2 min-w-0 flex-1">
+          <button
+            onClick={() => setExpandido((v) => !v)}
+            title={expandido ? 'Contraer' : 'Ver detalle'}
+            className="mt-0.5 text-navy-300 shrink-0 hover:text-navy-500"
+          >
             {expandido ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          </span>
+          </button>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-navy-700 flex items-center gap-1.5 flex-wrap">
-              {doc.nombre}
-              {tieneObs && <MessageSquare className="w-3.5 h-3.5 text-navy-400 shrink-0" title="Tiene observaciones" />}
-              {tieneComentario && <ClipboardCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" title="Tiene comentario de Control de Calidad" />}
-              {versiones.length > 0 && (
-                <span className="text-xs font-semibold bg-navy-100 text-navy-500 px-1.5 py-0.5 rounded-full shrink-0">
-                  {versiones.length} versión{versiones.length === 1 ? '' : 'es'}
-                </span>
-              )}
+            <button onClick={() => setExpandido((v) => !v)} className="text-left">
+              <p className="text-sm font-medium text-navy-700 flex items-center gap-1.5 flex-wrap">
+                {doc.nombre}
+                {tieneObs && <MessageSquare className="w-3.5 h-3.5 text-navy-400 shrink-0" title="Tiene observaciones" />}
+                {tieneComentario && <ClipboardCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" title="Tiene comentario de Control de Calidad" />}
+                {versiones.length > 0 && (
+                  <span className="text-xs font-semibold bg-navy-100 text-navy-500 px-1.5 py-0.5 rounded-full shrink-0">
+                    {versiones.length} versión{versiones.length === 1 ? '' : 'es'}
+                  </span>
+                )}
+              </p>
+            </button>
+            <p className="text-xs font-mono text-navy-400 flex items-center gap-1 flex-wrap">
+              <CodigoCopiable codigo={codigoFinal} />
+              <span>· {doc.tipo}</span>
             </p>
-            <p className="text-xs font-mono text-navy-400">{codigoFinal} · {doc.tipo}</p>
           </div>
-        </button>
+        </div>
         {puedeEditarContenido ? (
           <div className="flex items-center gap-1.5 shrink-0">
             <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />

@@ -172,6 +172,12 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **El código de cada documento se copia con un clic**: en Control Documental,
+  el código (`COLLAGT173P1-CIV-INF-001`) ahora es un botón. Al hacer clic queda
+  en el portapapeles, listo para el correo, el plano o la planilla, y confirma
+  con un chulo. No despliega la tarjeta: para eso siguen estando el nombre y
+  la flecha.
+
 - **La bandeja de notificaciones se vacía sola**: en la campanita hay ahora un
   botón **"Marcar todas como leídas"** (aparece solo si queda alguna sin leer),
   y una notificación leída se borra **un día después de haberla leído** —no de
