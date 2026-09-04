@@ -31,9 +31,9 @@ vi.mock('../supabaseClient', () => {
 
 const {
   default: ProjectDetail, PrintableReport, FieldRenderer, VersionesTracker,
-  DESCRIPCION_PRIMERA_VERSION,
+  DESCRIPCION_PRIMERA_VERSION, DocumentControlPanel,
 } = await import('./Proyecto.jsx');
-const { SCHEMA, DOC_ESTADOS } = await import('../shared/dominio.jsx');
+const { SCHEMA, DOC_ESTADOS, pickDocumentList } = await import('../shared/dominio.jsx');
 
 afterEach(cleanup);
 
@@ -176,6 +176,80 @@ describe('pestaña de Supervisión técnica', () => {
     expect(boton).toBeTruthy();
     fireEvent.click(boton);
     expect(screen.getByText('Paquetes de entrega')).toBeTruthy();
+  });
+});
+
+describe('Control Documental · filtro por especialidades', () => {
+  /* El filtro dejó de ser "una sola especialidad" para ser "las que uno
+     quiera": la gente de Civil y Mecánica trabaja junta y necesita ver sus
+     dos listas a la vez, no saltar entre ellas. */
+  const proyectoCD = proyecto();
+  const listaCD = pickDocumentList(proyectoCD.data.general.inversionista);
+  const ESPECIALIDADES = [...new Set(listaCD.map((d) => d.especialidad))];
+  const docsDe = (esp) => listaCD.filter((d) => d.especialidad === esp);
+
+  function pintar() {
+    return render(
+      <DocumentControlPanel
+        project={proyectoCD}
+        puedeEditarContenido
+        puedeComentar={false}
+        onDocChange={() => {}}
+      />,
+    );
+  }
+
+  const ficha = (nombre) => screen.getAllByRole('button').find((b) => b.textContent.trim().startsWith(nombre + ' ('));
+  /* Cada especialidad visible aparece dos veces: el encabezado de su lista y
+     su barra en el resumen. Si no está seleccionada, no aparece ninguna. */
+  const veces = (esp) => screen.queryAllByText(esp).length;
+  const totalDelSemaforo = () => {
+    const boton = screen.getAllByRole('button').find((b) => /^Todos \(\d+\)$/.test(b.textContent.trim()));
+    return Number(boton.textContent.match(/\((\d+)\)/)[1]);
+  };
+
+  it('de entrada se ven todas las especialidades', () => {
+    pintar();
+    ESPECIALIDADES.forEach((esp) => expect(veces(esp), esp).toBeGreaterThan(0));
+    expect(totalDelSemaforo()).toBe(listaCD.length);
+  });
+
+  it('al encender una, solo queda esa —en la lista y en el resumen—', () => {
+    pintar();
+    const elegida = ESPECIALIDADES[0];
+    fireEvent.click(ficha(elegida));
+    expect(veces(elegida)).toBeGreaterThan(0);
+    ESPECIALIDADES.slice(1).forEach((esp) => expect(veces(esp), esp).toBe(0));
+    expect(totalDelSemaforo()).toBe(docsDe(elegida).length);
+  });
+
+  it('se pueden encender varias a la vez', () => {
+    pintar();
+    const [a, b] = ESPECIALIDADES;
+    fireEvent.click(ficha(a));
+    fireEvent.click(ficha(b));
+    expect(veces(a)).toBeGreaterThan(0);
+    expect(veces(b)).toBeGreaterThan(0);
+    ESPECIALIDADES.slice(2).forEach((esp) => expect(veces(esp), esp).toBe(0));
+    expect(totalDelSemaforo()).toBe(docsDe(a).length + docsDe(b).length);
+  });
+
+  it('volver a hacer clic la apaga', () => {
+    pintar();
+    const elegida = ESPECIALIDADES[0];
+    fireEvent.click(ficha(elegida));
+    fireEvent.click(ficha(elegida));
+    ESPECIALIDADES.forEach((esp) => expect(veces(esp), esp).toBeGreaterThan(0));
+    expect(totalDelSemaforo()).toBe(listaCD.length);
+  });
+
+  it('"Todas" borra la selección de un golpe', () => {
+    pintar();
+    fireEvent.click(ficha(ESPECIALIDADES[0]));
+    fireEvent.click(ficha(ESPECIALIDADES[1]));
+    fireEvent.click(ficha('Todas'));
+    ESPECIALIDADES.forEach((esp) => expect(veces(esp), esp).toBeGreaterThan(0));
+    expect(totalDelSemaforo()).toBe(listaCD.length);
   });
 });
 

@@ -12,7 +12,10 @@ import {
 afterEach(cleanup);
 
 const MS_DIA = 24 * 60 * 60 * 1000;
-const AHORA = new Date('2026-09-02T12:00:00.000Z').getTime();
+/* La hora real, no una fija: la campanita decide qué está vencido con
+   `Date.now()`, así que una fecha de referencia clavada en el calendario
+   hace que las pruebas empiecen a fallar solas con el paso de los días. */
+const AHORA = Date.now();
 const haceHoras = (h) => new Date(AHORA - h * 60 * 60 * 1000).toISOString();
 
 function notif(extra = {}) {

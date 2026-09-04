@@ -172,6 +172,13 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Control Documental filtra por varias especialidades a la vez**: el menú de
+  especialidad pasó a ser una fila de fichas que se encienden y apagan, así que
+  se puede ver Civil y Mecánica juntas, o Eléctrica y Comunicaciones, sin
+  saltar entre listas. El resumen sigue la selección: la dona de progreso y las
+  barras por especialidad muestran solo lo elegido, y el semáforo de estados
+  cuenta sobre eso mismo. "Todas" vuelve al proyecto completo.
+
 - **El código de cada documento se copia con un clic**: en Control Documental,
   el código (`COLLAGT173P1-CIV-INF-001`) ahora es un botón. Al hacer clic queda
   en el portapapeles, listo para el correo, el plano o la planilla, y confirma
