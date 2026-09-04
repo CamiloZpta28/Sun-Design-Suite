@@ -1571,6 +1571,38 @@ export function DocumentoCard({ doc, codigoFinal, estadoDoc, estadoValor, puedeE
   );
 }
 
+/* Una fila de fichas que se encienden y apagan. La selección vacía significa
+   "todas", y la ficha de la izquierda vuelve a ese estado. Es el mismo gesto
+   del semáforo de estados, y ahora lo comparten especialidades y tipos. */
+function FiltroFichas({ etiqueta, etiquetaTodas, total, opciones, seleccion, onAlternar, onLimpiar }) {
+  const clase = (activa) => `text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+    activa ? 'bg-navy-800 text-white border-navy-800' : 'bg-white text-navy-500 border-navy-300 hover:border-navy-400'
+  }`;
+  return (
+    <div className="flex items-center gap-2 flex-wrap mb-2">
+      <label className="text-xs font-semibold text-navy-500">{etiqueta}</label>
+      <button onClick={onLimpiar} aria-pressed={seleccion.length === 0} className={clase(seleccion.length === 0)}>
+        {etiquetaTodas} ({total})
+      </button>
+      {opciones.map(({ valor, conteo }) => (
+        <button
+          key={valor}
+          onClick={() => onAlternar(valor)}
+          aria-pressed={seleccion.includes(valor)}
+          className={clase(seleccion.includes(valor))}
+        >
+          {valor} ({conteo})
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* Enciende o apaga un valor dentro de la selección. */
+function alternarEn(seleccion, valor) {
+  return seleccion.includes(valor) ? seleccion.filter((v) => v !== valor) : [...seleccion, valor];
+}
+
 export function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, onDocChange }) {
   /* Un proyecto sin la sección "general" no puede dejar la pantalla en
      blanco: se trabaja sobre un objeto vacío. */
@@ -1578,16 +1610,15 @@ export function DocumentControlPanel({ project, puedeEditarContenido, puedeComen
   const lista = pickDocumentList(general.inversionista);
   const prefijo = buildProjectCode(general);
   const estadoActual = project.documentos || {};
-  /* Especialidades elegidas. La lista vacía significa "todas": es el estado
-     de entrada y el que deja ver el proyecto completo. */
+  /* Especialidades y tipos elegidos. La lista vacía significa "todos": es el
+     estado de entrada y el que deja ver el proyecto completo. */
   const [especialidadesSel, setEspecialidadesSel] = useState([]);
-  const [filtroTipo, setFiltroTipo] = useState('todos');
+  const [tiposSel, setTiposSel] = useState([]);
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const filtrandoEsp = especialidadesSel.length > 0;
+  const filtrandoTipo = tiposSel.length > 0;
   const entraPorEspecialidad = (esp) => !filtrandoEsp || especialidadesSel.includes(esp);
-  function alternarEspecialidad(esp) {
-    setEspecialidadesSel((prev) => (prev.includes(esp) ? prev.filter((e) => e !== esp) : [...prev, esp]));
-  }
+  const entraPorTipo = (tipo) => !filtrandoTipo || tiposSel.includes(tipo);
 
   function estadoDeDoc(doc) {
     return (estadoActual[doc.codigo] && estadoActual[doc.codigo].estado) || 'Pendiente';
@@ -1608,7 +1639,7 @@ export function DocumentControlPanel({ project, puedeEditarContenido, puedeComen
   // estado), para que los conteos del semáforo reflejen esos dos filtros pero
   // no cambien solo por hacer clic entre estados.
   const universo = lista.filter(
-    (d) => entraPorEspecialidad(d.especialidad) && (filtroTipo === 'todos' || d.tipo === filtroTipo)
+    (d) => entraPorEspecialidad(d.especialidad) && entraPorTipo(d.tipo)
   );
   const conteoPorEstado = {};
   DOC_ESTADOS.forEach((e) => { conteoPorEstado[e] = 0; });
@@ -1619,7 +1650,7 @@ export function DocumentControlPanel({ project, puedeEditarContenido, puedeComen
     .map((g) => ({
       ...g,
       docs: g.docs.filter(
-        (doc) => (filtroTipo === 'todos' || doc.tipo === filtroTipo) && (filtroEstado === 'todos' || estadoDeDoc(doc) === filtroEstado)
+        (doc) => entraPorTipo(doc.tipo) && (filtroEstado === 'todos' || estadoDeDoc(doc) === filtroEstado)
       ),
     }))
     .filter((g) => g.docs.length > 0);
@@ -1641,7 +1672,7 @@ export function DocumentControlPanel({ project, puedeEditarContenido, puedeComen
             <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-3">
               Progreso
               {filtrandoEsp ? ` · ${especialidadesSel.join(', ')}` : ''}
-              {filtroTipo !== 'todos' ? ` · ${filtroTipo}` : ''}
+              {filtrandoTipo ? ` · ${tiposSel.join(', ')}` : ''}
             </p>
             <div className="flex-1 flex items-center">
               <ProgresoDonut conteoPorEstado={conteoPorEstado} total={universo.length} />
@@ -1652,7 +1683,7 @@ export function DocumentControlPanel({ project, puedeEditarContenido, puedeComen
             <p className="text-xs text-navy-400 mb-3">No incluye documentos en "No aplica" — esos no se cuentan en el seguimiento.</p>
             <div className="space-y-3">
               {grupos.filter((g) => entraPorEspecialidad(g.especialidad)).map((g) => {
-                const docsSeguidos = g.docs.filter((d) => estadoDeDoc(d) !== 'No aplica' && (filtroTipo === 'todos' || d.tipo === filtroTipo));
+                const docsSeguidos = g.docs.filter((d) => estadoDeDoc(d) !== 'No aplica' && entraPorTipo(d.tipo));
                 const conteo = {};
                 DOC_ESTADOS.forEach((e) => { conteo[e] = 0; });
                 docsSeguidos.forEach((d) => { conteo[estadoDeDoc(d)] += 1; });
@@ -1663,50 +1694,28 @@ export function DocumentControlPanel({ project, puedeEditarContenido, puedeComen
         </div>
       </div>
 
-      {/* Especialidades: fichas que se encienden y apagan, para poder ver
-          dos o tres a la vez (Civil y Mecánica, por ejemplo). Mismo gesto
-          que el semáforo de estados de más abajo. */}
-      <div className="flex items-center gap-2 flex-wrap mb-2">
-        <label className="text-xs font-semibold text-navy-500">Especialidades:</label>
-        <button
-          onClick={() => setEspecialidadesSel([])}
-          className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
-            !filtrandoEsp ? 'bg-navy-800 text-white border-navy-800' : 'bg-white text-navy-500 border-navy-300 hover:border-navy-400'
-          }`}
-        >
-          Todas ({lista.length})
-        </button>
-        {grupos.map((g) => {
-          const activa = especialidadesSel.includes(g.especialidad);
-          return (
-            <button
-              key={g.especialidad}
-              onClick={() => alternarEspecialidad(g.especialidad)}
-              aria-pressed={activa}
-              className={`text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
-                activa ? 'bg-navy-800 text-white border-navy-800' : 'bg-white text-navy-500 border-navy-300 hover:border-navy-400'
-              }`}
-            >
-              {g.especialidad} ({g.docs.length})
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="flex items-center gap-4 flex-wrap mb-3">
-        <div className="flex items-center gap-2">
-          <label className="text-xs font-semibold text-navy-500">Filtrar por tipo:</label>
-          <select
-            value={filtroTipo}
-            onChange={(e) => setFiltroTipo(e.target.value)}
-            className="text-sm rounded-lg border border-navy-300 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-lime-400"
-          >
-            <option value="todos">Todos ({lista.length})</option>
-            {tiposDisponibles.map((tipo) => (
-              <option key={tipo} value={tipo}>{tipo} ({lista.filter((d) => d.tipo === tipo).length})</option>
-            ))}
-          </select>
-        </div>
+      {/* Se puede ver más de una especialidad y más de un tipo a la vez
+          —Civil y Mecánica, o solo los planos y los informes—. Los dos
+          filtros se cruzan, y todo lo de arriba se recalcula con ellos. */}
+      <div className="mb-3">
+        <FiltroFichas
+          etiqueta="Especialidades:"
+          etiquetaTodas="Todas"
+          total={lista.length}
+          opciones={grupos.map((g) => ({ valor: g.especialidad, conteo: g.docs.length }))}
+          seleccion={especialidadesSel}
+          onAlternar={(esp) => setEspecialidadesSel((prev) => alternarEn(prev, esp))}
+          onLimpiar={() => setEspecialidadesSel([])}
+        />
+        <FiltroFichas
+          etiqueta="Tipos:"
+          etiquetaTodas="Todos"
+          total={lista.length}
+          opciones={tiposDisponibles.map((tipo) => ({ valor: tipo, conteo: lista.filter((d) => d.tipo === tipo).length }))}
+          seleccion={tiposSel}
+          onAlternar={(tipo) => setTiposSel((prev) => alternarEn(prev, tipo))}
+          onLimpiar={() => setTiposSel([])}
+        />
       </div>
 
       {/* Semáforo de progreso: resume y a la vez filtra por estado */}

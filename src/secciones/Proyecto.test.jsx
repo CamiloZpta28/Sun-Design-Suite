@@ -179,7 +179,7 @@ describe('pestaña de Supervisión técnica', () => {
   });
 });
 
-describe('Control Documental · filtro por especialidades', () => {
+describe('Control Documental · filtros por especialidad y tipo', () => {
   /* El filtro dejó de ser "una sola especialidad" para ser "las que uno
      quiera": la gente de Civil y Mecánica trabaja junta y necesita ver sus
      dos listas a la vez, no saltar entre ellas. */
@@ -199,12 +199,17 @@ describe('Control Documental · filtro por especialidades', () => {
     );
   }
 
-  const ficha = (nombre) => screen.getAllByRole('button').find((b) => b.textContent.trim().startsWith(nombre + ' ('));
+  /* Las fichas de filtro son las únicas que llevan aria-pressed; eso las
+     separa del semáforo de estados, que tiene su propio "Todos (n)". */
+  const ficha = (nombre) => screen.getAllByRole('button')
+    .filter((b) => b.hasAttribute('aria-pressed'))
+    .find((b) => b.textContent.trim().startsWith(nombre + ' ('));
   /* Cada especialidad visible aparece dos veces: el encabezado de su lista y
      su barra en el resumen. Si no está seleccionada, no aparece ninguna. */
   const veces = (esp) => screen.queryAllByText(esp).length;
   const totalDelSemaforo = () => {
-    const boton = screen.getAllByRole('button').find((b) => /^Todos \(\d+\)$/.test(b.textContent.trim()));
+    const boton = screen.getAllByRole('button')
+      .find((b) => !b.hasAttribute('aria-pressed') && /^Todos \(\d+\)$/.test(b.textContent.trim()));
     return Number(boton.textContent.match(/\((\d+)\)/)[1]);
   };
 
@@ -250,6 +255,60 @@ describe('Control Documental · filtro por especialidades', () => {
     fireEvent.click(ficha('Todas'));
     ESPECIALIDADES.forEach((esp) => expect(veces(esp), esp).toBeGreaterThan(0));
     expect(totalDelSemaforo()).toBe(listaCD.length);
+  });
+
+  /* Los tipos (Plano, Informe, Memoria…) funcionan igual: se encienden varios
+     y el resumen cuenta sobre ellos. */
+  const TIPOS = [...new Set(listaCD.map((d) => d.tipo))].sort((a, b) => a.localeCompare(b, 'es'));
+  const docsDeTipo = (tipo) => listaCD.filter((d) => d.tipo === tipo);
+
+  it('se pueden encender varios tipos a la vez', () => {
+    pintar();
+    const [a, b] = TIPOS;
+    fireEvent.click(ficha(a));
+    fireEvent.click(ficha(b));
+    expect(totalDelSemaforo()).toBe(docsDeTipo(a).length + docsDeTipo(b).length);
+  });
+
+  it('volver a hacer clic apaga un tipo', () => {
+    pintar();
+    fireEvent.click(ficha(TIPOS[0]));
+    fireEvent.click(ficha(TIPOS[0]));
+    expect(totalDelSemaforo()).toBe(listaCD.length);
+  });
+
+  it('"Todos" borra la selección de tipos sin tocar la de especialidades', () => {
+    pintar();
+    fireEvent.click(ficha(ESPECIALIDADES[0]));
+    fireEvent.click(ficha(TIPOS[0]));
+    fireEvent.click(ficha('Todos'));
+    expect(totalDelSemaforo()).toBe(docsDe(ESPECIALIDADES[0]).length);
+  });
+
+  /* Lo que de verdad importa: los dos filtros se cruzan, no se pisan. */
+  it('especialidad y tipo se cruzan', () => {
+    pintar();
+    const esp = ESPECIALIDADES.find((e) => new Set(listaCD.filter((d) => d.especialidad === e).map((d) => d.tipo)).size > 1);
+    const tipo = TIPOS.find((t) => docsDeTipo(t).some((d) => d.especialidad === esp));
+    fireEvent.click(ficha(esp));
+    fireEvent.click(ficha(tipo));
+    const esperado = listaCD.filter((d) => d.especialidad === esp && d.tipo === tipo).length;
+    expect(esperado).toBeGreaterThan(0);
+    expect(esperado).toBeLessThan(docsDe(esp).length);
+    expect(totalDelSemaforo()).toBe(esperado);
+  });
+
+  /* La barra de esa especialidad en el resumen también se recorta al tipo:
+     antes contaba todos sus documentos aunque hubiera un tipo elegido. */
+  it('las barras del resumen cuentan solo el tipo elegido', () => {
+    pintar();
+    const tipo = TIPOS[0];
+    const esp = ESPECIALIDADES.find((e) => listaCD.some((d) => d.especialidad === e && d.tipo === tipo)
+      && listaCD.some((d) => d.especialidad === e && d.tipo !== tipo));
+    fireEvent.click(ficha(esp));
+    fireEvent.click(ficha(tipo));
+    const cuantos = listaCD.filter((d) => d.especialidad === esp && d.tipo === tipo).length;
+    expect(screen.getByText(`${cuantos} docs`)).toBeTruthy();
   });
 });
 
