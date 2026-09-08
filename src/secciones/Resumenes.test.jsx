@@ -13,7 +13,7 @@
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
-import ResumenesView from './Resumenes.jsx';
+import ResumenesView, { esSoloDesarrollador } from './Resumenes.jsx';
 import { lunesDe, sumarDias } from '../shared/resumenes.js';
 
 afterEach(cleanup);
@@ -69,6 +69,15 @@ function resumenPrevio(estados) {
   };
 }
 
+/* Un renglon se escribe y se "quema" con la palomita: deja de ser caja de
+   texto y pasa a ser texto. */
+function escribirEnLoMejor(texto) {
+  fireEvent.click(screen.getAllByText('Agregar renglón')[0]);
+  const [caja] = screen.getAllByPlaceholderText(/Lo que sacaste esta semana/);
+  fireEvent.change(caja, { target: { value: texto } });
+  fireEvent.click(screen.getByTitle('Listo (o pulsa Enter)'));
+}
+
 describe('mi resumen', () => {
   it('abre en la semana actual con los cuatro bloques', () => {
     pintar();
@@ -91,8 +100,50 @@ describe('mi resumen', () => {
   it('con la foto de la semana pasada dice qué se movió y cuál fue', () => {
     pintar({ resumenes: [resumenPrevio({ 'C-PL-001': 'Pendiente', 'C-INF-001': 'Pendiente' })] });
     fireEvent.click(screen.getByText(/1 documento avanzó/));
-    expect(screen.getByText(/Cerramiento/)).toBeTruthy();
     expect(screen.getByText(/Pendiente → Entregado/)).toBeTruthy();
+    /* "Cerramiento" sale dos veces al desplegar: en la lista de lo que se
+       movió y en la de todos mis documentos. */
+    expect(screen.getAllByText(/Cerramiento/).length).toBe(2);
+  });
+
+  /* La pregunta que quedaba sin responder: cuáles son exactamente los
+     documentos que el porcentaje está contando. */
+  it('al desplegar se ven mis documentos agrupados por estado, con mi papel', () => {
+    pintar();
+    fireEvent.click(screen.getByText(/ver mis 2 documentos/));
+    expect(screen.getByText('Entregado (1)')).toBeTruthy();
+    expect(screen.getByText('Pendiente (1)')).toBeTruthy();
+    expect(screen.getByText('Cerramiento')).toBeTruthy();
+    expect(screen.getByText('Vías de acceso')).toBeTruthy();
+    expect(screen.getByTitle('Lo revisas')).toBeTruthy();
+    expect(screen.getByTitle('Lo elaboras o lo dibujas')).toBeTruthy();
+  });
+
+  it('las franjas de la barra dicen cuántos documentos son y qué porcentaje', () => {
+    const { container } = pintar();
+    const franjas = [...container.querySelectorAll('[title]')].map((n) => n.getAttribute('title'));
+    expect(franjas).toContain('Pendiente: 1 documento (50%)');
+    expect(franjas).toContain('Entregado: 1 documento (50%)');
+  });
+
+  it('el nombre del proyecto lleva a su ficha', () => {
+    const abiertos = [];
+    pintar({ onAbrirProyecto: (id) => abiertos.push(id) });
+    fireEvent.click(screen.getByText('Chinú 3'));
+    expect(abiertos).toEqual(['p1']);
+  });
+
+  /* Un proyecto ya terminado se registra la semana en que se cierra y no
+     vuelve a aparecer: después es solo ruido. */
+  it('un proyecto finalizado deja de aparecer la semana siguiente', () => {
+    const terminado = proyecto({ estado: 'finalizado' });
+    const previo = {
+      id: 'r0', usuario_id: 'u1', semana: ANTERIOR, enviado: true, bloques: {},
+      proyectos: [{ id: 'p1', nombre: 'Chinú 3', estado: 'finalizado', estados: {}, porEstado: {}, total: 2 }],
+    };
+    pintar({ projects: [terminado], resumenes: [previo] });
+    expect(screen.queryByText('Chinú 3')).toBe(null);
+    expect(screen.getByText(/No tienes documentos a cargo esta semana/)).toBeTruthy();
   });
 
   it('un documento que ya estaba igual no se reporta como avance', () => {
@@ -102,15 +153,13 @@ describe('mi resumen', () => {
 });
 
 describe('guardar', () => {
-  it('manda lo escrito y la foto del avance', async () => {
+  it('manda lo escrito y la foto del avance', () => {
     const guardados = [];
     pintar({ onGuardar: (r) => { guardados.push(r); } });
-    const [primerRenglon] = screen.getAllByPlaceholderText(/Lo que sacaste esta semana/);
-    fireEvent.change(primerRenglon, { target: { value: 'Reunión Drawing Team' } });
-    fireEvent.click(screen.getByText('Guardar borrador'));
+    escribirEnLoMejor('Reunión Drawing Team');
+    fireEvent.click(screen.getByText('Enviar'));
     expect(guardados.length).toBe(1);
     expect(guardados[0].semana).toBe(SEMANA);
-    expect(guardados[0].enviado).toBe(false);
     expect(guardados[0].bloques.lo_mejor).toEqual(['Reunión Drawing Team']);
     expect(guardados[0].proyectos[0]).toMatchObject({ id: 'p1', nombre: 'Chinú 3' });
     /* La foto lleva el estado de cada documento: es lo único con lo que la
@@ -118,11 +167,38 @@ describe('guardar', () => {
     expect(guardados[0].proyectos[0].estados).toEqual({ 'C-PL-001': 'Entregado', 'C-INF-001': 'Pendiente' });
   });
 
-  it('marcar como enviado guarda con la bandera puesta', () => {
+  it('enviar guarda con la bandera puesta', () => {
     const guardados = [];
     pintar({ onGuardar: (r) => { guardados.push(r); } });
-    fireEvent.click(screen.getByText('Marcar como enviado'));
+    fireEvent.click(screen.getByText('Enviar'));
     expect(guardados[0].enviado).toBe(true);
+  });
+
+  /* No hay boton de "guardar borrador": si estas editando, es un borrador. Lo
+     escrito baja solo poco despues de dejar de teclear. */
+  it('lo escrito se guarda solo, sin apretar nada', async () => {
+    vi.useFakeTimers();
+    const guardados = [];
+    pintar({ onGuardar: (r) => { guardados.push(r); } });
+    expect(screen.queryByText('Guardar borrador')).toBe(null);
+    escribirEnLoMejor('Mesa técnica');
+    expect(guardados.length).toBe(0);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(guardados.length).toBe(1);
+    expect(guardados[0].enviado).toBe(false);
+    expect(guardados[0].bloques.lo_mejor).toEqual(['Mesa técnica']);
+    vi.useRealTimers();
+  });
+
+  /* Entrar a mirar la pantalla no puede crear un resumen vacio a nombre de
+     nadie: en la vista del equipo apareceria como si hubiera empezado. */
+  it('abrir la pantalla sin escribir nada no guarda', async () => {
+    vi.useFakeTimers();
+    const guardados = [];
+    pintar({ onGuardar: (r) => { guardados.push(r); } });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(guardados.length).toBe(0);
+    vi.useRealTimers();
   });
 });
 
@@ -140,7 +216,7 @@ describe('un resumen ya enviado', () => {
   it('se ve en lectura, sin renglones para escribir', () => {
     pintar({ resumenes: [enviado] });
     expect(screen.getByText('- Algo que hice')).toBeTruthy();
-    expect(screen.queryByText('Guardar borrador')).toBe(null);
+    expect(screen.queryByText('Enviar')).toBe(null);
     expect(screen.queryAllByPlaceholderText(/Lo que sacaste esta semana/).length).toBe(0);
   });
 
@@ -167,8 +243,7 @@ describe('copiar para el chat', () => {
     Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
 
     pintar();
-    const [primerRenglon] = screen.getAllByPlaceholderText(/Lo que sacaste esta semana/);
-    fireEvent.change(primerRenglon, { target: { value: 'Mesa técnica' } });
+    escribirEnLoMejor('Mesa técnica');
     await fireEvent.click(screen.getByText('Copiar para el chat'));
     await Promise.resolve();
 
@@ -194,11 +269,15 @@ describe('la vista del equipo', () => {
     expect(screen.getAllByText('Sin registrar').length).toBe(2);
   });
 
-  it('distingue el borrador del enviado', () => {
+  /* Mientras no este enviado, no esta dicho: el borrador ajeno ni se marca ni
+     se puede abrir. */
+  it('un borrador ajeno cuenta como sin registrar y no se despliega', () => {
     pintar({ resumenes: [{ ...soloBeto, enviado: false }] });
     fireEvent.click(screen.getByText('El equipo'));
-    expect(screen.getByText('Borrador')).toBeTruthy();
+    expect(screen.getAllByText('Sin registrar').length).toBe(3);
     expect(screen.getByText('0 de 3 ya enviaron su resumen de esta semana.')).toBeTruthy();
+    fireEvent.click(screen.getByText('Beto'));
+    expect(screen.queryByText('- Planos de Chinú 4')).toBe(null);
   });
 
   it('el resumen ajeno se despliega y se lee, pero no se edita', () => {
@@ -206,7 +285,6 @@ describe('la vista del equipo', () => {
     fireEvent.click(screen.getByText('El equipo'));
     fireEvent.click(screen.getByText('Beto'));
     expect(screen.getByText('- Planos de Chinú 4')).toBeTruthy();
-    expect(screen.queryByText('Guardar borrador')).toBe(null);
   });
 
   it('el filtro por rol deja solo a los de esa área', () => {
@@ -222,10 +300,78 @@ describe('la vista del equipo', () => {
 describe('cambiar de semana', () => {
   it('no arrastra lo que se estaba escribiendo en la otra', () => {
     pintar();
-    const [renglon] = screen.getAllByPlaceholderText(/Lo que sacaste esta semana/);
-    fireEvent.change(renglon, { target: { value: 'De esta semana' } });
+    escribirEnLoMejor('De esta semana');
+    expect(screen.getByText('De esta semana')).toBeTruthy();
     fireEvent.change(screen.getByRole('combobox'), { target: { value: ANTERIOR } });
-    const [otro] = screen.getAllByPlaceholderText(/Lo que sacaste esta semana/);
-    expect(otro.value).toBe('');
+    expect(screen.queryByText('De esta semana')).toBe(null);
+  });
+});
+
+describe('los desarrolladores no entran al seguimiento', () => {
+  it('quien SOLO es Desarrollador no aparece en la lista', () => {
+    pintar({ directorio: [...directorio, { id: 'u9', nombre: 'Dev', roles: ['desarrollador'] }] });
+    fireEvent.click(screen.getByText('El equipo'));
+    expect(screen.queryByText('Dev')).toBe(null);
+    expect(screen.getByText('0 de 3 ya enviaron su resumen de esta semana.')).toBeTruthy();
+  });
+
+  /* Pero quien ademas tiene un rol tecnico si trabaja, y si reporta. */
+  it('quien es Desarrollador y ademas ingeniero sigue apareciendo', () => {
+    pintar({ directorio: [...directorio, { id: 'u9', nombre: 'Dev', roles: ['desarrollador', 'civil'] }] });
+    fireEvent.click(screen.getByText('El equipo'));
+    expect(screen.getByText('Dev')).toBeTruthy();
+  });
+
+  it('esSoloDesarrollador distingue los dos casos', () => {
+    expect(esSoloDesarrollador({ roles: ['desarrollador'] })).toBe(true);
+    expect(esSoloDesarrollador({ roles: ['desarrollador', 'civil'] })).toBe(false);
+    expect(esSoloDesarrollador({ roles: [] })).toBe(false);
+    expect(esSoloDesarrollador({})).toBe(false);
+  });
+});
+
+describe('los renglones se queman al escribirlos', () => {
+  /* Con la caja de texto siempre abierta bastaba un teclazo despistado para
+     danar algo ya escrito. */
+  it('al confirmar deja de ser caja de texto y pasa a ser texto', () => {
+    pintar();
+    fireEvent.click(screen.getAllByText('Agregar renglón')[0]);
+    expect(screen.getAllByPlaceholderText(/Lo que sacaste esta semana/).length).toBe(1);
+    fireEvent.change(screen.getByPlaceholderText(/Lo que sacaste esta semana/), { target: { value: 'Mesa técnica' } });
+    fireEvent.click(screen.getByTitle('Listo (o pulsa Enter)'));
+    expect(screen.queryAllByPlaceholderText(/Lo que sacaste esta semana/).length).toBe(0);
+    expect(screen.getByText('Mesa técnica')).toBeTruthy();
+  });
+
+  it('Enter tambien lo quema', () => {
+    pintar();
+    fireEvent.click(screen.getAllByText('Agregar renglón')[0]);
+    const caja = screen.getByPlaceholderText(/Lo que sacaste esta semana/);
+    fireEvent.change(caja, { target: { value: 'Con Enter' } });
+    fireEvent.keyDown(caja, { key: 'Enter' });
+    expect(screen.queryAllByPlaceholderText(/Lo que sacaste esta semana/).length).toBe(0);
+    expect(screen.getByText('Con Enter')).toBeTruthy();
+  });
+
+  it('el lapiz lo vuelve a abrir', () => {
+    pintar();
+    escribirEnLoMejor('Para corregir');
+    fireEvent.click(screen.getAllByTitle('Editar este renglón')[0]);
+    expect(screen.getByPlaceholderText(/Lo que sacaste esta semana/).value).toBe('Para corregir');
+  });
+
+  it('un renglon que queda vacio se descarta en vez de guardarse en blanco', () => {
+    pintar();
+    fireEvent.click(screen.getAllByText('Agregar renglón')[0]);
+    fireEvent.click(screen.getByTitle('Listo (o pulsa Enter)'));
+    expect(screen.queryAllByPlaceholderText(/Lo que sacaste esta semana/).length).toBe(0);
+    expect(screen.getAllByText(/Si lo dejas vacío se escribe/).length).toBeGreaterThan(0);
+  });
+
+  it('la X lo quita', () => {
+    pintar();
+    escribirEnLoMejor('Me equivoqué');
+    fireEvent.click(screen.getAllByTitle('Quitar este renglón')[0]);
+    expect(screen.queryByText('Me equivoqué')).toBe(null);
   });
 });

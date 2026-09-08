@@ -98,12 +98,17 @@ export function fotoDeProyecto(project, dossiers, nombre) {
   return {
     id: project.id,
     nombre: project.nombre,
+    /* Para poder dejar de repetir un proyecto ya terminado semana tras
+       semana (ver sinFinalizadosRepetidos). */
+    estado: project.estado || 'activo',
     total: mios.length,
     porEstado,
     estados,
-    /* El nombre de cada documento va en la foto para que un resumen viejo se
-       siga leyendo aunque su dossier haya cambiado de versión. */
+    /* El nombre de cada documento y el papel con que me toca van en la foto
+       para que un resumen viejo se siga leyendo entero aunque su dossier haya
+       cambiado de versión. */
     nombres: Object.fromEntries(mios.map(({ doc }) => [doc.codigo, doc.nombre])),
+    papeles: Object.fromEntries(mios.map(({ doc, papeles }) => [doc.codigo, papeles])),
   };
 }
 
@@ -112,6 +117,22 @@ export function fotoDeLaSemana(projects, dossiers, nombre) {
   return (projects || [])
     .map((p) => fotoDeProyecto(p, dossiers, nombre))
     .filter(Boolean);
+}
+
+/* Un proyecto terminado no tiene por qué salir cada semana con el mismo 100%:
+   la semana en que se termina sí es noticia, las siguientes son ruido. Se
+   queda solo el que TODAVÍA no estaba finalizado en la foto anterior.
+
+   Cuando no hay foto anterior —el primer resumen de alguien— se deja pasar:
+   más vale que aparezca una vez de más a que un proyecto que se acaba de
+   cerrar no se registre nunca. */
+export function sinFinalizadosRepetidos(fotos, anteriores) {
+  const previas = new Map((anteriores || []).map((f) => [f.id, f]));
+  return (fotos || []).filter((foto) => {
+    if (foto.estado !== 'finalizado') return true;
+    const previa = previas.get(foto.id);
+    return !previa || previa.estado !== 'finalizado';
+  });
 }
 
 /* Documentos que se movieron entre dos fotos del mismo proyecto. Solo cuenta
@@ -150,7 +171,7 @@ export function cuentaDeFoto(foto) {
    pasada (o nada, si es el primero). */
 export function fotoConComparacion(fotos, anteriores) {
   const previas = new Map((anteriores || []).map((f) => [f.id, f]));
-  return (fotos || []).map((foto) => {
+  return sinFinalizadosRepetidos(fotos, anteriores).map((foto) => {
     const previa = previas.get(foto.id);
     const cambios = previa ? cambiosEntreFotos(previa, foto) : [];
     return {

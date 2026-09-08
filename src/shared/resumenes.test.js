@@ -14,7 +14,7 @@ import { describe, it, expect } from 'vitest';
 import {
   BLOQUES_RESUMEN, cambiosEntreFotos, cuentaDeFoto, etiquetaDeSemana, fotoConComparacion,
   fotoDeLaSemana, fotoDeProyecto, lunesDe, misDocumentosDelProyecto, nivelDeEstado,
-  rolesEnProyecto, sumarDias, textoDelResumen, ultimasSemanas, viernesDe,
+  rolesEnProyecto, sinFinalizadosRepetidos, sumarDias, textoDelResumen, ultimasSemanas, viernesDe,
 } from './resumenes.js';
 
 const dossier = {
@@ -287,5 +287,47 @@ describe('el texto que se pega en el chat', () => {
     const posiciones = BLOQUES_RESUMEN.map((b) => texto.indexOf(b.label));
     expect(posiciones.every((p) => p > -1)).toBe(true);
     expect([...posiciones].sort((a, b) => a - b)).toEqual(posiciones);
+  });
+});
+
+describe('un proyecto terminado aparece una vez y deja de estorbar', () => {
+  const activo = { id: 'p1', estado: 'activo', estados: {} };
+  const recienCerrado = { id: 'p2', estado: 'finalizado', estados: {} };
+
+  it('la semana en que se cierra sí sale', () => {
+    const previas = [{ id: 'p2', estado: 'activo', estados: {} }];
+    expect(sinFinalizadosRepetidos([activo, recienCerrado], previas).map((f) => f.id)).toEqual(['p1', 'p2']);
+  });
+
+  it('las semanas siguientes ya no', () => {
+    const previas = [{ id: 'p2', estado: 'finalizado', estados: {} }];
+    expect(sinFinalizadosRepetidos([activo, recienCerrado], previas).map((f) => f.id)).toEqual(['p1']);
+  });
+
+  /* Más vale que salga una vez de más a que un proyecto recién cerrado no
+     quede registrado nunca. */
+  it('sin foto anterior se deja pasar', () => {
+    expect(sinFinalizadosRepetidos([activo, recienCerrado], null).map((f) => f.id)).toEqual(['p1', 'p2']);
+  });
+
+  it('fotoConComparacion también lo filtra', () => {
+    const previas = [{ id: 'p2', estado: 'finalizado', estados: {} }];
+    expect(fotoConComparacion([activo, recienCerrado], previas).map((f) => f.id)).toEqual(['p1']);
+  });
+});
+
+describe('la foto guarda con qué me toca cada documento', () => {
+  it('trae el papel de cada uno y el estado del proyecto', () => {
+    const p = {
+      id: 'p1', nombre: 'Chinú 3', estado: 'finalizado', dossier_id: 'dos-1',
+      equipo: { civil: ['Ana'], delineante: ['Ana'] }, documentos: {}, data: { general: {} },
+    };
+    const foto = fotoDeProyecto(p, [dossier], 'Ana');
+    expect(foto.estado).toBe('finalizado');
+    expect(foto.papeles['C-PL-001'].sort()).toEqual(['E', 'R']);
+  });
+
+  it('un proyecto sin estado se toma como activo', () => {
+    expect(fotoDeProyecto(proyecto(), [dossier], 'Ana').estado).toBe('activo');
   });
 });

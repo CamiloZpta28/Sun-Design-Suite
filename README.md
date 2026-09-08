@@ -172,6 +172,42 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Ajustes tras la primera revisión en pantalla** de los resúmenes y de
+  Estructural:
+  - **La resistencia del concreto ya no deja media pantalla en blanco.** Estaba
+    en su propia celda, al lado de la de la plantilla; como esa celda es alta
+    —lleva el dibujo y el resumen— y la del f'c es un renglón, sobraba mucho
+    espacio. Ahora se pinta DENTRO de la celda de su cimentación. Siguen siendo
+    dos campos de `SCHEMA` con sus dos claves en `projects.data`: lo único que
+    cambia es dónde caen en la rejilla (ver `emparejadoCon` en
+    `SectionFieldsGrid`).
+  - **Un proyecto finalizado aparece una sola vez** en el resumen —la semana en
+    que se cierra— y deja de repetirse. Para saberlo, la foto guarda ahora el
+    estado del proyecto.
+  - **Las franjas de la barra de avance dicen cuántos documentos son y qué
+    porcentaje representan** al pasar el mouse, como en Control Documental.
+  - **Se puede ver CUÁLES documentos está contando.** Faltaba lo más
+    importante: el porcentaje era un número que había que creerse. Cada
+    proyecto se despliega y muestra los documentos propios agrupados por
+    estado, con el papel de cada uno (E si lo elaboras o dibujas, R si lo
+    revisas) y una marca en los que se movieron esta semana.
+  - **El nombre del proyecto lleva a su ficha.** Son dos botones hermanos, el
+    del nombre y el de desplegar — nunca uno dentro de otro, que es el error
+    que ya se había cometido con el código copiable.
+  - **Los renglones se "queman".** Antes la caja de texto se quedaba abierta y
+    bastaba un teclazo despistado para dañar algo ya escrito. Ahora, al
+    confirmar con la palomita (o con Enter), el renglón pasa a ser texto, con
+    un lápiz para volver a entrar. Un renglón que queda vacío se descarta.
+  - **Se eliminó el "guardar borrador".** Si estás editando, es un borrador:
+    decirlo con un botón sobraba. Lo escrito se guarda solo poco después de
+    dejar de teclear —sin crear nada si solo entraste a mirar— y el único botón
+    que queda es **Enviar**, que es el que congela la foto. En la vista del
+    equipo ya no hay estado "Borrador": es **Enviado** o **Sin registrar**, y
+    un borrador ajeno no se muestra, porque mientras no esté enviado no está
+    dicho.
+  - **Quien solo es Desarrollador no aparece** en la lista del equipo: no
+    entrega diseño. Quien además tiene un rol técnico sí sigue apareciendo.
+
 - **Resúmenes semanales** (`/resumenes`), primera entrega. Cada quien registra
   lo que hizo en la semana: los cuatro bloques de siempre —**Lo mejor**,
   **Pendientes**, **Dificultades** y **Temas**— y un bloque de avance que la

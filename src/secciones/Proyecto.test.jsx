@@ -474,6 +474,18 @@ describe('resistencia del concreto por proyecto', () => {
     expect(celda).toBeTruthy();
     expect(celda.textContent).toContain('28 MPa');
   });
+
+  /* Va DENTRO de la celda de su plantilla, no en una celda propia al lado: esa
+     celda es alta —lleva el dibujo y el resumen— y la del f'c es un renglón,
+     así que separadas dejaban media pantalla en blanco. */
+  it('la resistencia se pinta dentro de la celda de su cimentación', () => {
+    const { container } = render(<ProjectDetail project={proyecto()} perfil={perfilLider} {...props} />);
+    fireEvent.click(screen.getAllByRole('button')
+      .find((b) => b.textContent.trim().replace(/\s+/g, ' ').startsWith('Estructural')));
+    const plantilla = container.querySelector('[data-field-key="plantilla_shelter_ct"]');
+    expect(plantilla).toBeTruthy();
+    expect(plantilla.querySelector('[data-field-key="resistencia_shelter_ct"]')).toBeTruthy();
+  });
 });
 
 describe('los documentos salen del dossier del proyecto', () => {

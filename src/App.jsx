@@ -3094,6 +3094,7 @@ export default function App() {
             dossiers={dossiers}
             resumenes={resumenes}
             onGuardar={handleGuardarResumen}
+            onAbrirProyecto={openProject}
           />
         )}
         {view === 'dossiers' && (

@@ -124,15 +124,24 @@ export function repositoryField({ fieldKey, group, defaultValue }, label) {
    concreto con la que se funde AQUÍ. La resistencia no vive en la plantilla
    porque la misma geometría —un CT Tipo 1— se construye en 21 MPa en un
    proyecto y en 28 en otro: lo que se repite entre proyectos son las
-   dimensiones y el despiece, no el concreto. Van como dos campos seguidos
-   para que en la rejilla de dos columnas de Estructural queden uno al lado
-   del otro. */
+   dimensiones y el despiece, no el concreto.
+
+   Son dos campos de SCHEMA —dos claves distintas en projects.data— pero se
+   pintan en la MISMA celda de la rejilla (ver `emparejadoCon` en
+   SectionFieldsGrid): la celda de la plantilla es alta, porque lleva el dibujo
+   y el resumen, y la del f'c es un renglón, así que puestas una al lado de la
+   otra dejaban media pantalla en blanco. */
 export function camposCimentacion(tipoCimentacion, label) {
   return [
     { key: `plantilla_${tipoCimentacion}`, label, type: 'cimentacion_plantilla', tipoCimentacion },
     {
       key: `resistencia_${tipoCimentacion}`,
       label: `${label} — resistencia del concreto`,
+      /* Dentro de la celda de su plantilla el nombre del tipo ya está arriba;
+         repetirlo solo alarga la etiqueta. El label largo se conserva para
+         donde el campo aparece suelto (la hoja de vida imprimible). */
+      labelCorto: 'Resistencia del concreto',
+      emparejadoCon: `plantilla_${tipoCimentacion}`,
       type: 'select',
       opciones: RESISTENCIA_OPCIONES,
       /* Sin valor por defecto a propósito: un f'c inventado se propaga a las

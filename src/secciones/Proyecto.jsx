@@ -1039,9 +1039,17 @@ export function SectionFieldsGrid({
     // se ven mejor a 2 columnas fijas (aprovechan el ancho disponible) en vez
     // de escalar a 3 en pantallas grandes, que las dejaba muy angostas.
     const dosColumnas = section.id === 'estructural' || section.id === 'electrico';
+    /* Un campo "emparejado" no ocupa celda propia: se pinta dentro de la de su
+       pareja (hoy, la resistencia del concreto dentro de su cimentación). Son
+       campos de SCHEMA como cualquier otro —se guardan y se muestran igual—;
+       lo único que cambia es dónde caen en la rejilla. */
+    const emparejados = new Map();
+    fields.forEach((f) => {
+      if (f.emparejadoCon) emparejados.set(f.emparejadoCon, f);
+    });
     return (
       <div className={`grid grid-cols-1 md:grid-cols-2 ${dosColumnas ? '' : 'lg:grid-cols-3'} gap-x-8 divide-y divide-navy-100 md:divide-y-0`}>
-        {fields.map((original) => {
+        {fields.filter((f) => !f.emparejadoCon).map((original) => {
           const field = contextual
             ? { ...original, label: displayLabelFor(original.key, original.label) }
             : original;
@@ -1075,6 +1083,20 @@ export function SectionFieldsGrid({
               ingenierosProyectos={ingenierosProyectos}
               onUpdateCatalogoAtributo={onUpdateCatalogoAtributo}
             />
+            {emparejados.has(field.key) && (() => {
+              const pareja = emparejados.get(field.key);
+              return (
+                <div data-field-key={pareja.key} className="mt-1">
+                  <FieldRenderer
+                    field={{ ...pareja, label: pareja.labelCorto || pareja.label }}
+                    value={data ? data[pareja.key] : undefined}
+                    editMode={editMode}
+                    onChange={(val) => onFieldChange(section.id, pareja.key, val)}
+                    siblingData={data}
+                  />
+                </div>
+              );
+            })()}
           </div>
           );
         })}
