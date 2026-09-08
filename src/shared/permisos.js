@@ -20,14 +20,16 @@ import {
 /* Civil). Los roles ya no se auto-asignan al crear la cuenta: solo un       */
 /* líder puede otorgarlos (ver TeamRolesView), para que nadie pueda          */
 /* entrar a proyectos que no le corresponden con solo elegir un rol.         */
+/* "corto" es la abreviatura de 3 letras que se usa donde no cabe el nombre  */
+/* completo: en los dossiers, cada documento muestra los 7 roles en fila.    */
 export const ROLES = [
-  { key: 'civil', label: 'Ing. Civil', icon: HardHat },
-  { key: 'hidraulico', label: 'Ing. Hidráulico', icon: Droplets },
-  { key: 'estructural', label: 'Ing. Estructural', icon: Building2 },
-  { key: 'electrico', label: 'Ing. Eléctrico', icon: Zap },
-  { key: 'geotecnico', label: 'Ing. Geotécnico', icon: Mountain },
-  { key: 'delineante', label: 'Delineante', icon: PenTool },
-  { key: 'tramites_bt', label: 'Trámites y BT', icon: FileText },
+  { key: 'civil', label: 'Ing. Civil', corto: 'CIV', icon: HardHat },
+  { key: 'hidraulico', label: 'Ing. Hidráulico', corto: 'HID', icon: Droplets },
+  { key: 'estructural', label: 'Ing. Estructural', corto: 'EST', icon: Building2 },
+  { key: 'electrico', label: 'Ing. Eléctrico', corto: 'ELE', icon: Zap },
+  { key: 'geotecnico', label: 'Ing. Geotécnico', corto: 'GEO', icon: Mountain },
+  { key: 'delineante', label: 'Delineante', corto: 'DEL', icon: PenTool },
+  { key: 'tramites_bt', label: 'Trámites y BT', corto: 'BT', icon: FileText },
 ];
 /* Roles "de disciplina técnica" — para estos, el Dashboard muestra el       */
 /* resumen PERSONAL (solo los proyectos donde están asignados) en vez del   */
@@ -127,6 +129,14 @@ export function isDesignLeader(perfil) {
 export function isQA(perfil) {
   return isDeveloper(perfil) || (!!perfil && !!perfil.roles && perfil.roles.includes(QA_ROLE.key));
 }
+/* Los dossiers los gestionan los líderes (y el Desarrollador): asignar el   */
+/* dossier de un inversionista, duplicar una versión, agregar o quitar        */
+/* documentos y repartir responsables. Todo el mundo los puede VER — son la   */
+/* referencia de qué documentos lleva cada proyecto.                          */
+export function puedeGestionarDossiers(perfil) {
+  return isLeader(perfil);
+}
+
 /* Los roles de líder y el de Desarrollador solo los puede otorgar o quitar */
 /* el Líder de Diseño (o un Desarrollador). Los demás roles los puede       */
 /* gestionar cualquier líder.                                                */

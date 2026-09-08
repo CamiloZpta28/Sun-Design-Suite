@@ -30,6 +30,7 @@ export const RUTAS_VISTA = {
   cruces: '/cruces',
   actualizaciones: '/actualizaciones',
   equipo: '/equipo',
+  dossiers: '/dossiers',
   instructivos: '/instructivos',
   enlaces: '/enlaces',
 };

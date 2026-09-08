@@ -27,7 +27,7 @@ import {
   ROLES, equipoComoArray, equipoNombres, equipoTexto, isAssignedToProject, isDeveloper,
   isLeader, isQA,
 } from '../shared/permisos.js';
-import { ResumenLineas, atributosLineas } from '../shared/ui.jsx';
+import { ResumenLineas, atributosLineas, FiltroFichas, alternarEn } from '../shared/ui.jsx';
 import { CodigoCopiable } from '../shared/copiar.jsx';
 import { usePresenciaProyecto, quienEdita, PresenciaBarra, AvisoPestanaOcupada } from '../shared/presencia.jsx';
 import {
@@ -37,7 +37,7 @@ import {
   SCHEMA, STATUS_CONFIG, StatusBadge, buildProjectCode, categoriaLabel, dossierPorEspecialidad,
   requiereSupervisionTecnica, emptyEnergiaMensual,
   emptyStations, formatDate, formatDateTime, inicioDeSemana, makeId, normalizeUrl,
-  pickDocumentList, projectDisplayName, tieneValorParaConteo,
+  documentosDeProyecto, projectDisplayName, tieneValorParaConteo,
 } from '../shared/dominio.jsx';
 import { CIMENTACION_TIPOS, CIMENTACION_RESUMENES } from './cimentacionesDatos.js';
 import { EQUIPO_TIPOS, EquipoIcono } from './equiposDatos.jsx';
@@ -1571,43 +1571,11 @@ export function DocumentoCard({ doc, codigoFinal, estadoDoc, estadoValor, puedeE
   );
 }
 
-/* Una fila de fichas que se encienden y apagan. La selección vacía significa
-   "todas", y la ficha de la izquierda vuelve a ese estado. Es el mismo gesto
-   del semáforo de estados, y ahora lo comparten especialidades y tipos. */
-function FiltroFichas({ etiqueta, etiquetaTodas, total, opciones, seleccion, onAlternar, onLimpiar }) {
-  const clase = (activa) => `text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
-    activa ? 'bg-navy-800 text-white border-navy-800' : 'bg-white text-navy-500 border-navy-300 hover:border-navy-400'
-  }`;
-  return (
-    <div className="flex items-center gap-2 flex-wrap mb-2">
-      <label className="text-xs font-semibold text-navy-500">{etiqueta}</label>
-      <button onClick={onLimpiar} aria-pressed={seleccion.length === 0} className={clase(seleccion.length === 0)}>
-        {etiquetaTodas} ({total})
-      </button>
-      {opciones.map(({ valor, conteo }) => (
-        <button
-          key={valor}
-          onClick={() => onAlternar(valor)}
-          aria-pressed={seleccion.includes(valor)}
-          className={clase(seleccion.includes(valor))}
-        >
-          {valor} ({conteo})
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/* Enciende o apaga un valor dentro de la selección. */
-function alternarEn(seleccion, valor) {
-  return seleccion.includes(valor) ? seleccion.filter((v) => v !== valor) : [...seleccion, valor];
-}
-
-export function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, onDocChange }) {
+export function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, onDocChange, dossiers }) {
   /* Un proyecto sin la sección "general" no puede dejar la pantalla en
      blanco: se trabaja sobre un objeto vacío. */
   const general = project.data?.general || {};
-  const lista = pickDocumentList(general.inversionista);
+  const lista = documentosDeProyecto(project, dossiers);
   const prefijo = buildProjectCode(general);
   const estadoActual = project.documentos || {};
   /* Especialidades y tipos elegidos. La lista vacía significa "todos": es el
@@ -1785,7 +1753,7 @@ export function DocumentControlPanel({ project, puedeEditarContenido, puedeComen
   );
 }
 
-export function PrintableReport({ project, plantillasCimentacion, plantillasEquipos }) {
+export function PrintableReport({ project, plantillasCimentacion, plantillasEquipos, dossiers }) {
   /* Un proyecto sin la sección "general" no puede dejar la pantalla en
      blanco: se trabaja sobre un objeto vacío. */
   const general = project.data?.general || {};
@@ -2048,7 +2016,7 @@ export function PrintableReport({ project, plantillasCimentacion, plantillasEqui
 
       <h2 className="text-sm font-bold uppercase tracking-wide text-navy-600 mb-2 border-b border-navy-300 pb-1">Control Documental</h2>
       {(() => {
-        const lista = pickDocumentList(general.inversionista);
+        const lista = documentosDeProyecto(project, dossiers);
         const prefijo = buildProjectCode(general);
         const estadoActual = project.documentos || {};
         const grupos = [];
@@ -2275,7 +2243,7 @@ export function ProjectDetail({
   proveedores, onAddProveedor, plantillasCimentacion, plantillasEquipos,
   inversionistasDetalle, operadoresRed, onAddOperadorRed, instaladores, onAddInstalador,
   ingenierosProyectos, onAddIngenieroProyectos, onUpdateCatalogoAtributo,
-  cambioPendiente, onVerCambios,
+  dossiers, cambioPendiente, onVerCambios,
 }) {
   const [activeTab, setActiveTab] = useState(SCHEMA[0].id);
   const [editMode, setEditMode] = useState(false);
@@ -2984,11 +2952,12 @@ export function ProjectDetail({
                 puedeEditarContenido={puedeEditarContenido}
                 puedeComentar={puedeComentar}
                 onDocChange={handleDocChange}
+                dossiers={dossiers}
               />
             )}
             {activeTab === 'supervision' && llevaSupervision && (
               <SupervisionTecnicaPanel
-                grupos={dossierPorEspecialidad(general)}
+                grupos={dossierPorEspecialidad(general, documentosDeProyecto(project, dossiers))}
                 supervision={project.data?.supervision}
                 estadoDocs={project.documentos}
                 puedeEditar={puedeEditarContenido}
@@ -3015,7 +2984,7 @@ export function ProjectDetail({
         </div>
       </div>
 
-      <PrintableReport project={project} plantillasCimentacion={plantillasCimentacion} plantillasEquipos={plantillasEquipos} />
+      <PrintableReport project={project} plantillasCimentacion={plantillasCimentacion} plantillasEquipos={plantillasEquipos} dossiers={dossiers} />
     </div>
   );
 }

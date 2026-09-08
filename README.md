@@ -172,6 +172,57 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Los dossiers salen del código: sección propia** (`/dossiers`). Hasta ahora
+  las tres listas de documentos —estándar, CFM y FENOGE, 254 en total— vivían
+  dentro de la aplicación y se elegían con un `if` por el nombre del
+  inversionista: agregar un documento era un cambio de código y un despliegue.
+  Ahora viven en la base y se gestionan desde la plataforma.
+  - **Un dossier es una versión, y una versión en uso no se toca.** Se llaman
+    "CFM 1", "CFM 2": si el dossier de un inversionista cambia, se **duplica**
+    y se modifica la copia, igual que una plantilla. El motivo no es
+    cosmético: lo que un proyecto guarda de cada documento —estado, historial
+    de entregas, observaciones, comentarios— se guarda con el **código** como
+    llave, así que cambiarle el código a un documento dejaría ese trabajo
+    huérfano en todos los proyectos que lo usan. No se borraría, pero nadie
+    volvería a encontrarlo, y en pantalla se vería un documento en blanco sin
+    ningún error que lo delatara. La pantalla congela la estructura en cuanto
+    hay un proyecto usándola, y la llave foránea de `projects.dossier_id`
+    impide además borrar un dossier en uso — esa garantía no depende de que la
+    interfaz se acuerde.
+  - **Los responsables sí se editan siempre**, aunque el dossier esté en uso.
+    Cada documento reparte los 7 roles con dos papeles: **E** (lo elabora o lo
+    dibuja) y **R** (lo revisa) — el plano del cerramiento lo dibuja el
+    delineante y lo revisa el ing. civil, y en el resumen semanal los dos lo
+    reportan diciendo cosas distintas. Se cambian con un clic (vacío → E → R →
+    vacío), que es lo que hace llevadero repartir 254 documentos. Si también
+    se congelaran, confirmar que el hidráulico revisa el drenaje obligaría a
+    sacar una versión nueva y quedarían dos dossiers idénticos salvo por una
+    letra.
+  - **El dossier se elige al crear el proyecto** y queda fijo. El selector
+    viene preseleccionado con el que use ese inversionista, pero manda lo que
+    quede escogido. Cambiárselo a un proyecto que ya existe **no está en esta
+    entrega**: obliga a borrar todo Control Documental (y los paquetes de
+    Supervisión técnica, que también guardan códigos) y merece su propio
+    diálogo de confirmación.
+  - **Permisos**: ver, todos. Crear, duplicar, archivar, tocar documentos y
+    repartir responsables, solo líderes y Desarrollador — escondido en la
+    interfaz y bloqueado además con RLS, porque esconder el botón no es
+    proteger el dato.
+  - **Archivar** una versión vieja la saca del selector al crear proyectos,
+    pero la deja viva para los proyectos que ya la usan. Sin eso, en un par de
+    años el selector tendría veinte versiones y ninguna se podría borrar.
+  - **Necesita migración**: `supabase/migration_dossiers.sql`. Crea las tablas,
+    siembra los tres dossiers con los 254 documentos que la aplicación traía
+    adentro —incluido un **borrador de responsables** hecho con reglas gruesas,
+    para corregir desde la sección— y le pone su dossier a cada proyecto que ya
+    existe con la misma regla de antes. El día que entra, en pantalla no cambia
+    nada. Sin correrla tampoco se rompe nada: la sección Dossiers se ve vacía y
+    cada proyecto sigue sacando sus documentos de las listas de siempre (por eso
+    `pickDocumentList` no se borró — quedó como red de seguridad).
+  - De paso, `FiltroFichas` (las fichas que se encienden y apagan de Control
+    Documental) se movió a `src/shared/ui.jsx` para poder usarlo también aquí
+    sin arrastrar la ficha de proyecto entera.
+
 - **La resistencia del concreto ahora es del proyecto, no de la plantilla**:
   la misma geometría —un CT Tipo 1— se funde en 21 MPa en un proyecto y en 28
   en otro, así que el f'c salió de las plantillas de Cimentaciones y entró a

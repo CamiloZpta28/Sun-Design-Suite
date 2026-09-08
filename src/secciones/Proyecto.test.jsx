@@ -475,3 +475,43 @@ describe('resistencia del concreto por proyecto', () => {
     expect(celda.textContent).toContain('28 MPa');
   });
 });
+
+describe('los documentos salen del dossier del proyecto', () => {
+  /* Antes la lista se elegía con un "if" por el nombre del inversionista.
+     Ahora el proyecto apunta a un dossier y de ahí sale todo; las listas de
+     siempre quedan solo como red de seguridad para el proyecto que todavía no
+     tiene dossier (o si no se corrió la migración). */
+  const dossierPropio = {
+    id: 'dos-1', nombre: 'CFM', version: 2, archivado: false,
+    documentos: [{
+      id: 'dd1', codigo: 'COLXXXXXXPX-CIV-PL-099', nombre: 'Plano inventado del dossier',
+      especialidad: 'CIVIL', tipo: 'Plano', orden: 0, responsables: {},
+    }],
+  };
+
+  const primeroDeLaListaVieja = pickDocumentList(proyecto().data.general.inversionista)[0].nombre;
+
+  function abrirControlDocumental(project, dossiers) {
+    render(<ProjectDetail project={project} perfil={perfilLider} {...props} dossiers={dossiers} />);
+    fireEvent.click(screen.getAllByRole('button')
+      .find((b) => b.textContent.trim().replace(/\s+/g, ' ').startsWith('Control Documental')));
+  }
+
+  it('con dossier, manda el dossier y no el inversionista', () => {
+    abrirControlDocumental(proyecto({ dossier_id: 'dos-1' }), [dossierPropio]);
+    expect(screen.getAllByText('Plano inventado del dossier').length).toBeGreaterThan(0);
+    /* El primer documento de la lista vieja del inversionista de este proyecto:
+       si apareciera, el dossier no estaría mandando. */
+    expect(screen.queryByText(primeroDeLaListaVieja)).toBe(null);
+  });
+
+  it('sin dossier cae a la lista de siempre en vez de quedarse en blanco', () => {
+    abrirControlDocumental(proyecto(), []);
+    expect(screen.getAllByText(primeroDeLaListaVieja).length).toBeGreaterThan(0);
+  });
+
+  it('con un dossier que ya no existe tampoco se queda en blanco', () => {
+    abrirControlDocumental(proyecto({ dossier_id: 'borrado' }), [dossierPropio]);
+    expect(screen.getAllByText(primeroDeLaListaVieja).length).toBeGreaterThan(0);
+  });
+});

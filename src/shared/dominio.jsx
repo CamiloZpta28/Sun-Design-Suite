@@ -1107,12 +1107,51 @@ export const DOC_ESTADO_CORTO = {
   'Aprobado para construcción (APC)': 'APC',
 };
 
-/* Según el inversionista del proyecto, se usa una lista de documentos u otra. */
+/* Cómo participa un rol en un documento. Son dos papeles y no uno porque el
+   mismo plano lo dibuja el delineante y lo revisa el ingeniero de la
+   especialidad: en el resumen semanal los dos lo reportan, pero no dicen lo
+   mismo. Un rol sin letra no tiene nada que ver con ese documento. */
+export const PAPELES_DOCUMENTO = [
+  { key: 'E', label: 'Elabora o dibuja' },
+  { key: 'R', label: 'Revisa' },
+];
+
+/* RED DE SEGURIDAD, no el camino normal. Los documentos de un proyecto salen
+   de su dossier (ver documentosDeProyecto). Esta función es lo que queda del
+   mecanismo anterior —tres listas fijas elegidas por el nombre del
+   inversionista— y solo se usa cuando el proyecto todavía no tiene dossier:
+   típicamente porque la migración de dossiers no se ha corrido. Sin ella,
+   Control Documental se quedaría en blanco para todo el mundo. */
 export function pickDocumentList(inversionista) {
   const v = (inversionista || '').trim().toUpperCase();
   if (v === 'CFM') return DOCS_CFM;
   if (v === 'FENOGE') return DOCS_FENOGE;
   return DOCS_ESTANDAR;
+}
+
+/* Nombre visible de un dossier: "CFM 2". El nombre y la versión se guardan
+   aparte para poder agrupar las versiones de una misma familia en la lista y
+   para que al duplicar se proponga el número siguiente. */
+export function etiquetaDossier(dossier) {
+  if (!dossier) return '';
+  return `${dossier.nombre} ${dossier.version}`;
+}
+
+/* El dossier de un proyecto, o null si todavía no tiene (proyecto anterior a
+   los dossiers, o migración sin correr). */
+export function dossierDeProyecto(project, dossiers) {
+  if (!project?.dossier_id) return null;
+  return (dossiers || []).find((d) => d.id === project.dossier_id) || null;
+}
+
+/* Los documentos que le tocan a un proyecto. Vienen de su dossier —que es
+   inmutable mientras algún proyecto lo use, por eso el proyecto puede guardar
+   solo el id y confiar en que la lista no le va a cambiar debajo—. Si no
+   tiene dossier, cae a las listas de siempre. */
+export function documentosDeProyecto(project, dossiers) {
+  const dossier = dossierDeProyecto(project, dossiers);
+  if (dossier) return dossier.documentos || [];
+  return pickDocumentList(project?.data?.general?.inversionista);
 }
 
 /* ¿Este proyecto lleva Supervisión técnica? Lo decide el inversionista, no el
@@ -1125,14 +1164,17 @@ export function requiereSupervisionTecnica(inversionista, inversionistasDetalle)
 }
 
 /* El dossier del proyecto agrupado por especialidad, con el código real ya
-   armado (el de la plantilla trae el placeholder COLXXXXXXPX). Lo usan tanto
+   armado (el del dossier trae el placeholder COLXXXXXXPX). Lo usan tanto
    Control Documental como Supervisión técnica. */
-export function dossierPorEspecialidad(general) {
+export function dossierPorEspecialidad(general, documentos) {
   const datos = general || {};
   const prefijo = buildProjectCode(datos);
   const grupos = [];
   const porEspecialidad = new Map();
-  pickDocumentList(datos.inversionista).forEach((doc) => {
+  /* Sin lista explícita se cae a la de siempre por inversionista: es el
+     proyecto sin dossier de pickDocumentList. */
+  const lista = documentos || pickDocumentList(datos.inversionista);
+  lista.forEach((doc) => {
     if (!porEspecialidad.has(doc.especialidad)) {
       porEspecialidad.set(doc.especialidad, grupos.length);
       grupos.push({ especialidad: doc.especialidad, docs: [] });

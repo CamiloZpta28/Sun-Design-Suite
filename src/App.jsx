@@ -3,7 +3,7 @@ import {
   LayoutDashboard, FolderKanban, Layers, Link2, Zap, Cog, Plus, Search, X, Trash2, ChevronLeft,
   Pencil, MapPin, Calendar, Users, ExternalLink, Check, UploadCloud, XCircle, Loader2,
   RefreshCw, LogOut, ShieldCheck, Lock, ClipboardCheck, UserCog, ChevronDown, ChevronRight,
-  Video, PartyPopper, PieChart, AlertTriangle, Menu, UserPlus, Boxes, GitBranch, Bell
+  Video, PartyPopper, PieChart, AlertTriangle, Menu, UserPlus, Boxes, GitBranch, Bell, FileText
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { rutaDe, estadoDeRuta } from './routes.js';
@@ -13,8 +13,8 @@ import { NotificationBell, notificacionesVigentes, fechaDeCorte } from './shared
 
 import {
   SCHEMA, emptyStations, emptyEnergiaMensual, COLOMBIA, DOC_ESTADOS, EquipoField, EspecialidadBarra, InversionistaPicker, PaisPicker,
-  ProgresoDonut, STATUS_CONFIG, StatusBadge, buildProjectCode, formatDate, makeId,
-  pickDocumentList, projectDisplayName
+  ProgresoDonut, STATUS_CONFIG, StatusBadge, buildProjectCode, documentosDeProyecto, etiquetaDossier, formatDate, makeId,
+  projectDisplayName
 } from './shared/dominio.jsx';
 
 import { EQUIPO_SEED } from './secciones/equiposDatos.jsx';
@@ -44,6 +44,7 @@ const CanalizacionesView = lazy(() => import('./secciones/Canalizaciones.jsx'));
 const CrucesView = lazy(() => import('./secciones/Canalizaciones.jsx').then((m) => ({ default: m.CrucesView })));
 const CimentacionesView = lazy(() => import('./secciones/Cimentaciones.jsx'));
 const ProjectDetail = lazy(() => import('./secciones/Proyecto.jsx'));
+const DossiersView = lazy(() => import('./secciones/Dossiers.jsx'));
 /* El dibujo de una plantilla de cimentación dentro de un proyecto: llega
    aparte, solo si esa pestaña tiene una plantilla elegida. */
 const PreviewPlantillaCimentacion = lazy(() => import('./secciones/Cimentaciones.jsx').then((m) => ({ default: m.PreviewPlantilla })));
@@ -105,6 +106,7 @@ function projectToRow(p) {
     archivos: p.archivos,
     notas: p.notas || [],
     documentos: p.documentos || {},
+    dossier_id: p.dossier_id || null,
   };
 }
 function rowToProject(row) {
@@ -117,6 +119,9 @@ function rowToProject(row) {
     archivos: row.archivos || [],
     notas: row.notas || [],
     documentos: row.documentos || {},
+    /* Qué documentos lleva. Se elige al crear el proyecto y no cambia: el
+       dossier queda congelado en cuanto alguien lo usa (ver Dossiers.jsx). */
+    dossier_id: row.dossier_id || null,
     created_at: row.created_at || null,
   };
 }
@@ -235,8 +240,8 @@ const INITIAL_LINKS = [
 /* Progreso de Control Documental de un proyecto (conteo por estado), para   */
 /* reutilizar en cualquier lado que necesite un resumen — ej. la ficha de    */
 /* una persona en Equipo, mostrando el avance de cada proyecto asignado.    */
-function computeProjectDocProgress(project) {
-  const lista = pickDocumentList(project.data.general?.inversionista);
+function computeProjectDocProgress(project, dossiers) {
+  const lista = documentosDeProyecto(project, dossiers);
   const documentos = project.documentos || {};
   const conteoPorEstado = {};
   DOC_ESTADOS.forEach((e) => { conteoPorEstado[e] = 0; });
@@ -250,10 +255,10 @@ function computeProjectDocProgress(project) {
 /* Igual que arriba pero sumando VARIOS proyectos a la vez y separado por     */
 /* especialidad — para el resumen por inversionista. "No aplica" se excluye  */
 /* del conteo (no se cuenta en el seguimiento, igual que en cada proyecto).  */
-function computeEspecialidadProgressMultiProyecto(proyectos) {
+function computeEspecialidadProgressMultiProyecto(proyectos, dossiers) {
   const porEspecialidad = new Map();
   proyectos.forEach((p) => {
-    const lista = pickDocumentList(p.data.general?.inversionista);
+    const lista = documentosDeProyecto(p, dossiers);
     const documentos = p.documentos || {};
     lista.forEach((doc) => {
       const estado = (documentos[doc.codigo] && documentos[doc.codigo].estado) || 'Pendiente';
@@ -477,6 +482,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile,
     { key: 'canalizaciones', label: 'Canalizaciones', icon: Cog },
     { key: 'cruces', label: 'Cruces', icon: GitBranch },
     { key: 'actualizaciones', label: 'Actualizaciones', icon: Bell },
+    { key: 'dossiers', label: 'Dossiers', icon: FileText },
     { key: 'equipo', label: 'Equipo', icon: UserCog },
     { key: 'instructivos', label: 'Instructivos', icon: Video },
     { key: 'enlaces', label: 'Enlaces de Interés', icon: Link2 },
@@ -784,7 +790,7 @@ function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, dire
 /* Tarjeta de resumen de UN inversionista: cuántos proyectos tiene en cada    */
 /* estado, progreso de Control Documental sumando TODOS sus proyectos, y     */
 /* una lista desplegable de esos proyectos (clic para ir directo a uno).    */
-function InversionistaResumenCard({ nombre, proyectos, onOpenProject }) {
+function InversionistaResumenCard({ nombre, proyectos, onOpenProject, dossiers }) {
   const [expandido, setExpandido] = useState(false);
 
   const conteoEstadoProyecto = {};
@@ -794,11 +800,11 @@ function InversionistaResumenCard({ nombre, proyectos, onOpenProject }) {
   DOC_ESTADOS.forEach((e) => { conteoDocsAgregado[e] = 0; });
   let totalDocsAgregado = 0;
   proyectos.forEach((p) => {
-    const { conteoPorEstado, total } = computeProjectDocProgress(p);
+    const { conteoPorEstado, total } = computeProjectDocProgress(p, dossiers);
     DOC_ESTADOS.forEach((e) => { conteoDocsAgregado[e] += conteoPorEstado[e]; });
     totalDocsAgregado += total;
   });
-  const especialidadMap = computeEspecialidadProgressMultiProyecto(proyectos);
+  const especialidadMap = computeEspecialidadProgressMultiProyecto(proyectos, dossiers);
 
   return (
     <div className="bg-white border border-navy-200 rounded-xl p-5">
@@ -850,7 +856,7 @@ function InversionistaResumenCard({ nombre, proyectos, onOpenProject }) {
       {expandido && (
         <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {proyectos.map((p) => {
-            const { conteoPorEstado: cpe, total: tot } = computeProjectDocProgress(p);
+            const { conteoPorEstado: cpe, total: tot } = computeProjectDocProgress(p, dossiers);
             const totalSeguido = tot - (cpe['No aplica'] || 0);
             const pctApc = totalSeguido === 0 ? 0 : Math.round(((cpe['Aprobado para construcción (APC)'] || 0) / totalSeguido) * 100);
             const pctEntregado = totalSeguido === 0 ? 0 : Math.round(((cpe['Entregado'] || 0) / totalSeguido) * 100);
@@ -878,7 +884,7 @@ function InversionistaResumenCard({ nombre, proyectos, onOpenProject }) {
   );
 }
 
-function ResumenInversionistasView({ projects, onOpenProject }) {
+function ResumenInversionistasView({ projects, onOpenProject, dossiers }) {
   const grupos = new Map();
   // Los proyectos "Finalizado" ya se archivan aparte y no se cuentan aquí —
   // este resumen es sobre el trabajo que sigue en curso por inversionista.
@@ -900,7 +906,7 @@ function ResumenInversionistasView({ projects, onOpenProject }) {
       ) : (
         <div className="space-y-6">
           {inversionistasOrdenados.map((inv) => (
-            <InversionistaResumenCard key={inv} nombre={inv} proyectos={grupos.get(inv)} onOpenProject={onOpenProject} />
+            <InversionistaResumenCard key={inv} nombre={inv} proyectos={grupos.get(inv)} onOpenProject={onOpenProject} dossiers={dossiers} />
           ))}
         </div>
       )}
@@ -908,8 +914,15 @@ function ResumenInversionistasView({ projects, onOpenProject }) {
   );
 }
 
-function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionistas, onAddInversionista, paises, onAddPais, projects }) {
+function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionistas, onAddInversionista, paises, onAddPais, projects, dossiers, inversionistasDetalle }) {
   const puedeGestionar = isLeader(perfil);
+  /* El dossier queda fijo para toda la vida del proyecto (cambiarlo después
+     obliga a borrar Control Documental y volver a empezar), así que se elige
+     aquí, al crear. Se preselecciona el del inversionista, pero manda lo que
+     quede escogido. */
+  const [dossierId, setDossierId] = useState('');
+  const [dossierElegidoAMano, setDossierElegidoAMano] = useState(false);
+  const disponibles = (dossiers || []).filter((d) => !d.archivado);
   const [form, setForm] = useState({
     nombre: '',
     estado: 'activo',
@@ -926,6 +939,13 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionista
   }
   function setGeneral(key, val) {
     setForm((prev) => ({ ...prev, general: { ...prev.general, [key]: val } }));
+    /* Elegir inversionista sugiere su dossier, salvo que ya se haya escogido
+       uno a mano: la sugerencia no le pisa la decisión a nadie. */
+    if (key === 'inversionista' && !dossierElegidoAMano) {
+      const detalle = (inversionistasDetalle || []).find((i) => i.nombre === val);
+      const sugerido = detalle?.dossier_id || '';
+      if (disponibles.some((d) => d.id === sugerido)) setDossierId(sugerido);
+    }
   }
   function setEquipo(roleKey, val) {
     setForm((prev) => ({ ...prev, equipo: { ...prev.equipo, [roleKey]: val } }));
@@ -955,6 +975,7 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionista
       archivos: [],
       notas: [],
       documentos: {},
+      dossier_id: dossierId || null,
     });
   }
 
@@ -1039,6 +1060,26 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionista
                 className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm font-mono"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Dossier</label>
+            <select
+              value={dossierId}
+              onChange={(e) => { setDossierId(e.target.value); setDossierElegidoAMano(true); }}
+              className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm"
+            >
+              <option value="">— Sin elegir —</option>
+              {disponibles.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {etiquetaDossier(d)} ({(d.documentos || []).length} documentos)
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-navy-400 mt-1">
+              Los documentos que llevará el proyecto en Control Documental. Se puede cambiar después, pero cambiarlo
+              borra todo lo que se haya cargado, así que conviene acertar aquí.
+            </p>
           </div>
 
           <div>
@@ -1272,7 +1313,7 @@ function RoleBadgesEditor({ persona, perfil, onToggleRole }) {
 /* Ficha de una persona: roles (editables por quien tenga permiso), datos de  */
 /* cumpleaños/ingreso, y los proyectos donde está asignada con un resumen    */
 /* de Control Documental de cada uno (clic para ir directo al proyecto).    */
-function PersonProfileView({ persona, perfil, projects, onBack, onToggleRole, onDeleteUser, onUpdatePersonaInfo, onOpenProject }) {
+function PersonProfileView({ persona, perfil, projects, onBack, onToggleRole, onDeleteUser, onUpdatePersonaInfo, onOpenProject, dossiers }) {
   const soyLiderDiseno = isDesignLeader(perfil);
   const puedeEditarFechas = soyLiderDiseno || persona.id === perfil.id;
   const [editingFechas, setEditingFechas] = useState(false);
@@ -1473,7 +1514,7 @@ function PersonProfileView({ persona, perfil, projects, onBack, onToggleRole, on
         ) : (
           <div className="space-y-3">
             {proyectosAsignados.map((p) => {
-              const { conteoPorEstado, total } = computeProjectDocProgress(p);
+              const { conteoPorEstado, total } = computeProjectDocProgress(p, dossiers);
               return (
                 <button
                   key={p.id}
@@ -1586,7 +1627,7 @@ function TeamCategoriesView({ directorio, perfil, onOpenPerson }) {
 
 /* Envoltorio de la pestaña "Equipo": decide si mostrar la lista por          */
 /* categorías o la ficha de una persona en particular.                      */
-function EquipoView({ directorio, perfil, projects, selectedPersonId, onOpenPerson, onBackToList, onToggleRole, onDeleteUser, onUpdatePersonaInfo, onOpenProject }) {
+function EquipoView({ directorio, perfil, projects, selectedPersonId, onOpenPerson, onBackToList, onToggleRole, onDeleteUser, onUpdatePersonaInfo, onOpenProject, dossiers }) {
   const persona = selectedPersonId ? directorio.find((u) => u.id === selectedPersonId) : null;
   if (persona) {
     return (
@@ -1599,6 +1640,7 @@ function EquipoView({ directorio, perfil, projects, selectedPersonId, onOpenPers
         onDeleteUser={onDeleteUser}
         onUpdatePersonaInfo={onUpdatePersonaInfo}
         onOpenProject={onOpenProject}
+        dossiers={dossiers}
       />
     );
   }
@@ -1620,6 +1662,8 @@ export default function App() {
   const [carpetas, setCarpetas] = useState([]);
   const [videos, setVideos] = useState([]);
   const [inversionistas, setInversionistas] = useState([]);
+  /* Los dossiers con sus documentos ya adentro (ver cargarDossiers). */
+  const [dossiers, setDossiers] = useState([]);
   // Objetos completos (correo/teléfono/NIT/logo) de cada inversionista — se
   // cargan por separado de la lista de nombres de arriba (que no se toca,
   // para no afectar nada de lo que ya depende de ella).
@@ -1728,6 +1772,38 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.id]);
 
+  /* Los dossiers y sus documentos llegan en dos consultas y se arman en un
+     solo objeto, porque todo el resto de la aplicación los usa así: el
+     proyecto guarda un id y espera de vuelta la lista de documentos.
+
+     Si la migración de dossiers todavía no se ha corrido, las consultas
+     fallan y la lista queda vacía — a propósito: con la lista vacía cada
+     proyecto cae a las listas de siempre (ver documentosDeProyecto) y no se
+     rompe nada, solo que la sección Dossiers se ve vacía. */
+  async function cargarDossiers() {
+    const [{ data: filas, error }, { data: docs }] = await Promise.all([
+      supabase.from('dossiers').select('*').order('nombre', { ascending: true }),
+      supabase.from('dossier_documentos').select('*').order('orden', { ascending: true }),
+    ]);
+    if (error) {
+      console.warn('No se pudieron cargar los dossiers (¿falta la migración?):', error.message);
+      setDossiers([]);
+      return;
+    }
+    const porDossier = new Map();
+    (docs || []).forEach((d) => {
+      if (!porDossier.has(d.dossier_id)) porDossier.set(d.dossier_id, []);
+      porDossier.get(d.dossier_id).push({
+        id: d.id, codigo: d.codigo, nombre: d.nombre, especialidad: d.especialidad,
+        tipo: d.tipo, orden: d.orden, responsables: d.responsables || {},
+      });
+    });
+    setDossiers((filas || []).map((f) => ({
+      id: f.id, nombre: f.nombre, version: f.version || 1, archivado: !!f.archivado,
+      documentos: porDossier.get(f.id) || [],
+    })));
+  }
+
   async function loadSharedData(ownUserId) {
     const { data: projRows } = await supabase.from('projects').select('*').order('created_at', { ascending: true });
     if (!projRows || projRows.length === 0) {
@@ -1832,6 +1908,8 @@ export default function App() {
     } else {
       setProveedores(provRows.map((r) => r.nombre));
     }
+
+    await cargarDossiers();
 
     const { data: plantillaRows } = await supabase.from('cimentacion_plantillas').select('*').order('created_at', { ascending: true });
     setPlantillasCimentacion((plantillaRows || []).map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {} })));
@@ -2261,6 +2339,140 @@ export default function App() {
       alert('No se pudieron guardar los parámetros en el servidor (¿tienes rol Desarrollador y corriste la migración?). Detalle: ' + error.message);
     }
   }
+  /* -------------------------------- DOSSIERS --------------------------------
+     Los cambios se guardan directo (no pasan por updateProject): un dossier no
+     es de nadie en particular y no lleva historial de proyecto. Lo que sí se
+     respeta a rajatabla es que un dossier EN USO no cambia de estructura —eso
+     lo impide la pantalla (ver Dossiers.jsx), y la llave foránea de projects
+     impide además borrarlo—.
+     ------------------------------------------------------------------------ */
+  async function handleCrearDossier(nombre, version, documentos) {
+    const id = makeId('dossier');
+    const nuevo = {
+      id,
+      nombre,
+      version,
+      archivado: false,
+      /* Al duplicar, los documentos se copian con id NUEVO: son otras filas de
+         otro dossier, aunque digan lo mismo. */
+      documentos: (documentos || []).map((d, i) => ({
+        id: makeId('doc'), codigo: d.codigo, nombre: d.nombre, especialidad: d.especialidad,
+        tipo: d.tipo, orden: d.orden ?? i, responsables: { ...(d.responsables || {}) },
+      })),
+    };
+    setDossiers((prev) => [...prev, nuevo]);
+    const { error } = await supabase.from('dossiers').insert({ id, nombre, version, archivado: false });
+    if (error) {
+      console.error('Error creando dossier:', error);
+      alert('No se pudo crear el dossier. Detalle: ' + error.message);
+      return;
+    }
+    if (nuevo.documentos.length > 0) {
+      const { error: errDocs } = await supabase.from('dossier_documentos').insert(
+        nuevo.documentos.map((d) => ({ ...d, dossier_id: id })),
+      );
+      if (errDocs) {
+        console.error('Error copiando los documentos del dossier:', errDocs);
+        alert('El dossier se creó, pero no se pudieron copiar sus documentos. Detalle: ' + errDocs.message);
+      }
+    }
+  }
+
+  function handleActualizarDossier(id, patch) {
+    setDossiers((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+    supabase.from('dossiers').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id).then(({ error }) => {
+      if (error) {
+        console.error('Error actualizando el dossier:', error);
+        alert('No se pudo guardar el cambio. Detalle: ' + error.message);
+      }
+    });
+  }
+
+  async function handleEliminarDossier(id) {
+    const { error } = await supabase.from('dossiers').delete().eq('id', id);
+    if (error) {
+      /* La llave foránea de projects es la que de verdad protege el dato: si
+         algún proyecto lo usa, Postgres se niega aunque la pantalla se
+         hubiera equivocado al ofrecer el botón. */
+      console.error('Error eliminando el dossier:', error);
+      alert('No se pudo eliminar el dossier. Puede que algún proyecto lo esté usando. Detalle: ' + error.message);
+      return;
+    }
+    setDossiers((prev) => prev.filter((d) => d.id !== id));
+  }
+
+  /* Agrega o edita un documento del dossier. Solo se llega aquí con dossiers
+     sin usar: la pantalla esconde los botones en cuanto hay un proyecto. */
+  function handleGuardarDocumentoDossier(dossierId, doc) {
+    const esNuevo = !doc.id;
+    const dossier = dossiers.find((d) => d.id === dossierId);
+    const fila = {
+      id: doc.id || makeId('doc'),
+      dossier_id: dossierId,
+      codigo: doc.codigo,
+      nombre: doc.nombre,
+      especialidad: doc.especialidad,
+      tipo: doc.tipo,
+      orden: doc.orden ?? (dossier?.documentos || []).length,
+      responsables: doc.responsables || {},
+    };
+    setDossiers((prev) => prev.map((d) => {
+      if (d.id !== dossierId) return d;
+      const docs = esNuevo
+        ? [...(d.documentos || []), fila]
+        : (d.documentos || []).map((x) => (x.id === fila.id ? { ...x, ...fila } : x));
+      return { ...d, documentos: docs };
+    }));
+    supabase.from('dossier_documentos').upsert(fila).then(({ error }) => {
+      if (error) {
+        console.error('Error guardando el documento del dossier:', error);
+        alert('No se pudo guardar el documento. Detalle: ' + error.message);
+      }
+    });
+  }
+
+  function handleQuitarDocumentoDossier(dossierId, docId) {
+    setDossiers((prev) => prev.map((d) => (
+      d.id === dossierId ? { ...d, documentos: (d.documentos || []).filter((x) => x.id !== docId) } : d
+    )));
+    supabase.from('dossier_documentos').delete().eq('id', docId).then(({ error }) => {
+      if (error) {
+        console.error('Error quitando el documento del dossier:', error);
+        alert('No se pudo quitar el documento. Detalle: ' + error.message);
+      }
+    });
+  }
+
+  /* Los responsables SÍ se pueden cambiar en un dossier en uso: no son parte
+     de lo que el proyecto guarda, solo se leen para saber a quién le toca
+     reportar cada documento. */
+  function handleCambiarResponsables(dossierId, docId, responsables) {
+    setDossiers((prev) => prev.map((d) => (
+      d.id === dossierId
+        ? { ...d, documentos: (d.documentos || []).map((x) => (x.id === docId ? { ...x, responsables } : x)) }
+        : d
+    )));
+    supabase.from('dossier_documentos').update({ responsables }).eq('id', docId).then(({ error }) => {
+      if (error) {
+        console.error('Error guardando los responsables:', error);
+        alert('No se pudieron guardar los responsables. Detalle: ' + error.message);
+      }
+    });
+  }
+
+  /* El dossier por defecto de un inversionista: solo la sugerencia que sale
+     preseleccionada al crear un proyecto. Lo que manda es lo que quede
+     elegido en el proyecto. */
+  function handleAsignarDossierInversionista(nombre, dossierId) {
+    setInversionistasDetalle((prev) => prev.map((i) => (i.nombre === nombre ? { ...i, dossier_id: dossierId } : i)));
+    supabase.from('inversionistas').update({ dossier_id: dossierId }).eq('nombre', nombre).then(({ error }) => {
+      if (error) {
+        console.error('Error asignando el dossier al inversionista:', error);
+        alert('No se pudo asignar el dossier. Detalle: ' + error.message);
+      }
+    });
+  }
+
   function handleAddPlantillaCimentacion(tipo, nombre, datos) {
     const nueva = { id: makeId('cim'), tipo, nombre, datos };
     setPlantillasCimentacion((prev) => [...prev, nueva]);
@@ -2749,7 +2961,7 @@ export default function App() {
           />
         )}
         {view === 'resumen_inversionistas' && (
-          <ResumenInversionistasView projects={projects} onOpenProject={openProject} />
+          <ResumenInversionistasView projects={projects} onOpenProject={openProject} dossiers={dossiers} />
         )}
         {view === 'cimentaciones' && (
           <CimentacionesView
@@ -2820,6 +3032,23 @@ export default function App() {
             onDeleteUser={handleDeleteUser}
             onUpdatePersonaInfo={handleUpdatePersonaInfo}
             onOpenProject={openProject}
+            dossiers={dossiers}
+          />
+        )}
+        {view === 'dossiers' && (
+          <DossiersView
+            dossiers={dossiers}
+            projects={projects}
+            inversionistas={inversionistas}
+            inversionistasDetalle={inversionistasDetalle}
+            perfil={perfil}
+            onCrearDossier={handleCrearDossier}
+            onActualizarDossier={handleActualizarDossier}
+            onEliminarDossier={handleEliminarDossier}
+            onGuardarDocumento={handleGuardarDocumentoDossier}
+            onQuitarDocumento={handleQuitarDocumentoDossier}
+            onCambiarResponsables={handleCambiarResponsables}
+            onAsignarInversionista={handleAsignarDossierInversionista}
           />
         )}
         {view === 'instructivos' && (
@@ -2860,6 +3089,7 @@ export default function App() {
             ingenierosProyectos={ingenierosProyectos}
             onAddIngenieroProyectos={handleAddIngenieroProyectos}
             onUpdateCatalogoAtributo={handleUpdateCatalogoAtributo}
+            dossiers={dossiers}
             cambioPendiente={cambioPendiente && cambioPendiente.projectId === selectedProject.id ? cambioPendiente : null}
             onVerCambios={verCambiosDelProyecto}
           />
@@ -2871,6 +3101,8 @@ export default function App() {
         <ProjectFormModal
           onClose={() => setShowCreate(false)}
           onCreate={handleCreate}
+          dossiers={dossiers}
+          inversionistasDetalle={inversionistasDetalle}
           directorio={directorio}
           perfil={perfil}
           inversionistas={inversionistas}

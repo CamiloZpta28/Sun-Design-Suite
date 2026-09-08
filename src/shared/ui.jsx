@@ -55,3 +55,35 @@ export function Avatar({ name, foto, title, size = 'md' }) {
     </div>
   );
 }
+
+/* Una fila de fichas que se encienden y apagan. La selección vacía significa
+   "todas", y la ficha de la izquierda vuelve a ese estado. Es el mismo gesto
+   del semáforo de estados, y ahora lo comparten especialidades y tipos. */
+export function FiltroFichas({ etiqueta, etiquetaTodas, total, opciones, seleccion, onAlternar, onLimpiar }) {
+  const clase = (activa) => `text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${
+    activa ? 'bg-navy-800 text-white border-navy-800' : 'bg-white text-navy-500 border-navy-300 hover:border-navy-400'
+  }`;
+  return (
+    <div className="flex items-center gap-2 flex-wrap mb-2">
+      <label className="text-xs font-semibold text-navy-500">{etiqueta}</label>
+      <button onClick={onLimpiar} aria-pressed={seleccion.length === 0} className={clase(seleccion.length === 0)}>
+        {etiquetaTodas} ({total})
+      </button>
+      {opciones.map(({ valor, conteo }) => (
+        <button
+          key={valor}
+          onClick={() => onAlternar(valor)}
+          aria-pressed={seleccion.includes(valor)}
+          className={clase(seleccion.includes(valor))}
+        >
+          {valor} ({conteo})
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* Enciende o apaga un valor dentro de la selección. */
+export function alternarEn(seleccion, valor) {
+  return seleccion.includes(valor) ? seleccion.filter((v) => v !== valor) : [...seleccion, valor];
+}
