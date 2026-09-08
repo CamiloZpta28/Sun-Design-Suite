@@ -3,13 +3,14 @@ import {
   LayoutDashboard, FolderKanban, Layers, Link2, Zap, Cog, Plus, Search, X, Trash2, ChevronLeft,
   Pencil, MapPin, Calendar, Users, ExternalLink, Check, UploadCloud, XCircle, Loader2,
   RefreshCw, LogOut, ShieldCheck, Lock, ClipboardCheck, UserCog, ChevronDown, ChevronRight,
-  Video, PartyPopper, PieChart, AlertTriangle, Menu, UserPlus, Boxes, GitBranch, Bell, FileText
+  Video, PartyPopper, PieChart, AlertTriangle, Menu, UserPlus, Boxes, GitBranch, Bell, FileText, CalendarCheck
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { rutaDe, estadoDeRuta } from './routes.js';
 import { Avatar } from './shared/ui.jsx';
 import { useCambiosEnVivo, textoDeCambio } from './shared/cambiosEnVivo.js';
 import { NotificationBell, notificacionesVigentes, fechaDeCorte } from './shared/notificaciones.jsx';
+import { ultimasSemanas } from './shared/resumenes.js';
 
 import {
   SCHEMA, emptyStations, emptyEnergiaMensual, COLOMBIA, DOC_ESTADOS, EquipoField, EspecialidadBarra, InversionistaPicker, PaisPicker,
@@ -45,6 +46,7 @@ const CrucesView = lazy(() => import('./secciones/Canalizaciones.jsx').then((m) 
 const CimentacionesView = lazy(() => import('./secciones/Cimentaciones.jsx'));
 const ProjectDetail = lazy(() => import('./secciones/Proyecto.jsx'));
 const DossiersView = lazy(() => import('./secciones/Dossiers.jsx'));
+const ResumenesView = lazy(() => import('./secciones/Resumenes.jsx'));
 /* El dibujo de una plantilla de cimentación dentro de un proyecto: llega
    aparte, solo si esa pestaña tiene una plantilla elegida. */
 const PreviewPlantillaCimentacion = lazy(() => import('./secciones/Cimentaciones.jsx').then((m) => ({ default: m.PreviewPlantilla })));
@@ -482,6 +484,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile,
     { key: 'canalizaciones', label: 'Canalizaciones', icon: Cog },
     { key: 'cruces', label: 'Cruces', icon: GitBranch },
     { key: 'actualizaciones', label: 'Actualizaciones', icon: Bell },
+    { key: 'resumenes', label: 'Resúmenes semanales', icon: CalendarCheck },
     { key: 'dossiers', label: 'Dossiers', icon: FileText },
     { key: 'equipo', label: 'Equipo', icon: UserCog },
     { key: 'instructivos', label: 'Instructivos', icon: Video },
@@ -1664,6 +1667,9 @@ export default function App() {
   const [inversionistas, setInversionistas] = useState([]);
   /* Los dossiers con sus documentos ya adentro (ver cargarDossiers). */
   const [dossiers, setDossiers] = useState([]);
+  /* Los resúmenes semanales de TODO el equipo, de las últimas semanas: la
+     pantalla los lee todos (cada quien escribe solo el suyo). */
+  const [resumenes, setResumenes] = useState([]);
   // Objetos completos (correo/teléfono/NIT/logo) de cada inversionista — se
   // cargan por separado de la lista de nombres de arriba (que no se toca,
   // para no afectar nada de lo que ya depende de ella).
@@ -1804,6 +1810,24 @@ export default function App() {
     })));
   }
 
+  /* Solo las últimas semanas, no todo el histórico: un resumen viejo se
+     busca, no se carga siempre. Si la migración no se ha corrido, la consulta
+     falla y la lista queda vacía — la sección lo dice y el resto de la
+     aplicación no se entera. */
+  async function cargarResumenes() {
+    const desde = ultimasSemanas(12).slice(-1)[0];
+    const { data, error } = await supabase
+      .from('resumenes_semanales')
+      .select('*')
+      .gte('semana', desde);
+    if (error) {
+      console.warn('No se pudieron cargar los resúmenes semanales (¿falta la migración?):', error.message);
+      setResumenes([]);
+      return;
+    }
+    setResumenes(data || []);
+  }
+
   async function loadSharedData(ownUserId) {
     const { data: projRows } = await supabase.from('projects').select('*').order('created_at', { ascending: true });
     if (!projRows || projRows.length === 0) {
@@ -1910,6 +1934,7 @@ export default function App() {
     }
 
     await cargarDossiers();
+    await cargarResumenes();
 
     const { data: plantillaRows } = await supabase.from('cimentacion_plantillas').select('*').order('created_at', { ascending: true });
     setPlantillasCimentacion((plantillaRows || []).map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {} })));
@@ -2473,6 +2498,32 @@ export default function App() {
     });
   }
 
+  /* Guarda MI resumen de una semana. El id es determinista para que guardar
+     dos veces la misma semana actualice la fila en vez de crear otra. */
+  async function handleGuardarResumen({ semana, hasta, bloques, proyectos, enviado }) {
+    if (!perfil?.id) return;
+    const fila = {
+      id: `resumen-${perfil.id}-${semana}`,
+      usuario_id: perfil.id,
+      semana,
+      hasta: hasta || null,
+      bloques: bloques || {},
+      proyectos: proyectos || [],
+      enviado: !!enviado,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('resumenes_semanales').upsert(fila);
+    if (error) {
+      console.error('Error guardando el resumen semanal:', error);
+      alert('No se pudo guardar el resumen. Detalle: ' + error.message);
+      return;
+    }
+    setResumenes((prev) => {
+      const otros = prev.filter((r) => r.id !== fila.id);
+      return [...otros, fila];
+    });
+  }
+
   function handleAddPlantillaCimentacion(tipo, nombre, datos) {
     const nueva = { id: makeId('cim'), tipo, nombre, datos };
     setPlantillasCimentacion((prev) => [...prev, nueva]);
@@ -3033,6 +3084,16 @@ export default function App() {
             onUpdatePersonaInfo={handleUpdatePersonaInfo}
             onOpenProject={openProject}
             dossiers={dossiers}
+          />
+        )}
+        {view === 'resumenes' && (
+          <ResumenesView
+            perfil={perfil}
+            directorio={directorio}
+            projects={projects}
+            dossiers={dossiers}
+            resumenes={resumenes}
+            onGuardar={handleGuardarResumen}
           />
         )}
         {view === 'dossiers' && (

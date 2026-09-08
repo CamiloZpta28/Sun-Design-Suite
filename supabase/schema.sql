@@ -429,6 +429,28 @@ alter table projects add column if not exists dossier_id text references dossier
 -- Es una sugerencia: manda lo que quede elegido en el proyecto.
 alter table inversionistas add column if not exists dossier_id text references dossiers(id);
 
+-- ---------- Resúmenes semanales: uno por persona y por semana ----------
+create table if not exists resumenes_semanales (
+  -- Determinista ('resumen-<usuario>-<lunes>') para que guardar dos veces la
+  -- misma semana actualice la fila en vez de crear otra.
+  id text primary key,
+  usuario_id uuid not null references auth.users(id) on delete cascade,
+  semana date not null,          -- el lunes de esa semana
+  hasta date,                    -- último día que cubre; normalmente el viernes
+  -- { "lo_mejor": [...], "pendientes": [...], "dificultades": [...], "temas": [...] }
+  bloques jsonb not null default '{}'::jsonb,
+  -- La foto del avance: [{ id, nombre, total, porEstado, estados, nombres, cambios, avanzaron }]
+  proyectos jsonb not null default '[]'::jsonb,
+  -- Borrador mientras se escribe; al marcarlo como enviado la foto se congela.
+  enviado boolean not null default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (usuario_id, semana)
+);
+
+-- Para la vista del equipo, que pide una semana completa de un golpe.
+create index if not exists resumenes_semanales_semana_idx on resumenes_semanales (semana);
+
 -- ---------- Seguridad a nivel de fila (RLS) ----------
 -- Estas políticas asumen un equipo interno de confianza: cualquier
 -- persona autenticada puede leer y escribir los datos compartidos
@@ -640,6 +662,24 @@ create policy "Gestionar documentos de dossier solo lideres" on dossier_document
       and ur.role_key in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno','desarrollador')
     )
   );
+
+alter table resumenes_semanales enable row level security;
+
+-- Los lee todo el equipo: la idea es justamente poder ver en qué va cada
+-- quien y que los líderes analicen su área.
+create policy "Lectura de resumenes semanales" on resumenes_semanales
+  for select using (auth.role() = 'authenticated');
+
+-- Pero cada quien escribe solo el suyo. Que la pantalla no ofrezca editar el
+-- ajeno no basta: la regla tiene que estar aquí.
+create policy "Crear mi resumen semanal" on resumenes_semanales
+  for insert with check (auth.uid() = usuario_id);
+
+create policy "Editar mi resumen semanal" on resumenes_semanales
+  for update using (auth.uid() = usuario_id);
+
+create policy "Borrar mi resumen semanal" on resumenes_semanales
+  for delete using (auth.uid() = usuario_id);
 
 alter table notificaciones enable row level security;
 create policy "Lectura de mis notificaciones" on notificaciones

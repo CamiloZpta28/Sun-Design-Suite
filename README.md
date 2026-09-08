@@ -172,6 +172,51 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Resúmenes semanales** (`/resumenes`), primera entrega. Cada quien registra
+  lo que hizo en la semana: los cuatro bloques de siempre —**Lo mejor**,
+  **Pendientes**, **Dificultades** y **Temas**— y un bloque de avance que la
+  aplicación arma sola.
+  - **El avance sale del dossier, no de una lista de roles.** A alguien le toca
+    un documento si ese documento nombra su rol en `responsables`, y solo en
+    los proyectos donde está puesto con ese rol: quien es Ing. Civil y
+    Delineante pero entró a un proyecto solo como civil, ahí no reporta los
+    planos. Por eso Trámites y BT hoy no tiene bloque de avance —no porque
+    esté excluido en el código, sino porque ningún documento lo nombra— y si
+    mañana los líderes le asignan alguno, le aparece solo.
+  - **El porcentaje es el mismo del resto de la aplicación** (documentos en APC
+    sobre los que se siguen), no una escala inventada para esta pantalla: un
+    resumen que dijera 68% mientras la torta del Dashboard dice 40% sería peor
+    que no tener número. Lo que mide la semana es **cuántos documentos
+    avanzaron**, con la lista de cuáles y de qué estado a cuál. Una barra con
+    los colores de siempre muestra el reparto por estado.
+  - **La comparación es foto contra foto.** Al marcar el resumen como enviado,
+    el estado de cada documento **queda guardado dentro del resumen**. Si se
+    recalculara, el número de una semana vieja cambiaría cada vez que alguien
+    toca un documento y la comparación no significaría nada. Mientras es
+    borrador sí se recalcula: es el estado de ahora.
+  - **Copiar para el chat** entrega el texto con el formato que el equipo ya
+    usa, con "Ninguna"/"Ninguno" donde no hay nada, y una casilla para dejar el
+    avance por fuera. Las menciones tipo `@Fulano` no se pueden generar: salen
+    como texto y hay que volver a mencionarlas al pegar.
+  - **Cierre anticipado**: cada resumen guarda hasta qué día cubre (el viernes
+    por defecto). Quien sale el miércoles cierra el suyo el miércoles y eso no
+    le cambia la semana a nadie más.
+  - **La vista del equipo** lista a todo el mundo con **Enviado**, **Borrador**
+    o **Sin registrar**, se despliega para leer el resumen de cualquiera, y
+    tiene filtro por rol para que un líder mire su área. Todos leen; cada quien
+    escribe solo el suyo, y eso lo impone la RLS.
+  - Solo se cargan las **últimas 12 semanas**: las viejas se buscan con el
+    selector, no se acumulan a la vista ni en memoria. Un resumen son unos
+    pocos kB, así que el histórico no es un problema de espacio y no se borra
+    nada — es justamente el registro de lo que hizo el equipo.
+  - **Necesita migración**: `supabase/migration_resumenes_semanales.sql`. Sin
+    ella la sección avisa que falta correrla y el resto de la aplicación sigue
+    igual.
+  - **Pendiente para la siguiente vuelta**: el día de cierre **colectivo** (un
+    viernes festivo movería el "Sin registrar" de todo el equipo al jueves; hoy
+    el corte es siempre el viernes) y la vista consolidada de "Temas" para la
+    reunión del lunes.
+
 - **Los dossiers salen del código: sección propia** (`/dossiers`). Hasta ahora
   las tres listas de documentos —estándar, CFM y FENOGE, 254 en total— vivían
   dentro de la aplicación y se elegían con un `if` por el nombre del
