@@ -97,7 +97,10 @@ export function resolveParameter(resolvers, id, projectData, context) {
     label: resolver.label || id,
     status,
     value: isResolvedStatus(status) ? outcome.value : null,
-    fieldRef: resolver.fieldRef || null,
+    /* El resolver puede decidir el campo en tiempo de resolución (ej.
+       FC_ESTRUCTURAL, que apunta a la cimentación de la estructura activa);
+       si no lo hace, manda el declarado. */
+    fieldRef: outcome.fieldRef || resolver.fieldRef || null,
     // Para PENDING de un `project_value`: el valor de referencia de la memoria,
     // a mostrar como sugerencia en la UI — nunca se usa para resolver la nota.
     suggested: outcome.suggested ?? null,

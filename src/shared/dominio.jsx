@@ -22,6 +22,7 @@ import { optionsFor, selectableOptionsFor, STANDALONE_TECHNICAL_VALUES } from '.
 import { isBlank, sumMetersFormatted } from '../technical-notes/formatters.js';
 import { effectiveDefaultFor, hasConfirmedDefault } from '../technical-notes/confirmedDefaults.js';
 import { equipoComoArray, esRolMultiple } from './permisos.js';
+import { RESISTENCIA_OPCIONES } from '../secciones/cimentacionesDatos.js';
 import AddableSelect from './AddableSelect.jsx';
 
 /* Campo alimentado por un input del catálogo de Notas Técnicas
@@ -117,6 +118,29 @@ export function repositoryField({ fieldKey, group, defaultValue }, label) {
     opciones: optionsFor(group, null),
     defaultValue,
   };
+}
+
+/* Una cimentación del proyecto: la plantilla elegida y la resistencia del
+   concreto con la que se funde AQUÍ. La resistencia no vive en la plantilla
+   porque la misma geometría —un CT Tipo 1— se construye en 21 MPa en un
+   proyecto y en 28 en otro: lo que se repite entre proyectos son las
+   dimensiones y el despiece, no el concreto. Van como dos campos seguidos
+   para que en la rejilla de dos columnas de Estructural queden uno al lado
+   del otro. */
+export function camposCimentacion(tipoCimentacion, label) {
+  return [
+    { key: `plantilla_${tipoCimentacion}`, label, type: 'cimentacion_plantilla', tipoCimentacion },
+    {
+      key: `resistencia_${tipoCimentacion}`,
+      label: `${label} — resistencia del concreto`,
+      type: 'select',
+      opciones: RESISTENCIA_OPCIONES,
+      /* Sin valor por defecto a propósito: un f'c inventado se propaga a las
+         notas técnicas y a la hoja de vida como si alguien lo hubiera
+         decidido. Vacío se lee como lo que es — falta el dato. */
+      allowOther: true,
+    },
+  ];
 }
 
 /* Los campos de tipo 'boolean' guardan { valor: true|false|null, nota: '' }   */
@@ -401,15 +425,17 @@ export const SCHEMA = [
       /* los 9 tipos) — no se digitan dimensiones aquí. El enlace es "en      */
       /* vivo": si alguien edita la plantilla después, este resumen refleja   */
       /* siempre la versión más reciente (solo se guarda el id elegido).      */
-      { key: 'plantilla_postes_mt', label: 'Postes MT', type: 'cimentacion_plantilla', tipoCimentacion: 'postes_mt' },
-      { key: 'plantilla_luminarias', label: 'Luminarias', type: 'cimentacion_plantilla', tipoCimentacion: 'luminarias' },
-      { key: 'plantilla_camaras', label: 'Cámaras', type: 'cimentacion_plantilla', tipoCimentacion: 'camaras' },
-      { key: 'plantilla_inversores', label: 'Inversores', type: 'cimentacion_plantilla', tipoCimentacion: 'inversores' },
-      { key: 'plantilla_cerramiento_postes', label: 'Cerramiento · Postes', type: 'cimentacion_plantilla', tipoCimentacion: 'cerramiento_postes' },
-      { key: 'plantilla_cerramiento_porton', label: 'Cerramiento · Portón', type: 'cimentacion_plantilla', tipoCimentacion: 'cerramiento_porton' },
-      { key: 'plantilla_cerramiento_paso_fauna', label: 'Cerramiento · Paso de fauna', type: 'cimentacion_plantilla', tipoCimentacion: 'cerramiento_paso_fauna' },
-      { key: 'plantilla_shelter_ct', label: 'Shelter · Centro de Transformación', type: 'cimentacion_plantilla', tipoCimentacion: 'shelter_ct' },
-      { key: 'plantilla_shelter_trampa_aceite', label: 'Shelter · Trampa de aceite', type: 'cimentacion_plantilla', tipoCimentacion: 'shelter_trampa_aceite' },
+      /* Lo único que sí es de este proyecto y no de la plantilla es la       */
+      /* resistencia del concreto — ver camposCimentacion().                  */
+      ...camposCimentacion('postes_mt', 'Postes MT'),
+      ...camposCimentacion('luminarias', 'Luminarias'),
+      ...camposCimentacion('camaras', 'Cámaras'),
+      ...camposCimentacion('inversores', 'Inversores'),
+      ...camposCimentacion('cerramiento_postes', 'Cerramiento · Postes'),
+      ...camposCimentacion('cerramiento_porton', 'Cerramiento · Portón'),
+      ...camposCimentacion('cerramiento_paso_fauna', 'Cerramiento · Paso de fauna'),
+      ...camposCimentacion('shelter_ct', 'Shelter · Centro de Transformación'),
+      ...camposCimentacion('shelter_trampa_aceite', 'Shelter · Trampa de aceite'),
       catalogSchemaField('tipo_galvanizado', 'METAL', 'GALVANIZADO', 'Tipo de galvanizado'),
       { key: 'esquema_puntado', label: 'Esquema de puntado', type: 'text' },
       { key: 'espec_aceros_pernos', label: 'Especificaciones de aceros y pernos', type: 'text' },

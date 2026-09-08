@@ -232,14 +232,26 @@ describe('resolución en vivo', () => {
 
 describe('parámetros dependientes de la estructura activa', () => {
   it("FC_ESTRUCTURAL lee la cimentación de la estructura activa (cerramiento vs portón)", () => {
+    /* Las claves son las de SCHEMA (camposCimentacion en dominio.jsx). Esta
+       prueba pasaba con unas claves dim_ciment_* que la interfaz dejó de
+       escribir hace tiempo, así que verificaba una forma de dato que ningún
+       proyecto real tenía: la nota salía siempre con el default. */
     const project = buildProject({
       estructural: {
-        dim_ciment_cerramiento: { resistencia: '25 MPa' },
-        dim_ciment_porton: { resistencia: '31 MPa' },
+        resistencia_cerramiento_postes: '25 MPa',
+        resistencia_cerramiento_porton: '31 MPa',
       },
     });
     expect(paramOf(getResolvedTechnicalNotes(project, 'CERRAMIENTO_PERIMETRAL'), 'FC_ESTRUCTURAL').value).toBe('25 MPa');
     expect(paramOf(getResolvedTechnicalNotes(project, 'PORTON_METALICO'), 'FC_ESTRUCTURAL').value).toBe('31 MPa');
+  });
+
+  it('FC_ESTRUCTURAL apunta al campo de la cimentación de esa misma estructura', () => {
+    const project = buildProject();
+    expect(paramOf(getResolvedTechnicalNotes(project, 'SHELTER_CIMENTACION'), 'FC_ESTRUCTURAL').fieldRef)
+      .toEqual({ tab: 'estructural', fieldKey: 'resistencia_shelter_ct' });
+    expect(paramOf(getResolvedTechnicalNotes(project, 'SOPORTE_INVERSORES'), 'FC_ESTRUCTURAL').fieldRef)
+      .toEqual({ tab: 'estructural', fieldKey: 'resistencia_inversores' });
   });
 
   it('si esa cimentación no tiene resistencia, FC_ESTRUCTURAL cae al default global (21 MPa)', () => {

@@ -172,6 +172,42 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **La resistencia del concreto ahora es del proyecto, no de la plantilla**:
+  la misma geometría —un CT Tipo 1— se funde en 21 MPa en un proyecto y en 28
+  en otro, así que el f'c salió de las plantillas de Cimentaciones y entró a
+  la pestaña **Estructural** de cada proyecto, con un selector propio al lado
+  de cada una de las 9 cimentaciones. Las plantillas siguen guardando lo que
+  de verdad se repite entre proyectos: dimensiones y despiece.
+  - **De paso se arregló un dato que llevaba tiempo saliendo mal en las Notas
+    Técnicas.** El motor leía el f'c de unos campos (`dim_ciment_cerramiento`,
+    `dim_ciment_porton`, `dim_ciment_shelter`, `dim_ciment_inversores`) que
+    dejaron de existir cuando las cimentaciones pasaron a ser plantillas:
+    nadie los escribía, así que la nota CON-001 ("El concreto estructural
+    tendrá resistencia mínima f'c = …") salía **siempre** con el valor por
+    defecto de 21 MPa, sin importar el proyecto. Ahora lee el campo real, y
+    el enlace de "pendiente" lleva a la cimentación de la estructura activa
+    (el del shelter al del shelter, el del portón al del portón).
+  - **Lo que sigue desconectado**: `PEDESTAL_DIAMETRO` y `PEDESTAL_DESPLANTE`
+    del cerramiento leen de esos mismos campos muertos, así que salen vacíos.
+    Reconectarlos es otra vuelta: esos dos números viven en la plantilla, y el
+    motor de notas hoy solo recibe los datos del proyecto, no las plantillas.
+  - **En la plantilla del Portón**, que era la única cuyo despiece dependía de
+    la resistencia (el traslapo de la viga sale de la tabla NSR-10 por calibre
+    y resistencia), ahora se muestran **las tres resistencias de la tabla**
+    (21/28/35 MPa) con su traslapo y sus piezas, en vez de una sola. El
+    consolidado "Peso de acero por elemento" usa la combinación más pesada —el
+    traslapo más largo— y lo dice en la etiqueta, porque de las tres es la
+    única que nunca deja corto el pedido de acero.
+  - **Cerramiento · Paso de fauna** gana el selector aunque su plantilla nunca
+    lo tuvo: es concreto igual que las demás, y dejarlo por fuera sería un
+    hueco arbitrario.
+  - **Necesita migración**: `supabase/migration_resistencia_por_proyecto.sql`.
+    No crea ni cambia tablas —el dato vive en `projects.data`—; solo copia la
+    resistencia que ya tenía cada plantilla al proyecto que la usa, para no
+    volver a llenar a mano lo que ya estaba puesto. Sin ella no se rompe nada:
+    los proyectos abren con la resistencia en blanco y hay que elegirla otra
+    vez en cada uno.
+
 - **Control Documental filtra por varias especialidades y varios tipos a la
   vez**: los dos menús pasaron a ser filas de fichas que se encienden y apagan,
   así que se puede ver Civil y Mecánica juntas, o solo los planos y los

@@ -60,6 +60,15 @@ export const TRASLAPO_TABLE = {
 };
 export const CALIBRES_DISPONIBLES = Object.keys(BARRA_ACERO);
 
+/* Resistencias de concreto más usadas + la posibilidad de escribir otra.    */
+/* Vive aquí, en el módulo liviano, porque desde que la resistencia es del   */
+/* PROYECTO y no de la plantilla la necesita SCHEMA, que se carga siempre.   */
+export const RESISTENCIA_OPCIONES = ['21 MPa', '24 MPa', '28 MPa', '31 MPa', '35 MPa'];
+
+/* Las únicas resistencias que trae la tabla de traslapos de la NSR-10. Con  */
+/* cualquier otra, el traslapo no se puede buscar y se muestra "—".          */
+export const RESISTENCIAS_TRASLAPO = ['21 MPa', '28 MPa', '35 MPa'];
+
 /* Sobreescribe el CONTENIDO (no la referencia) de las constantes de acero   */
 /* con lo que el desarrollador haya guardado en Supabase — así todo el      */
 /* código que ya las usa (calcularLongitudinales, calcularEstribos, etc.)   */

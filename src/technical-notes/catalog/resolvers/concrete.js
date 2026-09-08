@@ -3,16 +3,21 @@ import { STATUS } from '../../engine.js';
 import { fromCatalog, getPath, allowDefaultFor } from '../../resolverKit.js';
 import { isBlank, passthrough } from '../../formatters.js';
 
-/* Cimentación de SCHEMA que alimenta FC_ESTRUCTURAL según la estructura
-   activa: cada estructura ya captura la resistencia de SU cimentación en la
+/* Campo de SCHEMA que alimenta FC_ESTRUCTURAL según la estructura activa:
+   cada cimentación del proyecto ya captura su propia resistencia en la
    pestaña Estructural, así que no se crea un campo nuevo (regla 19: una sola
-   fuente de verdad). Portón y cerramiento reutilizan sus dim_ciment_*;
-   soporte de inversores usa dim_ciment_inversores; shelter, dim_ciment_shelter. */
+   fuente de verdad).
+
+   Antes esto apuntaba a dim_ciment_porton / dim_ciment_cerramiento / … , unos
+   campos que dejaron de existir cuando las cimentaciones pasaron a ser
+   plantillas: la nota CON-001 llevaba desde entonces saliendo siempre con el
+   default de 21 MPa, sin importar el proyecto. Ahora lee los campos reales
+   (ver camposCimentacion en dominio.jsx). */
 const CIMENTACION_POR_ESTRUCTURA = {
-  PORTON_METALICO: 'dim_ciment_porton',
-  CERRAMIENTO_PERIMETRAL: 'dim_ciment_cerramiento',
-  SHELTER_CIMENTACION: 'dim_ciment_shelter',
-  SOPORTE_INVERSORES: 'dim_ciment_inversores',
+  PORTON_METALICO: 'resistencia_cerramiento_porton',
+  CERRAMIENTO_PERIMETRAL: 'resistencia_cerramiento_postes',
+  SHELTER_CIMENTACION: 'resistencia_shelter_ct',
+  SOPORTE_INVERSORES: 'resistencia_inversores',
 };
 
 /** FC_ESTRUCTURAL es el único parámetro dependiente del contexto: lee la
@@ -25,17 +30,21 @@ function fcEstructuralResolver() {
   return {
     id: 'FC_ESTRUCTURAL',
     label: "Concreto estructural — f'c",
-    fieldRef: { tab: 'estructural', fieldKey: 'dim_ciment_cerramiento' },
+    /* Cuál es "el campo" depende de la estructura activa, así que el enlace
+       del pendiente se devuelve desde resolve() y no aquí; este es el que se
+       usa si no hay contexto. */
+    fieldRef: { tab: 'estructural', fieldKey: 'resistencia_cerramiento_postes' },
     resolve(data, context) {
       const fieldKey = CIMENTACION_POR_ESTRUCTURA[context?.structureType];
-      const raw = fieldKey ? getPath(data, ['estructural', fieldKey, 'resistencia']) : undefined;
+      const fieldRef = fieldKey ? { tab: 'estructural', fieldKey } : null;
+      const raw = fieldKey ? getPath(data, ['estructural', fieldKey]) : undefined;
       if (!isBlank(raw)) {
         const value = passthrough(raw);
         return isBlank(value)
-          ? { status: STATUS.INVALID, value: null, suggested }
-          : { status: STATUS.RESOLVED_PROJECT, value, suggested };
+          ? { status: STATUS.INVALID, value: null, suggested, fieldRef }
+          : { status: STATUS.RESOLVED_PROJECT, value, suggested, fieldRef };
       }
-      return { status: STATUS.RESOLVED_DEFAULT, value: suggested, suggested };
+      return { status: STATUS.RESOLVED_DEFAULT, value: suggested, suggested, fieldRef };
     },
   };
 }

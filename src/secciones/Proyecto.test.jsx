@@ -424,3 +424,54 @@ describe('FieldRenderer', () => {
     });
   });
 });
+
+describe('resistencia del concreto por proyecto', () => {
+  /* La misma plantilla —un CT Tipo 1— se funde en 21 MPa en un proyecto y en
+     28 en otro, así que la resistencia dejó de vivir en la plantilla y pasó a
+     ser un campo del proyecto, uno por cada cimentación. */
+  const estructural = SCHEMA.find((s) => s.id === 'estructural');
+
+  it('cada cimentación trae su resistencia justo después de la plantilla', () => {
+    const plantillas = estructural.fields.filter((f) => f.type === 'cimentacion_plantilla');
+    expect(plantillas.length).toBe(9);
+    plantillas.forEach((f) => {
+      const siguiente = estructural.fields[estructural.fields.indexOf(f) + 1];
+      expect(siguiente?.key, f.key).toBe(`resistencia_${f.tipoCimentacion}`);
+      expect(siguiente.opciones, f.key).toContain('28 MPa');
+    });
+  });
+
+  it('se puede elegir y avisa el valor elegido', () => {
+    const field = estructural.fields.find((f) => f.key === 'resistencia_shelter_ct');
+    let elegido = null;
+    render(
+      <FieldRenderer
+        field={field}
+        value=""
+        editMode
+        onChange={(val) => { elegido = val; }}
+        siblingData={{}}
+        inversionistas={[]} onAddInversionista={() => {}} paises={[]} onAddPais={() => {}}
+        proveedores={[]} onAddProveedor={() => {}} plantillasCimentacion={[]} plantillasEquipos={[]}
+        inversionistasDetalle={[]} operadoresRed={[]} onAddOperadorRed={() => {}}
+        instaladores={[]} onAddInstalador={() => {}} ingenierosProyectos={[]}
+        onUpdateCatalogoAtributo={() => {}}
+      />,
+    );
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '28 MPa' } });
+    expect(elegido).toBe('28 MPa');
+  });
+
+  it('el valor guardado se ve en la pestaña Estructural', () => {
+    const p = proyecto({ data: { general: {}, estructural: { resistencia_shelter_ct: '28 MPa' } } });
+    const { container } = render(<ProjectDetail project={p} perfil={perfilLider} {...props} />);
+    const boton = screen.getAllByRole('button')
+      .find((b) => b.textContent.trim().replace(/\s+/g, ' ').startsWith('Estructural'));
+    fireEvent.click(boton);
+    /* Por la celda del campo y no por el texto suelto: "28 MPa" también sale
+       en la hoja de vida imprimible, que se pinta oculta en la misma página. */
+    const celda = container.querySelector('[data-field-key="resistencia_shelter_ct"]');
+    expect(celda).toBeTruthy();
+    expect(celda.textContent).toContain('28 MPa');
+  });
+});

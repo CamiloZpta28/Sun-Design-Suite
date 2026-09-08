@@ -169,3 +169,36 @@ describe('parámetros de ingeniería', () => {
     expect(BARRA_ACERO['#3'].gancho).toBe(original.gancho);
   });
 });
+
+describe('la resistencia del concreto ya no es de la plantilla', () => {
+  /* Se mudó al proyecto (pestaña Estructural): la misma geometría se funde en
+     21 MPa en un proyecto y en 28 en otro. Si alguien la vuelve a poner aquí,
+     habría dos fuentes de verdad y ganaría la equivocada. */
+  CIMENTACION_TIPOS.forEach((tipo) => {
+    it(`${tipo.id}: su formulario ya no la pide`, () => {
+      const { Form } = CIMENTACION_COMPONENTES[tipo.id];
+      render(<Form plantilla={null} onCancel={() => {}} onSave={() => {}} mallas={['D84']} onAddMalla={() => {}} />);
+      expect(screen.queryByText(/Resistencia del concreto/i), tipo.id).toBe(null);
+    });
+  });
+
+  /* El Portón es el único cuyo despiece depende de ella (el traslapo de la
+     viga sale de la tabla NSR-10 por calibre y resistencia). Como la plantilla
+     ya no sabe cuál aplica, muestra las tres. */
+  it('el Portón muestra el traslapo de la viga para las tres resistencias de la tabla', () => {
+    const { Form } = CIMENTACION_COMPONENTES.cerramiento_porton;
+    const { container } = render(
+      <Form
+        plantilla={{ id: 'c', tipo: 'cerramiento_porton', nombre: 'Completa', datos: DATOS_COMPLETOS.cerramiento_porton }}
+        onCancel={() => {}}
+        onSave={() => {}}
+        mallas={[]}
+        onAddMalla={() => {}}
+      />,
+    );
+    const texto = container.textContent;
+    ['21 MPa', '28 MPa', '35 MPa'].forEach((r) => {
+      expect(texto.includes(`Con ${r}: traslapo de`), r).toBe(true);
+    });
+  });
+});

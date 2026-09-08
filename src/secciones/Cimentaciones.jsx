@@ -19,7 +19,7 @@ import AddableSelect from '../shared/AddableSelect.jsx';
 import SelectOrOtro from '../technical-notes/SelectOrOtro.jsx';
 import {
   CIMENTACION_TIPOS, CIMENTACION_RESUMENES, RECUBRIMIENTO_CIMENTACION, BARRA_ACERO,
-  CALIBRES_DISPONIBLES, obtenerTraslapo
+  CALIBRES_DISPONIBLES, RESISTENCIAS_TRASLAPO, obtenerTraslapo
 } from './cimentacionesDatos.js';
 
 export function MallaPicker({ value, mallas, onChange, onAddNew }) {
@@ -31,23 +31,6 @@ export function MallaPicker({ value, mallas, onChange, onAddNew }) {
       onAddNew={onAddNew}
       placeholderNuevo="Nombre del nuevo tipo de malla"
       etiquetaAgregar="+ Agregar nuevo tipo de malla…"
-    />
-  );
-}
-
-/* Resistencias de concreto más usadas + opción de escribir otra, compartida  */
-/* por TODAS las cimentaciones (shelter, inversores, cerramiento, portón,     */
-/* luminarias, CCTV, postes) — sin valor por defecto a propósito, para no     */
-/* afectar especialidades fuera del alcance de esta funcionalidad.            */
-export const RESISTENCIA_OPCIONES = ['21 MPa', '24 MPa', '28 MPa', '31 MPa', '35 MPa'];
-export function ResistenciaSelect({ value, onChange, className }) {
-  return (
-    <SelectOrOtro
-      value={value}
-      opciones={RESISTENCIA_OPCIONES}
-      onChange={onChange}
-      className={className}
-      placeholder="Ej. 28 MPa"
     />
   );
 }
@@ -623,7 +606,7 @@ export function PostesMtVistas({ datos }) {
 export function PostesMtForm({ plantilla, onCancel, onSave }) {
   const [nombre, setNombre] = useState(plantilla?.nombre || '');
   const [datos, setDatos] = useState(
-    plantilla?.datos || { diametro: '', desplante: '', sobresaliente: '', espesor_solado: '', resistencia: '' }
+    plantilla?.datos || { diametro: '', desplante: '', sobresaliente: '', espesor_solado: '' }
   );
 
   function set(key, val) {
@@ -680,10 +663,6 @@ export function PostesMtForm({ plantilla, onCancel, onSave }) {
           <div>
             <label className="block text-xs text-navy-500 mb-1">Espesor de solado (m)</label>
             <input value={datos.espesor_solado} onChange={(e) => set('espesor_solado', e.target.value)} placeholder="0.05" className={cellInput} />
-          </div>
-          <div>
-            <label className="block text-xs text-navy-500 mb-1">Resistencia del concreto</label>
-            <ResistenciaSelect value={datos.resistencia} onChange={(val) => set('resistencia', val)} className={cellInput} />
           </div>
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700 px-3 py-2">
@@ -948,7 +927,7 @@ export function LuminariasVistas({ datos }) {
 export function LuminariasForm({ plantilla, onCancel, onSave }) {
   const [nombre, setNombre] = useState(plantilla?.nombre || '');
   const [datos, setDatos] = useState(
-    plantilla?.datos || { ancho: '', profundo: '', desplante: '', sobresaliente: '', espesor_solado: '', resistencia: '' }
+    plantilla?.datos || { ancho: '', profundo: '', desplante: '', sobresaliente: '', espesor_solado: '' }
   );
 
   function set(key, val) {
@@ -1013,10 +992,6 @@ export function LuminariasForm({ plantilla, onCancel, onSave }) {
             <label className="block text-xs text-navy-500 mb-1">Espesor de solado (m)</label>
             <input value={datos.espesor_solado} onChange={(e) => set('espesor_solado', e.target.value)} placeholder="0.05" className={cellInput} />
           </div>
-          <div>
-            <label className="block text-xs text-navy-500 mb-1">Resistencia del concreto</label>
-            <ResistenciaSelect value={datos.resistencia} onChange={(val) => set('resistencia', val)} className={cellInput} />
-          </div>
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700 px-3 py-2">
               Cancelar
@@ -1038,7 +1013,7 @@ export function LuminariasForm({ plantilla, onCancel, onSave }) {
 export function CamarasForm({ plantilla, onCancel, onSave }) {
   const [nombre, setNombre] = useState(plantilla?.nombre || '');
   const [datos, setDatos] = useState(
-    plantilla?.datos || { ancho: '', profundo: '', desplante: '', sobresaliente: '', espesor_solado: '', resistencia: '' }
+    plantilla?.datos || { ancho: '', profundo: '', desplante: '', sobresaliente: '', espesor_solado: '' }
   );
 
   function set(key, val) {
@@ -1102,10 +1077,6 @@ export function CamarasForm({ plantilla, onCancel, onSave }) {
           <div>
             <label className="block text-xs text-navy-500 mb-1">Espesor de solado (m)</label>
             <input value={datos.espesor_solado} onChange={(e) => set('espesor_solado', e.target.value)} placeholder="0.05" className={cellInput} />
-          </div>
-          <div>
-            <label className="block text-xs text-navy-500 mb-1">Resistencia del concreto</label>
-            <ResistenciaSelect value={datos.resistencia} onChange={(val) => set('resistencia', val)} className={cellInput} />
           </div>
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700 px-3 py-2">
@@ -1877,7 +1848,6 @@ export function normalizarDatosInversores(datos) {
     barras: { cantidad: '', calibre: '', ganchos: '1' },
     estribos: { calibre: '', separacion: '' },
     losa: { ancho: '', largo: '', espesor: '', malla: '' },
-    resistencia: '',
   };
   if (!datos) return base;
   return {
@@ -1934,10 +1904,6 @@ export function InversoresForm({ plantilla, onCancel, onSave, mallas, onAddMalla
             placeholder="Ej. Inversores Tipo 1"
             className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm"
           />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Resistencia del concreto</label>
-          <ResistenciaSelect value={datos.resistencia} onChange={(val) => set('resistencia', val)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
         </div>
       </div>
 
@@ -2889,7 +2855,6 @@ export function normalizarDatosPorton(datos) {
     separacion_zapatas: '',
     desplante: '',
     espesor_solado: '',
-    resistencia: '',
   };
   if (!datos) return base;
   return {
@@ -2938,12 +2903,28 @@ export function PortonForm({ plantilla, onCancel, onSave }) {
     longitudinal: datos.zapata?.parrilla_longitudinal,
     transversal: datos.zapata?.parrilla_transversal,
   });
-  const vigaBarras = calcularBarrasVigaAmarre({
-    separacionCentros: datos.separacion_zapatas,
-    calibre: datos.viga?.barras?.calibre,
-    resistencia: datos.resistencia,
-    ganchos: datos.viga?.barras?.ganchos,
-  });
+  /* El traslapo depende de la resistencia del concreto, que ya no es de la
+     plantilla sino de cada proyecto (ver camposCimentacion en dominio.jsx).
+     Aquí, entonces, no hay UNA respuesta: se muestran las tres de la tabla
+     NSR-10 para que quien dibuja la plantilla siga viendo el despiece. */
+  const vigaBarrasPorResistencia = RESISTENCIAS_TRASLAPO
+    .map((resistencia) => ({
+      resistencia,
+      barras: calcularBarrasVigaAmarre({
+        separacionCentros: datos.separacion_zapatas,
+        calibre: datos.viga?.barras?.calibre,
+        resistencia,
+        ganchos: datos.viga?.barras?.ganchos,
+      }),
+    }))
+    .filter((fila) => fila.barras);
+  /* El consolidado de peso necesita UN número, y el traslapo cambia con la
+     resistencia: se toma la combinación más pesada (traslapo más largo) —
+     de las tres es la única que nunca deja corto el pedido de acero. */
+  const vigaBarrasMasPesada = vigaBarrasPorResistencia.reduce(
+    (peor, fila) => (!peor || fila.barras.pesoTotal > peor.barras.pesoTotal ? fila : peor),
+    null,
+  );
   const longitudViga = (parseFloat(datos.separacion_zapatas) || 0) - (parseFloat(datos.zapata.largo) || 0);
   const vigaEstribos = calcularEstribos({
     altura: longitudViga > 0 ? longitudViga : undefined,
@@ -2979,7 +2960,7 @@ export function PortonForm({ plantilla, onCancel, onSave }) {
   const pesoTotalAcero =
     (parrilla.longitudinal?.pesoTotal || 0) * 2 + // ×2 porque son 2 zapatas iguales
     (parrilla.transversal?.pesoTotal || 0) * 2 +
-    (vigaBarras?.pesoTotal || 0) +
+    (vigaBarrasMasPesada?.barras.pesoTotal || 0) +
     (vigaEstribos?.pesoTotal ? vigaEstribos.pesoEstribo * vigaEstribos.cantidad : 0) +
     (pedestalLongitudinales?.pesoTotal || 0) +
     (pedestalEstribos?.pesoTotal || 0);
@@ -3010,11 +2991,6 @@ export function PortonForm({ plantilla, onCancel, onSave }) {
             placeholder="Ej. Portón Tipo 1"
             className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm"
           />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Resistencia del concreto</label>
-          <ResistenciaSelect value={datos.resistencia} onChange={(val) => set('resistencia', val)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
-          <p className="text-xs text-navy-400 mt-1">Se usa para buscar el traslapo de la viga en la tabla NSR-10 (solo cubre 21/28/35 MPa).</p>
         </div>
       </div>
 
@@ -3127,14 +3103,20 @@ export function PortonForm({ plantilla, onCancel, onSave }) {
               <input value={datos.viga.barras.ganchos} onChange={(e) => setSubgrupo('viga', 'barras', 'ganchos', e.target.value)} placeholder="1" className={cellInput} />
             </div>
           </div>
-          {vigaBarras ? (
-            <p className="text-xs text-navy-500 mb-3">
-              → Traslapo de <span className="font-mono font-semibold text-navy-700">{vigaBarras.traslapo.toFixed(2)} m</span> (arriba a 1/3, abajo a 2/3) · pieza corta{' '}
-              <span className="font-mono font-semibold text-navy-700">{vigaBarras.piezaCorta.toFixed(2)} m</span> · pieza larga{' '}
-              <span className="font-mono font-semibold text-navy-700">{vigaBarras.piezaLarga.toFixed(2)} m</span> · {vigaBarras.piezas} piezas en total — {vigaBarras.pesoTotal.toFixed(2)} kg
-            </p>
+          {vigaBarrasPorResistencia.length > 0 ? (
+            <div className="text-xs text-navy-500 mb-3 space-y-1">
+              {vigaBarrasPorResistencia.map(({ resistencia, barras }) => (
+                <p key={resistencia}>
+                  → Con <span className="font-semibold text-navy-700">{resistencia}</span>: traslapo de{' '}
+                  <span className="font-mono font-semibold text-navy-700">{barras.traslapo.toFixed(2)} m</span> (arriba a 1/3, abajo a 2/3) · pieza corta{' '}
+                  <span className="font-mono font-semibold text-navy-700">{barras.piezaCorta.toFixed(2)} m</span> · pieza larga{' '}
+                  <span className="font-mono font-semibold text-navy-700">{barras.piezaLarga.toFixed(2)} m</span> · {barras.piezas} piezas en total — {barras.pesoTotal.toFixed(2)} kg
+                </p>
+              ))}
+              <p className="text-navy-400 italic">La resistencia del concreto se elige en cada proyecto (pestaña Estructural); por eso aquí van las tres de la tabla NSR-10.</p>
+            </div>
           ) : (
-            <p className="text-xs text-navy-300 italic mb-3">Completa separación entre zapatas, resistencia y calibre.</p>
+            <p className="text-xs text-navy-300 italic mb-3">Completa separación entre zapatas y calibre.</p>
           )}
           <p className="text-xs font-semibold text-navy-600 mb-2">Estribos</p>
           <div className="grid grid-cols-2 gap-3 mb-2">
@@ -3235,7 +3217,10 @@ export function PortonForm({ plantilla, onCancel, onSave }) {
           <p className="text-sm font-semibold text-navy-700 mb-2">Peso de acero por elemento</p>
           <FilaResumenAcero label="Zapata — parrilla longitudinal (2 zapatas)" valor={`${((parrilla.longitudinal?.pesoTotal || 0) * 2).toFixed(2)} kg`} />
           <FilaResumenAcero label="Zapata — parrilla transversal (2 zapatas)" valor={`${((parrilla.transversal?.pesoTotal || 0) * 2).toFixed(2)} kg`} />
-          <FilaResumenAcero label="Viga — barras longitudinales (8 piezas)" valor={`${(vigaBarras?.pesoTotal || 0).toFixed(2)} kg`} />
+          <FilaResumenAcero
+            label={`Viga — barras longitudinales (8 piezas${vigaBarrasMasPesada ? `, traslapo de ${vigaBarrasMasPesada.resistencia}` : ''})`}
+            valor={`${(vigaBarrasMasPesada?.barras.pesoTotal || 0).toFixed(2)} kg`}
+          />
           <FilaResumenAcero label="Viga — estribos" valor={`${(vigaEstribos ? vigaEstribos.pesoEstribo * vigaEstribos.cantidad : 0).toFixed(2)} kg`} />
           <FilaResumenAcero label="Pedestal — barras longitudinales (2 pedestales)" valor={`${(pedestalLongitudinales?.pesoTotal || 0).toFixed(2)} kg`} />
           <FilaResumenAcero label="Pedestal — estribos (2 pedestales)" valor={`${(pedestalEstribos?.pesoTotal || 0).toFixed(2)} kg`} />
@@ -3274,7 +3259,7 @@ export function normalizarDatosCT(datos) {
   const base = {
     ancho: '', largo: '',
     desplante: '', sobresaliente: '0.50',
-    espesor_solado: '', resistencia: '',
+    espesor_solado: '',
     pedestal: {
       ancho: '', profundo: '',
       barras: { cantidad: '', calibre: '', ganchos: '1' },
@@ -4002,10 +3987,6 @@ export function CTForm({ plantilla, onCancel, onSave }) {
             className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm"
           />
         </div>
-        <div>
-          <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Resistencia del concreto</label>
-          <ResistenciaSelect value={datos.resistencia} onChange={(val) => set('resistencia', val)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" />
-        </div>
       </div>
 
       <div className="border border-navy-200 rounded-lg p-4 mb-4">
@@ -4636,7 +4617,6 @@ export function normalizarDatosTrampa(datos) {
   const base = {
     ancho: '', profundo: '', alto: '',
     espesor_pared: '', espesor_losa: '', espesor_solado: '',
-    resistencia: '',
     anillos: { calibre: '', separacion: '' },
     u_largo: { calibre: '', separacion: '' },
     u_corto: { calibre: '', separacion: '' },
@@ -4747,10 +4727,6 @@ export function TrampaAceiteForm({ plantilla, onCancel, onSave }) {
               <label className="block text-xs text-navy-500 mb-1">Espesor de solado (m)</label>
               <input value={datos.espesor_solado} onChange={(e) => set('espesor_solado', e.target.value)} placeholder="0.05" className={cellInput} />
             </div>
-          </div>
-          <div>
-            <label className="block text-xs text-navy-500 mb-1">Resistencia del concreto</label>
-            <ResistenciaSelect value={datos.resistencia} onChange={(val) => set('resistencia', val)} className={cellInput} />
           </div>
         </div>
       </div>
@@ -4931,7 +4907,6 @@ export function ParametrosIngenieriaView({ parametros, onGuardar }) {
   const [guardando, setGuardando] = useState(false);
   const [guardado, setGuardado] = useState(false);
 
-  const resistenciasTraslapo = ['21 MPa', '28 MPa', '35 MPa'];
   const cellInput = 'w-full rounded-md border border-navy-300 px-2 py-1.5 text-sm font-mono text-center focus:outline-none focus:ring-2 focus:ring-lime-400';
 
   function setBarraCampo(calibre, campo, val) {
@@ -5007,7 +4982,7 @@ export function ParametrosIngenieriaView({ parametros, onGuardar }) {
           <thead>
             <tr className="text-xs text-navy-400 text-left">
               <th className="pb-2 pr-3">Calibre</th>
-              {resistenciasTraslapo.map((r) => (
+              {RESISTENCIAS_TRASLAPO.map((r) => (
                 <th key={r} className="pb-2 pr-3">{r}</th>
               ))}
             </tr>
@@ -5016,7 +4991,7 @@ export function ParametrosIngenieriaView({ parametros, onGuardar }) {
             {Object.keys(barras).map((cal) => (
               <tr key={cal}>
                 <td className="py-1 pr-3 font-mono font-semibold text-navy-700">{cal}</td>
-                {resistenciasTraslapo.map((r) => (
+                {RESISTENCIAS_TRASLAPO.map((r) => (
                   <td key={r} className="py-1 pr-3 w-28">
                     <input value={traslapos[cal]?.[r] ?? ''} onChange={(e) => setTraslapoCampo(cal, r, e.target.value)} className={cellInput} />
                   </td>
