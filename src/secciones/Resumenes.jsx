@@ -28,16 +28,32 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CalendarCheck, Check, ChevronDown, ChevronRight, Copy, ExternalLink, Pencil, Plus, Send, Users, X,
+  CalendarCheck, CalendarClock, Check, ChevronDown, ChevronRight, Copy, ExternalLink, Pencil, Plus, Send, Users, X,
 } from 'lucide-react';
 import { DOC_ESTADOS, DOC_ESTADO_HEX, DOC_ESTADO_CORTO } from '../shared/dominio.jsx';
-import { ROLES, roleLabel } from '../shared/permisos.js';
+import { ROLES, isLeader, roleLabel } from '../shared/permisos.js';
 import { FiltroFichas, alternarEn, Avatar } from '../shared/ui.jsx';
 import { copiarTexto } from '../shared/copiar.jsx';
 import {
-  BLOQUES_RESUMEN, cuentaDeFoto, etiquetaDeSemana, fotoConComparacion, fotoDeLaSemana,
-  lunesDe, sumarDias, textoDelResumen, ultimasSemanas, viernesDe,
+  BLOQUES_RESUMEN, cierreDeSemana, cierreValido, cuentaDeFoto, estadoDeEntrega, etiquetaDeSemana,
+  fotoConComparacion, fotoDeLaSemana, lunesDe, notaDeCierre, sumarDias, textoDelResumen,
+  ultimasSemanas,
 } from '../shared/resumenes.js';
+
+/* "viernes 11 de septiembre" — cómo se lee una fecha suelta en la cabecera. */
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const MESES_CORTOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+export function diaYMes(iso) {
+  if (!iso) return '';
+  const [a, m, d] = iso.split('-').map(Number);
+  return `${DIAS[new Date(a, m - 1, d).getDay()]} ${d} de ${MESES_CORTOS[m - 1]}`;
+}
+
+/* El viernes de esa semana, para saber si el cierre está en su sitio o lo
+   movieron. */
+function viernesDeLaSemana(lunesIso) {
+  return sumarDias(lunesIso, 4);
+}
 
 /* --------------------------------------------------------------- el avance */
 
@@ -327,9 +343,9 @@ function ResumenEnLectura({ resumen, onAbrirProyecto }) {
 
 /* ------------------------------------------------------------- mi resumen */
 
-function MiResumen({ semana, guardado, fotosEnVivo, onGuardar, onAbrirProyecto }) {
+function MiResumen({ semana, cierre, guardado, fotosEnVivo, onGuardar, onAbrirProyecto }) {
   const [bloques, setBloques] = useState(() => guardado?.bloques || {});
-  const [hasta, setHasta] = useState(() => guardado?.hasta || viernesDe(semana));
+  const [hasta, setHasta] = useState(() => guardado?.hasta || cierre);
   const [incluirAvance, setIncluirAvance] = useState(true);
   const [copiado, setCopiado] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -389,8 +405,8 @@ function MiResumen({ semana, guardado, fotosEnVivo, onGuardar, onAbrirProyecto }
           className="rounded-md border border-navy-300 px-2.5 py-1.5 text-sm disabled:bg-navy-50 disabled:text-navy-400"
         />
         <p className="text-xs text-navy-400 flex-1 min-w-[14rem]">
-          Normalmente el viernes. Si sales antes —vacaciones, un viaje— ciérralo el día que de verdad trabajaste; eso
-          no le cambia la semana a nadie más.
+          Viene puesto en el día que cierra la semana. Si sales antes —vacaciones, un viaje— ciérralo el día que de
+          verdad trabajaste; eso no le cambia la semana a nadie más.
         </p>
       </div>
 
@@ -463,12 +479,113 @@ function MiResumen({ semana, guardado, fotosEnVivo, onGuardar, onAbrirProyecto }
   );
 }
 
+/* --------------------------------------------------------------- el cierre */
+
+/* El día en que cierra la semana PARA TODOS. Normalmente el viernes; cuando
+   ese viernes es festivo, un líder lo corre y a todo el equipo le cambia la
+   fecha de entrega. Es distinto del "cubre hasta" de cada resumen, que es una
+   decisión individual y no le mueve la semana a nadie más. */
+function CierreDeLaSemana({ semana, cierre, nota, puedeMover, onGuardar }) {
+  const [editando, setEditando] = useState(false);
+  const [fecha, setFecha] = useState(cierre);
+  const [texto, setTexto] = useState(nota);
+  const movido = cierre !== viernesDeLaSemana(semana);
+  const valido = cierreValido(semana, fecha);
+
+  function guardar() {
+    if (!valido) return;
+    onGuardar(semana, fecha, texto);
+    setEditando(false);
+  }
+  function volverAlViernes() {
+    onGuardar(semana, null, '');
+    setEditando(false);
+  }
+
+  if (editando) {
+    return (
+      <div className="bg-nashville-50 border border-nashville-300 rounded-xl px-3 py-2.5 mb-4">
+        <p className="text-xs font-semibold text-navy-600 mb-2">Mover el cierre de esta semana</p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="date"
+            aria-label="Día en que cierra la semana"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+            className="rounded-md border border-navy-300 px-2.5 py-1.5 text-sm"
+          />
+          <input
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            placeholder="Por qué (ej. viernes festivo)"
+            className="flex-1 min-w-[12rem] rounded-md border border-navy-300 px-2.5 py-1.5 text-sm"
+          />
+          <button
+            onClick={guardar}
+            disabled={!valido}
+            className="bg-lime-500 hover:bg-lime-600 disabled:opacity-40 text-navy-900 font-semibold text-sm px-3 py-1.5 rounded-lg"
+          >
+            Guardar
+          </button>
+          {movido && (
+            <button onClick={volverAlViernes} className="text-sm text-navy-500 hover:text-navy-700 px-2 py-1.5">
+              Volver al viernes
+            </button>
+          )}
+          <button onClick={() => setEditando(false)} className="text-sm text-navy-500 hover:text-navy-700 px-2 py-1.5">
+            Cancelar
+          </button>
+        </div>
+        {!valido && (
+          <p className="text-xs text-red-600 mt-1.5">
+            El cierre tiene que caer dentro de esta misma semana.
+          </p>
+        )}
+        <p className="text-xs text-navy-400 mt-1.5">
+          Le cambia la fecha de entrega a todo el equipo. Para cerrar solo el tuyo antes —vacaciones, un viaje— usa
+          "Cubre hasta" en tu resumen.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <p className="flex items-center gap-2 flex-wrap text-xs text-navy-500 mb-4">
+      <CalendarClock className="w-3.5 h-3.5 text-navy-400 shrink-0" />
+      <span>
+        Cierra el <span className="font-semibold text-navy-700">{diaYMes(cierre)}</span>
+        {movido && nota ? ` · ${nota}` : ''}
+        {movido && !nota ? ' · movido' : ''}
+      </span>
+      {puedeMover && (
+        <button
+          onClick={() => { setFecha(cierre); setTexto(nota); setEditando(true); }}
+          className="font-semibold text-lime-600 hover:text-lime-700 underline"
+        >
+          {movido ? 'cambiar' : 'moverlo'}
+        </button>
+      )}
+    </p>
+  );
+}
+
 /* ------------------------------------------------------------- el equipo */
 
-function FilaPersona({ persona, resumen, onAbrirProyecto }) {
+/* Cómo se ve cada estado de entrega. "Cierra hoy" avisa sin alarmar —el
+   resumen se manda ese día, casi siempre por la tarde— y solo pasado el cierre
+   se marca en rojo. */
+const CHIP_ENTREGA = {
+  enviado: { texto: 'Enviado', clase: 'bg-emerald-100 text-emerald-800' },
+  pendiente: { texto: 'Sin registrar', clase: 'bg-navy-100 text-navy-500' },
+  cierra_hoy: { texto: 'Cierra hoy', clase: 'bg-amber-100 text-amber-800' },
+  vencido: { texto: 'No lo envió', clase: 'bg-red-100 text-red-700' },
+};
+
+function FilaPersona({ persona, resumen, onAbrirProyecto, cierre }) {
   const [abierto, setAbierto] = useState(false);
   /* Un borrador ajeno no se muestra: mientras no esté enviado, no está dicho. */
   const enviado = !!resumen?.enviado;
+  const chip = CHIP_ENTREGA[estadoDeEntrega(resumen, cierre)] || CHIP_ENTREGA.pendiente;
 
   return (
     <div className="bg-white border border-navy-200 rounded-xl">
@@ -484,11 +601,8 @@ function FilaPersona({ persona, resumen, onAbrirProyecto }) {
           <p className="text-sm font-semibold text-navy-700 truncate">{persona.nombre}</p>
           <p className="text-xs text-navy-400 truncate">{(persona.roles || []).map(roleLabel).join(' · ') || 'Sin rol asignado'}</p>
         </div>
-        <span className={`text-xs font-semibold px-2 py-1 rounded-full shrink-0 ${
-          enviado ? 'bg-emerald-100 text-emerald-800' : 'bg-navy-100 text-navy-500'
-        }`}
-        >
-          {enviado ? 'Enviado' : 'Sin registrar'}
+        <span className={`text-xs font-semibold px-2 py-1 rounded-full shrink-0 ${chip.clase}`}>
+          {chip.texto}
         </span>
       </button>
       {abierto && enviado && (
@@ -508,7 +622,7 @@ export function esSoloDesarrollador(persona) {
   return roles.length > 0 && roles.every((r) => r === 'desarrollador');
 }
 
-function VistaEquipo({ directorio, resumenesDeLaSemana, onAbrirProyecto }) {
+function VistaEquipo({ directorio, resumenesDeLaSemana, onAbrirProyecto, cierre }) {
   const [roles, setRoles] = useState([]);
 
   const porUsuario = new Map(resumenesDeLaSemana.map((r) => [r.usuario_id, r]));
@@ -525,6 +639,7 @@ function VistaEquipo({ directorio, resumenesDeLaSemana, onAbrirProyecto }) {
     : gente.filter((p) => (p.roles || []).some((r) => clavesElegidas.includes(r)));
 
   const enviados = visibles.filter((p) => porUsuario.get(p.id)?.enviado).length;
+  const vencidos = visibles.filter((p) => estadoDeEntrega(porUsuario.get(p.id), cierre) === 'vencido').length;
 
   return (
     <div>
@@ -539,6 +654,9 @@ function VistaEquipo({ directorio, resumenesDeLaSemana, onAbrirProyecto }) {
       />
       <p className="text-sm text-navy-500 mb-3">
         {enviados} de {visibles.length} ya enviaron su resumen de esta semana.
+        {vencidos > 0 && (
+          <span className="text-red-600 font-semibold"> {vencidos} no alcanzó a hacerlo.</span>
+        )}
       </p>
       <div className="space-y-2">
         {visibles.map((persona) => (
@@ -547,6 +665,7 @@ function VistaEquipo({ directorio, resumenesDeLaSemana, onAbrirProyecto }) {
             persona={persona}
             resumen={porUsuario.get(persona.id)}
             onAbrirProyecto={onAbrirProyecto}
+            cierre={cierre}
           />
         ))}
       </div>
@@ -556,11 +675,12 @@ function VistaEquipo({ directorio, resumenesDeLaSemana, onAbrirProyecto }) {
 
 /* ------------------------------------------------------------------ raíz */
 
-export default function ResumenesView({ perfil, directorio, projects, dossiers, resumenes, onGuardar, onAbrirProyecto }) {
+export default function ResumenesView({ perfil, directorio, projects, dossiers, resumenes, onGuardar, onAbrirProyecto, cierres, onGuardarCierre }) {
   const [semana, setSemana] = useState(() => lunesDe());
   const [pestana, setPestana] = useState('mio');
 
   const semanas = useMemo(() => ultimasSemanas(12), []);
+  const cierre = cierreDeSemana(semana, cierres);
   const deLaSemana = (resumenes || []).filter((r) => r.semana === semana);
   const mio = deLaSemana.find((r) => r.usuario_id === perfil?.id) || null;
   const anterior = (resumenes || []).find((r) => r.usuario_id === perfil?.id && r.semana === sumarDias(semana, -7));
@@ -583,7 +703,14 @@ export default function ResumenesView({ perfil, directorio, projects, dossiers, 
       <h1 className="text-2xl font-bold text-navy-800 flex items-center gap-2 mb-1">
         <CalendarCheck className="w-6 h-6 text-navy-400" /> Resúmenes semanales
       </h1>
-      <p className="text-sm text-navy-500 mb-4">{etiquetaDeSemana(semana, mio?.hasta)}</p>
+      <p className="text-sm text-navy-500 mb-1">{etiquetaDeSemana(semana, mio?.hasta || cierre)}</p>
+      <CierreDeLaSemana
+        semana={semana}
+        cierre={cierre}
+        nota={notaDeCierre(semana, cierres)}
+        puedeMover={isLeader(perfil) && !!onGuardarCierre}
+        onGuardar={onGuardarCierre}
+      />
 
       <div className="flex items-center gap-3 flex-wrap mb-5">
         <select
@@ -621,6 +748,7 @@ export default function ResumenesView({ perfil, directorio, projects, dossiers, 
              componente a media frase y se perdería el foco. */
           key={`${semana}-${mio?.enviado ? 'enviado' : 'edicion'}`}
           semana={semana}
+          cierre={cierre}
           guardado={mio}
           fotosEnVivo={fotosEnVivo}
           onGuardar={onGuardar}
@@ -631,6 +759,7 @@ export default function ResumenesView({ perfil, directorio, projects, dossiers, 
           directorio={directorio}
           resumenesDeLaSemana={deLaSemana}
           onAbrirProyecto={onAbrirProyecto}
+          cierre={cierre}
         />
       )}
     </div>

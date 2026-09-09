@@ -564,21 +564,33 @@ describe('Control Documental · responsables', () => {
     .filter((b) => b.hasAttribute('aria-pressed'))
     .find((b) => b.textContent.trim().startsWith(nombre + ' ('));
 
-  it('cada documento muestra quien responde por el, con su papel', () => {
+  /* Con la tarjeta contraida solo van los nombres, en el mismo gris pequeno
+     del codigo y el tipo: 84 tarjetas con bloques de color eran puro ruido. */
+  it('la tarjeta contraida solo nombra a los responsables, sin chips', () => {
+    const { container } = pintarCD();
+    const cerramiento = container.querySelector('[title="Copiar X-CIV-PL-001"]').closest('p');
+    expect(cerramiento.textContent).toContain('Beto');
+    expect(cerramiento.textContent).toContain('Ana');
+    expect(screen.queryByTitle('Beto (Delineante) lo elabora o lo dibuja')).toBe(null);
+  });
+
+  it('al desplegar el documento aparecen los chips con el papel de cada uno', () => {
     pintarCD();
-    /* Beto dibuja dos planos, asi que su chip sale dos veces. */
-    expect(screen.getAllByTitle('Beto (Delineante) lo elabora o lo dibuja').length).toBe(2);
+    fireEvent.click(screen.getByText('Cerramiento'));
+    expect(screen.getByText('Responsables')).toBeTruthy();
+    expect(screen.getByTitle('Beto (Delineante) lo elabora o lo dibuja')).toBeTruthy();
     expect(screen.getByTitle('Ana (Ing. Civil) lo revisa')).toBeTruthy();
-    expect(screen.getByTitle('Ana (Ing. Civil) lo elabora o lo dibuja')).toBeTruthy();
-    expect(screen.getByTitle('Caro (Ing. Eléctrico) lo revisa')).toBeTruthy();
   });
 
   /* El hueco: el dossier dice que responde el estructural y en este proyecto
      no hay estructural. Es trabajo sin dueño y tiene que saltar a la vista. */
-  it('un rol sin nadie asignado se ve como vacante', () => {
+  /* Lo unico que se mantiene visible sin desplegar: trabajo sin dueno no puede
+     quedar escondido detras de un clic. */
+  it('un rol vacante se avisa aunque la tarjeta esté contraída', () => {
     pintarCD();
+    expect(screen.getByText(/falta Estructural/)).toBeTruthy();
+    fireEvent.click(screen.getByText('Cimentaciones'));
     expect(screen.getByTitle(/Nadie tiene el rol de Ing. Estructural en este proyecto/)).toBeTruthy();
-    expect(screen.getByText(/Sin Estructural/)).toBeTruthy();
   });
 
   it('el filtro ofrece una ficha por persona, y "Sin asignar" de ultimo', () => {
@@ -637,11 +649,18 @@ describe('Control Documental · responsables', () => {
     expect(screen.queryByText('Responsable:')).toBe(null);
   });
 
-  it('los documentos propios se marcan para poder ubicarlos de un vistazo', () => {
+  it('el nombre propio resalta en la lista, para ubicarlo de un vistazo', () => {
     const { container } = pintarCD({ miNombre: 'Beto' });
-    const [mio] = container.querySelectorAll('[title="Beto (Delineante) lo elabora o lo dibuja"]');
-    expect(mio.className).toContain('ring-1');
-    const ajeno = container.querySelector('[title="Ana (Ing. Civil) lo revisa"]');
-    expect(ajeno.className).not.toContain('ring-1');
+    const cerramiento = container.querySelector('[title="Copiar X-CIV-PL-001"]').closest('p');
+    const resaltados = [...cerramiento.querySelectorAll('.font-semibold')].map((n) => n.textContent);
+    expect(resaltados).toContain('Beto');
+    expect(resaltados).not.toContain('Ana');
+  });
+
+  it('y su chip también, con la tarjeta desplegada', () => {
+    const { container } = pintarCD({ miNombre: 'Beto' });
+    fireEvent.click(screen.getByText('Cerramiento'));
+    expect(container.querySelector('[title="Beto (Delineante) lo elabora o lo dibuja"]').className).toContain('ring-1');
+    expect(container.querySelector('[title="Ana (Ing. Civil) lo revisa"]').className).not.toContain('ring-1');
   });
 });

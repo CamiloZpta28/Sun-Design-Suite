@@ -1670,6 +1670,9 @@ export default function App() {
   /* Los resúmenes semanales de TODO el equipo, de las últimas semanas: la
      pantalla los lee todos (cada quien escribe solo el suyo). */
   const [resumenes, setResumenes] = useState([]);
+  /* Solo las semanas cuyo cierre se corrió (un viernes festivo, por ejemplo).
+     Las demás cierran el viernes sin necesidad de fila. */
+  const [cierresDeSemana, setCierresDeSemana] = useState([]);
   // Objetos completos (correo/teléfono/NIT/logo) de cada inversionista — se
   // cargan por separado de la lista de nombres de arriba (que no se toca,
   // para no afectar nada de lo que ya depende de ella).
@@ -1826,6 +1829,17 @@ export default function App() {
       return;
     }
     setResumenes(data || []);
+
+    const { data: filasCierre, error: errorCierre } = await supabase
+      .from('semanas_cierre')
+      .select('*')
+      .gte('semana', desde);
+    if (errorCierre) {
+      console.warn('No se pudo cargar el cierre de las semanas (¿falta la migración?):', errorCierre.message);
+      setCierresDeSemana([]);
+      return;
+    }
+    setCierresDeSemana(filasCierre || []);
   }
 
   async function loadSharedData(ownUserId) {
@@ -2524,6 +2538,38 @@ export default function App() {
     });
   }
 
+  /* Corre —o devuelve a su sitio— el día en que cierra una semana. Le cambia
+     la fecha de entrega a TODO el equipo, así que solo lo hacen los líderes;
+     la RLS es la que de verdad lo impide. */
+  async function handleGuardarCierreSemana(semana, cierre, nota) {
+    /* Volver al viernes no deja una fila diciendo "cierra el viernes": se
+       borra, que es lo mismo y deja la tabla contando solo excepciones. */
+    if (!cierre) {
+      const { error } = await supabase.from('semanas_cierre').delete().eq('semana', semana);
+      if (error) {
+        console.error('Error devolviendo el cierre al viernes:', error);
+        alert('No se pudo devolver el cierre al viernes. Detalle: ' + error.message);
+        return;
+      }
+      setCierresDeSemana((prev) => prev.filter((c) => c.semana !== semana));
+      return;
+    }
+    const fila = {
+      semana,
+      cierre,
+      nota: nota || null,
+      actualizado_por: perfil?.nombre || null,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('semanas_cierre').upsert(fila);
+    if (error) {
+      console.error('Error moviendo el cierre de la semana:', error);
+      alert('No se pudo mover el cierre. Detalle: ' + error.message);
+      return;
+    }
+    setCierresDeSemana((prev) => [...prev.filter((c) => c.semana !== semana), fila]);
+  }
+
   function handleAddPlantillaCimentacion(tipo, nombre, datos) {
     const nueva = { id: makeId('cim'), tipo, nombre, datos };
     setPlantillasCimentacion((prev) => [...prev, nueva]);
@@ -3095,6 +3141,8 @@ export default function App() {
             resumenes={resumenes}
             onGuardar={handleGuardarResumen}
             onAbrirProyecto={openProject}
+            cierres={cierresDeSemana}
+            onGuardarCierre={handleGuardarCierreSemana}
           />
         )}
         {view === 'dossiers' && (

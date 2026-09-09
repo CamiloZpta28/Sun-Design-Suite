@@ -14,6 +14,7 @@ import { describe, it, expect } from 'vitest';
 import {
   BLOQUES_RESUMEN, cambiosEntreFotos, cuentaDeFoto, etiquetaDeSemana, fotoConComparacion,
   fotoDeLaSemana, fotoDeProyecto, lunesDe, misDocumentosDelProyecto, nivelDeEstado,
+  cierreDeSemana, cierreValido, estadoDeEntrega, notaDeCierre,
   sinFinalizadosRepetidos, sumarDias, textoDelResumen, ultimasSemanas, viernesDe,
 } from './resumenes.js';
 
@@ -320,5 +321,67 @@ describe('la foto guarda con qué me toca cada documento', () => {
 
   it('un proyecto sin estado se toma como activo', () => {
     expect(fotoDeProyecto(proyecto(), [dossier], 'Ana').estado).toBe('activo');
+  });
+});
+
+describe('el cierre de la semana', () => {
+  const LUNES = '2026-09-07';
+  const VIERNES = '2026-09-11';
+
+  it('sin nada configurado, la semana cierra el viernes', () => {
+    expect(cierreDeSemana(LUNES, [])).toBe(VIERNES);
+    expect(cierreDeSemana(LUNES, undefined)).toBe(VIERNES);
+    expect(cierreDeSemana(LUNES, [{ semana: '2026-09-14', cierre: '2026-09-17' }])).toBe(VIERNES);
+  });
+
+  it('un líder lo puede correr, y solo para esa semana', () => {
+    const cierres = [{ semana: LUNES, cierre: '2026-09-10', nota: 'Viernes festivo' }];
+    expect(cierreDeSemana(LUNES, cierres)).toBe('2026-09-10');
+    expect(notaDeCierre(LUNES, cierres)).toBe('Viernes festivo');
+    /* La semana siguiente no se entera. */
+    expect(cierreDeSemana('2026-09-14', cierres)).toBe('2026-09-18');
+    expect(notaDeCierre('2026-09-14', cierres)).toBe('');
+  });
+
+  /* Mover el cierre fuera de su semana dejaria a todo el mundo "sin vencer"
+     para siempre, o vencido desde antes de empezar. */
+  it('el cierre tiene que caer dentro de su propia semana', () => {
+    expect(cierreValido(LUNES, LUNES)).toBe(true);
+    expect(cierreValido(LUNES, '2026-09-13')).toBe(true);   // domingo
+    expect(cierreValido(LUNES, '2026-09-06')).toBe(false);  // domingo anterior
+    expect(cierreValido(LUNES, '2026-09-14')).toBe(false);  // lunes siguiente
+    expect(cierreValido(LUNES, '')).toBe(false);
+    expect(cierreValido(LUNES, null)).toBe(false);
+  });
+});
+
+describe('en qué va la entrega de cada quien', () => {
+  const CIERRE = '2026-09-11';
+  const enviado = { enviado: true };
+  const borrador = { enviado: false };
+
+  it('enviado manda sobre todo lo demás, aunque ya haya vencido', () => {
+    expect(estadoDeEntrega(enviado, CIERRE, new Date(2026, 8, 9))).toBe('enviado');
+    expect(estadoDeEntrega(enviado, CIERRE, new Date(2026, 8, 30))).toBe('enviado');
+  });
+
+  it('antes del cierre está pendiente, sin alarma', () => {
+    expect(estadoDeEntrega(null, CIERRE, new Date(2026, 8, 9))).toBe('pendiente');
+    expect(estadoDeEntrega(borrador, CIERRE, new Date(2026, 8, 9))).toBe('pendiente');
+  });
+
+  /* El resumen se manda EL día del cierre, casi siempre por la tarde: ese día
+     no puede contar como vencido. */
+  it('el día del cierre avisa, pero todavía no está vencido', () => {
+    expect(estadoDeEntrega(null, CIERRE, new Date(2026, 8, 11))).toBe('cierra_hoy');
+  });
+
+  it('pasado el cierre, vencido', () => {
+    expect(estadoDeEntrega(null, CIERRE, new Date(2026, 8, 12))).toBe('vencido');
+    expect(estadoDeEntrega(borrador, CIERRE, new Date(2026, 8, 20))).toBe('vencido');
+  });
+
+  it('un borrador sin enviar no cuenta como entregado', () => {
+    expect(estadoDeEntrega(borrador, CIERRE, new Date(2026, 8, 12))).toBe('vencido');
   });
 });

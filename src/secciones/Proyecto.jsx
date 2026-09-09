@@ -1504,18 +1504,54 @@ export function VersionesTracker({ versiones, onChange, disabled }) {
   );
 }
 
+/* Los responsables se cuentan dos veces y de dos maneras distintas, porque
+   una lista de Control Documental tiene 84 tarjetas: con la tarjeta CONTRAÍDA
+   basta con los nombres en texto pequeño, del mismo gris que el código y el
+   tipo — 84 filas de bloques de color eran puro ruido—; los chips con el papel
+   aparecen al DESPLEGAR el documento, que es cuando uno de verdad está
+   mirándolo.
+
+   Lo único que se mantiene visible siempre es el aviso de un rol VACANTE, en
+   ámbar: un documento que según el dossier responde el estructural, en un
+   proyecto sin estructural asignado, es trabajo sin dueño y no puede estar
+   escondido detrás de un clic. */
+function ResponsablesResumen({ doc, equipo, miNombre }) {
+  const entradas = responsablesDeDocumento(doc, equipo);
+  if (entradas.length === 0) return null;
+  const conNombre = entradas.filter((e) => e.nombre);
+  const vacantes = entradas.filter((e) => !e.nombre);
+  return (
+    <>
+      {conNombre.length > 0 && (
+        <span>
+          {' · '}
+          {conNombre.map((e, i) => (
+            /* La coma va FUERA del resaltado: en negrita se ve como un error
+               de maquetación. */
+            <React.Fragment key={`${e.rol}-${i}`}>
+              {i > 0 ? ', ' : ''}
+              <span className={e.nombre === miNombre ? 'font-semibold text-navy-600' : ''}>{e.nombre}</span>
+            </React.Fragment>
+          ))}
+        </span>
+      )}
+      {vacantes.map((e, i) => (
+        <span key={`falta-${e.rol}-${i}`} className="text-amber-600 font-semibold">
+          {' · '}falta {roleLabel(e.rol).replace('Ing. ', '')}
+        </span>
+      ))}
+    </>
+  );
+}
+
 /* Quién responde por el documento, con su papel: E si lo elabora o lo dibuja,
    R si lo revisa. Los mismos colores y letras de la sección Dossiers, para que
-   sea el mismo idioma en las dos pantallas.
-
-   El chip de un rol VACANTE se pinta en ámbar y dice cuál falta: un documento
-   que según el dossier responde el estructural, en un proyecto sin estructural
-   asignado, es trabajo sin dueño y conviene que salte a la vista. */
+   sea el mismo idioma en las dos pantallas. Solo con la tarjeta desplegada. */
 function ChipsResponsablesDoc({ doc, equipo, miNombre }) {
   const entradas = responsablesDeDocumento(doc, equipo);
   if (entradas.length === 0) return null;
   return (
-    <p className="flex items-center gap-1 flex-wrap mt-1">
+    <p className="flex items-center gap-1 flex-wrap">
       {entradas.map((e, i) => {
         const soyYo = !!miNombre && e.nombre === miNombre;
         const papelLargo = e.papel === 'E' ? 'lo elabora o lo dibuja' : 'lo revisa';
@@ -1586,9 +1622,11 @@ export function DocumentoCard({ doc, codigoFinal, estadoDoc, estadoValor, puedeE
             </button>
             <p className="text-xs font-mono text-navy-400 flex items-center gap-1 flex-wrap">
               <CodigoCopiable codigo={codigoFinal} />
-              <span>· {doc.tipo}</span>
+              <span>
+                · {doc.tipo}
+                <ResponsablesResumen doc={doc} equipo={equipo} miNombre={miNombre} />
+              </span>
             </p>
-            <ChipsResponsablesDoc doc={doc} equipo={equipo} miNombre={miNombre} />
           </div>
         </div>
         {puedeEditarContenido ? (
@@ -1610,6 +1648,12 @@ export function DocumentoCard({ doc, codigoFinal, estadoDoc, estadoValor, puedeE
       </div>
       {expandido && (
         <div className="px-3 pb-3 pt-1 border-t border-navy-100 space-y-3">
+          {responsablesDeDocumento(doc, equipo).length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-navy-400 mb-1">Responsables</p>
+              <ChipsResponsablesDoc doc={doc} equipo={equipo} miNombre={miNombre} />
+            </div>
+          )}
           <div>
             <p className="text-xs font-semibold text-navy-400 mb-1">Observaciones</p>
             <ComentarioEditable

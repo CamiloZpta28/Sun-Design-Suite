@@ -451,6 +451,19 @@ create table if not exists resumenes_semanales (
 -- Para la vista del equipo, que pide una semana completa de un golpe.
 create index if not exists resumenes_semanales_semana_idx on resumenes_semanales (semana);
 
+-- ---------- El día en que cierra la semana (solo las excepcionales) ----------
+create table if not exists semanas_cierre (
+  -- El lunes de la semana. Una fila por semana, a lo sumo.
+  semana date primary key,
+  -- El día en que cierra. La aplicación no deja ponerlo fuera de su semana.
+  cierre date not null,
+  -- Por qué se movió ("Viernes festivo"). Se muestra al equipo, para que el
+  -- cambio se explique solo.
+  nota text,
+  actualizado_por text,
+  updated_at timestamptz default now()
+);
+
 -- ---------- Seguridad a nivel de fila (RLS) ----------
 -- Estas políticas asumen un equipo interno de confianza: cualquier
 -- persona autenticada puede leer y escribir los datos compartidos
@@ -680,6 +693,23 @@ create policy "Editar mi resumen semanal" on resumenes_semanales
 
 create policy "Borrar mi resumen semanal" on resumenes_semanales
   for delete using (auth.uid() = usuario_id);
+
+alter table semanas_cierre enable row level security;
+
+-- Lo ve todo el mundo: es la fecha en que a cada quien le toca entregar.
+create policy "Lectura del cierre de semana" on semanas_cierre
+  for select using (auth.role() = 'authenticated');
+
+-- Lo mueven solo los líderes y el Desarrollador: correr el cierre le cambia la
+-- fecha de entrega a todo el equipo, no solo a quien lo pulsa.
+create policy "Mover el cierre solo lideres" on semanas_cierre
+  for all using (
+    exists (
+      select 1 from user_roles ur
+      where ur.user_id = auth.uid()
+      and ur.role_key in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno','desarrollador')
+    )
+  );
 
 alter table notificaciones enable row level security;
 create policy "Lectura de mis notificaciones" on notificaciones

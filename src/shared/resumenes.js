@@ -210,6 +210,45 @@ export function viernesDe(lunesIso) {
   return sumarDias(lunesIso, 4);
 }
 
+/* El día en que cierra la semana PARA TODOS. Normalmente el viernes; un líder
+   lo puede correr cuando ese viernes es festivo y el equipo entero entrega el
+   jueves. Es distinto del `hasta` de cada resumen, que es una decisión
+   individual —quien sale de vacaciones el jueves cierra el suyo el miércoles—
+   y no le mueve la semana a nadie más. */
+export function cierreDeSemana(lunesIso, cierres) {
+  const fila = (cierres || []).find((c) => c.semana === lunesIso);
+  return (fila && fila.cierre) || viernesDe(lunesIso);
+}
+
+/* La nota con la que un líder explica por qué corrió el cierre ("Viernes
+   festivo"), si la escribió. */
+export function notaDeCierre(lunesIso, cierres) {
+  const fila = (cierres || []).find((c) => c.semana === lunesIso);
+  return (fila && fila.nota) || '';
+}
+
+/* Un cierre solo tiene sentido dentro de su propia semana: mover el de esta
+   semana a un día del mes entrante dejaría a todo el mundo "sin vencer" para
+   siempre. */
+export function cierreValido(lunesIso, cierreIso) {
+  if (!cierreIso) return false;
+  return cierreIso >= lunesIso && cierreIso <= sumarDias(lunesIso, 6);
+}
+
+/* En qué va la entrega de una persona esa semana. Antes solo había "enviado" o
+   "sin registrar", que no distinguía al que va con tiempo del que ya no lo
+   tiene — que es justamente lo que un líder necesita ver.
+
+   El día del cierre NO cuenta como vencido: el resumen se manda ese día, casi
+   siempre por la tarde. */
+export function estadoDeEntrega(resumen, cierreIso, hoy = new Date()) {
+  if (resumen && resumen.enviado) return 'enviado';
+  const hoyIso = isoDeFecha(hoy instanceof Date ? hoy : new Date(hoy));
+  if (hoyIso > cierreIso) return 'vencido';
+  if (hoyIso === cierreIso) return 'cierra_hoy';
+  return 'pendiente';
+}
+
 /* "Semana del 8 al 12 de septiembre de 2026" — el título de la pantalla. */
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 export function etiquetaDeSemana(lunesIso, hastaIso) {

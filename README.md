@@ -172,6 +172,40 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **El cierre de la semana se puede correr para todo el equipo.** Los resúmenes
+  se entregan el viernes; cuando ese viernes es festivo, un líder mueve el
+  cierre al jueves y a todos les cambia la fecha de entrega. Se ve arriba de
+  la pantalla —*"Cierra el jueves 10 · Viernes festivo"*— con la razón que
+  escribió quien lo movió.
+  - **Es distinto del "Cubre hasta" de cada resumen**, que ya existía y sigue
+    siendo individual: quien sale de vacaciones el jueves cierra el suyo el
+    miércoles y no le mueve la semana a nadie. Lo que sí cambió es que ese
+    campo ahora viene puesto en el día de cierre de la semana, no siempre en
+    el viernes.
+  - **La vista del equipo distingue tres situaciones** donde antes solo había
+    "Sin registrar": *Sin registrar* mientras haya tiempo, *Cierra hoy* el día
+    del cierre —que avisa sin alarmar, porque el resumen se manda ese día, casi
+    siempre por la tarde— y *No lo envió* en rojo una vez pasado. Arriba se
+    cuenta cuántos quedaron sin enviar.
+  - Solo lo mueven los líderes y el Desarrollador, en la interfaz y en la RLS.
+    Un cierre fuera de su propia semana se rechaza: dejaría a todo el mundo
+    sin vencer para siempre, o vencido desde antes de empezar.
+  - La tabla `semanas_cierre` guarda **solo las semanas excepcionales**. Una
+    semana sin fila cierra el viernes, así que no hay que registrar nada cada
+    semana y volver al viernes borra la fila en vez de dejar una que diga lo
+    obvio.
+  - **Necesita migración**: `supabase/migration_cierre_semana.sql`. Sin ella
+    todas las semanas cierran el viernes, como hasta ahora, y el control avisa.
+
+- **Los responsables en Control Documental, más discretos.** Con la tarjeta
+  contraída van solo los nombres, en el mismo gris pequeño del código y el
+  tipo: 84 tarjetas con bloques de color eran puro ruido. Los chips con el
+  papel (E/R) aparecen al **desplegar** el documento, que es cuando uno de
+  verdad lo está mirando. Lo único que se mantiene visible siempre es el aviso
+  de un rol **vacante** —*"falta Estructural"*, en ámbar—, porque trabajo sin
+  dueño no puede quedar escondido detrás de un clic. El nombre propio va
+  resaltado en la lista.
+
 - **Control Documental muestra quién responde por cada documento, y filtra por
   eso.** Los responsables ya se repartían en Dossiers, pero ahí son ROLES;
   dentro de un proyecto lo que sirve es la persona. Cada documento muestra

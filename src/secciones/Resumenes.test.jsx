@@ -13,8 +13,8 @@
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
-import ResumenesView, { esSoloDesarrollador } from './Resumenes.jsx';
-import { lunesDe, sumarDias } from '../shared/resumenes.js';
+import ResumenesView, { diaYMes, esSoloDesarrollador } from './Resumenes.jsx';
+import { lunesDe, sumarDias, viernesDe } from '../shared/resumenes.js';
 
 afterEach(cleanup);
 
@@ -373,5 +373,127 @@ describe('los renglones se queman al escribirlos', () => {
     escribirEnLoMejor('Me equivoqué');
     fireEvent.click(screen.getAllByTitle('Quitar este renglón')[0]);
     expect(screen.queryByText('Me equivoqué')).toBe(null);
+  });
+});
+
+describe('el cierre colectivo de la semana', () => {
+  const VIERNES = viernesDe(SEMANA);
+  const HOY = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+
+  it('por defecto la semana cierra el viernes', () => {
+    pintar();
+    expect(screen.getByText(diaYMes(VIERNES))).toBeTruthy();
+  });
+
+  it('un líder lo puede mover; un ingeniero no', () => {
+    pintar({ perfil: { id: 'u1', nombre: 'Ana', roles: ['lider_diseno'] }, onGuardarCierre: () => {} });
+    expect(screen.getByText('moverlo')).toBeTruthy();
+    cleanup();
+    pintar({ onGuardarCierre: () => {} });
+    expect(screen.queryByText('moverlo')).toBe(null);
+  });
+
+  it('mover el cierre manda la fecha y el porqué', () => {
+    const guardados = [];
+    pintar({
+      perfil: { id: 'u1', nombre: 'Ana', roles: ['lider_diseno'] },
+      onGuardarCierre: (...args) => guardados.push(args),
+    });
+    fireEvent.click(screen.getByText('moverlo'));
+    const jueves = sumarDias(SEMANA, 3);
+    fireEvent.change(screen.getByLabelText('Día en que cierra la semana'), { target: { value: jueves } });
+    fireEvent.change(screen.getByPlaceholderText(/Por qué/), { target: { value: 'Viernes festivo' } });
+    fireEvent.click(screen.getByText('Guardar'));
+    expect(guardados).toEqual([[SEMANA, jueves, 'Viernes festivo']]);
+  });
+
+  /* Un cierre fuera de su semana dejaria a todo el mundo sin vencer para
+     siempre, o vencido desde antes de empezar. */
+  it('no deja poner una fecha de otra semana', () => {
+    const guardados = [];
+    pintar({
+      perfil: { id: 'u1', nombre: 'Ana', roles: ['lider_diseno'] },
+      onGuardarCierre: (...args) => guardados.push(args),
+    });
+    fireEvent.click(screen.getByText('moverlo'));
+    fireEvent.change(screen.getByLabelText('Día en que cierra la semana'), { target: { value: sumarDias(SEMANA, 8) } });
+    expect(screen.getByText(/tiene que caer dentro de esta misma semana/)).toBeTruthy();
+    fireEvent.click(screen.getByText('Guardar'));
+    expect(guardados).toEqual([]);
+  });
+
+  it('muestra el porqué del cambio y deja volver al viernes', () => {
+    const guardados = [];
+    const cierres = [{ semana: SEMANA, cierre: sumarDias(SEMANA, 3), nota: 'Viernes festivo' }];
+    pintar({
+      perfil: { id: 'u1', nombre: 'Ana', roles: ['lider_diseno'] },
+      cierres,
+      onGuardarCierre: (...args) => guardados.push(args),
+    });
+    expect(screen.getByText(/Viernes festivo/)).toBeTruthy();
+    fireEvent.click(screen.getByText('cambiar'));
+    fireEvent.click(screen.getByText('Volver al viernes'));
+    expect(guardados).toEqual([[SEMANA, null, '']]);
+  });
+
+  it('el "cubre hasta" de mi resumen viene con el cierre de la semana, no con el viernes', () => {
+    const jueves = sumarDias(SEMANA, 3);
+    pintar({ cierres: [{ semana: SEMANA, cierre: jueves, nota: '' }] });
+    const guardados = [];
+    cleanup();
+    pintar({
+      cierres: [{ semana: SEMANA, cierre: jueves, nota: '' }],
+      onGuardar: (r) => guardados.push(r),
+    });
+    fireEvent.click(screen.getByText('Enviar'));
+    expect(guardados[0].hasta).toBe(jueves);
+  });
+});
+
+describe('la vista del equipo avisa a quién se le pasó', () => {
+  const HOY = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+
+  /* Hoy siempre cae dentro de la semana actual, asi que esto no depende del
+     dia en que se corra la prueba. */
+  it('el día del cierre avisa, sin marcar a nadie en rojo', () => {
+    pintar({ cierres: [{ semana: SEMANA, cierre: HOY, nota: '' }] });
+    fireEvent.click(screen.getByText('El equipo'));
+    expect(screen.getAllByText('Cierra hoy').length).toBe(3);
+    expect(screen.queryByText('No lo envió')).toBe(null);
+  });
+
+  /* Una semana pasada ya vencio siempre, sin importar el dia de hoy. */
+  it('en una semana que ya cerró, quien no envió queda marcado', () => {
+    pintar();
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: ANTERIOR } });
+    fireEvent.click(screen.getByText('El equipo'));
+    expect(screen.getAllByText('No lo envió').length).toBe(3);
+    expect(screen.getByText(/3 no alcanzó a hacerlo/)).toBeTruthy();
+  });
+
+  it('quien sí envió no queda marcado, aunque la semana ya haya cerrado', () => {
+    const suyo = {
+      id: 'r9', usuario_id: 'u2', semana: ANTERIOR, enviado: true,
+      bloques: { lo_mejor: ['Algo'] }, proyectos: [],
+    };
+    pintar({ resumenes: [suyo] });
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: ANTERIOR } });
+    fireEvent.click(screen.getByText('El equipo'));
+    expect(screen.getByText('Enviado')).toBeTruthy();
+    expect(screen.getAllByText('No lo envió').length).toBe(2);
+  });
+});
+
+describe('diaYMes', () => {
+  it('se lee como lo diría una persona', () => {
+    expect(diaYMes('2026-09-11')).toBe('viernes 11 de septiembre');
+    expect(diaYMes('2026-01-01')).toBe('jueves 1 de enero');
+    expect(diaYMes('')).toBe('');
   });
 });
