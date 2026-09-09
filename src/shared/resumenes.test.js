@@ -14,8 +14,8 @@ import { describe, it, expect } from 'vitest';
 import {
   BLOQUES_RESUMEN, cambiosEntreFotos, cuentaDeFoto, etiquetaDeSemana, fotoConComparacion,
   fotoDeLaSemana, fotoDeProyecto, lunesDe, misDocumentosDelProyecto, nivelDeEstado,
-  cierreDeSemana, cierreValido, contarTemas, estadoDeEntrega, notaDeCierre,
-  temasDeLaSemana, textoDeTemas,
+  REUNIONES, cierreDeSemana, cierreValido, contarTemas, estadoDeEntrega, notaDeCierre,
+  repartirEnReuniones, temasDeLaSemana, textoDeTemas,
   sinFinalizadosRepetidos, sumarDias, textoDelResumen, ultimasSemanas, viernesDe,
 } from './resumenes.js';
 
@@ -474,5 +474,94 @@ describe('el orden del día como texto', () => {
 
   it('sin temas lo dice en vez de entregar un texto a medias', () => {
     expect(textoDeTemas([], 'Del 7 al 11')).toBe('Temas para la reunión · Del 7 al 11\n\nNinguno');
+  });
+});
+
+describe('el reparto en las tres reuniones del lunes', () => {
+  const grupo = (usuario_id, roles, temas = ['Un tema']) => ({ usuario_id, nombre: usuario_id, roles, temas });
+  const deLa = (reuniones, id) => reuniones.find((r) => r.id === id);
+
+  it('cada área tiene su reunión', () => {
+    const reuniones = repartirEnReuniones([
+      grupo('civil', ['civil']),
+      grupo('electrico', ['electrico']),
+      grupo('delineante', ['delineante']),
+    ]);
+    expect(deLa(reuniones, 'civil').grupos.map((g) => g.usuario_id)).toEqual(['civil']);
+    expect(deLa(reuniones, 'electrica').grupos.map((g) => g.usuario_id)).toEqual(['electrico']);
+    expect(deLa(reuniones, 'delineantes').grupos.map((g) => g.usuario_id)).toEqual(['delineante']);
+  });
+
+  /* Hidraulico, estructural y geotecnico van a la civil, igual que en la
+     pestana Equipo: una sola lista diciendo quien es "civil". */
+  it('hidráulicos, estructurales y geotécnicos van a la civil', () => {
+    const reuniones = repartirEnReuniones([
+      grupo('h', ['hidraulico']), grupo('e', ['estructural']), grupo('g', ['geotecnico']),
+    ]);
+    expect(deLa(reuniones, 'civil').grupos.length).toBe(3);
+    expect(deLa(reuniones, 'electrica').grupos).toEqual([]);
+  });
+
+  it('cada líder de área va a la suya', () => {
+    const reuniones = repartirEnReuniones([
+      grupo('lc', ['lider_civil']), grupo('le', ['lider_electrico']), grupo('ld', ['lider_delineantes']),
+    ]);
+    expect(deLa(reuniones, 'civil').grupos.map((g) => g.usuario_id)).toEqual(['lc']);
+    expect(deLa(reuniones, 'electrica').grupos.map((g) => g.usuario_id)).toEqual(['le']);
+    expect(deLa(reuniones, 'delineantes').grupos.map((g) => g.usuario_id)).toEqual(['ld']);
+  });
+
+  /* Repetirlo es mejor que esconderlo: en la reunion que sobre se pasa de
+     largo, en la que falte no se habla nunca. */
+  it('quien es de dos áreas lleva su tema a las dos reuniones', () => {
+    const reuniones = repartirEnReuniones([grupo('ambos', ['civil', 'delineante'])]);
+    expect(deLa(reuniones, 'civil').grupos.length).toBe(1);
+    expect(deLa(reuniones, 'delineantes').grupos.length).toBe(1);
+    expect(deLa(reuniones, 'electrica').grupos.length).toBe(0);
+  });
+
+  /* Un orden del dia que se come temas en silencio no sirve para nada. */
+  it('quien no cae en ninguna no se pierde: va a un grupo aparte', () => {
+    const reuniones = repartirEnReuniones([
+      grupo('bt', ['tramites_bt']), grupo('qa', ['control_calidad']), grupo('jefe', ['lider_diseno']),
+    ]);
+    const otros = deLa(reuniones, 'otros');
+    expect(otros).toBeTruthy();
+    expect(otros.grupos.map((g) => g.usuario_id).sort()).toEqual(['bt', 'jefe', 'qa']);
+  });
+
+  it('sin sueltos no aparece el grupo aparte', () => {
+    const reuniones = repartirEnReuniones([grupo('c', ['civil'])]);
+    expect(deLa(reuniones, 'otros')).toBe(undefined);
+  });
+
+  /* Quien convoca necesita ver que su reunion no tiene temas, no que no
+     existe. */
+  it('las tres reuniones se devuelven siempre, aunque estén vacías', () => {
+    const reuniones = repartirEnReuniones([]);
+    expect(reuniones.map((r) => r.id)).toEqual(REUNIONES.map((r) => r.id));
+    expect(reuniones.every((r) => r.grupos.length === 0)).toBe(true);
+    expect(repartirEnReuniones(null).length).toBe(3);
+  });
+
+  it('alguien sin rol asignado tampoco se pierde', () => {
+    const reuniones = repartirEnReuniones([grupo('nuevo', [])]);
+    expect(deLa(reuniones, 'otros').grupos.map((g) => g.usuario_id)).toEqual(['nuevo']);
+  });
+
+  it('los grupos traen los roles de quien puso el tema', () => {
+    const grupos = temasDeLaSemana(
+      [{ usuario_id: 'u1', semana: 'S', enviado: true, bloques: { temas: ['Algo'] } }],
+      'S',
+      [{ id: 'u1', nombre: 'Ana', roles: ['civil', 'delineante'] }],
+    );
+    expect(grupos[0].roles).toEqual(['civil', 'delineante']);
+  });
+});
+
+describe('el texto de una reunión concreta', () => {
+  it('lleva el nombre de su reunión en el encabezado', () => {
+    const texto = textoDeTemas([{ nombre: 'Ana', temas: ['Algo'] }], 'Del 7 al 11', 'Reunión civil');
+    expect(texto.startsWith('Reunión civil · Del 7 al 11')).toBe(true);
   });
 });

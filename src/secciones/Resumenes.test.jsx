@@ -514,11 +514,57 @@ describe('la vista de Temas del lunes', () => {
       ],
     });
     irATemas();
-    expect(screen.getByText('3 temas de 2 personas.')).toBeTruthy();
+    expect(screen.getByText(/3 temas de 2 personas/)).toBeTruthy();
     expect(screen.getByText('- Alcance de Chinú 5')).toBeTruthy();
     expect(screen.getByText('- Quién dibuja el cerramiento')).toBeTruthy();
     expect(screen.getByText('Ana')).toBeTruthy();
     expect(screen.getByText('Beto')).toBeTruthy();
+  });
+
+  /* Ana es civil, Beto delineante y Caro electrico (ver `directorio`): cada
+     tema tiene que caer en su reunion. */
+  it('reparte cada tema en la reunión de su área', () => {
+    const { container } = pintar({
+      resumenes: [
+        conTemas('u1', SEMANA, ['Lo civil']),
+        conTemas('u2', SEMANA, ['Lo del dibujo']),
+        conTemas('u3', SEMANA, ['Lo eléctrico']),
+      ],
+    });
+    irATemas();
+    const seccion = (titulo) => [...container.querySelectorAll('div')]
+      .find((d) => d.firstChild?.textContent?.startsWith(titulo));
+    expect(seccion('Reunión civil').textContent).toContain('Lo civil');
+    expect(seccion('Reunión civil').textContent).not.toContain('Lo eléctrico');
+    expect(seccion('Reunión eléctrica').textContent).toContain('Lo eléctrico');
+    expect(seccion('Reunión delineantes').textContent).toContain('Lo del dibujo');
+  });
+
+  /* Quien convoca necesita ver que su reunion no tiene temas, no que no
+     existe. */
+  it('las tres reuniones se muestran aunque alguna esté vacía', () => {
+    pintar({ resumenes: [conTemas('u1', SEMANA, ['Solo civil'])] });
+    irATemas();
+    expect(screen.getByText(/Reunión civil/)).toBeTruthy();
+    expect(screen.getByText(/Reunión eléctrica/)).toBeTruthy();
+    expect(screen.getByText(/Reunión delineantes/)).toBeTruthy();
+    expect(screen.getAllByText('Ningún tema.').length).toBe(2);
+  });
+
+  it('quien no cae en ninguna área va a un grupo aparte, sin perderse', () => {
+    pintar({
+      directorio: [...directorio, { id: 'u9', nombre: 'Tito', roles: ['tramites_bt'] }],
+      resumenes: [conTemas('u9', SEMANA, ['Lo de trámites'])],
+    });
+    irATemas();
+    expect(screen.getByText(/Sin reunión asignada/)).toBeTruthy();
+    expect(screen.getByText('- Lo de trámites')).toBeTruthy();
+  });
+
+  it('sin sueltos no aparece el grupo aparte', () => {
+    pintar({ resumenes: [conTemas('u1', SEMANA, ['Lo civil'])] });
+    irATemas();
+    expect(screen.queryByText(/Sin reunión asignada/)).toBe(null);
   });
 
   it('un borrador sin enviar no llega a la reunión', () => {
@@ -551,7 +597,7 @@ describe('la vista de Temas del lunes', () => {
     pintar();
     irATemas();
     expect(screen.getByText(/Los temas salen del bloque "Temas" de cada resumen enviado/)).toBeTruthy();
-    expect(screen.queryByText('Copiar el orden del día')).toBe(null);
+    expect(screen.queryByText('copiar')).toBe(null);
   });
 
   it('el orden del día se copia listo para pegar', async () => {
@@ -561,10 +607,14 @@ describe('la vista de Temas del lunes', () => {
 
     pintar({ resumenes: [conTemas('u1', SEMANA, ['Alcance de Chinú 5'])] });
     irATemas();
-    await fireEvent.click(screen.getByText('Copiar el orden del día'));
+    /* Un boton por reunion: lo que se pega en la convocatoria es la agenda de
+       ESA reunion, no la de las tres juntas. */
+    const copiares = screen.getAllByText('copiar');
+    expect(copiares.length).toBe(1);
+    await fireEvent.click(copiares[0]);
     await Promise.resolve();
 
-    expect(copiado).toContain('Temas para la reunión');
+    expect(copiado).toContain('Reunión civil');
     expect(copiado).toContain('Ana');
     expect(copiado).toContain('-Alcance de Chinú 5');
   });

@@ -172,6 +172,26 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Los temas del lunes se reparten en las tres reuniones** —civil, eléctrica
+  y delineantes— según el área de quien puso cada uno. Cada reunión tiene su
+  propio botón de copiar: lo que se pega en una convocatoria es la agenda de
+  esa reunión, no la de las tres juntas.
+  - Los roles de cada área salen de **las mismas categorías con las que se
+    agrupa la pestaña Equipo** (`EQUIPO_CATEGORIAS`), para que no haya dos
+    listas diciendo quién es "civil" y que se desincronicen con el tiempo. Así,
+    hidráulicos, estructurales y geotécnicos van a la reunión civil, igual que
+    allá. A cada reunión se suma su líder; el Líder de Diseño no está en
+    ninguna porque va a todas.
+  - **Quien tiene roles de dos áreas lleva su tema a las dos reuniones.**
+    Repetirlo es mejor que esconderlo: en la que sobre se pasa de largo en diez
+    segundos; en la que falte, no se habla nunca.
+  - **Quien no cae en ninguna** (Trámites y BT, Control de Calidad, el Líder de
+    Diseño) va a un grupo **"Sin reunión asignada"**. Un orden del día que se
+    come temas en silencio no sirve para nada.
+  - Las tres reuniones se muestran siempre, aunque alguna esté vacía: quien
+    convoca necesita ver que la suya no tiene temas, no que no existe.
+  - **No necesita migración.**
+
 - **Los "Temas" del equipo, juntos, para la reunión del lunes.** Tercera
   pestaña de Resúmenes semanales. Cada quien ya escribe sus temas el viernes;
   hasta ahora armar el orden del día era releer los mensajes uno por uno. Se

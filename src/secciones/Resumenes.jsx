@@ -37,8 +37,8 @@ import { FiltroFichas, alternarEn, Avatar } from '../shared/ui.jsx';
 import { copiarTexto } from '../shared/copiar.jsx';
 import {
   BLOQUES_RESUMEN, cierreDeSemana, cierreValido, contarTemas, cuentaDeFoto, estadoDeEntrega,
-  etiquetaDeSemana, fotoConComparacion, fotoDeLaSemana, lunesDe, notaDeCierre, sumarDias,
-  temasDeLaSemana, textoDeTemas, textoDelResumen, ultimasSemanas,
+  etiquetaDeSemana, fotoConComparacion, fotoDeLaSemana, lunesDe, notaDeCierre, repartirEnReuniones,
+  sumarDias, temasDeLaSemana, textoDeTemas, textoDelResumen, ultimasSemanas,
 } from '../shared/resumenes.js';
 
 /* "viernes 11 de septiembre" — cómo se lee una fecha suelta en la cabecera. */
@@ -676,13 +676,69 @@ function VistaEquipo({ directorio, resumenesDeLaSemana, onAbrirProyecto, cierre 
 
 /* --------------------------------------------------- los temas del lunes */
 
-/* El orden del día de la reunión: los "Temas" de todo el equipo juntos.
-   Se arma solo con lo que la gente ya escribió el viernes, que es justamente
-   el trabajo que hoy se rehace a mano leyendo los mensajes uno por uno. */
-function VistaTemas({ resumenes, semana, directorio, cierre, onIrASemana }) {
+/* El orden del día de UNA de las tres reuniones, con su propio botón de
+   copiar: lo que se pega en la convocatoria es la agenda de esa reunión, no la
+   de las tres juntas. */
+function Reunion({ reunion, etiquetaSemana }) {
   const [copiado, setCopiado] = useState(false);
+  const total = contarTemas(reunion.grupos);
+
+  async function copiar() {
+    if (!(await copiarTexto(textoDeTemas(reunion.grupos, etiquetaSemana, reunion.label)))) {
+      window.alert('El navegador no dejó copiar. Selecciona el texto a mano.');
+      return;
+    }
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 1500);
+  }
+
+  return (
+    <div className="mb-5">
+      <div className="flex items-center gap-3 flex-wrap mb-2">
+        <p className="text-xs font-bold uppercase tracking-wide text-navy-500">
+          {reunion.label} <span className="text-navy-300">({total})</span>
+        </p>
+        {total > 0 && (
+          <button
+            onClick={copiar}
+            className="flex items-center gap-1 text-xs font-semibold text-navy-500 hover:text-navy-700"
+          >
+            {copiado ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+            {copiado ? 'Copiado' : 'copiar'}
+          </button>
+        )}
+      </div>
+      {total === 0 ? (
+        <p className="text-sm text-navy-300 italic">Ningún tema.</p>
+      ) : (
+        <div className="space-y-2">
+          {reunion.grupos.map((g) => (
+            <div key={g.usuario_id} className="bg-white border border-navy-200 rounded-xl px-3 py-2.5">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Avatar name={g.nombre} foto={g.foto} size="sm" />
+                <p className="text-sm font-semibold text-navy-700 min-w-0 truncate">{g.nombre}</p>
+              </div>
+              <ul className="space-y-0.5 pl-1">
+                {g.temas.map((t, i) => (
+                  <li key={i} className="text-sm text-navy-700">- {t}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* El orden del día del lunes, repartido en las tres reuniones según el área de
+   quien puso cada tema. Se arma solo con lo que la gente ya escribió el
+   viernes, que es justamente el trabajo que hoy se rehace a mano leyendo los
+   mensajes uno por uno. */
+function VistaTemas({ resumenes, semana, directorio, cierre, onIrASemana }) {
   const grupos = temasDeLaSemana(resumenes, semana, directorio);
   const total = contarTemas(grupos);
+  const reuniones = repartirEnReuniones(grupos);
 
   /* La reunión es el lunes y habla de la semana que acaba de cerrar, pero la
      pantalla abre en la semana en curso. En vez de adivinar, se ofrece el
@@ -692,33 +748,13 @@ function VistaTemas({ resumenes, semana, directorio, cierre, onIrASemana }) {
   const temasAnteriores = contarTemas(temasDeLaSemana(resumenes, anterior, directorio));
   const sugerirAnterior = total === 0 && temasAnteriores > 0;
 
-  async function copiar() {
-    if (!(await copiarTexto(textoDeTemas(grupos, etiquetaDeSemana(semana, cierre))))) {
-      window.alert('El navegador no dejó copiar. Selecciona el texto a mano.');
-      return;
-    }
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 1500);
-  }
-
   return (
     <div>
-      <div className="flex items-center gap-3 flex-wrap mb-4">
-        <p className="text-sm text-navy-500 flex-1 min-w-[12rem]">
-          {total === 0
-            ? 'Nadie puso temas para esta semana.'
-            : `${total} ${total === 1 ? 'tema' : 'temas'} de ${grupos.length} ${grupos.length === 1 ? 'persona' : 'personas'}.`}
-        </p>
-        {total > 0 && (
-          <button
-            onClick={copiar}
-            className="flex items-center gap-1.5 text-sm font-semibold text-navy-600 hover:text-navy-800 border border-navy-300 rounded-lg px-3 py-2"
-          >
-            {copiado ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-            {copiado ? 'Copiado' : 'Copiar el orden del día'}
-          </button>
-        )}
-      </div>
+      <p className="text-sm text-navy-500 mb-4">
+        {total === 0
+          ? 'Nadie puso temas para esta semana.'
+          : `${total} ${total === 1 ? 'tema' : 'temas'} de ${grupos.length} ${grupos.length === 1 ? 'persona' : 'personas'}, repartidos según el área de quien los puso.`}
+      </p>
 
       {sugerirAnterior && (
         <div className="flex items-center gap-2 flex-wrap bg-nashville-50 border border-nashville-300 rounded-xl px-3 py-2.5 mb-4">
@@ -735,28 +771,16 @@ function VistaTemas({ resumenes, semana, directorio, cierre, onIrASemana }) {
         </div>
       )}
 
-      {total === 0 && !sugerirAnterior && (
+      {total === 0 && !sugerirAnterior ? (
         <p className="text-sm text-navy-300 italic">
           Los temas salen del bloque "Temas" de cada resumen enviado. Mientras nadie envíe el suyo, aquí no hay nada
           que mostrar.
         </p>
+      ) : (
+        reuniones.map((r) => (
+          <Reunion key={r.id} reunion={r} etiquetaSemana={etiquetaDeSemana(semana, cierre)} />
+        ))
       )}
-
-      <div className="space-y-3">
-        {grupos.map((g) => (
-          <div key={g.usuario_id} className="bg-white border border-navy-200 rounded-xl px-3 py-2.5">
-            <div className="flex items-center gap-2 mb-1.5">
-              <Avatar name={g.nombre} foto={g.foto} size="sm" />
-              <p className="text-sm font-semibold text-navy-700 min-w-0 truncate">{g.nombre}</p>
-            </div>
-            <ul className="space-y-0.5 pl-1">
-              {g.temas.map((t, i) => (
-                <li key={i} className="text-sm text-navy-700">- {t}</li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

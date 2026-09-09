@@ -27,6 +27,7 @@
    ============================================================================ */
 
 import { DOC_ESTADOS, documentosDeProyecto } from './dominio.jsx';
+import { EQUIPO_CATEGORIAS } from './permisos.js';
 import { rolesEnProyecto } from './responsables.js';
 
 /* Los cuatro bloques que se escriben a mano, en el orden en que se pegan.
@@ -291,11 +292,58 @@ export function temasDeLaSemana(resumenes, semana, directorio) {
         usuario_id: r.usuario_id,
         nombre: persona?.nombre || 'Alguien que ya no está en el equipo',
         foto: persona?.foto || null,
+        /* Los roles viajan con el grupo para poder repartirlo en su reunión
+           (ver repartirEnReuniones) sin volver a consultar el directorio. */
+        roles: persona?.roles || [],
         temas: (r.bloques?.temas || []).map((t) => (t || '').trim()).filter(Boolean),
       };
     })
     .filter((g) => g.temas.length > 0)
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+}
+
+/* Los lunes no hay una reunión sino tres, y cada quien va a la suya. Los
+   roles de cada una salen de las mismas categorías con las que se agrupa la
+   pestaña Equipo (EQUIPO_CATEGORIAS), para que no haya dos listas diciendo
+   quién es "civil" y que se desincronicen con el tiempo.
+
+   A la reunión de cada área se suma su líder: el Líder Civil va a la civil, y
+   así. El Líder de Diseño no está en ninguna porque va a todas. */
+const rolesDeCategoria = (id) => (EQUIPO_CATEGORIAS.find((c) => c.id === id) || {}).roles || [];
+
+export const REUNIONES = [
+  { id: 'civil', label: 'Reunión civil', roles: [...rolesDeCategoria('ing_civiles'), 'lider_civil'] },
+  { id: 'electrica', label: 'Reunión eléctrica', roles: [...rolesDeCategoria('ing_electricos'), 'lider_electrico'] },
+  { id: 'delineantes', label: 'Reunión delineantes', roles: [...rolesDeCategoria('delineantes'), 'lider_delineantes'] },
+];
+
+/* Reparte los temas en sus reuniones según el rol de quien los puso.
+
+   Dos decisiones que conviene tener presentes:
+
+   - Quien tiene roles de dos áreas —Ing. Civil y Delineante, por ejemplo— va a
+     las dos reuniones, así que su tema aparece en las dos. Repetirlo es mejor
+     que esconderlo: en la que sobre, se pasa de largo en diez segundos; en la
+     que falte, no se habla nunca.
+
+   - Quien no cae en ninguna (Trámites y BT, Control de Calidad, el Líder de
+     Diseño) NO se descarta: sus temas van a un grupo aparte. Un orden del día
+     que se come temas en silencio no sirve para nada.
+
+   Las tres reuniones se devuelven siempre, aunque estén vacías, porque quien
+   convoca necesita ver que la suya no tiene temas — no que no existe. */
+export function repartirEnReuniones(grupos) {
+  const lista = grupos || [];
+  const reuniones = REUNIONES.map((r) => ({
+    ...r,
+    grupos: lista.filter((g) => (g.roles || []).some((rol) => r.roles.includes(rol))),
+  }));
+  const repartidos = new Set(reuniones.flatMap((r) => r.grupos.map((g) => g.usuario_id)));
+  const sueltos = lista.filter((g) => !repartidos.has(g.usuario_id));
+  if (sueltos.length > 0) {
+    reuniones.push({ id: 'otros', label: 'Sin reunión asignada', grupos: sueltos });
+  }
+  return reuniones;
 }
 
 /* Cuántos temas hay en total, para el encabezado de la reunión. */
@@ -305,8 +353,8 @@ export function contarTemas(grupos) {
 
 /* El orden del día como texto, para pegarlo en la convocatoria de la reunión.
    Mismo formato de viñetas que el resto de la aplicación. */
-export function textoDeTemas(grupos, etiquetaSemana) {
-  const partes = [`Temas para la reunión${etiquetaSemana ? ` · ${etiquetaSemana}` : ''}`];
+export function textoDeTemas(grupos, etiquetaSemana, titulo = 'Temas para la reunión') {
+  const partes = [`${titulo}${etiquetaSemana ? ` · ${etiquetaSemana}` : ''}`];
   (grupos || []).forEach((g) => {
     partes.push('', g.nombre);
     g.temas.forEach((t) => partes.push(`-${t}`));
