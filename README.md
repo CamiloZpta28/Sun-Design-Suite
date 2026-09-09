@@ -172,6 +172,23 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Los "Temas" del equipo, juntos, para la reunión del lunes.** Tercera
+  pestaña de Resúmenes semanales. Cada quien ya escribe sus temas el viernes;
+  hasta ahora armar el orden del día era releer los mensajes uno por uno. Se
+  ven agrupados por persona, con un botón para **copiar el orden del día**
+  completo y pegarlo en la convocatoria.
+  - **Solo entran los resúmenes enviados**, con el mismo criterio del resto de
+    la sección: llevar a una reunión un tema que alguien todavía estaba
+    pensando sería peor que no llevarlo.
+  - **La reunión es el lunes, pero habla de la semana que cerró**, y la
+    pantalla abre en la semana en curso. En vez de adivinar, cuando la semana
+    elegida no tiene temas y la anterior sí, aparece un aviso con el número y
+    un botón para saltar. Un clic, y nada se mueve a espaldas de nadie.
+  - El nombre de cada quien sale del directorio y no del resumen, para que un
+    cambio de nombre no deje temas viejos firmados por un fantasma. Si la
+    persona ya no está en el equipo, el tema no se pierde: se discutió igual.
+  - **No necesita migración.**
+
 - **El cierre de la semana se puede correr para todo el equipo.** Los resúmenes
   se entregan el viernes; cuando ese viernes es festivo, un líder mueve el
   cierre al jueves y a todos les cambia la fecha de entrega. Se ve arriba de

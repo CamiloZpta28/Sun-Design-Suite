@@ -268,6 +268,53 @@ export function ultimasSemanas(cuantas = 12, hoy = new Date()) {
   return Array.from({ length: cuantas }, (_, i) => sumarDias(actual, -7 * i));
 }
 
+/* --------------------------------------------------- los temas del lunes */
+
+/* El orden del día de la reunión del lunes: los "Temas" de todo el equipo,
+   juntos y agrupados por quien los puso.
+
+   Solo entran los resúmenes ENVIADOS, con el mismo criterio del resto: un
+   borrador no está dicho, y llevar a una reunión un tema que alguien todavía
+   estaba pensando sería peor que no llevarlo.
+
+   El nombre sale del directorio y no del resumen, para que un cambio de nombre
+   no deje temas viejos firmados por un fantasma; si la persona ya no está en
+   el directorio se conserva la fila con lo que se sepa, porque el tema se
+   discutió igual. */
+export function temasDeLaSemana(resumenes, semana, directorio) {
+  const porId = new Map((directorio || []).map((p) => [p.id, p]));
+  return (resumenes || [])
+    .filter((r) => r.semana === semana && r.enviado)
+    .map((r) => {
+      const persona = porId.get(r.usuario_id);
+      return {
+        usuario_id: r.usuario_id,
+        nombre: persona?.nombre || 'Alguien que ya no está en el equipo',
+        foto: persona?.foto || null,
+        temas: (r.bloques?.temas || []).map((t) => (t || '').trim()).filter(Boolean),
+      };
+    })
+    .filter((g) => g.temas.length > 0)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+}
+
+/* Cuántos temas hay en total, para el encabezado de la reunión. */
+export function contarTemas(grupos) {
+  return (grupos || []).reduce((total, g) => total + g.temas.length, 0);
+}
+
+/* El orden del día como texto, para pegarlo en la convocatoria de la reunión.
+   Mismo formato de viñetas que el resto de la aplicación. */
+export function textoDeTemas(grupos, etiquetaSemana) {
+  const partes = [`Temas para la reunión${etiquetaSemana ? ` · ${etiquetaSemana}` : ''}`];
+  (grupos || []).forEach((g) => {
+    partes.push('', g.nombre);
+    g.temas.forEach((t) => partes.push(`-${t}`));
+  });
+  if ((grupos || []).length === 0) partes.push('', 'Ninguno');
+  return partes.join('\n');
+}
+
 /* ------------------------------------------------------------------- texto */
 
 /* El resumen como texto plano, con el formato que el equipo ya usa en el

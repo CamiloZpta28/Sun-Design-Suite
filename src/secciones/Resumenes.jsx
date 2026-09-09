@@ -28,16 +28,17 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CalendarCheck, CalendarClock, Check, ChevronDown, ChevronRight, Copy, ExternalLink, Pencil, Plus, Send, Users, X,
+  CalendarCheck, CalendarClock, Check, ChevronDown, ChevronRight, Copy, ExternalLink, MessagesSquare,
+  Pencil, Plus, Send, Users, X,
 } from 'lucide-react';
 import { DOC_ESTADOS, DOC_ESTADO_HEX, DOC_ESTADO_CORTO } from '../shared/dominio.jsx';
 import { ROLES, isLeader, roleLabel } from '../shared/permisos.js';
 import { FiltroFichas, alternarEn, Avatar } from '../shared/ui.jsx';
 import { copiarTexto } from '../shared/copiar.jsx';
 import {
-  BLOQUES_RESUMEN, cierreDeSemana, cierreValido, cuentaDeFoto, estadoDeEntrega, etiquetaDeSemana,
-  fotoConComparacion, fotoDeLaSemana, lunesDe, notaDeCierre, sumarDias, textoDelResumen,
-  ultimasSemanas,
+  BLOQUES_RESUMEN, cierreDeSemana, cierreValido, contarTemas, cuentaDeFoto, estadoDeEntrega,
+  etiquetaDeSemana, fotoConComparacion, fotoDeLaSemana, lunesDe, notaDeCierre, sumarDias,
+  temasDeLaSemana, textoDeTemas, textoDelResumen, ultimasSemanas,
 } from '../shared/resumenes.js';
 
 /* "viernes 11 de septiembre" — cómo se lee una fecha suelta en la cabecera. */
@@ -673,6 +674,93 @@ function VistaEquipo({ directorio, resumenesDeLaSemana, onAbrirProyecto, cierre 
   );
 }
 
+/* --------------------------------------------------- los temas del lunes */
+
+/* El orden del día de la reunión: los "Temas" de todo el equipo juntos.
+   Se arma solo con lo que la gente ya escribió el viernes, que es justamente
+   el trabajo que hoy se rehace a mano leyendo los mensajes uno por uno. */
+function VistaTemas({ resumenes, semana, directorio, cierre, onIrASemana }) {
+  const [copiado, setCopiado] = useState(false);
+  const grupos = temasDeLaSemana(resumenes, semana, directorio);
+  const total = contarTemas(grupos);
+
+  /* La reunión es el lunes y habla de la semana que acaba de cerrar, pero la
+     pantalla abre en la semana en curso. En vez de adivinar, se ofrece el
+     salto cuando esta semana no tiene temas y la anterior sí: un clic, sin
+     que nada se mueva a espaldas de nadie. */
+  const anterior = sumarDias(semana, -7);
+  const temasAnteriores = contarTemas(temasDeLaSemana(resumenes, anterior, directorio));
+  const sugerirAnterior = total === 0 && temasAnteriores > 0;
+
+  async function copiar() {
+    if (!(await copiarTexto(textoDeTemas(grupos, etiquetaDeSemana(semana, cierre))))) {
+      window.alert('El navegador no dejó copiar. Selecciona el texto a mano.');
+      return;
+    }
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 1500);
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-3 flex-wrap mb-4">
+        <p className="text-sm text-navy-500 flex-1 min-w-[12rem]">
+          {total === 0
+            ? 'Nadie puso temas para esta semana.'
+            : `${total} ${total === 1 ? 'tema' : 'temas'} de ${grupos.length} ${grupos.length === 1 ? 'persona' : 'personas'}.`}
+        </p>
+        {total > 0 && (
+          <button
+            onClick={copiar}
+            className="flex items-center gap-1.5 text-sm font-semibold text-navy-600 hover:text-navy-800 border border-navy-300 rounded-lg px-3 py-2"
+          >
+            {copiado ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+            {copiado ? 'Copiado' : 'Copiar el orden del día'}
+          </button>
+        )}
+      </div>
+
+      {sugerirAnterior && (
+        <div className="flex items-center gap-2 flex-wrap bg-nashville-50 border border-nashville-300 rounded-xl px-3 py-2.5 mb-4">
+          <p className="text-xs text-navy-600 flex-1 min-w-[14rem]">
+            La semana pasada sí tiene {temasAnteriores} {temasAnteriores === 1 ? 'tema' : 'temas'}. Si la reunión es
+            hoy, probablemente son esos los que buscas.
+          </p>
+          <button
+            onClick={() => onIrASemana(anterior)}
+            className="text-xs font-semibold text-lime-600 hover:text-lime-700 underline shrink-0"
+          >
+            Ver los de la semana pasada
+          </button>
+        </div>
+      )}
+
+      {total === 0 && !sugerirAnterior && (
+        <p className="text-sm text-navy-300 italic">
+          Los temas salen del bloque "Temas" de cada resumen enviado. Mientras nadie envíe el suyo, aquí no hay nada
+          que mostrar.
+        </p>
+      )}
+
+      <div className="space-y-3">
+        {grupos.map((g) => (
+          <div key={g.usuario_id} className="bg-white border border-navy-200 rounded-xl px-3 py-2.5">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Avatar name={g.nombre} foto={g.foto} size="sm" />
+              <p className="text-sm font-semibold text-navy-700 min-w-0 truncate">{g.nombre}</p>
+            </div>
+            <ul className="space-y-0.5 pl-1">
+              {g.temas.map((t, i) => (
+                <li key={i} className="text-sm text-navy-700">- {t}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ raíz */
 
 export default function ResumenesView({ perfil, directorio, projects, dossiers, resumenes, onGuardar, onAbrirProyecto, cierres, onGuardarCierre }) {
@@ -696,6 +784,7 @@ export default function ResumenesView({ perfil, directorio, projects, dossiers, 
   const pestanas = [
     { key: 'mio', label: 'Mi resumen', icon: CalendarCheck },
     { key: 'equipo', label: 'El equipo', icon: Users },
+    { key: 'temas', label: 'Temas del lunes', icon: MessagesSquare },
   ];
 
   return (
@@ -740,7 +829,15 @@ export default function ResumenesView({ perfil, directorio, projects, dossiers, 
         </div>
       </div>
 
-      {pestana === 'mio' ? (
+      {pestana === 'temas' ? (
+        <VistaTemas
+          resumenes={resumenes}
+          semana={semana}
+          directorio={directorio}
+          cierre={cierre}
+          onIrASemana={setSemana}
+        />
+      ) : pestana === 'mio' ? (
         <MiResumen
           /* Al cambiar de semana, o al enviar/reabrir, la pantalla empieza de
              cero. La clave NO incluye la hora de guardado a propósito: como

@@ -497,3 +497,75 @@ describe('diaYMes', () => {
     expect(diaYMes('')).toBe('');
   });
 });
+
+describe('la vista de Temas del lunes', () => {
+  const conTemas = (usuario, semana, temas) => ({
+    id: `r-${usuario}-${semana}`, usuario_id: usuario, semana, enviado: true,
+    bloques: { temas }, proyectos: [],
+  });
+
+  const irATemas = () => fireEvent.click(screen.getByText('Temas del lunes'));
+
+  it('junta los temas de todos, con su autor', () => {
+    pintar({
+      resumenes: [
+        conTemas('u2', SEMANA, ['Quién dibuja el cerramiento']),
+        conTemas('u1', SEMANA, ['Alcance de Chinú 5', 'Fechas de entrega']),
+      ],
+    });
+    irATemas();
+    expect(screen.getByText('3 temas de 2 personas.')).toBeTruthy();
+    expect(screen.getByText('- Alcance de Chinú 5')).toBeTruthy();
+    expect(screen.getByText('- Quién dibuja el cerramiento')).toBeTruthy();
+    expect(screen.getByText('Ana')).toBeTruthy();
+    expect(screen.getByText('Beto')).toBeTruthy();
+  });
+
+  it('un borrador sin enviar no llega a la reunión', () => {
+    pintar({ resumenes: [{ ...conTemas('u1', SEMANA, ['Secreto']), enviado: false }] });
+    irATemas();
+    expect(screen.queryByText('- Secreto')).toBe(null);
+    expect(screen.getByText('Nadie puso temas para esta semana.')).toBeTruthy();
+  });
+
+  /* La reunion es el lunes y habla de la semana que cerro, pero la pantalla
+     abre en la semana en curso. Se ofrece el salto en vez de adivinarlo. */
+  it('si esta semana está vacía y la pasada no, ofrece saltar', () => {
+    pintar({ resumenes: [conTemas('u1', ANTERIOR, ['Lo de la semana pasada'])] });
+    irATemas();
+    expect(screen.getByText(/La semana pasada sí tiene 1 tema/)).toBeTruthy();
+    fireEvent.click(screen.getByText('Ver los de la semana pasada'));
+    expect(screen.getByText('- Lo de la semana pasada')).toBeTruthy();
+  });
+
+  it('no ofrece saltar si esta semana ya tiene temas', () => {
+    pintar({
+      resumenes: [conTemas('u1', ANTERIOR, ['Viejo']), conTemas('u2', SEMANA, ['Nuevo'])],
+    });
+    irATemas();
+    expect(screen.queryByText('Ver los de la semana pasada')).toBe(null);
+    expect(screen.getByText('- Nuevo')).toBeTruthy();
+  });
+
+  it('sin temas en ninguna semana explica de dónde salen', () => {
+    pintar();
+    irATemas();
+    expect(screen.getByText(/Los temas salen del bloque "Temas" de cada resumen enviado/)).toBeTruthy();
+    expect(screen.queryByText('Copiar el orden del día')).toBe(null);
+  });
+
+  it('el orden del día se copia listo para pegar', async () => {
+    let copiado = null;
+    Object.assign(navigator, { clipboard: { writeText: (t) => { copiado = t; return Promise.resolve(); } } });
+    Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
+
+    pintar({ resumenes: [conTemas('u1', SEMANA, ['Alcance de Chinú 5'])] });
+    irATemas();
+    await fireEvent.click(screen.getByText('Copiar el orden del día'));
+    await Promise.resolve();
+
+    expect(copiado).toContain('Temas para la reunión');
+    expect(copiado).toContain('Ana');
+    expect(copiado).toContain('-Alcance de Chinú 5');
+  });
+});

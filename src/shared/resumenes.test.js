@@ -14,7 +14,8 @@ import { describe, it, expect } from 'vitest';
 import {
   BLOQUES_RESUMEN, cambiosEntreFotos, cuentaDeFoto, etiquetaDeSemana, fotoConComparacion,
   fotoDeLaSemana, fotoDeProyecto, lunesDe, misDocumentosDelProyecto, nivelDeEstado,
-  cierreDeSemana, cierreValido, estadoDeEntrega, notaDeCierre,
+  cierreDeSemana, cierreValido, contarTemas, estadoDeEntrega, notaDeCierre,
+  temasDeLaSemana, textoDeTemas,
   sinFinalizadosRepetidos, sumarDias, textoDelResumen, ultimasSemanas, viernesDe,
 } from './resumenes.js';
 
@@ -383,5 +384,95 @@ describe('en qué va la entrega de cada quien', () => {
 
   it('un borrador sin enviar no cuenta como entregado', () => {
     expect(estadoDeEntrega(borrador, CIERRE, new Date(2026, 8, 12))).toBe('vencido');
+  });
+});
+
+describe('los temas del lunes', () => {
+  const SEM = '2026-09-07';
+  const gente = [
+    { id: 'u1', nombre: 'Ana' },
+    { id: 'u2', nombre: 'Beto' },
+    { id: 'u3', nombre: 'Caro' },
+  ];
+  const resumen = (over) => ({
+    usuario_id: 'u1', semana: SEM, enviado: true, bloques: { temas: ['Un tema'] }, ...over,
+  });
+
+  it('junta los temas de todos, agrupados por quien los puso y en orden', () => {
+    const grupos = temasDeLaSemana([
+      resumen({ usuario_id: 'u2', bloques: { temas: ['Lo de Beto'] } }),
+      resumen({ usuario_id: 'u1', bloques: { temas: ['Lo de Ana', 'Otro de Ana'] } }),
+    ], SEM, gente);
+    expect(grupos.map((g) => g.nombre)).toEqual(['Ana', 'Beto']);
+    expect(grupos[0].temas).toEqual(['Lo de Ana', 'Otro de Ana']);
+    expect(contarTemas(grupos)).toBe(3);
+  });
+
+  /* Llevar a una reunion un tema que alguien todavia estaba pensando seria
+     peor que no llevarlo. */
+  it('un borrador sin enviar no entra al orden del día', () => {
+    const grupos = temasDeLaSemana([resumen({ enviado: false })], SEM, gente);
+    expect(grupos).toEqual([]);
+  });
+
+  it('solo mira la semana que se pidió', () => {
+    const grupos = temasDeLaSemana([resumen({ semana: '2026-08-31' })], SEM, gente);
+    expect(grupos).toEqual([]);
+  });
+
+  it('quien no puso temas no aparece con una fila vacía', () => {
+    const grupos = temasDeLaSemana([
+      resumen({ usuario_id: 'u1', bloques: { temas: [] } }),
+      resumen({ usuario_id: 'u2', bloques: {} }),
+      resumen({ usuario_id: 'u3', bloques: { temas: ['  ', ''] } }),
+    ], SEM, gente);
+    expect(grupos).toEqual([]);
+  });
+
+  it('las líneas en blanco no se cuelan', () => {
+    const grupos = temasDeLaSemana([resumen({ bloques: { temas: ['Sí', '  ', ''] } })], SEM, gente);
+    expect(grupos[0].temas).toEqual(['Sí']);
+  });
+
+  /* El nombre sale del directorio, no del resumen: asi un cambio de nombre no
+     deja temas viejos firmados por un fantasma. */
+  it('el nombre lo pone el directorio', () => {
+    const grupos = temasDeLaSemana([resumen()], SEM, [{ id: 'u1', nombre: 'Ana María' }]);
+    expect(grupos[0].nombre).toBe('Ana María');
+  });
+
+  it('un tema de alguien que ya no está en el equipo no se pierde', () => {
+    const grupos = temasDeLaSemana([resumen({ usuario_id: 'fuera' })], SEM, gente);
+    expect(grupos.length).toBe(1);
+    expect(grupos[0].temas).toEqual(['Un tema']);
+  });
+
+  it('sin resúmenes no revienta', () => {
+    expect(temasDeLaSemana(null, SEM, null)).toEqual([]);
+    expect(contarTemas(null)).toBe(0);
+  });
+});
+
+describe('el orden del día como texto', () => {
+  const grupos = [
+    { nombre: 'Ana', temas: ['Alcance de Chinú 5', 'Fechas de entrega'] },
+    { nombre: 'Beto', temas: ['Quién dibuja el cerramiento'] },
+  ];
+
+  it('sale agrupado por persona, listo para pegar', () => {
+    expect(textoDeTemas(grupos, 'Del 7 al 11 de septiembre de 2026')).toBe([
+      'Temas para la reunión · Del 7 al 11 de septiembre de 2026',
+      '',
+      'Ana',
+      '-Alcance de Chinú 5',
+      '-Fechas de entrega',
+      '',
+      'Beto',
+      '-Quién dibuja el cerramiento',
+    ].join('\n'));
+  });
+
+  it('sin temas lo dice en vez de entregar un texto a medias', () => {
+    expect(textoDeTemas([], 'Del 7 al 11')).toBe('Temas para la reunión · Del 7 al 11\n\nNinguno');
   });
 });
