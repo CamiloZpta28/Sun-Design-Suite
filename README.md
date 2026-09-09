@@ -47,7 +47,10 @@ Sigue los pasos en orden. No necesitas experiencia previa con Supabase.
 > `supabase/migration_cimentacion_plantillas.sql` y
 > `supabase/migration_supervision_tecnica.sql` y
 > `supabase/migration_cambios_en_vivo.sql` y
-> `supabase/migration_notificaciones_limpieza.sql`. Cada uno agrega
+> `supabase/migration_notificaciones_limpieza.sql` y
+> `supabase/migration_resumenes_semanales.sql` y
+> `supabase/migration_cierre_semana.sql` y
+> `supabase/migration_ausencias.sql`. Cada uno agrega
 > solo lo nuevo sin tocar lo que ya tenías. Si no recuerdas si ya corriste
 > alguno, no pasa nada por intentarlo de nuevo: en el peor caso te marcará
 > un error de "ya existe", que puedes ignorar.
@@ -171,6 +174,38 @@ ingeniero. Cada persona:
 ---
 
 ## Notas y siguientes pasos
+
+- **Vacaciones e incapacidades ya no salen en rojo.** Se registra una ausencia
+  con su rango de fechas y su motivo, y cubre todas las semanas que toque: no
+  hay que marcar nada cada lunes. Quien no estuvo aparece con su motivo
+  (*Vacaciones*, *Incapacidad*…) en azul, sale de la cuenta de "X de Y ya
+  enviaron" y se menciona aparte, para que no parezca que el equipo encogió.
+  - **Un líder la registra por cualquiera**, que es lo que hace falta de
+    verdad: quien está incapacitado no entra a la plataforma a marcarse. El
+    resto solo puede anotar la suya, y la RLS es la que de verdad lo impide.
+  - Solo exime la ausencia que cubre la semana **entera**, del lunes al día de
+    cierre. Quien trabajó aunque fuera un día sigue entregando su resumen; para
+    cerrarlo antes ya estaba el campo "hasta" de cada resumen.
+  - Si alguien manda su resumen estando de vacaciones, se ve como enviado:
+    manda lo que hizo, no lo que se esperaba de él.
+  - **Necesita migración**: `supabase/migration_ausencias.sql`. Sin ella la lista del
+    equipo se comporta como antes y el registro de ausencias no aparece.
+
+- **Cada tema elige su reunión.** Al escribir un tema en el resumen semanal se
+  marca si va a la reunión del área de quien lo pone (civil, eléctrica o
+  delineantes) o a la **reunión de diseño**, que es la de todos. La pestaña
+  pasó a llamarse *Temas de reuniones* y la de diseño aparece de primera, con
+  su propio botón de copiar.
+  - La reunión de diseño **no filtra por rol**: cualquiera puede llevar algo
+    ahí, incluidos Trámites y BT, Control de Calidad y el Líder de Diseño, que
+    no caen en ninguna de las tres áreas. Las de área siguen filtrando igual.
+  - Quien reparte sus temas entre las dos aparece en las dos, cada una con lo
+    suyo.
+  - Los temas guardados antes de este cambio eran texto pelado y se leen como
+    temas del área: era la única reunión que existía cuando se escribieron. No
+    hay que tocar nada ni correr migración —el bloque ya se guardaba como JSON—.
+  - En el mensaje que se pega en el chat, los de diseño salen marcados
+    *(reunión de diseño)*: si no se dice, quien lo lee no sabe a cuál van.
 
 - **Los temas del lunes se reparten en las tres reuniones** —civil, eléctrica
   y delineantes— según el área de quien puso cada uno. Cada reunión tiene su

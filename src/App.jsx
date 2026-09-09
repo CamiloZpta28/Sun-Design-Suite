@@ -1673,6 +1673,7 @@ export default function App() {
   /* Solo las semanas cuyo cierre se corrió (un viernes festivo, por ejemplo).
      Las demás cierran el viernes sin necesidad de fila. */
   const [cierresDeSemana, setCierresDeSemana] = useState([]);
+  const [ausencias, setAusencias] = useState([]);
   // Objetos completos (correo/teléfono/NIT/logo) de cada inversionista — se
   // cargan por separado de la lista de nombres de arriba (que no se toca,
   // para no afectar nada de lo que ya depende de ella).
@@ -1837,9 +1838,22 @@ export default function App() {
     if (errorCierre) {
       console.warn('No se pudo cargar el cierre de las semanas (¿falta la migración?):', errorCierre.message);
       setCierresDeSemana([]);
+    } else {
+      setCierresDeSemana(filasCierre || []);
+    }
+
+    /* Las ausencias que todavía tocan alguna de esas semanas. Una que terminó
+       hace meses no le sirve a nadie y solo haría la consulta más pesada. */
+    const { data: filasAusencia, error: errorAusencia } = await supabase
+      .from('ausencias')
+      .select('*')
+      .gte('hasta', desde);
+    if (errorAusencia) {
+      console.warn('No se pudieron cargar las ausencias (¿falta la migración?):', errorAusencia.message);
+      setAusencias([]);
       return;
     }
-    setCierresDeSemana(filasCierre || []);
+    setAusencias(filasAusencia || []);
   }
 
   async function loadSharedData(ownUserId) {
@@ -2570,6 +2584,38 @@ export default function App() {
     setCierresDeSemana((prev) => [...prev.filter((c) => c.semana !== semana), fila]);
   }
 
+  /* Registra que alguien no estuvo. Cada quien puede anotar la suya; un líder,
+     la de cualquiera —quien está incapacitado no entra a marcarse—. La RLS es
+     la que de verdad lo impide. */
+  async function handleGuardarAusencia({ usuario_id, desde, hasta, motivo, nota }) {
+    const fila = {
+      id: makeId('ausencia'),
+      usuario_id,
+      desde,
+      hasta,
+      motivo,
+      nota: nota || null,
+      registrada_por: perfil?.nombre || null,
+    };
+    const { error } = await supabase.from('ausencias').insert(fila);
+    if (error) {
+      console.error('Error registrando la ausencia:', error);
+      alert('No se pudo registrar la ausencia. Detalle: ' + error.message);
+      return;
+    }
+    setAusencias((prev) => [...prev, fila]);
+  }
+
+  async function handleBorrarAusencia(id) {
+    const { error } = await supabase.from('ausencias').delete().eq('id', id);
+    if (error) {
+      console.error('Error quitando la ausencia:', error);
+      alert('No se pudo quitar la ausencia. Detalle: ' + error.message);
+      return;
+    }
+    setAusencias((prev) => prev.filter((a) => a.id !== id));
+  }
+
   function handleAddPlantillaCimentacion(tipo, nombre, datos) {
     const nueva = { id: makeId('cim'), tipo, nombre, datos };
     setPlantillasCimentacion((prev) => [...prev, nueva]);
@@ -3143,6 +3189,9 @@ export default function App() {
             onAbrirProyecto={openProject}
             cierres={cierresDeSemana}
             onGuardarCierre={handleGuardarCierreSemana}
+            ausencias={ausencias}
+            onGuardarAusencia={handleGuardarAusencia}
+            onBorrarAusencia={handleBorrarAusencia}
           />
         )}
         {view === 'dossiers' && (

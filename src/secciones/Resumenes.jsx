@@ -36,8 +36,10 @@ import { ROLES, isLeader, roleLabel } from '../shared/permisos.js';
 import { FiltroFichas, alternarEn, Avatar } from '../shared/ui.jsx';
 import { copiarTexto } from '../shared/copiar.jsx';
 import {
-  BLOQUES_RESUMEN, cierreDeSemana, cierreValido, contarTemas, cuentaDeFoto, estadoDeEntrega,
-  etiquetaDeSemana, fotoConComparacion, fotoDeLaSemana, lunesDe, notaDeCierre, repartirEnReuniones,
+  BLOQUES_RESUMEN, DESTINOS_TEMA, DESTINO_POR_DEFECTO, cierreDeSemana, cierreValido, contarTemas, cuentaDeFoto, estadoDeEntrega,
+  etiquetaDeSemana, fotoConComparacion, fotoDeLaSemana, lineasDeBloque, lunesDe, normalizarTema,
+  notaDeCierre, repartirEnReuniones, MOTIVOS_AUSENCIA, etiquetaDeMotivo, ausenciaDeLaSemana,
+  ausenciasQueTocan, rangoDeAusenciaValido,
   sumarDias, temasDeLaSemana, textoDeTemas, textoDelResumen, ultimasSemanas,
 } from '../shared/resumenes.js';
 
@@ -215,24 +217,57 @@ function BloqueAvance({ fotos, onAbrirProyecto }) {
 /* Lista de viñetas. Un renglón se escribe y se "quema": pasa a ser texto, con
    un lápiz para volver a entrar. Con la caja de texto siempre abierta bastaba
    un teclazo despistado para dañar algo ya escrito. */
-function ListaEditable({ lineas, onChange, ayuda, vacio }) {
+/* Las dos reuniones a las que puede ir un tema, para elegir al escribirlo.
+   Va pegado al renglón y no arriba del bloque a propósito: cada tema escoge
+   la suya, y quien escribe tres puede mandar dos a su área y una a diseño. */
+function ElegirReunion({ valor, onChange }) {
+  return (
+    <span className="flex gap-1 shrink-0">
+      {DESTINOS_TEMA.map((d) => (
+        <button
+          key={d.id}
+          type="button"
+          onClick={() => onChange(d.id)}
+          title={d.ayuda}
+          aria-pressed={valor === d.id}
+          className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border transition-colors ${
+            valor === d.id ? 'bg-navy-800 text-white border-navy-800' : 'bg-white text-navy-400 border-navy-300 hover:border-navy-400'
+          }`}
+        >
+          {d.label}
+        </button>
+      ))}
+    </span>
+  );
+}
+
+/* Con `conDestino`, cada renglón es { texto, reunion } en vez de una cadena;
+   sin él, la lista sigue siendo de texto pelado como los otros tres bloques. */
+function ListaEditable({ lineas, onChange, ayuda, vacio, conDestino }) {
   /* Índice del renglón que se está escribiendo, o null si todos están
      quemados. Es estado de interfaz puro: no se guarda. */
   const [editando, setEditando] = useState(null);
   const valores = lineas || [];
 
+  const textoDe = (l) => (conDestino ? normalizarTema(l).texto : (l || ''));
+  const conTexto = (l, texto) => (conDestino ? { ...normalizarTema(l), texto } : texto);
+  const enBlanco = () => (conDestino ? { texto: '', reunion: DESTINO_POR_DEFECTO } : '');
+
   function cambiar(i, texto) {
-    onChange(valores.map((l, j) => (j === i ? texto : l)));
+    onChange(valores.map((l, j) => (j === i ? conTexto(l, texto) : l)));
+  }
+  function cambiarReunion(i, reunion) {
+    onChange(valores.map((l, j) => (j === i ? { ...normalizarTema(l), reunion } : l)));
   }
   /* Al quemar, un renglón vacío se descarta: no tiene sentido guardar viñetas
      en blanco que después salen como "-" en el texto del chat. */
   function quemar() {
-    onChange(valores.filter((l) => (l || '').trim() !== ''));
+    onChange(valores.filter((l) => textoDe(l).trim() !== ''));
     setEditando(null);
   }
   function agregar() {
-    const limpias = valores.filter((l) => (l || '').trim() !== '');
-    onChange([...limpias, '']);
+    const limpias = valores.filter((l) => textoDe(l).trim() !== '');
+    onChange([...limpias, enBlanco()]);
     setEditando(limpias.length);
   }
   function quitar(i) {
@@ -250,7 +285,7 @@ function ListaEditable({ lineas, onChange, ayuda, vacio }) {
               <>
                 <input
                   autoFocus
-                  value={linea}
+                  value={textoDe(linea)}
                   onChange={(e) => cambiar(i, e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') { e.preventDefault(); quemar(); }
@@ -270,7 +305,7 @@ function ListaEditable({ lineas, onChange, ayuda, vacio }) {
               </>
             ) : (
               <>
-                <span className="flex-1 min-w-0 text-sm text-navy-700 break-words">{linea}</span>
+                <span className="flex-1 min-w-0 text-sm text-navy-700 break-words">{textoDe(linea)}</span>
                 <button
                   type="button"
                   onClick={() => setEditando(i)}
@@ -280,6 +315,9 @@ function ListaEditable({ lineas, onChange, ayuda, vacio }) {
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
               </>
+            )}
+            {conDestino && (
+              <ElegirReunion valor={normalizarTema(linea).reunion} onChange={(r) => cambiarReunion(i, r)} />
             )}
             <button
               type="button"
@@ -307,7 +345,7 @@ function ListaEditable({ lineas, onChange, ayuda, vacio }) {
 }
 
 function BloqueEnLectura({ bloque, lineas }) {
-  const limpias = (lineas || []).map((l) => (l || '').trim()).filter(Boolean);
+  const limpias = lineasDeBloque(bloque.key, { [bloque.key]: lineas });
   return (
     <div>
       <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-1">{bloque.label}</p>
@@ -442,6 +480,7 @@ function MiResumen({ semana, cierre, guardado, fotosEnVivo, onGuardar, onAbrirPr
               lineas={bloques[bloque.key]}
               ayuda={bloque.ayuda}
               vacio={bloque.vacio}
+              conDestino={bloque.conDestino}
               onChange={(nuevas) => editar(() => setBloques((prev) => ({ ...prev, [bloque.key]: nuevas })))}
             />
           </div>
@@ -577,16 +616,21 @@ function CierreDeLaSemana({ semana, cierre, nota, puedeMover, onGuardar }) {
    se marca en rojo. */
 const CHIP_ENTREGA = {
   enviado: { texto: 'Enviado', clase: 'bg-emerald-100 text-emerald-800' },
+  /* Ausente no es un incumplimiento: va en azul, no en rojo, y el motivo lo
+     reemplaza para que se entienda sin abrir nada. */
+  ausente: { texto: 'Ausente', clase: 'bg-sky-100 text-sky-700' },
   pendiente: { texto: 'Sin registrar', clase: 'bg-navy-100 text-navy-500' },
   cierra_hoy: { texto: 'Cierra hoy', clase: 'bg-amber-100 text-amber-800' },
   vencido: { texto: 'No lo envió', clase: 'bg-red-100 text-red-700' },
 };
 
-function FilaPersona({ persona, resumen, onAbrirProyecto, cierre }) {
+function FilaPersona({ persona, resumen, onAbrirProyecto, cierre, ausencia }) {
   const [abierto, setAbierto] = useState(false);
   /* Un borrador ajeno no se muestra: mientras no esté enviado, no está dicho. */
   const enviado = !!resumen?.enviado;
-  const chip = CHIP_ENTREGA[estadoDeEntrega(resumen, cierre)] || CHIP_ENTREGA.pendiente;
+  const estado = estadoDeEntrega(resumen, cierre, new Date(), ausencia);
+  const base = CHIP_ENTREGA[estado] || CHIP_ENTREGA.pendiente;
+  const chip = estado === 'ausente' ? { ...base, texto: etiquetaDeMotivo(ausencia.motivo) } : base;
 
   return (
     <div className="bg-white border border-navy-200 rounded-xl">
@@ -623,11 +667,138 @@ export function esSoloDesarrollador(persona) {
   return roles.length > 0 && roles.every((r) => r === 'desarrollador');
 }
 
-function VistaEquipo({ directorio, resumenesDeLaSemana, onAbrirProyecto, cierre }) {
+/* Registrar que alguien no estuvo. Se anota una vez con su rango y cubre todas
+   las semanas que toque: nadie tiene que acordarse cada lunes.
+
+   Un líder la registra por cualquiera —quien está incapacitado no entra a la
+   plataforma a marcarse— y el resto, solo la suya. La RLS es la que de verdad
+   lo impide; esto solo evita ofrecer lo que va a fallar. */
+function FormularioAusencia({ gente, perfil, semana, onGuardar, onCancelar }) {
+  const puedePorOtros = isLeader(perfil);
+  const [usuarioId, setUsuarioId] = useState(perfil?.id || '');
+  const [desde, setDesde] = useState(semana);
+  const [hasta, setHasta] = useState(sumarDias(semana, 4));
+  const [motivo, setMotivo] = useState('vacaciones');
+  const [nota, setNota] = useState('');
+  const valido = !!usuarioId && rangoDeAusenciaValido(desde, hasta);
+
+  return (
+    <div className="bg-white border border-navy-200 rounded-xl p-3 mb-3">
+      <div className="flex flex-wrap gap-2 items-end">
+        <label className="flex flex-col gap-1 min-w-[10rem] flex-1">
+          <span className="text-xs font-semibold text-navy-500">Quién</span>
+          <select
+            value={usuarioId}
+            onChange={(e) => setUsuarioId(e.target.value)}
+            disabled={!puedePorOtros}
+            className="rounded-md border border-navy-300 px-2 py-1.5 text-sm disabled:bg-navy-50 disabled:text-navy-400"
+          >
+            {(puedePorOtros ? gente : gente.filter((p) => p.id === perfil?.id)).map((p) => (
+              <option key={p.id} value={p.id}>{p.nombre}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-navy-500">Desde</span>
+          <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)}
+            className="rounded-md border border-navy-300 px-2 py-1.5 text-sm" />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-navy-500">Hasta</span>
+          <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)}
+            className="rounded-md border border-navy-300 px-2 py-1.5 text-sm" />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-semibold text-navy-500">Motivo</span>
+          <select value={motivo} onChange={(e) => setMotivo(e.target.value)}
+            className="rounded-md border border-navy-300 px-2 py-1.5 text-sm">
+            {MOTIVOS_AUSENCIA.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+          </select>
+        </label>
+      </div>
+      <input
+        value={nota}
+        onChange={(e) => setNota(e.target.value)}
+        placeholder="Nota (opcional)"
+        className="w-full mt-2 rounded-md border border-navy-300 px-2 py-1.5 text-sm"
+      />
+      {!rangoDeAusenciaValido(desde, hasta) && (
+        <p className="text-xs text-red-500 mt-1.5">La fecha de "hasta" no puede ser anterior a la de "desde".</p>
+      )}
+      <div className="flex gap-2 mt-2">
+        <button
+          disabled={!valido}
+          onClick={() => onGuardar({ usuario_id: usuarioId, desde, hasta, motivo, nota: nota.trim() || null })}
+          className="text-sm font-semibold bg-navy-800 text-white rounded-lg px-3 py-1.5 disabled:opacity-40"
+        >
+          Registrar
+        </button>
+        <button onClick={onCancelar} className="text-sm text-navy-500 hover:text-navy-700 px-2">Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+/* Las ausencias que tocan la semana que se está mirando. Se listan aunque
+   cubran solo un par de días: un "sale el jueves" también hay que verlo,
+   aunque esa persona sí deba su resumen. */
+function PanelAusencias({ ausencias, gente, perfil, semana, onGuardar, onBorrar }) {
+  const [abriendo, setAbriendo] = useState(false);
+  const delAsemana = ausenciasQueTocan(ausencias, semana);
+  const nombreDe = (id) => (gente.find((p) => p.id === id) || {}).nombre || 'Alguien que ya no está';
+  const puedeBorrar = (a) => isLeader(perfil) || a.usuario_id === perfil?.id;
+
+  if (!onGuardar) return null;
+
+  return (
+    <div className="mb-4">
+      <div className="flex items-center gap-2 flex-wrap mb-2">
+        <p className="text-xs font-bold uppercase tracking-wide text-navy-500 flex-1">
+          Ausencias <span className="text-navy-300">({delAsemana.length})</span>
+        </p>
+        {!abriendo && (
+          <button onClick={() => setAbriendo(true)} className="flex items-center gap-1 text-xs font-semibold text-lime-600 hover:text-lime-700">
+            <Plus className="w-3.5 h-3.5" /> Registrar ausencia
+          </button>
+        )}
+      </div>
+      {abriendo && (
+        <FormularioAusencia
+          gente={gente}
+          perfil={perfil}
+          semana={semana}
+          onGuardar={(datos) => { onGuardar(datos); setAbriendo(false); }}
+          onCancelar={() => setAbriendo(false)}
+        />
+      )}
+      {delAsemana.length > 0 && (
+        <div className="space-y-1.5">
+          {delAsemana.map((a) => (
+            <div key={a.id} className="flex items-center gap-2 flex-wrap bg-sky-50 border border-sky-200 rounded-lg px-3 py-1.5">
+              <span className="text-sm font-semibold text-navy-700">{nombreDe(a.usuario_id)}</span>
+              <span className="text-xs text-navy-500">
+                {etiquetaDeMotivo(a.motivo)} · del {diaYMes(a.desde)} al {diaYMes(a.hasta)}
+              </span>
+              {a.nota && <span className="text-xs text-navy-400 italic min-w-0 truncate">{a.nota}</span>}
+              {puedeBorrar(a) && onBorrar && (
+                <button onClick={() => onBorrar(a.id)} title="Quitar esta ausencia" className="ml-auto text-navy-300 hover:text-red-500 shrink-0">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VistaEquipo({ directorio, resumenesDeLaSemana, onAbrirProyecto, cierre, semana, ausencias, perfil, onGuardarAusencia, onBorrarAusencia }) {
   const [roles, setRoles] = useState([]);
 
   const porUsuario = new Map(resumenesDeLaSemana.map((r) => [r.usuario_id, r]));
   const gente = (directorio || []).filter((p) => !esSoloDesarrollador(p)).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const ausenciaDe = (id) => ausenciaDeLaSemana(ausencias, id, semana, cierre);
 
   /* Las fichas de filtro solo ofrecen los roles que alguien tiene de verdad:
      una ficha en cero no le sirve a nadie. */
@@ -639,8 +810,15 @@ function VistaEquipo({ directorio, resumenesDeLaSemana, onAbrirProyecto, cierre 
     ? gente
     : gente.filter((p) => (p.roles || []).some((r) => clavesElegidas.includes(r)));
 
+  /* Quien no estuvo en toda la semana no debe nada: sale de la cuenta en vez
+     de engordar el "faltan tantos". Se dice aparte para que no parezca que el
+     equipo encogió. */
+  const ausentes = visibles.filter((p) => !porUsuario.get(p.id)?.enviado && ausenciaDe(p.id)).length;
+  const esperados = visibles.length - ausentes;
   const enviados = visibles.filter((p) => porUsuario.get(p.id)?.enviado).length;
-  const vencidos = visibles.filter((p) => estadoDeEntrega(porUsuario.get(p.id), cierre) === 'vencido').length;
+  const vencidos = visibles.filter(
+    (p) => estadoDeEntrega(porUsuario.get(p.id), cierre, new Date(), ausenciaDe(p.id)) === 'vencido',
+  ).length;
 
   return (
     <div>
@@ -653,10 +831,21 @@ function VistaEquipo({ directorio, resumenesDeLaSemana, onAbrirProyecto, cierre 
         onAlternar={(v) => setRoles((prev) => alternarEn(prev, v))}
         onLimpiar={() => setRoles([])}
       />
+      <PanelAusencias
+        ausencias={ausencias}
+        gente={gente}
+        perfil={perfil}
+        semana={semana}
+        onGuardar={onGuardarAusencia}
+        onBorrar={onBorrarAusencia}
+      />
       <p className="text-sm text-navy-500 mb-3">
-        {enviados} de {visibles.length} ya enviaron su resumen de esta semana.
+        {enviados} de {esperados} ya enviaron su resumen de esta semana.
         {vencidos > 0 && (
           <span className="text-red-600 font-semibold"> {vencidos} no alcanzó a hacerlo.</span>
+        )}
+        {ausentes > 0 && (
+          <span> {ausentes === 1 ? 'Otra persona no estuvo' : 'Otras ' + ausentes + ' personas no estuvieron'} esta semana.</span>
         )}
       </p>
       <div className="space-y-2">
@@ -667,6 +856,7 @@ function VistaEquipo({ directorio, resumenesDeLaSemana, onAbrirProyecto, cierre 
             resumen={porUsuario.get(persona.id)}
             onAbrirProyecto={onAbrirProyecto}
             cierre={cierre}
+            ausencia={ausenciaDe(persona.id)}
           />
         ))}
       </div>
@@ -720,7 +910,7 @@ function Reunion({ reunion, etiquetaSemana }) {
               </div>
               <ul className="space-y-0.5 pl-1">
                 {g.temas.map((t, i) => (
-                  <li key={i} className="text-sm text-navy-700">- {t}</li>
+                  <li key={i} className="text-sm text-navy-700">- {normalizarTema(t).texto}</li>
                 ))}
               </ul>
             </div>
@@ -753,7 +943,7 @@ function VistaTemas({ resumenes, semana, directorio, cierre, onIrASemana }) {
       <p className="text-sm text-navy-500 mb-4">
         {total === 0
           ? 'Nadie puso temas para esta semana.'
-          : `${total} ${total === 1 ? 'tema' : 'temas'} de ${grupos.length} ${grupos.length === 1 ? 'persona' : 'personas'}, repartidos según el área de quien los puso.`}
+          : `${total} ${total === 1 ? 'tema' : 'temas'} de ${grupos.length} ${grupos.length === 1 ? 'persona' : 'personas'}. Los de equipo van a la reunión del área de quien los puso; los de diseño, a la de todos.`}
       </p>
 
       {sugerirAnterior && (
@@ -787,7 +977,7 @@ function VistaTemas({ resumenes, semana, directorio, cierre, onIrASemana }) {
 
 /* ------------------------------------------------------------------ raíz */
 
-export default function ResumenesView({ perfil, directorio, projects, dossiers, resumenes, onGuardar, onAbrirProyecto, cierres, onGuardarCierre }) {
+export default function ResumenesView({ perfil, directorio, projects, dossiers, resumenes, onGuardar, onAbrirProyecto, cierres, onGuardarCierre, ausencias, onGuardarAusencia, onBorrarAusencia }) {
   const [semana, setSemana] = useState(() => lunesDe());
   const [pestana, setPestana] = useState('mio');
 
@@ -808,7 +998,7 @@ export default function ResumenesView({ perfil, directorio, projects, dossiers, 
   const pestanas = [
     { key: 'mio', label: 'Mi resumen', icon: CalendarCheck },
     { key: 'equipo', label: 'El equipo', icon: Users },
-    { key: 'temas', label: 'Temas del lunes', icon: MessagesSquare },
+    { key: 'temas', label: 'Temas de reuniones', icon: MessagesSquare },
   ];
 
   return (
@@ -881,6 +1071,11 @@ export default function ResumenesView({ perfil, directorio, projects, dossiers, 
           resumenesDeLaSemana={deLaSemana}
           onAbrirProyecto={onAbrirProyecto}
           cierre={cierre}
+          semana={semana}
+          ausencias={ausencias}
+          perfil={perfil}
+          onGuardarAusencia={onGuardarAusencia}
+          onBorrarAusencia={onBorrarAusencia}
         />
       )}
     </div>

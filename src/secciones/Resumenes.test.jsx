@@ -330,6 +330,51 @@ describe('los desarrolladores no entran al seguimiento', () => {
   });
 });
 
+describe('elegir la reunión de cada tema', () => {
+  /* El bloque "Temas" es el único con selector: los otros tres siguen siendo
+     renglones de texto pelado. */
+  function escribirUnTema(texto) {
+    fireEvent.click(screen.getAllByText('Agregar renglón')[3]);
+    const caja = screen.getByPlaceholderText(/Lo que quieres hablar el lunes/);
+    fireEvent.change(caja, { target: { value: texto } });
+    fireEvent.click(screen.getByTitle('Listo (o pulsa Enter)'));
+  }
+
+  it('un tema nuevo arranca en la reunión del área', () => {
+    const guardados = [];
+    pintar({ onGuardar: (r) => guardados.push(r) });
+    escribirUnTema('Alcance de Chinú 5');
+    fireEvent.click(screen.getByText('Enviar'));
+    const ultimo = guardados[guardados.length - 1];
+    expect(ultimo.bloques.temas).toEqual([{ texto: 'Alcance de Chinú 5', reunion: 'equipo' }]);
+  });
+
+  it('se puede mandar a la reunión de diseño', () => {
+    const guardados = [];
+    pintar({ onGuardar: (r) => guardados.push(r) });
+    escribirUnTema('Criterio de anclajes');
+    fireEvent.click(screen.getByTitle(/Va a la reunión de diseño/));
+    fireEvent.click(screen.getByText('Enviar'));
+    const ultimo = guardados[guardados.length - 1];
+    expect(ultimo.bloques.temas).toEqual([{ texto: 'Criterio de anclajes', reunion: 'diseno' }]);
+  });
+
+  it('cambiar de reunión no borra lo escrito', () => {
+    pintar();
+    escribirUnTema('Sigue aquí');
+    fireEvent.click(screen.getByTitle(/Va a la reunión de diseño/));
+    expect(screen.getByText('Sigue aquí')).toBeTruthy();
+  });
+
+  /* Los otros bloques no ofrecen el selector: sus renglones no van a ninguna
+     reunión en particular. */
+  it('solo el bloque de temas ofrece elegir reunión', () => {
+    pintar();
+    escribirEnLoMejor('Una entrega');
+    expect(screen.queryByTitle(/Va a la reunión de diseño/)).toBe(null);
+  });
+});
+
 describe('los renglones se queman al escribirlos', () => {
   /* Con la caja de texto siempre abierta bastaba un teclazo despistado para
      danar algo ya escrito. */
@@ -498,13 +543,117 @@ describe('diaYMes', () => {
   });
 });
 
-describe('la vista de Temas del lunes', () => {
+describe('ausencias en la vista del equipo', () => {
+  const irAlEquipo = () => fireEvent.click(screen.getByText('El equipo'));
+  const CIERRE = sumarDias(SEMANA, 4);
+  const ausencia = (over) => ({
+    id: 'a1', usuario_id: 'u2', desde: SEMANA, hasta: CIERRE, motivo: 'vacaciones', nota: null, ...over,
+  });
+
+  /* Sin la migración corrida, `ausencias` llega vacío: la pantalla tiene que
+     comportarse como antes en vez de romperse. */
+  it('sin ausencias todo sigue como antes', () => {
+    pintar();
+    irAlEquipo();
+    expect(screen.getByText(/0 de 3 ya enviaron/)).toBeTruthy();
+    expect(screen.queryByText('Registrar ausencia')).toBe(null);
+  });
+
+  it('quien no estuvo sale con su motivo, no en rojo', () => {
+    pintar({ ausencias: [ausencia({ motivo: 'incapacidad' })], onGuardarAusencia: () => {} });
+    irAlEquipo();
+    expect(screen.getByText('Incapacidad')).toBeTruthy();
+    expect(screen.queryByText('No lo envió')).toBe(null);
+  });
+
+  /* Lo que de verdad pidió el equipo: que el ausente no engorde el "faltan
+     tantos" ni aparezca como incumplido. */
+  it('no cuenta como pendiente: sale de la cuenta y se dice aparte', () => {
+    pintar({ ausencias: [ausencia()], onGuardarAusencia: () => {} });
+    irAlEquipo();
+    expect(screen.getByText(/0 de 2 ya enviaron/)).toBeTruthy();
+    expect(screen.getByText(/Otra persona no estuvo esta semana/)).toBeTruthy();
+  });
+
+  it('una ausencia de media semana no lo exime', () => {
+    pintar({ ausencias: [ausencia({ desde: sumarDias(SEMANA, 3) })], onGuardarAusencia: () => {} });
+    irAlEquipo();
+    expect(screen.getByText(/0 de 3 ya enviaron/)).toBeTruthy();
+    /* Igual se lista, porque saber que sale el jueves sirve. */
+    expect(screen.getByText(/Ausencias/)).toBeTruthy();
+  });
+
+  it('se listan las de la semana con su rango y su motivo', () => {
+    pintar({ ausencias: [ausencia({ nota: 'Vuelve el lunes' })], onGuardarAusencia: () => {} });
+    irAlEquipo();
+    /* Beto aparece dos veces: en la lista de ausencias y en su propia fila. */
+    const fila = screen.getByText(/Vacaciones · del/).parentElement;
+    expect(fila.textContent).toContain('Beto');
+    expect(fila.textContent).toContain('Vuelve el lunes');
+  });
+
+  it('registrar una ausencia manda persona, rango y motivo', () => {
+    const guardadas = [];
+    pintar({
+      perfil: { id: 'u1', nombre: 'Ana', roles: ['lider_diseno'] },
+      ausencias: [],
+      onGuardarAusencia: (a) => guardadas.push(a),
+    });
+    irAlEquipo();
+    fireEvent.click(screen.getByText('Registrar ausencia'));
+    fireEvent.change(screen.getByDisplayValue('Ana'), { target: { value: 'u3' } });
+    fireEvent.click(screen.getByText('Registrar'));
+    expect(guardadas).toEqual([{
+      usuario_id: 'u3', desde: SEMANA, hasta: CIERRE, motivo: 'vacaciones', nota: null,
+    }]);
+  });
+
+  /* Quien no es líder solo puede anotar la suya: la RLS lo impide de todos
+     modos, pero ofrecer lo que va a fallar es peor que no ofrecerlo. */
+  it('quien no es líder solo se puede registrar a sí mismo', () => {
+    pintar({ ausencias: [], onGuardarAusencia: () => {} });
+    irAlEquipo();
+    fireEvent.click(screen.getByText('Registrar ausencia'));
+    const quien = screen.getByDisplayValue('Ana');
+    expect(quien.disabled).toBe(true);
+    expect([...quien.options].map((o) => o.textContent)).toEqual(['Ana']);
+  });
+
+  it('un rango al revés no se deja registrar', () => {
+    pintar({ perfil: { id: 'u1', nombre: 'Ana', roles: ['lider_diseno'] }, ausencias: [], onGuardarAusencia: () => {} });
+    irAlEquipo();
+    fireEvent.click(screen.getByText('Registrar ausencia'));
+    fireEvent.change(screen.getByDisplayValue(CIERRE), { target: { value: sumarDias(SEMANA, -3) } });
+    expect(screen.getByText(/no puede ser anterior/)).toBeTruthy();
+    expect(screen.getByText('Registrar').disabled).toBe(true);
+  });
+
+  it('la X quita la propia', () => {
+    const borradas = [];
+    pintar({
+      ausencias: [ausencia({ usuario_id: 'u1' })],
+      onGuardarAusencia: () => {},
+      onBorrarAusencia: (id) => borradas.push(id),
+    });
+    irAlEquipo();
+    fireEvent.click(screen.getByTitle('Quitar esta ausencia'));
+    expect(borradas).toEqual(['a1']);
+  });
+
+  it('sin ser líder no se puede quitar la de otro', () => {
+    pintar({ ausencias: [ausencia()], onGuardarAusencia: () => {}, onBorrarAusencia: () => {} });
+    irAlEquipo();
+    expect(screen.queryByTitle('Quitar esta ausencia')).toBe(null);
+  });
+});
+
+describe('la vista de Temas de reuniones', () => {
   const conTemas = (usuario, semana, temas) => ({
     id: `r-${usuario}-${semana}`, usuario_id: usuario, semana, enviado: true,
     bloques: { temas }, proyectos: [],
   });
 
-  const irATemas = () => fireEvent.click(screen.getByText('Temas del lunes'));
+  const irATemas = () => fireEvent.click(screen.getByText('Temas de reuniones'));
 
   it('junta los temas de todos, con su autor', () => {
     pintar({
@@ -542,13 +691,48 @@ describe('la vista de Temas del lunes', () => {
 
   /* Quien convoca necesita ver que su reunion no tiene temas, no que no
      existe. */
-  it('las tres reuniones se muestran aunque alguna esté vacía', () => {
+  it('las cuatro reuniones se muestran aunque alguna esté vacía', () => {
     pintar({ resumenes: [conTemas('u1', SEMANA, ['Solo civil'])] });
     irATemas();
+    expect(screen.getByText(/Reunión de diseño/)).toBeTruthy();
     expect(screen.getByText(/Reunión civil/)).toBeTruthy();
     expect(screen.getByText(/Reunión eléctrica/)).toBeTruthy();
     expect(screen.getByText(/Reunión delineantes/)).toBeTruthy();
-    expect(screen.getAllByText('Ningún tema.').length).toBe(2);
+    expect(screen.getAllByText('Ningún tema.').length).toBe(3);
+  });
+
+  /* A la reunión de diseño va todo el mundo, así que ahí el rol de quien
+     puso el tema no decide nada: es la diferencia con las de área. */
+  it('la reunión de diseño recoge los temas de cualquiera', () => {
+    const { container } = pintar({
+      directorio: [...directorio, { id: 'u9', nombre: 'Tito', roles: ['tramites_bt'] }],
+      resumenes: [
+        conTemas('u1', SEMANA, [{ texto: 'Criterio de anclajes', reunion: 'diseno' }]),
+        conTemas('u9', SEMANA, [{ texto: 'Lo de trámites', reunion: 'diseno' }]),
+      ],
+    });
+    irATemas();
+    const seccion = (titulo) => [...container.querySelectorAll('div')]
+      .find((d) => d.firstChild?.textContent?.startsWith(titulo));
+    const diseno = seccion('Reunión de diseño').textContent;
+    expect(diseno).toContain('Criterio de anclajes');
+    expect(diseno).toContain('Lo de trámites');
+    /* Ana es civil, pero ese tema lo mandó a diseño: no puede salir además
+       en la suya. */
+    expect(seccion('Reunión civil').textContent).not.toContain('Criterio de anclajes');
+    expect(screen.queryByText(/Sin reunión asignada/)).toBe(null);
+  });
+
+  it('quien reparte sus temas entre las dos aparece en las dos, con lo suyo', () => {
+    const { container } = pintar({
+      resumenes: [conTemas('u1', SEMANA, ['Lo del área', { texto: 'Lo de diseño', reunion: 'diseno' }])],
+    });
+    irATemas();
+    const seccion = (titulo) => [...container.querySelectorAll('div')]
+      .find((d) => d.firstChild?.textContent?.startsWith(titulo));
+    expect(seccion('Reunión civil').textContent).toContain('Lo del área');
+    expect(seccion('Reunión civil').textContent).not.toContain('Lo de diseño');
+    expect(seccion('Reunión de diseño').textContent).toContain('Lo de diseño');
   });
 
   it('quien no cae en ninguna área va a un grupo aparte, sin perderse', () => {

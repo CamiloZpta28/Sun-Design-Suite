@@ -15,7 +15,8 @@ import {
   BLOQUES_RESUMEN, cambiosEntreFotos, cuentaDeFoto, etiquetaDeSemana, fotoConComparacion,
   fotoDeLaSemana, fotoDeProyecto, lunesDe, misDocumentosDelProyecto, nivelDeEstado,
   REUNIONES, cierreDeSemana, cierreValido, contarTemas, estadoDeEntrega, notaDeCierre,
-  repartirEnReuniones, temasDeLaSemana, textoDeTemas,
+  repartirEnReuniones, temasDeLaSemana, textoDeTemas, lineasDeBloque, normalizarTemas,
+  ausenciaDeLaSemana, ausenciasQueTocan, rangoDeAusenciaValido, etiquetaDeMotivo,
   sinFinalizadosRepetidos, sumarDias, textoDelResumen, ultimasSemanas, viernesDe,
 } from './resumenes.js';
 
@@ -387,7 +388,81 @@ describe('en qué va la entrega de cada quien', () => {
   });
 });
 
-describe('los temas del lunes', () => {
+describe('ausencias', () => {
+  const SEM = '2026-09-07';   // lunes
+  const CIERRE = '2026-09-11'; // viernes
+  const aus = (over) => ({ id: 'a1', usuario_id: 'u1', desde: SEM, hasta: CIERRE, motivo: 'vacaciones', ...over });
+
+  it('la que cubre toda la semana tapa la entrega', () => {
+    expect(ausenciaDeLaSemana([aus()], 'u1', SEM, CIERRE)).toBeTruthy();
+  });
+
+  it('una que empezó antes y sigue después también', () => {
+    expect(ausenciaDeLaSemana([aus({ desde: '2026-08-01', hasta: '2026-12-31' })], 'u1', SEM, CIERRE)).toBeTruthy();
+  });
+
+  /* Quien trabajó aunque fuera un día tiene algo que contar: para cerrar
+     antes está el "hasta" de su propio resumen, no esto. */
+  it('la que cubre solo parte de la semana NO tapa nada', () => {
+    expect(ausenciaDeLaSemana([aus({ desde: '2026-09-09' })], 'u1', SEM, CIERRE)).toBe(null);
+    expect(ausenciaDeLaSemana([aus({ hasta: '2026-09-10' })], 'u1', SEM, CIERRE)).toBe(null);
+  });
+
+  it('la de otra persona no cuenta', () => {
+    expect(ausenciaDeLaSemana([aus()], 'u2', SEM, CIERRE)).toBe(null);
+    expect(ausenciaDeLaSemana([aus()], null, SEM, CIERRE)).toBe(null);
+  });
+
+  /* Si el líder corrió el cierre al jueves, la ausencia hasta el jueves ya
+     cubre la semana entera. */
+  it('se mide contra el cierre de verdad, no contra el viernes', () => {
+    expect(ausenciaDeLaSemana([aus({ hasta: '2026-09-10' })], 'u1', SEM, '2026-09-10')).toBeTruthy();
+  });
+
+  it('sin ausencias no revienta', () => {
+    expect(ausenciaDeLaSemana(null, 'u1', SEM, CIERRE)).toBe(null);
+    expect(ausenciasQueTocan(null, SEM)).toEqual([]);
+  });
+
+  it('se listan las que tocan la semana, aunque sea un día, en orden', () => {
+    const lista = ausenciasQueTocan([
+      aus({ id: 'b', desde: '2026-09-10', hasta: '2026-09-15' }),
+      aus({ id: 'a', desde: '2026-09-01', hasta: '2026-09-07' }),
+      aus({ id: 'fuera', desde: '2026-10-01', hasta: '2026-10-05' }),
+    ], SEM);
+    expect(lista.map((a) => a.id)).toEqual(['a', 'b']);
+  });
+
+  it('un rango al revés no se guarda', () => {
+    expect(rangoDeAusenciaValido(SEM, CIERRE)).toBe(true);
+    expect(rangoDeAusenciaValido(SEM, SEM)).toBe(true);
+    expect(rangoDeAusenciaValido(CIERRE, SEM)).toBe(false);
+    expect(rangoDeAusenciaValido('', CIERRE)).toBe(false);
+    expect(rangoDeAusenciaValido(SEM, null)).toBe(false);
+  });
+
+  it('el motivo tiene nombre legible, y uno desconocido no deja el hueco', () => {
+    expect(etiquetaDeMotivo('incapacidad')).toBe('Incapacidad');
+    expect(etiquetaDeMotivo('lo_que_sea')).toBe('Ausente');
+  });
+
+  describe('cómo se ve en la entrega', () => {
+    const DESPUES = new Date('2026-09-14T09:00:00');
+
+    it('ausente en vez de vencido', () => {
+      expect(estadoDeEntrega(null, CIERRE, DESPUES)).toBe('vencido');
+      expect(estadoDeEntrega(null, CIERRE, DESPUES, aus())).toBe('ausente');
+    });
+
+    /* Quien mandó su resumen aunque estuviera de vacaciones hizo el trabajo:
+       manda lo que hizo, no lo que se esperaba de él. */
+    it('haberlo enviado gana sobre la ausencia', () => {
+      expect(estadoDeEntrega({ enviado: true }, CIERRE, DESPUES, aus())).toBe('enviado');
+    });
+  });
+});
+
+describe('los temas de las reuniones', () => {
   const SEM = '2026-09-07';
   const gente = [
     { id: 'u1', nombre: 'Ana' },
@@ -398,13 +473,15 @@ describe('los temas del lunes', () => {
     usuario_id: 'u1', semana: SEM, enviado: true, bloques: { temas: ['Un tema'] }, ...over,
   });
 
+  const textos = (g) => g.temas.map((t) => t.texto);
+
   it('junta los temas de todos, agrupados por quien los puso y en orden', () => {
     const grupos = temasDeLaSemana([
       resumen({ usuario_id: 'u2', bloques: { temas: ['Lo de Beto'] } }),
       resumen({ usuario_id: 'u1', bloques: { temas: ['Lo de Ana', 'Otro de Ana'] } }),
     ], SEM, gente);
     expect(grupos.map((g) => g.nombre)).toEqual(['Ana', 'Beto']);
-    expect(grupos[0].temas).toEqual(['Lo de Ana', 'Otro de Ana']);
+    expect(textos(grupos[0])).toEqual(['Lo de Ana', 'Otro de Ana']);
     expect(contarTemas(grupos)).toBe(3);
   });
 
@@ -431,7 +508,7 @@ describe('los temas del lunes', () => {
 
   it('las líneas en blanco no se cuelan', () => {
     const grupos = temasDeLaSemana([resumen({ bloques: { temas: ['Sí', '  ', ''] } })], SEM, gente);
-    expect(grupos[0].temas).toEqual(['Sí']);
+    expect(textos(grupos[0])).toEqual(['Sí']);
   });
 
   /* El nombre sale del directorio, no del resumen: asi un cambio de nombre no
@@ -444,12 +521,51 @@ describe('los temas del lunes', () => {
   it('un tema de alguien que ya no está en el equipo no se pierde', () => {
     const grupos = temasDeLaSemana([resumen({ usuario_id: 'fuera' })], SEM, gente);
     expect(grupos.length).toBe(1);
-    expect(grupos[0].temas).toEqual(['Un tema']);
+    expect(textos(grupos[0])).toEqual(['Un tema']);
   });
 
   it('sin resúmenes no revienta', () => {
     expect(temasDeLaSemana(null, SEM, null)).toEqual([]);
     expect(contarTemas(null)).toBe(0);
+  });
+
+  /* Los temas guardados antes de que se pudiera elegir reunión eran texto
+     pelado. Se leen como temas del área: era la única que existía. */
+  it('un tema viejo, sin reunión elegida, queda en la de su área', () => {
+    const grupos = temasDeLaSemana([resumen({ bloques: { temas: ['De antes'] } })], SEM, gente);
+    expect(grupos[0].temas).toEqual([{ texto: 'De antes', reunion: 'equipo' }]);
+  });
+
+  it('un tema nuevo conserva la reunión que se le eligió', () => {
+    const grupos = temasDeLaSemana([
+      resumen({ bloques: { temas: [{ texto: 'Para diseño', reunion: 'diseno' }] } }),
+    ], SEM, gente);
+    expect(grupos[0].temas).toEqual([{ texto: 'Para diseño', reunion: 'diseno' }]);
+  });
+
+  it('normalizarTemas descarta los vacíos, vengan como vengan', () => {
+    expect(normalizarTemas(['  ', { texto: '' }, 'Vale', { texto: ' Otro ', reunion: 'diseno' }]))
+      .toEqual([{ texto: 'Vale', reunion: 'equipo' }, { texto: 'Otro', reunion: 'diseno' }]);
+    expect(normalizarTemas(null)).toEqual([]);
+  });
+});
+
+describe('los renglones de un bloque, listos para leer', () => {
+  it('los bloques normales salen tal cual, sin blancos', () => {
+    expect(lineasDeBloque('pendientes', { pendientes: ['Uno', '  ', 'Dos'] })).toEqual(['Uno', 'Dos']);
+  });
+
+  /* En el mensaje del chat, un tema de diseño tiene que decir que lo es: si
+     no, quien lo lee no sabe a qué reunión va. */
+  it('los temas de diseño se marcan; los del área, no', () => {
+    expect(lineasDeBloque('temas', {
+      temas: [{ texto: 'Del área', reunion: 'equipo' }, { texto: 'De diseño', reunion: 'diseno' }],
+    })).toEqual(['Del área', 'De diseño (reunión de diseño)']);
+  });
+
+  it('aguanta un bloque que no existe', () => {
+    expect(lineasDeBloque('temas', {})).toEqual([]);
+    expect(lineasDeBloque('lo_mejor', null)).toEqual([]);
   });
 });
 
@@ -477,8 +593,9 @@ describe('el orden del día como texto', () => {
   });
 });
 
-describe('el reparto en las tres reuniones del lunes', () => {
+describe('el reparto en las reuniones del lunes', () => {
   const grupo = (usuario_id, roles, temas = ['Un tema']) => ({ usuario_id, nombre: usuario_id, roles, temas });
+  const paraDiseno = (texto) => ({ texto, reunion: 'diseno' });
   const deLa = (reuniones, id) => reuniones.find((r) => r.id === id);
 
   it('cada área tiene su reunión', () => {
@@ -537,11 +654,40 @@ describe('el reparto en las tres reuniones del lunes', () => {
 
   /* Quien convoca necesita ver que su reunion no tiene temas, no que no
      existe. */
-  it('las tres reuniones se devuelven siempre, aunque estén vacías', () => {
+  it('todas las reuniones se devuelven siempre, aunque estén vacías', () => {
     const reuniones = repartirEnReuniones([]);
-    expect(reuniones.map((r) => r.id)).toEqual(REUNIONES.map((r) => r.id));
+    expect(reuniones.map((r) => r.id)).toEqual(['diseno', ...REUNIONES.map((r) => r.id)]);
     expect(reuniones.every((r) => r.grupos.length === 0)).toBe(true);
-    expect(repartirEnReuniones(null).length).toBe(3);
+    expect(repartirEnReuniones(null).length).toBe(4);
+  });
+
+  /* La reunión de diseño es la única a la que va todo el mundo: ahí el rol
+     de quien puso el tema no decide nada. */
+  it('la de diseño recoge los temas de cualquiera, sin mirar el rol', () => {
+    const reuniones = repartirEnReuniones([
+      grupo('civil', ['civil'], [paraDiseno('Uno')]),
+      grupo('bt', ['tramites_bt'], [paraDiseno('Dos')]),
+      grupo('nadie', [], [paraDiseno('Tres')]),
+    ]);
+    expect(deLa(reuniones, 'diseno').grupos.map((g) => g.usuario_id)).toEqual(['civil', 'bt', 'nadie']);
+    expect(deLa(reuniones, 'civil').grupos).toEqual([]);
+    expect(deLa(reuniones, 'otros')).toBe(undefined);
+  });
+
+  it('un tema de diseño no se cuela en la reunión del área', () => {
+    const reuniones = repartirEnReuniones([grupo('c', ['civil'], [paraDiseno('Solo diseño')])]);
+    expect(deLa(reuniones, 'civil').grupos).toEqual([]);
+    expect(deLa(reuniones, 'diseno').grupos.length).toBe(1);
+  });
+
+  /* Quien reparte sus temas entre las dos reuniones aparece en ambas, pero
+     cada una con lo suyo. */
+  it('cada reunión se queda solo con los temas que le tocan', () => {
+    const reuniones = repartirEnReuniones([
+      grupo('ana', ['civil'], ['Del área', paraDiseno('De diseño'), 'Otro del área']),
+    ]);
+    expect(deLa(reuniones, 'civil').grupos[0].temas.map((t) => t.texto)).toEqual(['Del área', 'Otro del área']);
+    expect(deLa(reuniones, 'diseno').grupos[0].temas.map((t) => t.texto)).toEqual(['De diseño']);
   });
 
   it('alguien sin rol asignado tampoco se pierde', () => {

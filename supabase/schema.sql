@@ -451,6 +451,22 @@ create table if not exists resumenes_semanales (
 -- Para la vista del equipo, que pide una semana completa de un golpe.
 create index if not exists resumenes_semanales_semana_idx on resumenes_semanales (semana);
 
+-- ---------- Ausencias: por qué alguien no entregó su resumen ----------
+-- Se registra una vez con su rango y cubre todas las semanas que toque. Solo
+-- tapa la semana la que la cubre ENTERA, del lunes al día de cierre.
+create table if not exists ausencias (
+  id text primary key,
+  usuario_id uuid not null references auth.users(id) on delete cascade,
+  desde date not null,
+  hasta date not null,           -- inclusive: el último día que la persona no está
+  motivo text not null,          -- vacaciones | incapacidad | permiso | licencia
+  nota text,
+  registrada_por text,
+  created_at timestamptz default now()
+);
+
+create index if not exists ausencias_rango_idx on ausencias (desde, hasta);
+
 -- ---------- El día en que cierra la semana (solo las excepcionales) ----------
 create table if not exists semanas_cierre (
   -- El lunes de la semana. Una fila por semana, a lo sumo.
@@ -704,6 +720,48 @@ create policy "Lectura del cierre de semana" on semanas_cierre
 -- fecha de entrega a todo el equipo, no solo a quien lo pulsa.
 create policy "Mover el cierre solo lideres" on semanas_cierre
   for all using (
+    exists (
+      select 1 from user_roles ur
+      where ur.user_id = auth.uid()
+      and ur.role_key in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno','desarrollador')
+    )
+  );
+
+alter table ausencias enable row level security;
+
+-- Las ve todo el equipo: sin eso, la lista no podría explicar por qué alguien
+-- no entregó.
+create policy "Lectura de ausencias" on ausencias
+  for select using (auth.role() = 'authenticated');
+
+-- Las registra cada quien para sí mismo, o un líder para cualquiera: quien
+-- está incapacitado no entra a la plataforma a marcarse.
+create policy "Registrar ausencias" on ausencias
+  for insert with check (
+    auth.uid() = usuario_id
+    or
+    exists (
+      select 1 from user_roles ur
+      where ur.user_id = auth.uid()
+      and ur.role_key in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno','desarrollador')
+    )
+  );
+
+create policy "Editar ausencias" on ausencias
+  for update using (
+    auth.uid() = usuario_id
+    or
+    exists (
+      select 1 from user_roles ur
+      where ur.user_id = auth.uid()
+      and ur.role_key in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno','desarrollador')
+    )
+  );
+
+create policy "Borrar ausencias" on ausencias
+  for delete using (
+    auth.uid() = usuario_id
+    or
     exists (
       select 1 from user_roles ur
       where ur.user_id = auth.uid()

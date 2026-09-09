@@ -37,7 +37,7 @@ export const BLOQUES_RESUMEN = [
   { key: 'lo_mejor', label: 'Lo mejor', vacio: 'Ninguno', ayuda: 'Lo que sacaste esta semana: reuniones, asesorías, capacitaciones, entregas…' },
   { key: 'pendientes', label: 'Pendientes', vacio: 'Ninguno', ayuda: 'Lo que queda para la semana entrante' },
   { key: 'dificultades', label: 'Dificultades', vacio: 'Ninguna', ayuda: 'Lo que te frenó o te costó' },
-  { key: 'temas', label: 'Temas', vacio: 'Ninguno', ayuda: 'Lo que quieres hablar en la reunión del lunes' },
+  { key: 'temas', label: 'Temas', vacio: 'Ninguno', ayuda: 'Lo que quieres hablar el lunes', conDestino: true },
 ];
 
 /* Un documento en "No aplica" no se sigue: ni cuenta para el total ni puede
@@ -236,14 +236,62 @@ export function cierreValido(lunesIso, cierreIso) {
   return cierreIso >= lunesIso && cierreIso <= sumarDias(lunesIso, 6);
 }
 
+/* ---------------------------------------------------------- ausencias */
+
+/* Por qué alguien no estuvo. El motivo se muestra en la lista del equipo: no
+   es lo mismo unas vacaciones planeadas que una incapacidad. */
+export const MOTIVOS_AUSENCIA = [
+  { id: 'vacaciones', label: 'Vacaciones' },
+  { id: 'incapacidad', label: 'Incapacidad' },
+  { id: 'permiso', label: 'Permiso' },
+  { id: 'licencia', label: 'Licencia' },
+];
+
+export function etiquetaDeMotivo(id) {
+  return (MOTIVOS_AUSENCIA.find((m) => m.id === id) || {}).label || 'Ausente';
+}
+
+/* La ausencia que tapa una semana ENTERA: desde el lunes hasta el día en que
+   cierra. Una que cubre solo parte no cuenta, a propósito — quien trabajó
+   aunque fuera un día tiene algo que contar, y para cerrar antes ya está el
+   campo "hasta" de cada resumen.
+
+   Si hay varias que sirven se devuelve la primera: solo se necesita saber por
+   qué no estuvo, y con una basta. */
+export function ausenciaDeLaSemana(ausencias, usuarioId, lunesIso, cierreIso) {
+  if (!usuarioId) return null;
+  return (ausencias || []).find((a) => a.usuario_id === usuarioId
+    && a.desde <= lunesIso && a.hasta >= cierreIso) || null;
+}
+
+/* Las ausencias que tocan la semana, aunque sea un día: es lo que se lista en
+   la pantalla, porque un "sale el jueves" también hay que verlo. */
+export function ausenciasQueTocan(ausencias, lunesIso, hastaIso) {
+  const fin = hastaIso || sumarDias(lunesIso, 6);
+  return (ausencias || [])
+    .filter((a) => a.desde <= fin && a.hasta >= lunesIso)
+    .sort((a, b) => a.desde.localeCompare(b.desde));
+}
+
+/* Un rango al revés —o sin fechas— no se guarda: dejaría una ausencia que no
+   cubre nada y que nadie entiende al leerla. */
+export function rangoDeAusenciaValido(desde, hasta) {
+  return !!desde && !!hasta && desde <= hasta;
+}
+
 /* En qué va la entrega de una persona esa semana. Antes solo había "enviado" o
    "sin registrar", que no distinguía al que va con tiempo del que ya no lo
    tiene — que es justamente lo que un líder necesita ver.
 
    El día del cierre NO cuenta como vencido: el resumen se manda ese día, casi
-   siempre por la tarde. */
-export function estadoDeEntrega(resumen, cierreIso, hoy = new Date()) {
+   siempre por la tarde.
+
+   Quien estuvo ausente toda la semana no debe nada, así que no aparece en rojo
+   ni cuenta como pendiente. Si aun así mandó su resumen, manda lo que hizo: se
+   ve como enviado. */
+export function estadoDeEntrega(resumen, cierreIso, hoy = new Date(), ausencia = null) {
   if (resumen && resumen.enviado) return 'enviado';
+  if (ausencia) return 'ausente';
   const hoyIso = isoDeFecha(hoy instanceof Date ? hoy : new Date(hoy));
   if (hoyIso > cierreIso) return 'vencido';
   if (hoyIso === cierreIso) return 'cierra_hoy';
@@ -269,7 +317,42 @@ export function ultimasSemanas(cuantas = 12, hoy = new Date()) {
   return Array.from({ length: cuantas }, (_, i) => sumarDias(actual, -7 * i));
 }
 
-/* --------------------------------------------------- los temas del lunes */
+/* ------------------------------------------------ los temas de reuniones */
+
+/* Un tema va a una de dos partes: la reunión del área de quien lo pone —que
+   es a la que asiste— o la reunión de diseño, donde está todo el mundo. La
+   segunda no se filtra por rol: cualquiera puede llevar algo ahí. */
+export const DESTINOS_TEMA = [
+  { id: 'equipo', label: 'Mi equipo', ayuda: 'Va a la reunión de tu área' },
+  { id: 'diseno', label: 'Diseño', ayuda: 'Va a la reunión de diseño' },
+];
+export const DESTINO_POR_DEFECTO = 'equipo';
+
+/* Los temas de antes se guardaron como texto pelado, cuando no había dónde
+   elegir. Se leen como temas del área: era la única reunión que existía
+   cuando se escribieron, así que es lo que quiso decir quien los puso. */
+export function normalizarTema(tema) {
+  if (typeof tema === 'string') return { texto: tema.trim(), reunion: DESTINO_POR_DEFECTO };
+  return {
+    texto: ((tema && tema.texto) || '').trim(),
+    reunion: (tema && tema.reunion) || DESTINO_POR_DEFECTO,
+  };
+}
+
+export function normalizarTemas(lista) {
+  return (lista || []).map(normalizarTema).filter((t) => t.texto);
+}
+
+/* Los renglones de un bloque, ya listos para leerse. Solo "Temas" necesita
+   traducción —sus renglones son objetos, no texto— y ahí se marca cuál va a
+   la reunión de diseño: en el mensaje del chat, si no se dice, no se sabe. */
+export function lineasDeBloque(key, bloques) {
+  if (key !== 'temas') {
+    return ((bloques || {})[key] || []).map((l) => (l || '').trim()).filter(Boolean);
+  }
+  return normalizarTemas((bloques || {}).temas)
+    .map((t) => (t.reunion === 'diseno' ? `${t.texto} (reunión de diseño)` : t.texto));
+}
 
 /* El orden del día de la reunión del lunes: los "Temas" de todo el equipo,
    juntos y agrupados por quien los puso.
@@ -295,7 +378,7 @@ export function temasDeLaSemana(resumenes, semana, directorio) {
         /* Los roles viajan con el grupo para poder repartirlo en su reunión
            (ver repartirEnReuniones) sin volver a consultar el directorio. */
         roles: persona?.roles || [],
-        temas: (r.bloques?.temas || []).map((t) => (t || '').trim()).filter(Boolean),
+        temas: normalizarTemas(r.bloques?.temas),
       };
     })
     .filter((g) => g.temas.length > 0)
@@ -334,16 +417,26 @@ export const REUNIONES = [
    convoca necesita ver que la suya no tiene temas — no que no existe. */
 export function repartirEnReuniones(grupos) {
   const lista = grupos || [];
+  /* Cada grupo, con solo los temas que van a la reunión pedida. Quien se
+     quede sin ninguno no aparece: una firma sin temas debajo no dice nada. */
+  const soloDe = (destino) => lista
+    .map((g) => ({ ...g, temas: (g.temas || []).map(normalizarTema).filter((t) => t.reunion === destino) }))
+    .filter((g) => g.temas.length > 0);
+
+  const deEquipo = soloDe('equipo');
   const reuniones = REUNIONES.map((r) => ({
     ...r,
-    grupos: lista.filter((g) => (g.roles || []).some((rol) => r.roles.includes(rol))),
+    grupos: deEquipo.filter((g) => (g.roles || []).some((rol) => r.roles.includes(rol))),
   }));
   const repartidos = new Set(reuniones.flatMap((r) => r.grupos.map((g) => g.usuario_id)));
-  const sueltos = lista.filter((g) => !repartidos.has(g.usuario_id));
+  const sueltos = deEquipo.filter((g) => !repartidos.has(g.usuario_id));
   if (sueltos.length > 0) {
     reuniones.push({ id: 'otros', label: 'Sin reunión asignada', grupos: sueltos });
   }
-  return reuniones;
+
+  /* La de diseño va primero porque es la única a la que va todo el mundo, y
+     no se filtra por rol: si alguien puso un tema ahí, ahí queda. */
+  return [{ id: 'diseno', label: 'Reunión de diseño', grupos: soloDe('diseno') }, ...reuniones];
 }
 
 /* Cuántos temas hay en total, para el encabezado de la reunión. */
@@ -357,7 +450,7 @@ export function textoDeTemas(grupos, etiquetaSemana, titulo = 'Temas para la reu
   const partes = [`${titulo}${etiquetaSemana ? ` · ${etiquetaSemana}` : ''}`];
   (grupos || []).forEach((g) => {
     partes.push('', g.nombre);
-    g.temas.forEach((t) => partes.push(`-${t}`));
+    g.temas.forEach((t) => partes.push(`-${normalizarTema(t).texto}`));
   });
   if ((grupos || []).length === 0) partes.push('', 'Ninguno');
   return partes.join('\n');
@@ -385,7 +478,7 @@ export function textoDelResumen({ bloques, proyectos, saludo = 'Buenas tardes', 
   }
 
   BLOQUES_RESUMEN.forEach((bloque) => {
-    const lineas = (bloques?.[bloque.key] || []).map((l) => (l || '').trim()).filter(Boolean);
+    const lineas = lineasDeBloque(bloque.key, bloques);
     partes.push('', bloque.label);
     if (lineas.length === 0) partes.push(`-${bloque.vacio}`);
     else lineas.forEach((l) => partes.push(`-${l}`));
