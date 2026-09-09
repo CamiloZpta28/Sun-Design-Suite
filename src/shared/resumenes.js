@@ -27,7 +27,7 @@
    ============================================================================ */
 
 import { DOC_ESTADOS, documentosDeProyecto } from './dominio.jsx';
-import { equipoComoArray } from './permisos.js';
+import { rolesEnProyecto } from './responsables.js';
 
 /* Los cuatro bloques que se escriben a mano, en el orden en que se pegan.
    El "vacío" es lo que se escribe cuando no hay nada — el formato que el
@@ -50,15 +50,6 @@ const APC = 'Aprobado para construcción (APC)';
 export function nivelDeEstado(estado) {
   const i = DOC_ESTADOS.indexOf(estado);
   return i === -1 ? 0 : i;
-}
-
-/* Los roles que una persona ocupa EN ESTE proyecto, no los que tiene en su
-   perfil. Alguien puede ser Ing. Civil y Delineante a la vez y estar puesto
-   en un proyecto solo como civil: ahí los planos no son suyos. */
-export function rolesEnProyecto(nombre, equipo) {
-  return Object.entries(equipo || {})
-    .filter(([, valor]) => equipoComoArray(valor).includes(nombre))
-    .map(([rol]) => rol);
 }
 
 /* Los documentos de un proyecto que le tocan a una persona, cada uno con los

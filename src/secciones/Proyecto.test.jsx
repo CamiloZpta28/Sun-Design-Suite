@@ -527,3 +527,121 @@ describe('los documentos salen del dossier del proyecto', () => {
     expect(screen.getAllByText(primeroDeLaListaVieja).length).toBeGreaterThan(0);
   });
 });
+
+describe('Control Documental · responsables', () => {
+  /* Dentro de un proyecto lo util no es el rol sino la PERSONA: el dossier
+     dice que responde el delineante, y el equipo dice que el delineante de
+     este proyecto es Beto. */
+  const dossierChico = {
+    id: 'dos-1', nombre: 'CFM', version: 1,
+    documentos: [
+      { id: 'a', codigo: 'X-CIV-PL-001', nombre: 'Cerramiento', especialidad: 'CIVIL', tipo: 'Plano', responsables: { delineante: 'E', civil: 'R' } },
+      { id: 'b', codigo: 'X-CIV-INF-001', nombre: 'Vías de acceso', especialidad: 'CIVIL', tipo: 'Informe', responsables: { civil: 'E' } },
+      { id: 'c', codigo: 'X-CIV-INF-002', nombre: 'Cimentaciones', especialidad: 'CIVIL', tipo: 'Informe', responsables: { estructural: 'E' } },
+      { id: 'd', codigo: 'X-ELE-PL-001', nombre: 'Unifilar', especialidad: 'ELECTRICA', tipo: 'Plano', responsables: { electrico: 'R', delineante: 'E' } },
+    ],
+  };
+  const conDossier = proyecto({
+    dossier_id: 'dos-1',
+    /* Sin estructural a proposito: ese es el rol vacante. */
+    equipo: { civil: ['Ana'], delineante: ['Beto'], electrico: ['Caro'] },
+  });
+
+  function pintarCD(props = {}) {
+    return render(
+      <DocumentControlPanel
+        project={conDossier}
+        puedeEditarContenido
+        puedeComentar={false}
+        onDocChange={() => {}}
+        dossiers={[dossierChico]}
+        {...props}
+      />,
+    );
+  }
+
+  const fichaResp = (nombre) => screen.getAllByRole('button')
+    .filter((b) => b.hasAttribute('aria-pressed'))
+    .find((b) => b.textContent.trim().startsWith(nombre + ' ('));
+
+  it('cada documento muestra quien responde por el, con su papel', () => {
+    pintarCD();
+    /* Beto dibuja dos planos, asi que su chip sale dos veces. */
+    expect(screen.getAllByTitle('Beto (Delineante) lo elabora o lo dibuja').length).toBe(2);
+    expect(screen.getByTitle('Ana (Ing. Civil) lo revisa')).toBeTruthy();
+    expect(screen.getByTitle('Ana (Ing. Civil) lo elabora o lo dibuja')).toBeTruthy();
+    expect(screen.getByTitle('Caro (Ing. Eléctrico) lo revisa')).toBeTruthy();
+  });
+
+  /* El hueco: el dossier dice que responde el estructural y en este proyecto
+     no hay estructural. Es trabajo sin dueño y tiene que saltar a la vista. */
+  it('un rol sin nadie asignado se ve como vacante', () => {
+    pintarCD();
+    expect(screen.getByTitle(/Nadie tiene el rol de Ing. Estructural en este proyecto/)).toBeTruthy();
+    expect(screen.getByText(/Sin Estructural/)).toBeTruthy();
+  });
+
+  it('el filtro ofrece una ficha por persona, y "Sin asignar" de ultimo', () => {
+    pintarCD();
+    expect(fichaResp('Ana')).toBeTruthy();
+    expect(fichaResp('Beto')).toBeTruthy();
+    expect(fichaResp('Caro')).toBeTruthy();
+    const fichas = screen.getAllByRole('button')
+      .filter((b) => b.hasAttribute('aria-pressed'))
+      .map((b) => b.textContent.trim());
+    const personas = fichas.filter((t) => /^(Ana|Beto|Caro|Sin asignar) \(/.test(t));
+    expect(personas[personas.length - 1]).toMatch(/^Sin asignar/);
+  });
+
+  it('filtrar por una persona deja solo sus documentos', () => {
+    pintarCD();
+    fireEvent.click(fichaResp('Caro'));
+    expect(screen.getByText('Unifilar')).toBeTruthy();
+    expect(screen.queryByText('Cerramiento')).toBe(null);
+    expect(screen.queryByText('Vías de acceso')).toBe(null);
+  });
+
+  it('el resumen de arriba sigue el filtro de responsable', () => {
+    pintarCD();
+    const total = () => Number(screen.getAllByRole('button')
+      .find((b) => !b.hasAttribute('aria-pressed') && /^Todos \(\d+\)$/.test(b.textContent.trim()))
+      .textContent.match(/\((\d+)\)/)[1]);
+    expect(total()).toBe(4);
+    fireEvent.click(fichaResp('Beto'));
+    expect(total()).toBe(2);
+  });
+
+  it('el filtro de responsable se cruza con el de especialidad', () => {
+    pintarCD();
+    fireEvent.click(fichaResp('Beto'));
+    const fichaEsp = screen.getAllByRole('button')
+      .filter((b) => b.hasAttribute('aria-pressed'))
+      .find((b) => b.textContent.trim().startsWith('CIVIL ('));
+    fireEvent.click(fichaEsp);
+    expect(screen.getByText('Cerramiento')).toBeTruthy();
+    expect(screen.queryByText('Unifilar')).toBe(null);
+  });
+
+  it('"Sin asignar" saca los documentos que no tienen dueno', () => {
+    pintarCD();
+    fireEvent.click(fichaResp('Sin asignar'));
+    expect(screen.getByText('Cimentaciones')).toBeTruthy();
+    expect(screen.queryByText('Cerramiento')).toBe(null);
+  });
+
+  /* Un dossier que todavia no reparte responsables no debe mostrar una fila
+     de filtro vacia. */
+  it('sin responsables repartidos no aparece la fila de filtro', () => {
+    const sinRepartir = { ...dossierChico, documentos: dossierChico.documentos.map((d) => ({ ...d, responsables: {} })) };
+    pintarCD({ dossiers: [sinRepartir] });
+    expect(screen.queryByText('Responsable:')).toBe(null);
+  });
+
+  it('los documentos propios se marcan para poder ubicarlos de un vistazo', () => {
+    const { container } = pintarCD({ miNombre: 'Beto' });
+    const [mio] = container.querySelectorAll('[title="Beto (Delineante) lo elabora o lo dibuja"]');
+    expect(mio.className).toContain('ring-1');
+    const ajeno = container.querySelector('[title="Ana (Ing. Civil) lo revisa"]');
+    expect(ajeno.className).not.toContain('ring-1');
+  });
+});

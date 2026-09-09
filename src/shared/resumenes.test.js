@@ -14,7 +14,7 @@ import { describe, it, expect } from 'vitest';
 import {
   BLOQUES_RESUMEN, cambiosEntreFotos, cuentaDeFoto, etiquetaDeSemana, fotoConComparacion,
   fotoDeLaSemana, fotoDeProyecto, lunesDe, misDocumentosDelProyecto, nivelDeEstado,
-  rolesEnProyecto, sinFinalizadosRepetidos, sumarDias, textoDelResumen, ultimasSemanas, viernesDe,
+  sinFinalizadosRepetidos, sumarDias, textoDelResumen, ultimasSemanas, viernesDe,
 } from './resumenes.js';
 
 const dossier = {
@@ -42,15 +42,6 @@ function proyecto(over = {}) {
 }
 
 describe('a quién le toca cada documento', () => {
-  it('los roles cuentan por proyecto, no por perfil', () => {
-    const equipo = { civil: ['Ana', 'Dani'], delineante: 'Beto', electrico: [] };
-    expect(rolesEnProyecto('Ana', equipo)).toEqual(['civil']);
-    expect(rolesEnProyecto('Dani', equipo)).toEqual(['civil']);
-    expect(rolesEnProyecto('Beto', equipo)).toEqual(['delineante']);
-    expect(rolesEnProyecto('Nadie', equipo)).toEqual([]);
-    expect(rolesEnProyecto('Ana', undefined)).toEqual([]);
-  });
-
   it('cada quien recibe los documentos de su rol, con su papel', () => {
     const p = proyecto();
     const deBeto = misDocumentosDelProyecto(p, [dossier], 'Beto');

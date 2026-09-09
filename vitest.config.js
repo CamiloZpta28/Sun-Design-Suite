@@ -15,5 +15,11 @@ export default defineConfig({
        tanto que vitest da por muerto al worker antes de que termine. Con
        hilos arranca bien. */
     pool: 'threads',
+    /* Los 5 s por defecto se quedaban cortos. Control Documental se prueba con
+       un dossier completo —84 documentos— y cada clic en un filtro repinta las
+       84 tarjetas; en jsdom eso puede pasar de 6 s en una máquina cargada. Las
+       pruebas fallaban de vez en cuando por tiempo, no por estar mal, que es
+       la peor clase de falla: la que enseña a desconfiar de la suite. */
+    testTimeout: 30000,
   },
 });

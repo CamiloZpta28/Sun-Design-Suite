@@ -25,9 +25,10 @@ import { allFieldGroups, allGroupedFieldKeys, displayLabelFor, groupToOpenFor, r
 import { STRUCTURE_LABELS, getStructureType } from '../technical-notes/index.js';
 import {
   ROLES, equipoComoArray, equipoNombres, equipoTexto, isAssignedToProject, isDeveloper,
-  isLeader, isQA,
+  isLeader, isQA, roleLabel,
 } from '../shared/permisos.js';
 import { ResumenLineas, atributosLineas, FiltroFichas, alternarEn } from '../shared/ui.jsx';
+import { SIN_ASIGNAR, responsablesDeDocumento, valoresDeResponsable } from '../shared/responsables.js';
 import { CodigoCopiable } from '../shared/copiar.jsx';
 import { usePresenciaProyecto, quienEdita, PresenciaBarra, AvisoPestanaOcupada } from '../shared/presencia.jsx';
 import {
@@ -1503,12 +1504,56 @@ export function VersionesTracker({ versiones, onChange, disabled }) {
   );
 }
 
+/* Quién responde por el documento, con su papel: E si lo elabora o lo dibuja,
+   R si lo revisa. Los mismos colores y letras de la sección Dossiers, para que
+   sea el mismo idioma en las dos pantallas.
+
+   El chip de un rol VACANTE se pinta en ámbar y dice cuál falta: un documento
+   que según el dossier responde el estructural, en un proyecto sin estructural
+   asignado, es trabajo sin dueño y conviene que salte a la vista. */
+function ChipsResponsablesDoc({ doc, equipo, miNombre }) {
+  const entradas = responsablesDeDocumento(doc, equipo);
+  if (entradas.length === 0) return null;
+  return (
+    <p className="flex items-center gap-1 flex-wrap mt-1">
+      {entradas.map((e, i) => {
+        const soyYo = !!miNombre && e.nombre === miNombre;
+        const papelLargo = e.papel === 'E' ? 'lo elabora o lo dibuja' : 'lo revisa';
+        if (!e.nombre) {
+          return (
+            <span
+              key={`${e.rol}-${i}`}
+              title={`Nadie tiene el rol de ${roleLabel(e.rol)} en este proyecto, y ${papelLargo}`}
+              className="text-[10px] leading-none px-1.5 py-1 rounded border bg-amber-50 border-amber-300 text-amber-700 flex items-center gap-1"
+            >
+              <span className="font-bold">{e.papel}</span>
+              Sin {roleLabel(e.rol).replace('Ing. ', '')}
+            </span>
+          );
+        }
+        return (
+          <span
+            key={`${e.rol}-${i}`}
+            title={`${e.nombre} (${roleLabel(e.rol)}) ${papelLargo}`}
+            className={`text-[10px] leading-none px-1.5 py-1 rounded border flex items-center gap-1 ${
+              e.papel === 'E' ? 'bg-lime-300 border-lime-400 text-navy-900' : 'bg-nashville-200 border-nashville-300 text-navy-800'
+            } ${soyYo ? 'ring-1 ring-navy-700' : ''}`}
+          >
+            <span className="font-bold">{e.papel}</span>
+            {e.nombre}
+          </span>
+        );
+      })}
+    </p>
+  );
+}
+
 /* Tarjeta de un documento en Control Documental. Contraída de entrada:      */
 /* solo se ve nombre/código/tipo y el estado. Al hacer clic se despliegan    */
 /* Observaciones, Comentarios de Calidad y el historial de entregas. Cuando  */
 /* está contraída, unos íconos avisan si ya hay observación/comentario/      */
 /* versiones registradas, para no tener que abrir cada una para revisar.    */
-export function DocumentoCard({ doc, codigoFinal, estadoDoc, estadoValor, puedeEditarContenido, puedeComentar, onDocChange }) {
+export function DocumentoCard({ doc, codigoFinal, estadoDoc, estadoValor, puedeEditarContenido, puedeComentar, onDocChange, equipo, miNombre }) {
   const [expandido, setExpandido] = useState(false);
   const cfg = DOC_ESTADO_CONFIG[estadoValor];
   const tieneObs = !!(estadoDoc.observaciones && estadoDoc.observaciones.trim());
@@ -1543,6 +1588,7 @@ export function DocumentoCard({ doc, codigoFinal, estadoDoc, estadoValor, puedeE
               <CodigoCopiable codigo={codigoFinal} />
               <span>· {doc.tipo}</span>
             </p>
+            <ChipsResponsablesDoc doc={doc} equipo={equipo} miNombre={miNombre} />
           </div>
         </div>
         {puedeEditarContenido ? (
@@ -1593,7 +1639,7 @@ export function DocumentoCard({ doc, codigoFinal, estadoDoc, estadoValor, puedeE
   );
 }
 
-export function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, onDocChange, dossiers }) {
+export function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, onDocChange, dossiers, miNombre }) {
   /* Un proyecto sin la sección "general" no puede dejar la pantalla en
      blanco: se trabaja sobre un objeto vacío. */
   const general = project.data?.general || {};
@@ -1604,11 +1650,32 @@ export function DocumentControlPanel({ project, puedeEditarContenido, puedeComen
      estado de entrada y el que deja ver el proyecto completo. */
   const [especialidadesSel, setEspecialidadesSel] = useState([]);
   const [tiposSel, setTiposSel] = useState([]);
+  /* Tercer filtro: por quién responde. Cruza con los otros dos igual que
+     ellos entre sí, y el resumen de arriba lo sigue. */
+  const [responsablesSel, setResponsablesSel] = useState([]);
   const [filtroEstado, setFiltroEstado] = useState('todos');
+  const equipo = project.equipo || {};
   const filtrandoEsp = especialidadesSel.length > 0;
   const filtrandoTipo = tiposSel.length > 0;
+  const filtrandoResp = responsablesSel.length > 0;
   const entraPorEspecialidad = (esp) => !filtrandoEsp || especialidadesSel.includes(esp);
   const entraPorTipo = (tipo) => !filtrandoTipo || tiposSel.includes(tipo);
+  const entraPorResponsable = (doc) => !filtrandoResp
+    || valoresDeResponsable(doc, equipo).some((v) => responsablesSel.includes(v));
+
+  /* Las fichas del filtro: una por persona que responda por algo en este
+     proyecto, más "Sin asignar" si algún rol quedó vacante. Se arman de los
+     documentos y no del equipo, para no ofrecer una ficha en cero. */
+  const conteoResponsables = new Map();
+  lista.forEach((doc) => {
+    valoresDeResponsable(doc, equipo).forEach((v) => {
+      conteoResponsables.set(v, (conteoResponsables.get(v) || 0) + 1);
+    });
+  });
+  const opcionesResponsable = [...conteoResponsables.entries()]
+    .map(([valor, conteo]) => ({ valor, conteo }))
+    /* "Sin asignar" de último: es la excepción, no una persona más. */
+    .sort((a, b) => (a.valor === SIN_ASIGNAR ? 1 : b.valor === SIN_ASIGNAR ? -1 : a.valor.localeCompare(b.valor, 'es')));
 
   function estadoDeDoc(doc) {
     return (estadoActual[doc.codigo] && estadoActual[doc.codigo].estado) || 'Pendiente';
@@ -1629,7 +1696,7 @@ export function DocumentControlPanel({ project, puedeEditarContenido, puedeComen
   // estado), para que los conteos del semáforo reflejen esos dos filtros pero
   // no cambien solo por hacer clic entre estados.
   const universo = lista.filter(
-    (d) => entraPorEspecialidad(d.especialidad) && entraPorTipo(d.tipo)
+    (d) => entraPorEspecialidad(d.especialidad) && entraPorTipo(d.tipo) && entraPorResponsable(d)
   );
   const conteoPorEstado = {};
   DOC_ESTADOS.forEach((e) => { conteoPorEstado[e] = 0; });
@@ -1640,7 +1707,8 @@ export function DocumentControlPanel({ project, puedeEditarContenido, puedeComen
     .map((g) => ({
       ...g,
       docs: g.docs.filter(
-        (doc) => entraPorTipo(doc.tipo) && (filtroEstado === 'todos' || estadoDeDoc(doc) === filtroEstado)
+        (doc) => entraPorTipo(doc.tipo) && entraPorResponsable(doc)
+          && (filtroEstado === 'todos' || estadoDeDoc(doc) === filtroEstado)
       ),
     }))
     .filter((g) => g.docs.length > 0);
@@ -1663,6 +1731,7 @@ export function DocumentControlPanel({ project, puedeEditarContenido, puedeComen
               Progreso
               {filtrandoEsp ? ` · ${especialidadesSel.join(', ')}` : ''}
               {filtrandoTipo ? ` · ${tiposSel.join(', ')}` : ''}
+              {filtrandoResp ? ` · ${responsablesSel.join(', ')}` : ''}
             </p>
             <div className="flex-1 flex items-center">
               <ProgresoDonut conteoPorEstado={conteoPorEstado} total={universo.length} />
@@ -1673,7 +1742,7 @@ export function DocumentControlPanel({ project, puedeEditarContenido, puedeComen
             <p className="text-xs text-navy-400 mb-3">No incluye documentos en "No aplica" — esos no se cuentan en el seguimiento.</p>
             <div className="space-y-3">
               {grupos.filter((g) => entraPorEspecialidad(g.especialidad)).map((g) => {
-                const docsSeguidos = g.docs.filter((d) => estadoDeDoc(d) !== 'No aplica' && entraPorTipo(d.tipo));
+                const docsSeguidos = g.docs.filter((d) => estadoDeDoc(d) !== 'No aplica' && entraPorTipo(d.tipo) && entraPorResponsable(d));
                 const conteo = {};
                 DOC_ESTADOS.forEach((e) => { conteo[e] = 0; });
                 docsSeguidos.forEach((d) => { conteo[estadoDeDoc(d)] += 1; });
@@ -1706,6 +1775,17 @@ export function DocumentControlPanel({ project, puedeEditarContenido, puedeComen
           onAlternar={(tipo) => setTiposSel((prev) => alternarEn(prev, tipo))}
           onLimpiar={() => setTiposSel([])}
         />
+        {opcionesResponsable.length > 0 && (
+          <FiltroFichas
+            etiqueta="Responsable:"
+            etiquetaTodas="Todos"
+            total={lista.length}
+            opciones={opcionesResponsable}
+            seleccion={responsablesSel}
+            onAlternar={(v) => setResponsablesSel((prev) => alternarEn(prev, v))}
+            onLimpiar={() => setResponsablesSel([])}
+          />
+        )}
       </div>
 
       {/* Semáforo de progreso: resume y a la vez filtra por estado */}
@@ -1761,6 +1841,8 @@ export function DocumentControlPanel({ project, puedeEditarContenido, puedeComen
                     puedeEditarContenido={puedeEditarContenido}
                     puedeComentar={puedeComentar}
                     onDocChange={onDocChange}
+                    equipo={equipo}
+                    miNombre={miNombre}
                   />
                 );
               })}
@@ -2975,6 +3057,7 @@ export function ProjectDetail({
                 puedeComentar={puedeComentar}
                 onDocChange={handleDocChange}
                 dossiers={dossiers}
+                miNombre={perfil?.nombre}
               />
             )}
             {activeTab === 'supervision' && llevaSupervision && (

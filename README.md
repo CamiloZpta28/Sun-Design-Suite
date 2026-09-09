@@ -172,6 +172,39 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Control Documental muestra quién responde por cada documento, y filtra por
+  eso.** Los responsables ya se repartían en Dossiers, pero ahí son ROLES;
+  dentro de un proyecto lo que sirve es la persona. Cada documento muestra
+  ahora un chip por responsable con su papel —**E** si lo elabora o lo dibuja,
+  **R** si lo revisa—, cruzando el rol que dice el dossier con quien ocupa ese
+  rol en el equipo del proyecto. Los tuyos van con un borde marcado para
+  ubicarlos de un vistazo.
+  - **Un rol vacante no se calla.** Si el dossier dice que un documento lo
+    responde el estructural y el proyecto no tiene estructural asignado, sale
+    un chip ámbar que dice *"Sin Estructural"*. Es trabajo sin dueño, y es
+    justo el hueco que a nadie le conviene descubrir tarde.
+  - **Filtro nuevo "Responsable:"**, con una ficha por persona y otra de "Sin
+    asignar" al final. Se cruza con los de especialidad y tipo como ellos entre
+    sí, y el resumen de arriba —la dona y las barras por especialidad— lo
+    sigue. Para ver "lo mío" basta con hacer clic en el propio nombre. Si el
+    dossier todavía no reparte responsables, la fila no aparece.
+  - El cálculo se mudó a `src/shared/responsables.js`, que ahora usan las dos
+    pantallas: Control Documental no tiene por qué arrastrar el cálculo de
+    semanas y de fotos de los resúmenes para pintar un par de chips.
+  - **No necesita migración.**
+
+- **Las pruebas dejaron de fallar por tiempo.** Varias de Control Documental
+  rozaban el límite de 5 segundos que trae vitest por defecto: se prueban con
+  un dossier completo —84 documentos— y cada clic en un filtro repinta las 84
+  tarjetas, lo que en jsdom pasa de 6 segundos con la máquina cargada. Fallaban
+  de vez en cuando por tiempo y no por estar mal, que es la peor clase de
+  falla: la que enseña a desconfiar de la suite. El límite quedó en 30 s
+  (`vitest.config.js`).
+  - Ojo con esto al diagnosticar: si la suite se cuelga de verdad —tiempos de
+    minutos, no de segundos— casi seguro es **falta de memoria**, no el código.
+    Pasó con AutoCAD abierto y 2 GB libres de 24 GB; los workers de jsdom se
+    quedan esperando. Se ve con `Get-Process | Sort-Object WorkingSet64`.
+
 - **Ajustes tras la primera revisión en pantalla** de los resúmenes y de
   Estructural:
   - **La resistencia del concreto ya no deja media pantalla en blanco.** Estaba
