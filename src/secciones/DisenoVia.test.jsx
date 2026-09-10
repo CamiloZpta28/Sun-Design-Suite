@@ -268,7 +268,7 @@ describe('el aviso de los pesos', () => {
 
   it('aparece en cuanto hay pesos escritos que no suman', () => {
     pintar();
-    const primeraFila = screen.getByText('Estación').closest('table').querySelectorAll('tbody tr')[0];
+    const primeraFila = screen.getByText('Nombre de la estación').closest('table').querySelectorAll('tbody tr')[0];
     fireEvent.change(primeraFila.querySelectorAll('input')[2], { target: { value: '50' } });
     expect(screen.getByText(/Los pesos no suman 100%/)).toBeTruthy();
   });

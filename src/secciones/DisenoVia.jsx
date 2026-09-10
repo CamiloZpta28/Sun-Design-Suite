@@ -40,6 +40,7 @@ import { isDeveloper, isAssignedToProject } from '../shared/permisos.js';
 import { copiarTexto } from '../shared/copiar.jsx';
 import { formatoFechaHora } from '../shared/formatos.js';
 import { SeccionDeVia } from './seccionDeVia.jsx';
+import { TablaEstaciones } from '../shared/TablaEstaciones.jsx';
 import {
   MATERIALES, TIPOS_EJE, CALIDADES_DRENAJE, NIVELES_CONFIABILIDAD,
   formularioPorDefecto, calcularDesdeFormulario, datosDelProyecto,
@@ -131,10 +132,6 @@ export default function DisenoViaView({ perfil, projects, onGuardarEnProyecto, o
 
   function setEje(i, clave, valor) {
     setForm((p) => ({ ...p, ejes: p.ejes.map((e, j) => (j === i ? { ...e, [clave]: valor } : e)) }));
-  }
-  function setEstacion(i, clave, valor) {
-    const filas = form.estaciones && form.estaciones.length ? form.estaciones : estacionesVacias();
-    setForm((p) => ({ ...p, estaciones: filas.map((e, j) => (j === i ? { ...e, [clave]: valor } : e)) }));
   }
 
   /* Traer del proyecto NO pisa lo que el proyecto no tiene: si allá no hay
@@ -322,26 +319,7 @@ export default function DisenoViaView({ perfil, projects, onGuardarEnProyecto, o
               <Dato label="Coeficiente de drenaje (m)" valor={cifra(r.m, 3)} />
             </div>}
           >
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border border-navy-200 rounded-lg">
-                <thead>
-                  <tr className="bg-navy-50">
-                    <th className="text-left font-semibold text-navy-500 px-2 py-1.5 border-b border-navy-200">Estación</th>
-                    <th className="text-left font-semibold text-navy-500 px-2 py-1.5 border-b border-navy-200 w-40">Días de lluvia/año</th>
-                    <th className="text-left font-semibold text-navy-500 px-2 py-1.5 border-b border-navy-200 w-36">Peso (%)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filas.map((e, i) => (
-                    <tr key={i} className="border-b border-navy-100 last:border-b-0">
-                      <td className="p-1.5"><input className={ENTRADA} value={e.nombre ?? ''} onChange={(ev) => setEstacion(i, 'nombre', ev.target.value)} /></td>
-                      <td className="p-1.5"><input className={ENTRADA} value={e.dias ?? ''} onChange={(ev) => setEstacion(i, 'dias', ev.target.value)} /></td>
-                      <td className="p-1.5"><input className={ENTRADA} value={e.peso ?? ''} onChange={(ev) => setEstacion(i, 'peso', ev.target.value)} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <TablaEstaciones filas={filas} onChange={set('estaciones')} />
 
             {/* Con la tabla en blanco no hay nada que avisar todavía: el aviso
                 es para quien ya escribió pesos y no le suman. */}

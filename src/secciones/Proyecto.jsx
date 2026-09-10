@@ -30,6 +30,7 @@ import {
 import { ResumenLineas, atributosLineas, FiltroFichas, alternarEn } from '../shared/ui.jsx';
 import { SIN_ASIGNAR, responsablesDeDocumento, valoresDeResponsable } from '../shared/responsables.js';
 import { CodigoCopiable } from '../shared/copiar.jsx';
+import { TablaEstaciones } from '../shared/TablaEstaciones.jsx';
 import { usePresenciaProyecto, quienEdita, PresenciaBarra, AvisoPestanaOcupada } from '../shared/presencia.jsx';
 import {
   camposPlegables, MESES_ENERGIA, COLOMBIA, DOC_ESTADOS, DOC_ESTADO_CONFIG, DOC_ESTADO_CORTO, EquipoField, EquipoSelect,
@@ -855,40 +856,12 @@ export function FieldRenderer({
         </div>
       );
     }
-    function updateRow(i, key, val) {
-      const next = rows.map((r, idx) => (idx === i ? { ...r, [key]: val } : r));
-      onChange(next);
-    }
-    const cellInput = 'w-full rounded-md border border-navy-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
+    /* La tabla —y con ella el pegado desde Excel— vive en shared: es la
+       misma que usa Diseño de vía. */
     return (
       <div className="py-1">
         <label className="block text-xs font-semibold uppercase tracking-wide text-navy-500 mb-1">{field.label}</label>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border border-navy-200 rounded-lg">
-            <thead>
-              <tr className="bg-navy-50">
-                <th className="text-left font-semibold text-navy-500 px-2 py-1.5 border-b border-navy-200">Nombre de la estación</th>
-                <th className="text-left font-semibold text-navy-500 px-2 py-1.5 border-b border-navy-200 w-40">Días/año promedio</th>
-                <th className="text-left font-semibold text-navy-500 px-2 py-1.5 border-b border-navy-200 w-36">Peso porcentual (%)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={i} className="border-b border-navy-100 last:border-b-0">
-                  <td className="p-1.5">
-                    <input type="text" className={cellInput} value={r.nombre} onChange={(e) => updateRow(i, 'nombre', e.target.value)} />
-                  </td>
-                  <td className="p-1.5">
-                    <input type="text" className={cellInput} value={r.dias} onChange={(e) => updateRow(i, 'dias', e.target.value)} />
-                  </td>
-                  <td className="p-1.5">
-                    <input type="text" className={cellInput} value={r.peso} onChange={(e) => updateRow(i, 'peso', e.target.value)} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <TablaEstaciones filas={rows} onChange={onChange} />
       </div>
     );
   }

@@ -175,6 +175,20 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **La tabla de estaciones pluviométricas se llena pegando desde Excel.** Se
+  copia el rango de tres columnas —nombre, días/año y peso— y se pega sobre la
+  tabla: la llena de un golpe, en vez de escribir veintiuna celdas a mano. Es
+  la misma tabla en los dos sitios donde se pide, la pestaña Hidráulico de un
+  proyecto y Diseño de vía, que ahora comparten componente.
+  - Si se copian también los títulos, se descartan solos: se reconoce el
+    encabezado porque en las columnas de números no hay ninguno, no por cómo
+    se llame la columna.
+  - Se puede pegar en cualquier celda y llena desde ahí; una sola columna no
+    borra lo que había en las otras.
+  - La tabla crece si se pegan más de siete estaciones, hasta 30. Lo que no
+    quepa se avisa en vez de perderse en silencio.
+  - Pegar un solo valor sigue funcionando como siempre, dentro de su celda.
+
 - **Diseño de vía**: sección nueva en el menú lateral, en dos pestañas, que
   reemplaza la hoja de
   cálculo que se pasaba por correo. Calcula el espesor de dos capas sobre la
