@@ -82,11 +82,23 @@ describe('la pantalla', () => {
     expect(screen.getByText('Sin proyecto — solo para tantear')).toBeTruthy();
   });
 
-  it('trae los seis bloques del cálculo', () => {
+  /* La pestaña que se usa siempre pide solo lo que cambia de un proyecto a
+     otro; lo demás vive detrás de la otra. */
+  it('abre en "Diseño", con lo que cambia por proyecto y nada más', () => {
     pintar();
-    ['1 · Vehículo de diseño', '2 · Tránsito', '3 · Pluviometría y drenaje',
-      '4 · Materiales y subrasante', '5 · Módulos y números estructurales', '6 · Espesores']
+    ['Materiales y subrasante', 'Estaciones pluviométricas', 'Espesores', 'Perfil de la rasante']
       .forEach((t) => expect(screen.getByText(t), t).toBeTruthy());
+    expect(screen.queryByText('Vehículo de diseño')).toBe(null);
+    expect(screen.queryByText('Tránsito')).toBe(null);
+  });
+
+  it('los parámetros del cálculo están en la otra pestaña', () => {
+    pintar();
+    fireEvent.click(screen.getByText('Parámetros del cálculo'));
+    ['Vehículo de diseño', 'Tránsito', 'Serviciabilidad, confiabilidad y drenaje',
+      'Módulos y números estructurales'].forEach((t) => expect(screen.getByText(t), t).toBeTruthy());
+    /* Y al irse allá, la pestaña de diseño se guarda. */
+    expect(screen.queryByText('Estaciones pluviométricas')).toBe(null);
   });
 
   /* Sin estaciones no hay coeficiente de drenaje, y sin él no hay espesor.
@@ -99,11 +111,13 @@ describe('la pantalla', () => {
   });
 
   it('recalcula al cambiar un dato, sin apretar nada', () => {
-    pintar();
-    const periodo = screen.getByText('Periodo de diseño').parentElement.querySelector('input');
-    fireEvent.change(periodo, { target: { value: '20' } });
-    /* Veinte años de tránsito piden más que diez. */
-    expect(screen.getByText('Ejes equivalentes en el periodo (W18)')).toBeTruthy();
+    const { container } = pintar();
+    const antes = container.textContent;
+    const cbr = screen.getByText('CBR sumergido de la subrasante').parentElement.querySelector('input');
+    fireEvent.change(cbr, { target: { value: '20' } });
+    /* Una subrasante mucho mejor pide menos estructura: algo tiene que
+       cambiar en pantalla sin apretar nada. */
+    expect(container.textContent).not.toBe(antes);
   });
 });
 
@@ -124,11 +138,13 @@ describe('un diseño guardado se reabre entero', () => {
     const { container } = pintar({ projects: [conDiseno()] });
     elegirProyecto();
     fireEvent.click(screen.getByText('Abrirlo'));
-    expect(container.textContent).toContain('7,541');   // factor camión
-    expect(container.textContent).toContain('965');     // W18
     expect(container.textContent).toContain('1,082');   // coeficiente de drenaje
     expect(container.textContent).toContain('11,1');    // espesor mínimo capa 1, en cm
     expect(screen.getByText('Cumple')).toBeTruthy();
+    /* Los del cálculo viven en la otra pestaña, pero salen del mismo diseño. */
+    fireEvent.click(screen.getByText('Parámetros del cálculo'));
+    expect(container.textContent).toContain('7,541');   // factor camión
+    expect(container.textContent).toContain('965');     // W18
   });
 });
 
@@ -255,5 +271,77 @@ describe('el aviso de los pesos', () => {
     const primeraFila = screen.getByText('Estación').closest('table').querySelectorAll('tbody tr')[0];
     fireEvent.change(primeraFila.querySelectorAll('input')[2], { target: { value: '50' } });
     expect(screen.getByText(/Los pesos no suman 100%/)).toBeTruthy();
+  });
+});
+
+describe('los parámetros solo los edita el Desarrollador', () => {
+  const irAParametros = () => fireEvent.click(screen.getByText('Parámetros del cálculo'));
+
+  /* No se esconden: para revisar un resultado hay que poder ver con qué se
+     calculó. Se ven, pero no se tocan. */
+  it('un ingeniero los ve pero no los puede cambiar', () => {
+    pintar();
+    irAParametros();
+    expect(screen.getByText(/solo el Desarrollador los edita/)).toBeTruthy();
+    const bloque = screen.getByText('Tránsito').parentElement;
+    expect(bloque.querySelectorAll('input')).toHaveLength(0);
+    /* Pero el valor sigue a la vista. */
+    expect(bloque.textContent).toContain('10');
+  });
+
+  it('el Desarrollador sí los edita', () => {
+    pintar({ perfil: { id: 'u9', nombre: 'Dev', roles: ['desarrollador'] } });
+    irAParametros();
+    expect(screen.queryByText(/solo el Desarrollador los edita/)).toBe(null);
+    const periodo = screen.getByText('Periodo de diseño').parentElement.querySelector('input');
+    expect(periodo).toBeTruthy();
+    fireEvent.change(periodo, { target: { value: '20' } });
+    expect(periodo.value).toBe('20');
+  });
+
+  /* Un líder tampoco: el candado es contra el error, no contra la jerarquía. */
+  it('un líder tampoco los edita', () => {
+    pintar({ perfil: { id: 'u5', nombre: 'Jefa', roles: ['lider_diseno'] } });
+    irAParametros();
+    expect(screen.getByText(/solo el Desarrollador los edita/)).toBeTruthy();
+  });
+
+  /* Lo de la pestaña de diseño lo edita cualquiera: es lo que cambia por
+     proyecto. */
+  it('los datos del proyecto los edita cualquiera', () => {
+    pintar();
+    const cbr = screen.getByText('CBR sumergido de la subrasante').parentElement.querySelector('input');
+    expect(cbr).toBeTruthy();
+    fireEvent.change(cbr, { target: { value: '9' } });
+    expect(cbr.value).toBe('9');
+  });
+});
+
+describe('el perfil de la rasante', () => {
+  it('dibuja las dos capas con su espesor en metros', () => {
+    pintar();
+    const dibujo = screen.getByRole('img');
+    expect(dibujo.textContent).toContain('0,05 m');   // capa 1: 5 cm
+    expect(dibujo.textContent).toContain('0,10 m');   // capa 2: 10 cm
+    expect(dibujo.textContent).toContain('Estructura: 0,15 m');
+    expect(dibujo.textContent).toContain('Afirmado INVÍAS 311');
+  });
+
+  it('sigue los espesores que se escriben', () => {
+    pintar();
+    const espesores = screen.getByText('Espesores').parentElement.querySelectorAll('input');
+    fireEvent.change(espesores[0], { target: { value: '15' } });
+    expect(screen.getByRole('img').textContent).toContain('0,15 m');
+    expect(screen.getByRole('img').textContent).toContain('Estructura: 0,25 m');
+  });
+
+  /* Sin espesores no se pinta una estructura de altura cero, que parecería
+     un error de la pantalla. */
+  it('sin espesores lo dice en vez de dibujar nada', () => {
+    pintar();
+    const espesores = screen.getByText('Espesores').parentElement.querySelectorAll('input');
+    fireEvent.change(espesores[0], { target: { value: '' } });
+    fireEvent.change(espesores[1], { target: { value: '' } });
+    expect(screen.getByText('Escribe los espesores para ver la sección.')).toBeTruthy();
   });
 });

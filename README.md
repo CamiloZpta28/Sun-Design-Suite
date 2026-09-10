@@ -175,12 +175,23 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
-- **Diseño de vía**: sección nueva en el menú lateral que reemplaza la hoja de
+- **Diseño de vía**: sección nueva en el menú lateral, en dos pestañas, que
+  reemplaza la hoja de
   cálculo que se pasaba por correo. Calcula el espesor de dos capas sobre la
   subrasante por el método AASHTO 93: del vehículo de diseño sale el factor
   camión, de ahí los ejes equivalentes, de las estaciones de lluvia el
   coeficiente de drenaje, y de todo eso los números estructurales y los
   espesores.
+  - **"Diseño"** es la que se usa siempre: pide solo lo que cambia de un
+    proyecto a otro —estaciones de lluvia, CBR sumergido y materiales— más el
+    espesor que uno le da a cada capa, y termina con **la sección dibujada**,
+    con las capas a escala real entre sí y acotadas en metros.
+  - **"Parámetros del cálculo"** tiene el resto —vehículo de diseño, tránsito,
+    confiabilidad, drenaje— y **solo el Desarrollador los edita**: son
+    constantes de cómo diseña la empresa, y una equivocación ahí mueve todos
+    los espesores sin que nada se vea raro. Los demás los ven, que es lo que
+    hace falta para revisar un resultado; esconderlos volvería el cálculo una
+    caja negra.
   - **Los números estructurales se resuelven solos.** En el Excel había que
     correr "Buscar objetivo" tres veces y el resultado quedaba escrito a mano,
     así que un archivo guardado a medio converger daba espesores que nadie
