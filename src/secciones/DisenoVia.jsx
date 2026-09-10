@@ -33,18 +33,13 @@
    ============================================================================ */
 
 import React, { useState, useMemo } from 'react';
-import {
-  Route, Save, Download, Check, Copy, TriangleAlert, ExternalLink, Lock, SlidersHorizontal,
-} from 'lucide-react';
+import { Route, Save, Download, Lock, SlidersHorizontal } from 'lucide-react';
 import { isDeveloper, isAssignedToProject } from '../shared/permisos.js';
-import { copiarTexto } from '../shared/copiar.jsx';
-import { formatoFechaHora } from '../shared/formatos.js';
 import { SeccionDeVia } from './seccionDeVia.jsx';
 import { TablaEstaciones } from '../shared/TablaEstaciones.jsx';
 import {
   MATERIALES, TIPOS_EJE, CALIDADES_DRENAJE, NIVELES_CONFIABILIDAD,
-  formularioPorDefecto, calcularDesdeFormulario, datosDelProyecto,
-  textoDelDiseno, desdeFormulario, estacionesVacias,
+  formularioPorDefecto, calcularDesdeFormulario, datosDelProyecto, estacionesVacias,
 } from '../shared/disenoVia.js';
 
 /* Un número con las cifras que tiene sentido mostrar, o una raya si todavía
@@ -112,18 +107,22 @@ function Dato({ label, valor, unidad, destacado }) {
   );
 }
 
-export default function DisenoViaView({ perfil, projects, onGuardarEnProyecto, onAbrirProyecto }) {
+export default function DisenoViaView({ perfil, projects, onGuardarEnProyecto }) {
   const [form, setForm] = useState(() => formularioPorDefecto());
   const [proyectoId, setProyectoId] = useState('');
   const [pestana, setPestana] = useState('diseno');
   const [aviso, setAviso] = useState(null);
-  const [copiado, setCopiado] = useState(false);
+  /* Cuando las estaciones vienen de un proyecto no se editan aquí: el dato es
+     del proyecto, y tenerlo en dos sitios donde se pueda cambiar es tener dos
+     versiones distintas de la misma lluvia. Se corrige en su pestaña
+     Hidráulico y se vuelve a traer. */
+  const [estacionesDe, setEstacionesDe] = useState(null);
 
   const r = useMemo(() => calcularDesdeFormulario(form), [form]);
 
   const proyecto = (projects || []).find((p) => p.id === proyectoId) || null;
-  const guardado = proyecto ? (proyecto.data || {}).diseno_via : null;
   const puedeGuardar = !!proyecto && (isDeveloper(perfil) || isAssignedToProject(perfil, proyecto));
+  const estacionesImportadas = !!estacionesDe && estacionesDe === proyectoId;
   /* Los parámetros del cálculo son de la empresa, no del proyecto: una
      equivocación ahí mueve todos los espesores sin que nada se vea raro. */
   const soloLectura = !isDeveloper(perfil);
@@ -144,41 +143,39 @@ export default function DisenoViaView({ perfil, projects, onGuardarEnProyecto, o
       return;
     }
     setForm((p) => ({ ...p, ...traidos }));
+    if (traidos.estaciones) setEstacionesDe(proyecto.id);
     const qué = [traidos.estaciones && 'las estaciones', traidos.cbrSubrasantePct !== undefined && 'el CBR sumergido']
       .filter(Boolean).join(' y ');
     setAviso({ tipo: 'ok', texto: `Se trajo ${qué} de ${proyecto.nombre}.` });
   }
 
-  function abrirGuardado() {
-    if (!guardado) return;
-    setForm({ ...formularioPorDefecto(), ...guardado.entradas });
-    setAviso({ tipo: 'ok', texto: `Se abrió el diseño guardado en ${proyecto.nombre}.` });
-  }
+  /* Guardar deja el diseño completo en el proyecto —para poder rastrear de
+     dónde salió cada número— y además escribe los espesores y materiales en
+     la subcategoría "Vía" de la pestaña Civil, que es donde se convierten en
+     cantidades de obra y donde el equipo los va a buscar.
 
+     Los espesores se escriben en METROS: aquí se trabaja en centímetros, pero
+     el plano de rasante y las cantidades van en metros. */
   function guardar() {
     if (!puedeGuardar) return;
+    const enMetros = (cm) => {
+      const n = parseFloat(String(cm ?? '').replace(',', '.'));
+      return Number.isFinite(n) ? String(n / 100) : '';
+    };
     onGuardarEnProyecto(proyecto.id, {
-      entradas: form,
-      resumen: {
-        espesorCapa1: form.espesorCapa1,
-        espesorCapa2: form.espesorCapa2,
-        materialCapa1: r.capa1 ? r.capa1.nombre : null,
-        materialCapa2: r.capa2 ? r.capa2.nombre : null,
-        cumple: r.cumple,
+      diseno: {
+        entradas: form,
+        guardado_por: perfil?.nombre || null,
+        updated_at: new Date().toISOString(),
       },
-      guardado_por: perfil?.nombre || null,
-      updated_at: new Date().toISOString(),
+      civil: {
+        via_material_capa1: r.capa1 ? r.capa1.nombre : '',
+        via_espesor_capa1: enMetros(form.espesorCapa1),
+        via_material_capa2: r.capa2 ? r.capa2.nombre : '',
+        via_espesor_capa2: enMetros(form.espesorCapa2),
+      },
     });
-    setAviso({ tipo: 'ok', texto: `Diseño guardado en ${proyecto.nombre}.` });
-  }
-
-  async function copiar() {
-    if (!(await copiarTexto(textoDelDiseno(desdeFormulario(form), r)))) {
-      window.alert('El navegador no dejó copiar. Selecciona el texto a mano.');
-      return;
-    }
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 1500);
+    setAviso({ tipo: 'ok', texto: `Espesores guardados en la pestaña Civil de ${proyecto.nombre}, subcategoría "Vía".` });
   }
 
   const filas = form.estaciones && form.estaciones.length ? form.estaciones : estacionesVacias();
@@ -202,7 +199,7 @@ export default function DisenoViaView({ perfil, projects, onGuardarEnProyecto, o
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-col gap-1 flex-1 min-w-[14rem]">
             <span className="text-xs font-semibold text-navy-500">Proyecto</span>
-            <select className={ENTRADA} value={proyectoId} onChange={(e) => { setProyectoId(e.target.value); setAviso(null); }}>
+            <select className={ENTRADA} value={proyectoId} onChange={(e) => { setProyectoId(e.target.value); setEstacionesDe(null); setAviso(null); }}>
               <option value="">Sin proyecto — solo para tantear</option>
               {(projects || []).map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
             </select>
@@ -222,37 +219,12 @@ export default function DisenoViaView({ perfil, projects, onGuardarEnProyecto, o
           >
             <Save className="w-4 h-4" /> Guardar en el proyecto
           </button>
-          <button
-            onClick={copiar}
-            className="flex items-center gap-1.5 text-sm font-semibold text-navy-600 bg-white border border-navy-300 rounded-lg px-3 py-1.5 hover:border-navy-400"
-          >
-            {copiado ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-            {copiado ? 'Copiado' : 'Copiar'}
-          </button>
         </div>
 
         {proyecto && !puedeGuardar && (
           <p className="text-xs text-navy-500 mt-2">
             Puedes traer sus datos y diseñar, pero guardar ahí es de quien está en su equipo.
           </p>
-        )}
-
-        {guardado && (
-          <div className="flex items-center gap-2 flex-wrap mt-2 text-xs text-navy-600">
-            <span>
-              Ya tiene un diseño guardado
-              {guardado.guardado_por ? ` por ${guardado.guardado_por}` : ''}
-              {guardado.updated_at ? ` · ${formatoFechaHora(guardado.updated_at)}` : ''}.
-            </span>
-            <button onClick={abrirGuardado} className="font-semibold text-lime-600 hover:text-lime-700 underline">
-              Abrirlo
-            </button>
-            {onAbrirProyecto && (
-              <button onClick={() => onAbrirProyecto(proyecto.id)} className="flex items-center gap-1 text-navy-500 hover:text-navy-700">
-                <ExternalLink className="w-3.5 h-3.5" /> Ir al proyecto
-              </button>
-            )}
-          </div>
         )}
 
         {aviso && (
@@ -319,16 +291,14 @@ export default function DisenoViaView({ perfil, projects, onGuardarEnProyecto, o
               <Dato label="Coeficiente de drenaje (m)" valor={cifra(r.m, 3)} />
             </div>}
           >
-            <TablaEstaciones filas={filas} onChange={set('estaciones')} />
-
-            {/* Con la tabla en blanco no hay nada que avisar todavía: el aviso
-                es para quien ya escribió pesos y no le suman. */}
-            {r.sumaPesos > 0 && !r.pesosCuadran && (
-              <p className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 mt-3">
-                <TriangleAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                Los pesos no suman 100%. El promedio ponderado —y con él el coeficiente de drenaje— sale de lo que haya.
-              </p>
-            )}
+            <TablaEstaciones
+              filas={filas}
+              onChange={set('estaciones')}
+              soloLectura={estacionesImportadas}
+              notaSoloLectura={proyecto
+                ? `Estas estaciones son las de ${proyecto.nombre}. Para cambiarlas, edítalas en su pestaña Hidráulico y vuelve a traerlas.`
+                : null}
+            />
           </Panel>
 
           <Panel titulo="Espesores">

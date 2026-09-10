@@ -2622,15 +2622,28 @@ export default function App() {
      poder reabrirlo y recalcularlo meses después. Va en data.diseno_via con
      la misma función de guardado parcial que usan las pestañas técnicas: no
      reescribe la fila entera, así que no pisa lo que otro esté guardando. */
-  function handleGuardarDisenoVia(projectId, diseno) {
+  /* Guardar un diseño de vía toca DOS sitios del proyecto:
+
+     - data.diseno_via guarda el diseño entero, con sus entradas, para poder
+       rastrear meses después de dónde salió cada espesor.
+     - data.civil recibe los espesores y los materiales, que es donde el
+       equipo los busca y donde se vuelven cantidades de obra (ver la
+       subcategoría "Vía" de la pestaña Civil).
+
+     La sección civil se MEZCLA con lo que ya tenía: escribir el objeto
+     entero borraría el cerramiento y todo lo demás que vive ahí. */
+  function handleGuardarDisenoVia(projectId, { diseno, civil }) {
+    const proyecto = projects.find((p) => p.id === projectId);
+    const civilMezclado = { ...((proyecto?.data || {}).civil || {}), ...civil };
     updateProject(
       projectId,
-      (p) => ({ ...p, data: { ...(p.data || {}), diseno_via: diseno } }),
-      'Guardó el diseño de vía',
+      (p) => ({ ...p, data: { ...(p.data || {}), diseno_via: diseno, civil: civilMezclado } }),
+      'Guardó el diseño de vía (espesores en Civil › Vía)',
       'civil',
-      () => supabase.rpc('merge_project_data_section', {
-        p_id: projectId, p_section: 'diseno_via', p_value: diseno,
-      }),
+      () => Promise.all([
+        supabase.rpc('merge_project_data_section', { p_id: projectId, p_section: 'diseno_via', p_value: diseno }),
+        supabase.rpc('merge_project_data_section', { p_id: projectId, p_section: 'civil', p_value: civilMezclado }),
+      ]).then((res) => res.find((r) => r && r.error) || {}),
     );
   }
 
@@ -3129,7 +3142,6 @@ export default function App() {
             perfil={perfil}
             projects={projects}
             onGuardarEnProyecto={handleGuardarDisenoVia}
-            onAbrirProyecto={openProject}
           />
         )}
         {view === 'cimentaciones' && (

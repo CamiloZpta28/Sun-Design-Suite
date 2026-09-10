@@ -31,6 +31,7 @@ import { ResumenLineas, atributosLineas, FiltroFichas, alternarEn } from '../sha
 import { SIN_ASIGNAR, responsablesDeDocumento, valoresDeResponsable } from '../shared/responsables.js';
 import { CodigoCopiable } from '../shared/copiar.jsx';
 import { TablaEstaciones } from '../shared/TablaEstaciones.jsx';
+import { SeccionDeVia } from './seccionDeVia.jsx';
 import { usePresenciaProyecto, quienEdita, PresenciaBarra, AvisoPestanaOcupada } from '../shared/presencia.jsx';
 import {
   camposPlegables, MESES_ENERGIA, COLOMBIA, DOC_ESTADOS, DOC_ESTADO_CONFIG, DOC_ESTADO_CORTO, EquipoField, EquipoSelect,
@@ -114,6 +115,8 @@ export function diffSectionData(section, before, after) {
         const fmt = (v) => (v.valor === true ? 'Sí' : v.valor === false ? 'No' : 'sin definir') + (v.nota ? ` (${v.nota})` : '');
         cambios.push(`${field.label}: ${fmt(bv)} → ${fmt(av)}`);
       }
+    } else if (field.type === 'perfil_via') {
+      // dibujo derivado de otros campos — no guarda nada propio
     } else if (field.type === 'stations' || field.type === 'modulos_inversor' || field.type === 'energia_mensual') {
       if (JSON.stringify(b || []) !== JSON.stringify(a || [])) {
         cambios.push(`${field.label}: se actualizó la tabla`);
@@ -511,6 +514,23 @@ export function FieldRenderer({
         <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-1">{field.label}</p>
         <p className="text-sm text-navy-700 font-mono">{calculado}</p>
         {field.ayuda && <p className="text-xs text-navy-300 italic mt-0.5">{field.ayuda}</p>}
+      </div>
+    );
+  }
+
+  /* El perfil de la vía, con lo que haya en los campos de al lado. Los
+     espesores se guardan en metros —como se acotan en el plano— y el dibujo
+     los pide en centímetros. */
+  if (field.type === 'perfil_via') {
+    return (
+      <div className="py-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-2">{field.label}</p>
+        <SeccionDeVia
+          nombreCapa1={siblingData?.via_material_capa1 || null}
+          nombreCapa2={siblingData?.via_material_capa2 || null}
+          espesorCapa1={(parseFloat(String(siblingData?.via_espesor_capa1 ?? '').replace(',', '.')) || 0) * 100}
+          espesorCapa2={(parseFloat(String(siblingData?.via_espesor_capa2 ?? '').replace(',', '.')) || 0) * 100}
+        />
       </div>
     );
   }
@@ -1031,7 +1051,7 @@ export function SectionFieldsGrid({
           <div
             key={field.key}
             data-field-key={field.key}
-            className={`${field.type === 'stations' || field.type === 'grupo_titulo' || field.type === 'modulos_inversor' || field.type === 'energia_mensual' ? 'col-span-full' : ''} ${
+            className={`${field.type === 'stations' || field.type === 'grupo_titulo' || field.type === 'modulos_inversor' || field.type === 'energia_mensual' || field.type === 'perfil_via' ? 'col-span-full' : ''} ${
               focusFieldKey === field.key ? 'ring-2 ring-lime-400 rounded-lg' : ''
             }`}
           >
@@ -1084,7 +1104,11 @@ export function SectionFieldsGrid({
 
       {gruposPlegables.map((g) => {
         const abierto = !!plegablesAbiertos[g.id];
-        const contables = g.fields.filter((f) => f.type !== 'grupo_titulo' && f.type !== 'computed');
+        /* Ni los títulos, ni lo calculado, ni el dibujo: el contador es de
+           campos que alguien llena. */
+        const contables = g.fields.filter(
+          (f) => f.type !== 'grupo_titulo' && f.type !== 'computed' && f.type !== 'perfil_via',
+        );
         const conDato = contables.filter((f) => data && tieneValorParaConteo(data[f.key])).length;
         return (
           <div key={g.id} className="mt-6 border-t border-navy-200 pt-4">

@@ -121,30 +121,47 @@ describe('la pantalla', () => {
   });
 });
 
-describe('un diseño guardado se reabre entero', () => {
-  const conDiseno = () => proyecto({
-    data: { ...proyecto().data, diseno_via: { entradas: EJEMPLO_1, guardado_por: 'Beto', updated_at: '2026-09-01T10:00:00.000Z' } },
+describe('el ejemplo de la hoja, armado desde la pantalla', () => {
+  /* Ya no se reabre un diseño guardado —eso ahora vive en la pestaña Civil
+     del proyecto—, así que la prueba de fuego se hace como lo haría una
+     persona: se elige el proyecto, se traen sus estaciones y su CBR, y se
+     ponen los materiales. Tiene que dar lo mismo que dio el Excel. */
+  const conLasCinco = () => proyecto({
+    data: {
+      hidraulico: {
+        estaciones_pluviometricas: [
+          { nombre: 'El Descanso', dias: '39.5', peso: '60' },
+          { nombre: 'Manaure', dias: '142.52', peso: '5' },
+          { nombre: 'Villa Carmelita', dias: '65.2', peso: '15' },
+          { nombre: 'Paris De Francia', dias: '60.44', peso: '14' },
+          { nombre: 'San Angel', dias: '41.13', peso: '6' },
+        ],
+      },
+      geotecnia: { cbr_sumergido: '7' },
+    },
   });
 
-  it('avisa que el proyecto ya tiene uno, y de quién', () => {
-    pintar({ projects: [conDiseno()] });
+  it('da los mismos números que el Excel', () => {
+    /* Con perfil de Desarrollador porque el ejemplo de la hoja usa un TPD de
+       un camión cada 30 días, y el que viene por defecto está redondeado.
+       Todo lo demás sale de traer los datos del proyecto. */
+    const { container } = pintar({
+      projects: [conLasCinco()],
+      perfil: { id: 'u9', nombre: 'Dev', roles: ['desarrollador'] },
+    });
     elegirProyecto();
-    expect(screen.getByText(/Ya tiene un diseño guardado por Beto/)).toBeTruthy();
-  });
+    fireEvent.click(screen.getByText('Traer sus datos'));
 
-  /* La prueba de fuego: al reabrirlo tienen que salir los mismos números que
-     dio el Excel para ese ejemplo. */
-  it('al abrirlo reproduce los números del ejemplo de la hoja', () => {
-    const { container } = pintar({ projects: [conDiseno()] });
-    elegirProyecto();
-    fireEvent.click(screen.getByText('Abrirlo'));
+    fireEvent.click(screen.getByText('Parámetros del cálculo'));
+    const tpd = screen.getByText('Tránsito promedio diario (TPD)').parentElement.querySelector('input');
+    fireEvent.change(tpd, { target: { value: String(1 / 30) } });
+    expect(container.textContent).toContain('7,541');   // factor camión
+    expect(container.textContent).toContain('965');     // W18
+
+    fireEvent.click(screen.getByText('Diseño'));
     expect(container.textContent).toContain('1,082');   // coeficiente de drenaje
     expect(container.textContent).toContain('11,1');    // espesor mínimo capa 1, en cm
     expect(screen.getByText('Cumple')).toBeTruthy();
-    /* Los del cálculo viven en la otra pestaña, pero salen del mismo diseño. */
-    fireEvent.click(screen.getByText('Parámetros del cálculo'));
-    expect(container.textContent).toContain('7,541');   // factor camión
-    expect(container.textContent).toContain('965');     // W18
   });
 });
 
@@ -154,7 +171,35 @@ describe('traer datos del proyecto', () => {
     elegirProyecto();
     fireEvent.click(screen.getByText('Traer sus datos'));
     expect(screen.getByText(/Se trajo las estaciones y el CBR sumergido de Chinú 3/)).toBeTruthy();
-    expect(screen.getByDisplayValue('El Descanso')).toBeTruthy();
+    expect(screen.getByText('El Descanso')).toBeTruthy();
+  });
+
+  /* El dato es del proyecto: tenerlo en dos sitios donde se pueda cambiar es
+     tener dos versiones distintas de la misma lluvia. */
+  it('lo traído no se edita aquí, y dice dónde se corrige', () => {
+    pintar();
+    elegirProyecto();
+    fireEvent.click(screen.getByText('Traer sus datos'));
+    const tabla = screen.getByText('Nombre de la estación').closest('table');
+    expect(tabla.querySelectorAll('tbody input')).toHaveLength(0);
+    expect(screen.getByText(/edítalas en su pestaña Hidráulico/)).toBeTruthy();
+  });
+
+  /* Sin proyecto —o antes de traer nada— la tabla sí se escribe: es el modo
+     de tantear un diseño que no es de ningún proyecto todavía. */
+  it('sin importar nada la tabla se puede escribir', () => {
+    pintar();
+    const tabla = screen.getByText('Nombre de la estación').closest('table');
+    expect(tabla.querySelectorAll('tbody input').length).toBeGreaterThan(0);
+  });
+
+  it('cambiar de proyecto vuelve a soltar la tabla', () => {
+    pintar();
+    elegirProyecto();
+    fireEvent.click(screen.getByText('Traer sus datos'));
+    elegirProyecto('');
+    const tabla = screen.getByText('Nombre de la estación').closest('table');
+    expect(tabla.querySelectorAll('tbody input').length).toBeGreaterThan(0);
   });
 
   /* El CBR sumergido no es el CBR de arriba: si el proyecto solo tiene ese
@@ -188,19 +233,26 @@ describe('guardar en el proyecto', () => {
     expect(screen.getByText('Guardar en el proyecto').closest('button').disabled).toBe(true);
   });
 
-  it('manda las entradas y un resumen con los espesores', () => {
+  it('manda el diseño entero y los espesores para la pestaña Civil', () => {
     const guardados = [];
     pintar({ onGuardarEnProyecto: (id, d) => guardados.push([id, d]) });
     elegirProyecto();
     fireEvent.click(screen.getByText('Guardar en el proyecto'));
     expect(guardados).toHaveLength(1);
-    const [id, diseno] = guardados[0];
+    const [id, { diseno, civil }] = guardados[0];
     expect(id).toBe('p1');
+    /* El diseño completo, para poder rastrear de dónde salió cada número. */
     expect(diseno.entradas.materialCapa1).toBe('afirmado');
-    expect(diseno.resumen.espesorCapa1).toBe(5);
-    expect(diseno.resumen.materialCapa1).toBe('Afirmado INVÍAS 311');
     expect(diseno.guardado_por).toBe('Ana');
-    expect(screen.getByText(/Diseño guardado en Chinú 3/)).toBeTruthy();
+    /* Y los espesores donde el equipo los busca. En METROS: aquí se trabaja
+       en centímetros y el plano de rasante va en metros. */
+    expect(civil).toEqual({
+      via_material_capa1: 'Afirmado INVÍAS 311',
+      via_espesor_capa1: '0.05',
+      via_material_capa2: 'SubBase INVÍAS 320',
+      via_espesor_capa2: '0.1',
+    });
+    expect(screen.getByText(/Espesores guardados en la pestaña Civil de Chinú 3/)).toBeTruthy();
   });
 
   /* Diseñar lo puede hacer cualquiera; guardar dentro de un proyecto ajeno,
@@ -222,39 +274,19 @@ describe('guardar en el proyecto', () => {
 });
 
 describe('el veredicto', () => {
-  const conDiseno = (entradas) => proyecto({
-    data: { ...proyecto().data, diseno_via: { entradas } },
-  });
+  const escribirEspesores = (e1, e2) => {
+    const campos = screen.getByText('Espesores').parentElement.querySelectorAll('input');
+    fireEvent.change(campos[0], { target: { value: String(e1) } });
+    fireEvent.change(campos[1], { target: { value: String(e2) } });
+  };
 
   it('unos espesores que no alcanzan lo dicen, y explican qué hacer', () => {
-    pintar({ projects: [conDiseno({ ...EJEMPLO_1, espesorCapa1: 1, espesorCapa2: 1 })] });
+    pintar();
     elegirProyecto();
-    fireEvent.click(screen.getByText('Abrirlo'));
+    fireEvent.click(screen.getByText('Traer sus datos'));
+    escribirEspesores(1, 1);
     expect(screen.getByText('No cumple')).toBeTruthy();
     expect(screen.getByText(/Sube el de\s+cualquiera de las dos capas/)).toBeTruthy();
-  });
-
-  /* Los pesos reparten el 100%: si no suman eso, el promedio ponderado no
-     significa lo que dice y hay que avisarlo. */
-  it('avisa cuando los pesos de las estaciones no suman 100%', () => {
-    pintar({ projects: [conDiseno({ ...EJEMPLO_1, estaciones: [{ nombre: 'X', dias: 100, peso: 50 }] })] });
-    elegirProyecto();
-    fireEvent.click(screen.getByText('Abrirlo'));
-    expect(screen.getByText(/Los pesos no suman 100%/)).toBeTruthy();
-  });
-});
-
-describe('copiar el diseño', () => {
-  it('deja en el portapapeles el resumen del cálculo', async () => {
-    const writeText = vi.fn(() => Promise.resolve());
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
-    Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
-    pintar();
-    fireEvent.click(screen.getByText('Copiar'));
-    await new Promise((r) => setTimeout(r, 0));
-    expect(writeText).toHaveBeenCalledTimes(1);
-    expect(writeText.mock.calls[0][0]).toContain('Diseño de vía');
-    expect(writeText.mock.calls[0][0]).toContain('Espesores');
   });
 });
 
@@ -270,7 +302,7 @@ describe('el aviso de los pesos', () => {
     pintar();
     const primeraFila = screen.getByText('Nombre de la estación').closest('table').querySelectorAll('tbody tr')[0];
     fireEvent.change(primeraFila.querySelectorAll('input')[2], { target: { value: '50' } });
-    expect(screen.getByText(/Los pesos no suman 100%/)).toBeTruthy();
+    expect(screen.getByText(/Los pesos suman 50%, no 100%/)).toBeTruthy();
   });
 });
 

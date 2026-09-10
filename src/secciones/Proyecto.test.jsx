@@ -664,3 +664,65 @@ describe('Control Documental · responsables', () => {
     expect(container.querySelector('[title="Ana (Ing. Civil) lo revisa"]').className).not.toContain('ring-1');
   });
 });
+
+describe('subcategoría Vía, en la pestaña Civil', () => {
+  /* Los espesores llegan de Diseño de vía y aquí se vuelven cantidades de
+     obra. Es donde el equipo los va a buscar. */
+  const conVia = () => proyecto({
+    data: {
+      ...proyecto().data,
+      civil: {
+        via_longitud: '100', via_ancho: '4',
+        via_material_capa1: 'Afirmado INVÍAS 311', via_espesor_capa1: '0.05',
+        via_material_capa2: 'SubBase INVÍAS 320', via_espesor_capa2: '0.10',
+        via_area_sobreanchos: '20',
+      },
+    },
+  });
+
+  const irAPestana = (etiqueta) => fireEvent.click(
+    screen.getAllByRole('button').find((b) => b.textContent.trim().replace(/\s+/g, ' ').startsWith(etiqueta)),
+  );
+
+  function abrirVia(project) {
+    render(<ProjectDetail project={project} perfil={perfilLider} {...props} />);
+    irAPestana('Civil');
+    fireEvent.click(screen.getByText('Vía'));
+  }
+
+  it('aparece como grupo propio y trae sus campos', () => {
+    abrirVia(conVia());
+    ['Longitud de vía (m)', 'Ancho de la vía (m)', 'Espesor capa 1 — Rodadura (m)',
+      'Espesor total (m)', 'Volumen vía capa 1 (m³)', 'Área de sobreanchos (m²)',
+      'Volumen total de capa 1 (m³)', 'Volumen de corte en banca (m³)',
+      'Volumen de lleno a subrasante en banca (m³)']
+      /* Cada campo sale dos veces: en el formulario y en la hoja de vida
+         imprimible, que también está en el DOM. */
+      .forEach((t) => expect(screen.getAllByText(t).length, t).toBeGreaterThan(0));
+  });
+
+  it('los volúmenes salen calculados de los espesores y las medidas', () => {
+    abrirVia(conVia());
+    expect(screen.getAllByText('20,00').length).toBeGreaterThan(0);   // vía capa 1: 0.05 × 4 × 100
+    expect(screen.getAllByText('40,00').length).toBeGreaterThan(0);   // vía capa 2
+    expect(screen.getAllByText('21,00').length).toBeGreaterThan(0);   // total capa 1
+  });
+
+  /* El mismo dibujo de la sección de diseño, para ver la estructura sin
+     salir del proyecto. */
+  it('muestra el perfil de la rasante con los espesores del proyecto', () => {
+    abrirVia(conVia());
+    const dibujo = screen.getByRole('img');
+    expect(dibujo.textContent).toContain('0,05 m');
+    expect(dibujo.textContent).toContain('0,10 m');
+    expect(dibujo.textContent).toContain('Afirmado INVÍAS 311');
+  });
+
+  /* Un proyecto sin diseño de vía todavía: el grupo existe pero no inventa
+     números ni pinta una estructura de altura cero. */
+  it('sin espesores no muestra volúmenes en cero ni dibuja nada', () => {
+    abrirVia(proyecto());
+    expect(screen.getByText('Escribe los espesores para ver la sección.')).toBeTruthy();
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+  });
+});

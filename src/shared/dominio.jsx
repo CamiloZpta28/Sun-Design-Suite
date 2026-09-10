@@ -154,6 +154,98 @@ export function camposCimentacion(tipoCimentacion, label) {
 
 /* Los campos de tipo 'boolean' guardan { valor: true|false|null, nota: '' }   */
 /* para poder anexar una descripción a la respuesta Sí/No.                     */
+/* --------------------------------------------------------------- VÍA ---
+   Las cantidades de obra de la vía. Los espesores llegan de la sección
+   "Diseño de vía" —ahí es donde se calculan— y aquí se convierten en
+   volúmenes con la longitud, el ancho y los sobreanchos del proyecto.
+
+   Todo va en metros, que es como se acota el plano de rasante: 0.10 m, no
+   10 cm. La sección de diseño trabaja en centímetros y convierte al
+   guardar. */
+const numVia = (v) => {
+  const n = parseFloat(String(v ?? '').replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+};
+
+/* Un volumen a medio calcular no se muestra como 0,00: eso parece un
+   resultado, y lo que hay es un dato que falta. */
+const volumenVia = (valor, faltaAlgo) => (
+  faltaAlgo ? '—' : valor.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+);
+
+const viaVolCalzada = (d, claveEspesor) => numVia(d?.[claveEspesor]) * numVia(d?.via_ancho) * numVia(d?.via_longitud);
+const viaVolSobreanchos = (d, claveEspesor) => numVia(d?.via_area_sobreanchos) * numVia(d?.[claveEspesor]);
+const faltaCalzada = (d, claveEspesor) => !numVia(d?.[claveEspesor]) || !numVia(d?.via_ancho) || !numVia(d?.via_longitud);
+const faltaSobreanchos = (d, claveEspesor) => !numVia(d?.via_area_sobreanchos) || !numVia(d?.[claveEspesor]);
+
+/* Los campos de la subcategoría "Vía", en el orden en que se piden. */
+export const CAMPOS_VIA = [
+  { key: 'via_longitud', label: 'Longitud de vía (m)', type: 'text' },
+  { key: 'via_ancho', label: 'Ancho de la vía (m)', type: 'text' },
+
+  { key: 'via_material_capa1', label: 'Material capa 1 — Rodadura', type: 'text', ayuda: 'Llega de Diseño de vía' },
+  { key: 'via_espesor_capa1', label: 'Espesor capa 1 — Rodadura (m)', type: 'text', ayuda: 'Llega de Diseño de vía' },
+  { key: 'via_material_capa2', label: 'Material capa 2', type: 'text', ayuda: 'Llega de Diseño de vía' },
+  { key: 'via_espesor_capa2', label: 'Espesor capa 2 (m)', type: 'text', ayuda: 'Llega de Diseño de vía' },
+  {
+    key: 'via_espesor_total', label: 'Espesor total (m)', type: 'computed',
+    formula: (d) => volumenVia(
+      numVia(d?.via_espesor_capa1) + numVia(d?.via_espesor_capa2),
+      !numVia(d?.via_espesor_capa1) && !numVia(d?.via_espesor_capa2),
+    ),
+    ayuda: 'Espesor capa 1 + espesor capa 2',
+  },
+
+  {
+    key: 'via_volumen_calzada_capa1', label: 'Volumen vía capa 1 (m³)', type: 'computed',
+    formula: (d) => volumenVia(viaVolCalzada(d, 'via_espesor_capa1'), faltaCalzada(d, 'via_espesor_capa1')),
+    ayuda: 'Espesor capa 1 × ancho × longitud',
+  },
+  {
+    key: 'via_volumen_calzada_capa2', label: 'Volumen vía capa 2 (m³)', type: 'computed',
+    formula: (d) => volumenVia(viaVolCalzada(d, 'via_espesor_capa2'), faltaCalzada(d, 'via_espesor_capa2')),
+    ayuda: 'Espesor capa 2 × ancho × longitud',
+  },
+
+  { key: 'via_area_sobreanchos', label: 'Área de sobreanchos (m²)', type: 'text' },
+  {
+    key: 'via_volumen_sobreanchos_capa1', label: 'Volumen de sobreanchos capa 1 (m³)', type: 'computed',
+    formula: (d) => volumenVia(viaVolSobreanchos(d, 'via_espesor_capa1'), faltaSobreanchos(d, 'via_espesor_capa1')),
+    ayuda: 'Área de sobreanchos × espesor capa 1',
+  },
+  {
+    key: 'via_volumen_sobreanchos_capa2', label: 'Volumen de sobreanchos capa 2 (m³)', type: 'computed',
+    formula: (d) => volumenVia(viaVolSobreanchos(d, 'via_espesor_capa2'), faltaSobreanchos(d, 'via_espesor_capa2')),
+    ayuda: 'Área de sobreanchos × espesor capa 2',
+  },
+
+  /* El total suma lo que haya: una vía sin sobreanchos da igual al volumen
+     de la calzada, no "—". */
+  {
+    key: 'via_volumen_total_capa1', label: 'Volumen total de capa 1 (m³)', type: 'computed',
+    formula: (d) => volumenVia(
+      viaVolCalzada(d, 'via_espesor_capa1') + viaVolSobreanchos(d, 'via_espesor_capa1'),
+      faltaCalzada(d, 'via_espesor_capa1') && faltaSobreanchos(d, 'via_espesor_capa1'),
+    ),
+    ayuda: 'Volumen de la vía + volumen de los sobreanchos',
+  },
+  {
+    key: 'via_volumen_total_capa2', label: 'Volumen total de capa 2 (m³)', type: 'computed',
+    formula: (d) => volumenVia(
+      viaVolCalzada(d, 'via_espesor_capa2') + viaVolSobreanchos(d, 'via_espesor_capa2'),
+      faltaCalzada(d, 'via_espesor_capa2') && faltaSobreanchos(d, 'via_espesor_capa2'),
+    ),
+    ayuda: 'Volumen de la vía + volumen de los sobreanchos',
+  },
+
+  { key: 'via_volumen_corte_banca', label: 'Volumen de corte en banca (m³)', type: 'text' },
+  { key: 'via_volumen_lleno_banca', label: 'Volumen de lleno a subrasante en banca (m³)', type: 'text' },
+
+  /* El mismo dibujo de la sección de diseño, para ver la estructura sin
+     salir del proyecto. */
+  { key: 'via_perfil', label: 'Perfil de la rasante', type: 'perfil_via' },
+];
+
 export const SCHEMA = [
   {
     id: 'general', label: 'General', icon: MapPin,
@@ -378,6 +470,8 @@ export const SCHEMA = [
         formula: (d) => String(Math.round((parseFloat(d?.cerr_longitud_total) || 0) / 100)),
       },
       ], 'cerramiento', 'Cerramiento'),
+
+      ...camposPlegables(CAMPOS_VIA, 'via', 'Vía'),
     ],
   },
   {

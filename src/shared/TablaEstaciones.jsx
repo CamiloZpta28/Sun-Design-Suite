@@ -13,7 +13,7 @@
    ============================================================================ */
 
 import React, { useState } from 'react';
-import { ClipboardPaste } from 'lucide-react';
+import { ClipboardPaste, TriangleAlert } from 'lucide-react';
 import { pegarDesdePortapapeles, MAXIMO_FILAS } from './pegarTabla.js';
 
 export const CLAVES_ESTACION = ['nombre', 'dias', 'peso'];
@@ -25,12 +25,24 @@ export const filaDeEstacionVacia = () => ({ nombre: '', dias: '', peso: '' });
 
 const CELDA = 'w-full rounded-md border border-navy-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
 
-export function TablaEstaciones({ filas, onChange }) {
+/* Los pesos reparten el 100% entre las estaciones. El aviso vive aquí, donde
+   se escriben, y no donde se usan: quien pueda arreglarlo es quien está
+   editando la tabla. */
+function pesosSuman100(filas) {
+  const suma = (filas || []).reduce((t, f) => {
+    const n = parseFloat(String(f?.peso ?? '').replace(',', '.'));
+    return t + (Number.isFinite(n) ? n : 0);
+  }, 0);
+  return { suma, cuadran: Math.abs(suma - 100) < 1e-6 };
+}
+
+export function TablaEstaciones({ filas, onChange, soloLectura, notaSoloLectura }) {
   /* Lo que pasó en el último pegado. Es estado de interfaz puro: se muestra
      un momento y no se guarda con los datos. */
   const [resultado, setResultado] = useState(null);
 
   const valores = Array.isArray(filas) && filas.length > 0 ? filas : [];
+  const pesos = pesosSuman100(valores);
 
   function cambiar(i, clave, valor) {
     onChange(valores.map((f, j) => (j === i ? { ...f, [clave]: valor } : f)));
@@ -40,6 +52,7 @@ export function TablaEstaciones({ filas, onChange }) {
      se pegó. Un solo valor se deja pasar: ahí el pegado de siempre es el que
      hay que hacer. */
   function pegar(evento, fila, columna) {
+    if (soloLectura) return;
     const texto = evento.clipboardData ? evento.clipboardData.getData('text/plain') : '';
     const r = pegarDesdePortapapeles({
       texto,
@@ -72,12 +85,18 @@ export function TablaEstaciones({ filas, onChange }) {
               <tr key={i} className="border-b border-navy-100 last:border-b-0">
                 {CLAVES_ESTACION.map((clave, j) => (
                   <td key={clave} className="p-1.5">
-                    <input
-                      className={CELDA}
-                      value={f[clave] ?? ''}
-                      onChange={(e) => cambiar(i, clave, e.target.value)}
-                      onPaste={(e) => pegar(e, i, j)}
-                    />
+                    {soloLectura ? (
+                      <span className="block px-2 py-1 text-sm text-navy-600 font-mono truncate">
+                        {f[clave] || '—'}
+                      </span>
+                    ) : (
+                      <input
+                        className={CELDA}
+                        value={f[clave] ?? ''}
+                        onChange={(e) => cambiar(i, clave, e.target.value)}
+                        onPaste={(e) => pegar(e, i, j)}
+                      />
+                    )}
                   </td>
                 ))}
               </tr>
@@ -86,11 +105,25 @@ export function TablaEstaciones({ filas, onChange }) {
         </table>
       </div>
 
-      <p className="flex items-center gap-1.5 text-xs text-navy-400 mt-1.5">
-        <ClipboardPaste className="w-3.5 h-3.5 shrink-0" />
-        Se puede copiar el rango en Excel y pegarlo aquí: llena la tabla de un
-        golpe. Si copias también los títulos, se descartan solos.
-      </p>
+      {soloLectura ? (
+        notaSoloLectura && <p className="text-xs text-navy-400 mt-1.5">{notaSoloLectura}</p>
+      ) : (
+        <p className="flex items-center gap-1.5 text-xs text-navy-400 mt-1.5">
+          <ClipboardPaste className="w-3.5 h-3.5 shrink-0" />
+          Se puede copiar el rango en Excel y pegarlo aquí: llena la tabla de un
+          golpe. Si copias también los títulos, se descartan solos.
+        </p>
+      )}
+
+      {/* Con la tabla en blanco no hay nada que avisar todavía: el aviso es
+          para quien ya escribió pesos y no le suman. */}
+      {!soloLectura && pesos.suma > 0 && !pesos.cuadran && (
+        <p className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 mt-2">
+          <TriangleAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          Los pesos suman {pesos.suma.toLocaleString('es-CO', { maximumFractionDigits: 2 })}%, no 100%. El promedio
+          ponderado de días de lluvia —y con él el diseño de vía— sale de lo que haya.
+        </p>
+      )}
 
       {resultado && (
         <p className={`text-xs mt-1 ${resultado.descartadas > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>

@@ -175,6 +175,30 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **El diseño de vía aterriza en el proyecto**: la pestaña Civil tiene una
+  subcategoría nueva, **"Vía"**, con la longitud, el ancho, los espesores y
+  materiales de cada capa, el área de sobreanchos y los volúmenes de corte y
+  de lleno en banca. Los volúmenes se calculan solos —calzada, sobreanchos y
+  total por capa— y abajo va **el perfil de la rasante dibujado**.
+  - Los espesores y los materiales llegan de la sección Diseño de vía al darle
+    "Guardar en el proyecto". Se guardan **en metros**, como se acota el plano;
+    la sección de diseño trabaja en centímetros y convierte al guardar.
+  - Un volumen al que le falta un dato muestra "—", no "0,00": un cero parece
+    un resultado. Pero una vía sin sobreanchos sí tiene volumen total, el de
+    la calzada.
+  - Guardar también deja el diseño completo en `data.diseno_via`, para poder
+    rastrear meses después de dónde salió cada espesor.
+
+- **Las estaciones traídas de un proyecto no se editan en Diseño de vía**: el
+  dato es del proyecto, y tenerlo en dos sitios donde se pueda cambiar es tener
+  dos versiones distintas de la misma lluvia. Se ven en solo lectura, con la
+  nota de dónde corregirlas. Sin proyecto —tanteando un diseño— la tabla se
+  escribe como siempre.
+  - **El aviso de que los pesos no suman 100% se movió a donde se escriben**:
+    la tabla de estaciones, esté en la pestaña Hidráulico del proyecto o en
+    Diseño de vía. Quien pueda arreglarlo es quien está editando.
+
+
 - **La tabla de estaciones pluviométricas se llena pegando desde Excel.** Se
   copia el rango de tres columnas —nombre, días/año y peso— y se pega sobre la
   tabla: la llena de un golpe, en vez de escribir veintiuna celdas a mano. Es
