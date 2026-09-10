@@ -1,24 +1,34 @@
 /* ============================================================================
-   EL PERFIL DE LA VÍA — dibujo de la sección
+   EL PERFIL DE LA RASANTE — dibujo de la sección
    ----------------------------------------------------------------------------
-   La versión simplificada del plano de rasante: solo las dos capas y sus
-   espesores, sin bombeo ni acotado de ancho. Sirve para lo que un plano no
-   alcanza a hacer mientras uno diseña — ver de un vistazo si la proporción
-   entre las capas tiene sentido — y para pegarlo en una revisión rápida.
+   La versión simplificada del plano: solo las dos capas y sus espesores, sin
+   bombeo ni ancho de calzada. Sirve para lo que un plano no alcanza a hacer
+   mientras uno diseña —ver de un vistazo en qué queda la estructura— y para
+   pegarlo en una revisión rápida.
 
-   Las alturas van a escala real entre sí: una capa de 5 cm sobre una de 20 se
-   ve así de delgada, a propósito. Si se dibujaran con una altura mínima
-   "para que se vea", el dibujo mentiría justo sobre lo único que muestra.
+   Tres decisiones que vienen de cómo se construyen estas vías:
+
+   1. La vía va ENCAJONADA: la rasante queda a nivel del suelo, no encima. Por
+      eso el terreno llega hasta arriba a lado y lado y la estructura se ve
+      metida en él, como el cajón que de verdad se excava.
+
+   2. No hay línea de cota horizontal. La había, y leída de lejos parecía
+      acotar el ancho de la vía —que este dibujo no dice—. El espesor total
+      queda como texto, que es lo que se quería decir.
+
+   3. Las alturas van a escala real entre sí: una capa de 3 cm sobre una de 30
+      se ve así de delgada, a propósito. Darles una altura mínima "para que se
+      vean" haría que el dibujo mintiera justo sobre lo único que muestra.
    ============================================================================ */
 
 import React from 'react';
 
 const ANCHO = 480;
-const ALTO = 210;
-const IZQ = 96;      // deja sitio a las cotas
-const DER = 356;     // y a los nombres de material
-const ALTO_CAPAS = 76;
-const CIELO = 34;
+const ALTO = 196;
+const IZQ = 104;          // deja sitio a las cotas de espesor
+const DER = 316;          // y a los nombres de material
+const RASANTE = 46;       // nivel del suelo — y de la superficie de la vía
+const ALTO_CAPAS = 88;
 
 const num = (v) => {
   const n = typeof v === 'number' ? v : parseFloat(String(v ?? '').replace(',', '.'));
@@ -30,10 +40,21 @@ export function enMetros(cm) {
   return (num(cm) / 100).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-/* El terreno natural: un borde inferior irregular, como en el plano. No dice
-   nada técnico —es donde termina el dibujo— pero sin él las capas parecen
-   flotar. */
-const PERFIL_TERRENO = 'M0,0 L28,14 L56,4 L92,20 L128,6 L164,18 L200,5 L236,16 L272,3 L308,15 L344,6 L380,17 L416,5 L452,14 L480,4 L480,40 L0,40 Z';
+/* El borde inferior del terreno, irregular: es donde termina el dibujo, no
+   una cota de nada. */
+const FONDO_TERRENO = 'M0,0 L28,14 L56,4 L92,20 L128,6 L164,18 L200,5 L236,16 L272,3 L308,15 L344,6 L380,17 L416,5 L452,14 L480,4 L480,40 L0,40 Z';
+
+/* El nombre del material va sobre el terreno, así que lleva su propio fondo
+   claro para poder leerse — como los rótulos de un plano. */
+function Rotulo({ x, y, texto }) {
+  const ancho = texto.length * 5.3 + 12;
+  return (
+    <g>
+      <rect x={x} y={y - 8} width={ancho} height={16} rx="3" fill="#FFFFFF" fillOpacity="0.9" stroke="#E4D7BE" strokeWidth="0.75" />
+      <text x={x + 6} y={y + 3.5} fontSize="10" className="fill-navy-600">{texto}</text>
+    </g>
+  );
+}
 
 export function SeccionDeVia({ nombreCapa1, nombreCapa2, espesorCapa1, espesorCapa2 }) {
   const e1 = num(espesorCapa1);
@@ -52,11 +73,10 @@ export function SeccionDeVia({ nombreCapa1, nombreCapa2, espesorCapa1, espesorCa
 
   const h1 = (e1 / total) * ALTO_CAPAS;
   const h2 = ALTO_CAPAS - h1;
-  const y1 = CIELO;
+  const y1 = RASANTE;
   const y2 = y1 + h1;
-  const ySubrasante = y2 + h2;
+  const fondoCajon = y2 + h2;
 
-  /* Las cotas y los nombres se anclan al centro de su capa. */
   const centro = (y, h) => y + h / 2;
 
   return (
@@ -75,50 +95,46 @@ export function SeccionDeVia({ nombreCapa1, nombreCapa2, espesorCapa1, espesorCa
         </pattern>
       </defs>
 
-      {/* --------------------------------------------------- terreno natural */}
-      <rect x="0" y={ySubrasante} width={ANCHO} height={ALTO - ySubrasante} fill="#F2DFC0" />
-      <path d={PERFIL_TERRENO} transform={`translate(0, ${ALTO - 40})`} fill="#E8CFA6" />
-      <line x1="0" y1={ySubrasante} x2={ANCHO} y2={ySubrasante} stroke="#B9945F" strokeWidth="1" />
-      <text x={IZQ} y={ALTO - 12} className="fill-navy-500" fontSize="10">Terreno natural explanado</text>
+      {/* --------------- el espesor total, sin línea de cota que lo acompañe */}
+      <text x={(IZQ + DER) / 2} y={RASANTE - 16} fontSize="12" textAnchor="middle" fontWeight="bold" className="fill-navy-800">
+        Estructura: {enMetros(total)} m
+      </text>
+
+      {/* ------------------------------------------------- el terreno natural
+          Llega hasta la rasante a lado y lado: la vía va encajonada, con su
+          superficie al mismo nivel del suelo. */}
+      <rect x="0" y={RASANTE} width={ANCHO} height={ALTO - RASANTE} fill="#F2DFC0" />
+      <path d={FONDO_TERRENO} transform={`translate(0, ${ALTO - 40})`} fill="#E8CFA6" />
+      <line x1="0" y1={RASANTE} x2={ANCHO} y2={RASANTE} stroke="#B9945F" strokeWidth="1.25" />
 
       {/* ------------------------------------------------------- las dos capas */}
       <rect x={IZQ} y={y1} width={DER - IZQ} height={h1} fill="url(#dv-capa1)" stroke="#8C8371" strokeWidth="1" />
       <rect x={IZQ} y={y2} width={DER - IZQ} height={h2} fill="url(#dv-capa2)" stroke="#8C8371" strokeWidth="1" />
+      {/* Las paredes del cajón excavado. */}
+      <line x1={IZQ} y1={y1} x2={IZQ} y2={fondoCajon} stroke="#8C8371" strokeWidth="1.25" />
+      <line x1={DER} y1={y1} x2={DER} y2={fondoCajon} stroke="#8C8371" strokeWidth="1.25" />
 
-      {/* ------------------------------------------------------------- cotas */}
+      {/* ------------------------------------- cotas de espesor, capa por capa */}
       {[
         { yTop: y1, h: h1, e: e1, key: 'c1' },
         { yTop: y2, h: h2, e: e2, key: 'c2' },
-      ].filter((c) => c.h > 0).map((c) => {
-        const { yTop } = c;
-        return (
-          <g key={c.key} stroke="#C2410C" fill="#C2410C">
-            <line x1={IZQ - 30} y1={yTop} x2={IZQ} y2={yTop} strokeWidth="0.75" strokeDasharray="3 2" />
-            <line x1={IZQ - 30} y1={yTop + c.h} x2={IZQ} y2={yTop + c.h} strokeWidth="0.75" strokeDasharray="3 2" />
-            <line x1={IZQ - 22} y1={yTop} x2={IZQ - 22} y2={yTop + c.h} strokeWidth="1" />
-            <text x={IZQ - 34} y={centro(yTop, c.h) + 3.5} fontSize="11" textAnchor="end" stroke="none">
-              {enMetros(c.e)} m
-            </text>
-          </g>
-        );
-      })}
+      ].filter((c) => c.h > 0).map((c) => (
+        <g key={c.key} stroke="#C2410C" fill="#C2410C">
+          <line x1={IZQ - 34} y1={c.yTop} x2={IZQ} y2={c.yTop} strokeWidth="0.75" strokeDasharray="3 2" />
+          <line x1={IZQ - 34} y1={c.yTop + c.h} x2={IZQ} y2={c.yTop + c.h} strokeWidth="0.75" strokeDasharray="3 2" />
+          <line x1={IZQ - 26} y1={c.yTop} x2={IZQ - 26} y2={c.yTop + c.h} strokeWidth="1" />
+          <text x={IZQ - 38} y={centro(c.yTop, c.h) + 3.5} fontSize="11" textAnchor="end" stroke="none">
+            {enMetros(c.e)} m
+          </text>
+        </g>
+      ))}
 
-      {/* --------------------------------------------------- nombres a la derecha */}
-      <g fontSize="10" className="fill-navy-600">
-        <line x1={DER} y1={centro(y1, h1)} x2={DER + 14} y2={centro(y1, h1)} stroke="#C2410C" strokeWidth="0.75" />
-        <text x={DER + 18} y={centro(y1, h1) + 3.5}>{nombreCapa1 || 'Capa 1'}</text>
-        <line x1={DER} y1={centro(y2, h2)} x2={DER + 14} y2={centro(y2, h2)} stroke="#C2410C" strokeWidth="0.75" />
-        <text x={DER + 18} y={centro(y2, h2) + 3.5}>{nombreCapa2 || 'Capa 2'}</text>
-      </g>
-
-      {/* ------------------------------------------------------- espesor total */}
-      <g stroke="#152644" fill="#152644">
-        <line x1={IZQ} y1={y1 - 16} x2={DER} y2={y1 - 16} strokeWidth="0.75" />
-        <line x1={IZQ} y1={y1 - 20} x2={IZQ} y2={y1 - 12} strokeWidth="1" />
-        <line x1={DER} y1={y1 - 20} x2={DER} y2={y1 - 12} strokeWidth="1" />
-        <text x={(IZQ + DER) / 2} y={y1 - 22} fontSize="11" textAnchor="middle" stroke="none" fontWeight="bold">
-          Estructura: {enMetros(total)} m
-        </text>
+      {/* --------------------------------------------- nombres de cada material */}
+      <g>
+        <line x1={DER} y1={centro(y1, h1)} x2={DER + 12} y2={centro(y1, h1)} stroke="#C2410C" strokeWidth="0.75" />
+        <Rotulo x={DER + 12} y={centro(y1, h1)} texto={nombreCapa1 || 'Capa 1'} />
+        <line x1={DER} y1={centro(y2, h2)} x2={DER + 12} y2={centro(y2, h2)} stroke="#C2410C" strokeWidth="0.75" />
+        <Rotulo x={DER + 12} y={centro(y2, h2)} texto={nombreCapa2 || 'Capa 2'} />
       </g>
     </svg>
   );

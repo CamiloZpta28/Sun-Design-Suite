@@ -184,8 +184,9 @@ ingeniero. Cada persona:
   espesores.
   - **"Diseño"** es la que se usa siempre: pide solo lo que cambia de un
     proyecto a otro —estaciones de lluvia, CBR sumergido y materiales— más el
-    espesor que uno le da a cada capa, y termina con **la sección dibujada**,
-    con las capas a escala real entre sí y acotadas en metros.
+    espesor que uno le da a cada capa. Arriba del todo va **la sección
+    dibujada**: las capas a escala real entre sí, acotadas en metros, y la vía
+    encajonada —con la rasante a nivel del suelo, que es como se construyen—.
   - **"Parámetros del cálculo"** tiene el resto —vehículo de diseño, tránsito,
     confiabilidad, drenaje— y **solo el Desarrollador los edita**: son
     constantes de cómo diseña la empresa, y una equivocación ahí mueve todos

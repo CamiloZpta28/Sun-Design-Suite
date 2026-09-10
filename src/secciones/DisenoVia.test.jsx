@@ -345,3 +345,33 @@ describe('el perfil de la rasante', () => {
     expect(screen.getByText('Escribe los espesores para ver la sección.')).toBeTruthy();
   });
 });
+
+describe('el perfil, después del feedback', () => {
+  /* Es lo primero que uno quiere ver al abrir, y lo que va cambiando
+     mientras se tocan los espesores. */
+  it('va arriba del todo, antes de los campos', () => {
+    const { container } = pintar();
+    const perfil = screen.getByText('Perfil de la rasante');
+    const materiales = screen.getByText('Materiales y subrasante');
+    const antes = perfil.compareDocumentPosition(materiales) & Node.DOCUMENT_POSITION_FOLLOWING;
+    expect(Boolean(antes)).toBe(true);
+    expect(container).toBeTruthy();
+  });
+
+  /* La línea de cota horizontal se leía como si acotara el ancho de la vía,
+     que este dibujo no dice. El espesor total se queda como texto. */
+  it('conserva el espesor total pero sin la cota horizontal', () => {
+    pintar();
+    const svg = screen.getByRole('img');
+    expect(svg.textContent).toContain('Estructura: 0,15 m');
+    /* Las únicas cotas que quedan son las verticales, una por capa: dos
+       tramos punteados y su línea, por capa. */
+    const punteadas = svg.querySelectorAll('line[stroke-dasharray]');
+    expect(punteadas).toHaveLength(4);
+  });
+
+  it('ya no habla del terreno natural explanado', () => {
+    pintar();
+    expect(screen.getByRole('img').textContent).not.toContain('Terreno natural');
+  });
+});

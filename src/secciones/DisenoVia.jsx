@@ -284,6 +284,15 @@ export default function DisenoViaView({ perfil, projects, onGuardarEnProyecto, o
 
       {pestana === 'diseno' ? (
         <>
+          <Panel titulo="Perfil de la rasante">
+            <SeccionDeVia
+              nombreCapa1={r.capa1 ? r.capa1.nombre : null}
+              nombreCapa2={r.capa2 ? r.capa2.nombre : null}
+              espesorCapa1={form.espesorCapa1}
+              espesorCapa2={form.espesorCapa2}
+            />
+          </Panel>
+
           <Campo label="Nombre del diseño" valor={form.nombre} onChange={set('nombre')} ancho="mb-4 max-w-md" />
 
           <Panel titulo="Materiales y subrasante">
@@ -389,15 +398,6 @@ export default function DisenoViaView({ perfil, projects, onGuardarEnProyecto, o
                 cualquiera de las dos capas, o usa un material con mejor CBR.
               </p>
             )}
-          </Panel>
-
-          <Panel titulo="Perfil de la rasante">
-            <SeccionDeVia
-              nombreCapa1={r.capa1 ? r.capa1.nombre : null}
-              nombreCapa2={r.capa2 ? r.capa2.nombre : null}
-              espesorCapa1={form.espesorCapa1}
-              espesorCapa2={form.espesorCapa2}
-            />
           </Panel>
         </>
       ) : (
