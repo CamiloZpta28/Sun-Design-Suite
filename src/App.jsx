@@ -3,7 +3,7 @@ import {
   LayoutDashboard, FolderKanban, Layers, Link2, Zap, Cog, Plus, Search, X, Trash2, ChevronLeft,
   Pencil, MapPin, Calendar, Users, ExternalLink, Check, UploadCloud, XCircle, Loader2,
   RefreshCw, LogOut, ShieldCheck, Lock, ClipboardCheck, UserCog, ChevronDown, ChevronRight,
-  Video, PartyPopper, PieChart, AlertTriangle, Menu, UserPlus, Boxes, GitBranch, Bell, FileText, CalendarCheck
+  Video, PartyPopper, PieChart, AlertTriangle, Menu, UserPlus, Boxes, GitBranch, Bell, Route, FileText, CalendarCheck
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { rutaDe, estadoDeRuta } from './routes.js';
@@ -44,6 +44,7 @@ const EquiposElectricosView = lazy(() => import('./secciones/Equipos.jsx'));
 const CanalizacionesView = lazy(() => import('./secciones/Canalizaciones.jsx'));
 const CrucesView = lazy(() => import('./secciones/Canalizaciones.jsx').then((m) => ({ default: m.CrucesView })));
 const CimentacionesView = lazy(() => import('./secciones/Cimentaciones.jsx'));
+const DisenoViaView = lazy(() => import('./secciones/DisenoVia.jsx'));
 const ProjectDetail = lazy(() => import('./secciones/Proyecto.jsx'));
 const DossiersView = lazy(() => import('./secciones/Dossiers.jsx'));
 const ResumenesView = lazy(() => import('./secciones/Resumenes.jsx'));
@@ -483,6 +484,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile,
     { key: 'equipos_electricos', label: 'Equipos eléctricos', icon: Zap },
     { key: 'canalizaciones', label: 'Canalizaciones', icon: Cog },
     { key: 'cruces', label: 'Cruces', icon: GitBranch },
+    { key: 'diseno_via', label: 'Diseño de vía', icon: Route },
     { key: 'actualizaciones', label: 'Actualizaciones', icon: Bell },
     { key: 'resumenes', label: 'Resúmenes semanales', icon: CalendarCheck },
     { key: 'dossiers', label: 'Dossiers', icon: FileText },
@@ -2616,6 +2618,22 @@ export default function App() {
     setAusencias((prev) => prev.filter((a) => a.id !== id));
   }
 
+  /* Guarda el diseño de vía DENTRO del proyecto, con sus entradas, para
+     poder reabrirlo y recalcularlo meses después. Va en data.diseno_via con
+     la misma función de guardado parcial que usan las pestañas técnicas: no
+     reescribe la fila entera, así que no pisa lo que otro esté guardando. */
+  function handleGuardarDisenoVia(projectId, diseno) {
+    updateProject(
+      projectId,
+      (p) => ({ ...p, data: { ...(p.data || {}), diseno_via: diseno } }),
+      'Guardó el diseño de vía',
+      'civil',
+      () => supabase.rpc('merge_project_data_section', {
+        p_id: projectId, p_section: 'diseno_via', p_value: diseno,
+      }),
+    );
+  }
+
   function handleAddPlantillaCimentacion(tipo, nombre, datos) {
     const nueva = { id: makeId('cim'), tipo, nombre, datos };
     setPlantillasCimentacion((prev) => [...prev, nueva]);
@@ -3105,6 +3123,14 @@ export default function App() {
         )}
         {view === 'resumen_inversionistas' && (
           <ResumenInversionistasView projects={projects} onOpenProject={openProject} dossiers={dossiers} />
+        )}
+        {view === 'diseno_via' && (
+          <DisenoViaView
+            perfil={perfil}
+            projects={projects}
+            onGuardarEnProyecto={handleGuardarDisenoVia}
+            onAbrirProyecto={openProject}
+          />
         )}
         {view === 'cimentaciones' && (
           <CimentacionesView

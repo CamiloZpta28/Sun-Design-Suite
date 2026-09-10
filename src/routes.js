@@ -28,6 +28,7 @@ export const RUTAS_VISTA = {
   equipos_electricos: '/equipos-electricos',
   canalizaciones: '/canalizaciones',
   cruces: '/cruces',
+  diseno_via: '/diseno-via',
   actualizaciones: '/actualizaciones',
   equipo: '/equipo',
   dossiers: '/dossiers',

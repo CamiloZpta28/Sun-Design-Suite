@@ -175,6 +175,34 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Diseño de vía**: sección nueva en el menú lateral que reemplaza la hoja de
+  cálculo que se pasaba por correo. Calcula el espesor de dos capas sobre la
+  subrasante por el método AASHTO 93: del vehículo de diseño sale el factor
+  camión, de ahí los ejes equivalentes, de las estaciones de lluvia el
+  coeficiente de drenaje, y de todo eso los números estructurales y los
+  espesores.
+  - **Los números estructurales se resuelven solos.** En el Excel había que
+    correr "Buscar objetivo" tres veces y el resultado quedaba escrito a mano,
+    así que un archivo guardado a medio converger daba espesores que nadie
+    volvía a revisar.
+  - **Se traen los datos del proyecto** —las estaciones pluviométricas de
+    Hidráulico y el CBR sumergido de Geotecnia— y el diseño **se guarda dentro
+    del proyecto con sus entradas**, para poder reabrirlo meses después, ver de
+    dónde salió cada número y recalcularlo si cambia el CBR.
+  - **Campo nuevo: "CBR sumergido (%)"** en Geotecnia, al lado del CBR. No es
+    el mismo ensayo, por eso son dos campos y no uno.
+  - Diseñar lo puede hacer cualquiera; guardar dentro de un proyecto es de
+    quien está en su equipo, como en las pestañas técnicas.
+  - **Tres cosas cambiaron respecto a la hoja**, a propósito: se quitó el eje
+    doble (traía la misma referencia que el simple y siempre en cero, así que
+    esa cuenta nunca se ejecutó); Zr sale de la confiabilidad por tabla en vez
+    de escribirse aparte (nada impedía dejar R en 90% con Zr en 0, que da un
+    diseño inseguro sin avisar); y SN2 se sigue mostrando como referencia
+    aunque no entre en ningún espesor, igual que en el Excel.
+  - **No necesita migración**: el diseño vive en `data.diseno_via` y el campo
+    nuevo en `data.geotecnia`, con el guardado parcial que ya existía.
+
+
 - **Vacaciones e incapacidades ya no salen en rojo.** Se registra una ausencia
   con su rango de fechas y su motivo, y cubre todas las semanas que toque: no
   hay que marcar nada cada lunes. Quien no estuvo aparece con su motivo

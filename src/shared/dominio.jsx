@@ -407,6 +407,9 @@ export const SCHEMA = [
       { key: 'tipo_suelo', label: 'Tipo de suelo', type: 'text' },
       { key: 'zona_amenaza_sismica', label: 'Zona de amenaza sísmica', type: 'text' },
       { key: 'cbr', label: 'CBR (%)', type: 'text' },
+      /* El diseño de vía pide el CBR sumergido, que no es el mismo ensayo que
+         el CBR de arriba: por eso son dos campos y no uno. */
+      { key: 'cbr_sumergido', label: 'CBR sumergido (%)', type: 'text' },
       { key: 'ensayos_quimicos', label: 'Ensayos químicos', type: 'textarea' },
       { key: 'coef_balasto', label: 'Coeficiente de balasto', type: 'text' },
       { key: 'nivel_freatico', label: 'Nivel freático', type: 'boolean' },
