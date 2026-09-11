@@ -853,3 +853,47 @@ describe('el avance compacto de los roles transversales', () => {
     expect(screen.getByText('Chinú 3')).toBeTruthy();
   });
 });
+
+describe('escribir un tema con espacios', () => {
+  /* El bloque "Temas" pasaba cada tecla por normalizarTema, que recortaba los
+     espacios: al escribir "Motor" y darle a la barra, el espacio desaparecía
+     antes de poder escribir la palabra siguiente, y quedaba "Motordiseño".
+     Los otros tres bloques nunca lo tuvieron, porque su texto va tal cual. */
+  function abrirTema() {
+    fireEvent.click(screen.getAllByText('Agregar renglón')[3]);
+    return screen.getByPlaceholderText(/Lo que quieres hablar el lunes/);
+  }
+
+  it('deja escribir un espacio al final, para seguir con la siguiente palabra', () => {
+    pintar();
+    const caja = abrirTema();
+    fireEvent.change(caja, { target: { value: 'Motor' } });
+    fireEvent.change(caja, { target: { value: 'Motor ' } });
+    expect(caja.value).toBe('Motor ');
+  });
+
+  it('una frase entera llega completa', () => {
+    const guardados = [];
+    pintar({ onGuardar: (r) => guardados.push(r) });
+    const caja = abrirTema();
+    /* Tecla por tecla, sumando a lo que YA hay en la caja: es lo que hace un
+       navegador, y lo único que destapa que el espacio se perdía. */
+    'Motor de diseño de vía'.split('').forEach((letra) => {
+      const actual = screen.getByPlaceholderText(/Lo que quieres hablar el lunes/);
+      fireEvent.change(actual, { target: { value: actual.value + letra } });
+    });
+    fireEvent.click(screen.getByTitle('Listo (o pulsa Enter)'));
+    fireEvent.click(screen.getByText('Enviar'));
+    expect(guardados[guardados.length - 1].bloques.temas).toEqual([
+      { texto: 'Motor de diseño de vía', reunion: 'equipo' },
+    ]);
+  });
+
+  it('los otros bloques siguen igual', () => {
+    pintar();
+    fireEvent.click(screen.getAllByText('Agregar renglón')[0]);
+    const caja = screen.getByPlaceholderText(/Lo que sacaste esta semana/);
+    fireEvent.change(caja, { target: { value: 'Mesa técnica ' } });
+    expect(caja.value).toBe('Mesa técnica ');
+  });
+});

@@ -340,16 +340,25 @@ export const DESTINO_POR_DEFECTO = 'equipo';
 /* Los temas de antes se guardaron como texto pelado, cuando no había dónde
    elegir. Se leen como temas del área: era la única reunión que existía
    cuando se escribieron, así que es lo que quiso decir quien los puso. */
+/* OJO: esto NO recorta los espacios. Lo hacía, y como la pantalla vuelve a
+   normalizar en cada tecla, el espacio que uno acababa de escribir
+   desaparecía antes de poder empezar la palabra siguiente: "Motor de diseño"
+   quedaba "Motordediseño". Recortar es cosa de quien CONSUME los temas —ver
+   normalizarTemas—, no de quien los está escribiendo. */
 export function normalizarTema(tema) {
-  if (typeof tema === 'string') return { texto: tema.trim(), reunion: DESTINO_POR_DEFECTO };
+  if (typeof tema === 'string') return { texto: tema, reunion: DESTINO_POR_DEFECTO };
   return {
-    texto: ((tema && tema.texto) || '').trim(),
+    texto: (tema && tema.texto) || '',
     reunion: (tema && tema.reunion) || DESTINO_POR_DEFECTO,
   };
 }
 
+/* Los temas listos para usarse: sin espacios sobrantes y sin los vacíos. */
 export function normalizarTemas(lista) {
-  return (lista || []).map(normalizarTema).filter((t) => t.texto);
+  return (lista || [])
+    .map(normalizarTema)
+    .map((t) => ({ ...t, texto: t.texto.trim() }))
+    .filter((t) => t.texto);
 }
 
 /* Los renglones de un bloque, ya listos para leerse. Solo "Temas" necesita
@@ -459,7 +468,7 @@ export function textoDeTemas(grupos, etiquetaSemana, titulo = 'Temas para la reu
   const partes = [`${titulo}${etiquetaSemana ? ` · ${etiquetaSemana}` : ''}`];
   (grupos || []).forEach((g) => {
     partes.push('', g.nombre);
-    g.temas.forEach((t) => partes.push(`-${normalizarTema(t).texto}`));
+    g.temas.forEach((t) => partes.push(`-${normalizarTema(t).texto.trim()}`));
   });
   if ((grupos || []).length === 0) partes.push('', 'Ninguno');
   return partes.join('\n');
