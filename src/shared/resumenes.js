@@ -91,7 +91,7 @@ export function fotoDeProyecto(project, dossiers, nombre) {
     id: project.id,
     nombre: project.nombre,
     /* Para poder dejar de repetir un proyecto ya terminado semana tras
-       semana (ver sinFinalizadosRepetidos). */
+       semana (ver sinCerradosRepetidos). */
     estado: project.estado || 'activo',
     total: mios.length,
     porEstado,
@@ -111,19 +111,28 @@ export function fotoDeLaSemana(projects, dossiers, nombre) {
     .filter(Boolean);
 }
 
-/* Un proyecto terminado no tiene por qué salir cada semana con el mismo 100%:
-   la semana en que se termina sí es noticia, las siguientes son ruido. Se
-   queda solo el que TODAVÍA no estaba finalizado en la foto anterior.
+/* Los estados en los que un proyecto deja de moverse. Un proyecto así no
+   tiene por qué salir cada semana con el mismo porcentaje: la semana en que
+   se cierra —o se pausa, o se desactiva— sí es noticia, las siguientes son
+   ruido. */
+export const ESTADOS_CERRADOS = ['finalizado', 'pausa', 'inactivo'];
+
+export const estaCerrado = (estado) => ESTADOS_CERRADOS.includes(estado);
+
+/* Se queda solo el proyecto cerrado que la semana pasada estaba en OTRO
+   estado: ahí es donde está la noticia. Pasar de pausa a inactivo también
+   cuenta —es un cambio— y volver a activarlo lo devuelve a la lista, porque
+   'activo' nunca se filtra.
 
    Cuando no hay foto anterior —el primer resumen de alguien— se deja pasar:
    más vale que aparezca una vez de más a que un proyecto que se acaba de
    cerrar no se registre nunca. */
-export function sinFinalizadosRepetidos(fotos, anteriores) {
+export function sinCerradosRepetidos(fotos, anteriores) {
   const previas = new Map((anteriores || []).map((f) => [f.id, f]));
   return (fotos || []).filter((foto) => {
-    if (foto.estado !== 'finalizado') return true;
+    if (!estaCerrado(foto.estado)) return true;
     const previa = previas.get(foto.id);
-    return !previa || previa.estado !== 'finalizado';
+    return !previa || previa.estado !== foto.estado;
   });
 }
 
@@ -163,7 +172,7 @@ export function cuentaDeFoto(foto) {
    pasada (o nada, si es el primero). */
 export function fotoConComparacion(fotos, anteriores) {
   const previas = new Map((anteriores || []).map((f) => [f.id, f]));
-  return sinFinalizadosRepetidos(fotos, anteriores).map((foto) => {
+  return sinCerradosRepetidos(fotos, anteriores).map((foto) => {
     const previa = previas.get(foto.id);
     const cambios = previa ? cambiosEntreFotos(previa, foto) : [];
     return {
@@ -461,10 +470,25 @@ export function textoDeTemas(grupos, etiquetaSemana, titulo = 'Temas para la reu
 /* El resumen como texto plano, con el formato que el equipo ya usa en el
    chat. Las menciones (@Fulano) no se pueden generar desde aquí: salen como
    texto y hay que volver a mencionarlas al pegar. */
-export function textoDelResumen({ bloques, proyectos, saludo = 'Buenas tardes', incluirAvance = true }) {
+export function textoDelResumen({ bloques, proyectos, saludo = 'Buenas tardes', incluirAvance = true, compacto = false }) {
   const partes = [saludo];
 
-  if (incluirAvance && (proyectos || []).length > 0) {
+  /* El mensaje que se pega en el chat es el que más sufre con treinta
+     proyectos: ahí van el total y lo que se movió, nada más. */
+  if (incluirAvance && compacto && (proyectos || []).length > 0) {
+    const t = totalDeAvance(proyectos);
+    partes.push('', 'Avance de mis proyectos');
+    partes.push(`-En total: ${t.proyectos} proyectos, ${t.apc} de ${t.seguidos} documentos en APC (${t.pct}%)`);
+    if (t.conMovimiento.length === 0) {
+      partes.push('-Ningún proyecto se movió esta semana');
+    } else {
+      t.conMovimiento.forEach((p) => {
+        const { pct } = cuentaDeFoto(p);
+        partes.push(`-${p.nombre}: ${pct}% · ${p.avanzaron} ${p.avanzaron === 1 ? 'documento avanzó' : 'documentos avanzaron'}`);
+      });
+      if (t.quietos > 0) partes.push(`-Los otros ${t.quietos} siguen igual`);
+    }
+  } else if (incluirAvance && (proyectos || []).length > 0) {
     partes.push('', 'Avance de mis proyectos');
     proyectos.forEach((p) => {
       const { pct, apc, seguidos } = cuentaDeFoto(p);
@@ -485,4 +509,39 @@ export function textoDelResumen({ bloques, proyectos, saludo = 'Buenas tardes', 
   });
 
   return partes.join('\n');
+}
+
+/* ------------------------------------------- avance de los roles transversales */
+
+/* Hidráulico, estructural y geotécnico no llevan tres o cuatro proyectos:
+   están en casi todos. Listarles treinta tarjetas, veintiocho de ellas
+   quietas en el mismo porcentaje, entierra lo único que un resumen semanal
+   tiene que decir — qué se movió. */
+export const ROLES_TRANSVERSALES = ['hidraulico', 'estructural', 'geotecnico'];
+
+export function usaAvanceCompacto(perfil) {
+  const roles = (perfil && perfil.roles) || [];
+  return roles.some((r) => ROLES_TRANSVERSALES.includes(r));
+}
+
+/* El avance de todos los proyectos sumado, más los que se movieron. Los
+   documentos en "No aplica" no cuentan, igual que en la torta del resto de la
+   aplicación: `cuentaDeFoto` ya lo resuelve por proyecto y aquí solo se
+   suman. */
+export function totalDeAvance(fotos) {
+  const lista = fotos || [];
+  const suma = lista.reduce((t, f) => {
+    const { seguidos, apc } = cuentaDeFoto(f);
+    return { seguidos: t.seguidos + seguidos, apc: t.apc + apc };
+  }, { seguidos: 0, apc: 0 });
+  const conMovimiento = lista.filter((f) => (f.avanzaron || 0) > 0);
+  return {
+    proyectos: lista.length,
+    seguidos: suma.seguidos,
+    apc: suma.apc,
+    pct: suma.seguidos === 0 ? 0 : Math.round((suma.apc / suma.seguidos) * 100),
+    avanzaron: conMovimiento.reduce((t, f) => t + f.avanzaron, 0),
+    conMovimiento,
+    quietos: lista.length - conMovimiento.length,
+  };
 }

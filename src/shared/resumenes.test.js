@@ -17,7 +17,8 @@ import {
   REUNIONES, cierreDeSemana, cierreValido, contarTemas, estadoDeEntrega, notaDeCierre,
   repartirEnReuniones, temasDeLaSemana, textoDeTemas, lineasDeBloque, normalizarTemas,
   ausenciaDeLaSemana, ausenciasQueTocan, rangoDeAusenciaValido, etiquetaDeMotivo,
-  sinFinalizadosRepetidos, sumarDias, textoDelResumen, ultimasSemanas, viernesDe,
+  sinCerradosRepetidos, ESTADOS_CERRADOS, estaCerrado, sumarDias, textoDelResumen, ultimasSemanas, viernesDe,
+  ROLES_TRANSVERSALES, usaAvanceCompacto, totalDeAvance,
 } from './resumenes.js';
 
 const dossier = {
@@ -284,29 +285,129 @@ describe('el texto que se pega en el chat', () => {
   });
 });
 
-describe('un proyecto terminado aparece una vez y deja de estorbar', () => {
-  const activo = { id: 'p1', estado: 'activo', estados: {} };
-  const recienCerrado = { id: 'p2', estado: 'finalizado', estados: {} };
+const APC = 'Aprobado para construcción (APC)';
 
-  it('la semana en que se cierra sí sale', () => {
-    const previas = [{ id: 'p2', estado: 'activo', estados: {} }];
-    expect(sinFinalizadosRepetidos([activo, recienCerrado], previas).map((f) => f.id)).toEqual(['p1', 'p2']);
+describe('el avance de quien está en casi todos los proyectos', () => {
+  /* Hidráulico, estructural y geotécnico no llevan tres proyectos: están en
+     casi todos. Treinta tarjetas, veintiocho quietas en el mismo porcentaje,
+     entierran lo único que un resumen semanal tiene que decir. */
+  const foto = (id, apc, total, avanzaron) => ({
+    id, nombre: id, estado: 'activo', total,
+    porEstado: { [APC]: apc },
+    hayComparacion: true, avanzaron, cambios: [],
   });
 
-  it('las semanas siguientes ya no', () => {
-    const previas = [{ id: 'p2', estado: 'finalizado', estados: {} }];
-    expect(sinFinalizadosRepetidos([activo, recienCerrado], previas).map((f) => f.id)).toEqual(['p1']);
+  it('reconoce los tres roles, y solo esos', () => {
+    expect(ROLES_TRANSVERSALES).toEqual(['hidraulico', 'estructural', 'geotecnico']);
+    expect(usaAvanceCompacto({ roles: ['geotecnico'] })).toBe(true);
+    expect(usaAvanceCompacto({ roles: ['civil', 'estructural'] })).toBe(true);
+    expect(usaAvanceCompacto({ roles: ['civil'] })).toBe(false);
+    expect(usaAvanceCompacto(null)).toBe(false);
+  });
+
+  it('suma el avance de todos los proyectos en uno solo', () => {
+    const t = totalDeAvance([foto('a', 5, 10, 0), foto('b', 3, 10, 2)]);
+    expect(t.proyectos).toBe(2);
+    expect(t.seguidos).toBe(20);
+    expect(t.apc).toBe(8);
+    expect(t.pct).toBe(40);
+  });
+
+  /* Lo que se movió es la noticia; lo quieto se cuenta, no se lista. */
+  it('separa los que se movieron de los que siguen igual', () => {
+    const t = totalDeAvance([foto('a', 5, 10, 0), foto('b', 3, 10, 2), foto('c', 1, 10, 1)]);
+    expect(t.conMovimiento.map((f) => f.id)).toEqual(['b', 'c']);
+    expect(t.avanzaron).toBe(3);
+    expect(t.quietos).toBe(1);
+  });
+
+  it('una semana sin movimiento lo dice sin dividir por cero', () => {
+    const t = totalDeAvance([]);
+    expect(t).toMatchObject({ proyectos: 0, seguidos: 0, apc: 0, pct: 0, avanzaron: 0, quietos: 0 });
+  });
+
+  /* Los "No aplica" no cuentan, igual que en la torta del resto de la
+     aplicación. */
+  it('no cuenta los documentos en "No aplica"', () => {
+    const conNoAplica = { ...foto('a', 5, 10, 0), porEstado: { [APC]: 5, 'No aplica': 4 } };
+    expect(totalDeAvance([conNoAplica]).seguidos).toBe(6);
+  });
+});
+
+describe('el texto del resumen, en su versión corta', () => {
+  const fotos = [
+    { id: 'a', nombre: 'Chinú 3', total: 10, porEstado: { [APC]: 5 }, hayComparacion: true, avanzaron: 0 },
+    { id: 'b', nombre: 'La Vega', total: 10, porEstado: { [APC]: 3 }, hayComparacion: true, avanzaron: 2 },
+    { id: 'c', nombre: 'Gamarra', total: 10, porEstado: { [APC]: 1 }, hayComparacion: true, avanzaron: 0 },
+  ];
+
+  it('lleva el total y solo lo que se movió', () => {
+    const texto = textoDelResumen({ bloques: {}, proyectos: fotos, compacto: true });
+    expect(texto).toContain('-En total: 3 proyectos, 9 de 30 documentos en APC (30%)');
+    expect(texto).toContain('-La Vega: 30% · 2 documentos avanzaron');
+    expect(texto).toContain('-Los otros 2 siguen igual');
+    /* Los quietos no se listan uno por uno: esa es la razón de todo esto. */
+    expect(texto).not.toContain('Chinú 3');
+  });
+
+  it('una semana sin movimiento lo dice', () => {
+    const quietos = fotos.map((f) => ({ ...f, avanzaron: 0 }));
+    const texto = textoDelResumen({ bloques: {}, proyectos: quietos, compacto: true });
+    expect(texto).toContain('-Ningún proyecto se movió esta semana');
+  });
+
+  /* Para el resto del equipo el texto no cambia. */
+  it('sin compacto sigue listando proyecto por proyecto', () => {
+    const texto = textoDelResumen({ bloques: {}, proyectos: fotos });
+    expect(texto).toContain('Chinú 3');
+    expect(texto).toContain('Gamarra');
+    expect(texto).not.toContain('En total:');
+  });
+});
+
+describe('un proyecto que deja de moverse aparece una vez y deja de estorbar', () => {
+  const activo = { id: 'p1', estado: 'activo', estados: {} };
+  const cerrado = (estado) => ({ id: 'p2', estado, estados: {} });
+  const previa = (estado) => [{ id: 'p2', estado, estados: {} }];
+  const ids = (fotos, previas) => sinCerradosRepetidos(fotos, previas).map((f) => f.id);
+
+  it('finalizado, en pausa e inactivo cuentan como cerrados', () => {
+    expect(ESTADOS_CERRADOS).toEqual(['finalizado', 'pausa', 'inactivo']);
+    expect(estaCerrado('activo')).toBe(false);
+    expect(estaCerrado('pausa')).toBe(true);
+  });
+
+  /* La semana del cambio es la noticia; las siguientes, ruido. */
+  it.each(['finalizado', 'pausa', 'inactivo'])('la semana en que pasa a %s sí sale', (estado) => {
+    expect(ids([activo, cerrado(estado)], previa('activo'))).toEqual(['p1', 'p2']);
+  });
+
+  it.each(['finalizado', 'pausa', 'inactivo'])('las semanas siguientes en %s ya no', (estado) => {
+    expect(ids([activo, cerrado(estado)], previa(estado))).toEqual(['p1']);
+  });
+
+  /* Pasar de pausa a inactivo también es un cambio de estado. */
+  it('cambiar de un estado cerrado a otro sí sale', () => {
+    expect(ids([cerrado('inactivo')], previa('pausa'))).toEqual(['p2']);
+  });
+
+  /* Reactivarlo lo devuelve a la lista: 'activo' nunca se filtra. */
+  it('al reactivarlo vuelve a aparecer todas las semanas', () => {
+    const reactivado = { id: 'p2', estado: 'activo', estados: {} };
+    expect(ids([reactivado], previa('pausa'))).toEqual(['p2']);
+    expect(ids([reactivado], previa('activo'))).toEqual(['p2']);
   });
 
   /* Más vale que salga una vez de más a que un proyecto recién cerrado no
      quede registrado nunca. */
   it('sin foto anterior se deja pasar', () => {
-    expect(sinFinalizadosRepetidos([activo, recienCerrado], null).map((f) => f.id)).toEqual(['p1', 'p2']);
+    expect(ids([activo, cerrado('finalizado')], null)).toEqual(['p1', 'p2']);
+    expect(ids([cerrado('pausa')], null)).toEqual(['p2']);
   });
 
   it('fotoConComparacion también lo filtra', () => {
-    const previas = [{ id: 'p2', estado: 'finalizado', estados: {} }];
-    expect(fotoConComparacion([activo, recienCerrado], previas).map((f) => f.id)).toEqual(['p1']);
+    const previas = [{ id: 'p2', estado: 'pausa', estados: {} }];
+    expect(fotoConComparacion([activo, cerrado('pausa')], previas).map((f) => f.id)).toEqual(['p1']);
   });
 });
 

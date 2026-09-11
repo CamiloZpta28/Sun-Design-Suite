@@ -13,8 +13,9 @@
    ============================================================================ */
 
 import React, { useState } from 'react';
-import { Bell, CheckCheck } from 'lucide-react';
+import { Bell, CheckCheck, BellRing, BellOff } from 'lucide-react';
 import { formatoFechaHora } from './formatos.js';
+import { soportado, permiso, avisosEncendidos, encenderAvisos, apagarAvisos } from './avisosNavegador.js';
 
 /* Cuánto sobrevive una notificación después de leída. */
 export const DIAS_TRAS_LEER = 1;
@@ -37,6 +38,55 @@ export function estaVencida(n, ahora = Date.now()) {
 /* Lo que se pinta: todo menos lo vencido. */
 export function notificacionesVigentes(notificaciones, ahora = Date.now()) {
   return (notificaciones || []).filter((n) => !estaVencida(n, ahora));
+}
+
+/* El interruptor de los avisos del sistema. Vive dentro del panel porque es
+   donde uno se acuerda de que existen: justo cuando ve que se perdió algo.
+
+   El permiso NO se pide al entrar a la plataforma: un navegador que pregunta
+   apenas abre una página se responde "bloquear" por reflejo, y eso después
+   cuesta deshacerlo. Se pide aquí, cuando la persona lo enciende a propósito. */
+export function InterruptorDeAvisos() {
+  const [encendidos, setEncendidos] = useState(() => avisosEncendidos());
+  const [estado, setEstado] = useState(() => (soportado() ? permiso() : 'unsupported'));
+
+  if (!soportado()) return null;
+
+  async function encender() {
+    const r = await encenderAvisos();
+    setEstado(permiso());
+    setEncendidos(r.ok);
+  }
+
+  function apagar() {
+    apagarAvisos();
+    setEncendidos(false);
+  }
+
+  if (estado === 'denied') {
+    return (
+      <p className="px-4 py-2.5 text-[11px] text-navy-400 border-t border-navy-100 leading-snug">
+        Este navegador tiene bloqueados los avisos del sitio. Se desbloquean desde el candado de la barra de
+        direcciones.
+      </p>
+    );
+  }
+
+  return (
+    <button
+      onClick={encendidos ? apagar : encender}
+      className="w-full flex items-center gap-2 px-4 py-2.5 text-[11px] font-semibold border-t border-navy-100 hover:bg-navy-50 text-left"
+    >
+      {encendidos
+        ? <BellRing className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+        : <BellOff className="w-3.5 h-3.5 text-navy-400 shrink-0" />}
+      <span className={encendidos ? 'text-emerald-700' : 'text-navy-500'}>
+        {encendidos
+          ? 'Avisos del navegador activados · desactivar'
+          : 'Activar avisos del navegador'}
+      </span>
+    </button>
+  );
 }
 
 /* --------------------------------------------------------------------------
@@ -102,6 +152,7 @@ export function NotificationBell({ notificaciones, onAbrirNotificacion, onMarcar
                 </p>
               </>
             )}
+            <InterruptorDeAvisos />
           </div>
         </>
       )}

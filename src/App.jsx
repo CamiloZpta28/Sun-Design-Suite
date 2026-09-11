@@ -10,6 +10,8 @@ import { rutaDe, estadoDeRuta } from './routes.js';
 import { Avatar } from './shared/ui.jsx';
 import { useCambiosEnVivo, textoDeCambio } from './shared/cambiosEnVivo.js';
 import { NotificationBell, notificacionesVigentes, fechaDeCorte } from './shared/notificaciones.jsx';
+import { useNotificacionesEnVivo } from './shared/notificacionesEnVivo.js';
+import { debeAvisar, mostrarAviso } from './shared/avisosNavegador.js';
 import { ultimasSemanas } from './shared/resumenes.js';
 
 import {
@@ -679,9 +681,14 @@ function Dashboard({ projects, misProyectos, proyectosRevision, onNewProject, op
   );
 }
 
-function ProjectListView({ projects, title, subtitle, onOpen, onNewProject, directorio, archivarFinalizados = false, mostrarFiltroInversionista = false }) {
+export function ProjectListView({
+  projects, title, subtitle, onOpen, onNewProject, directorio,
+  archivarFinalizados = false, mostrarFiltroInversionista = false, estadoInicial = 'todos',
+}) {
   const [search, setSearch] = useState('');
-  const [estadoFiltro, setEstadoFiltro] = useState('todos');
+  /* "Todos los proyectos" abre en los activos: es lo que se está trabajando.
+     Los pausados, inactivos y finalizados siguen a un clic, en el filtro. */
+  const [estadoFiltro, setEstadoFiltro] = useState(estadoInicial);
   const [inversionistaFiltro, setInversionistaFiltro] = useState('todos');
   const [mostrarArchivados, setMostrarArchivados] = useState(false);
 
@@ -2219,6 +2226,30 @@ export default function App() {
     logActivity(id, accion, categoria);
     if (updatedProject) crearNotificacionesProyecto(updatedProject, accion);
   }
+  /* ------------------- MIS NOTIFICACIONES, EN VIVO -----------------------
+     Antes se leían una sola vez, al entrar: quien dejaba la plataforma
+     abierta toda la tarde no se enteraba de nada. Ahora llegan solas, y si
+     la persona encendió los avisos del navegador, salen también como aviso
+     del sistema —solo cuando la pestaña NO está a la vista: si la está
+     mirando, la campanita ya se lo dice—. */
+  useNotificacionesEnVivo({
+    usuarioId: perfil?.id,
+    activo: !!perfil && dataLoaded,
+    onNotificacion: (fila) => {
+      setMisNotificaciones((prev) => (prev.some((n) => n.id === fila.id) ? prev : [fila, ...prev]));
+      if (!debeAvisar()) return;
+      mostrarAviso({
+        titulo: 'Sun Design Suite',
+        cuerpo: fila.mensaje,
+        /* Una por notificación: dos avisos distintos no se pisan, pero la
+           misma repetida tampoco se apila. */
+        tag: fila.id,
+        icono: logoMark,
+        alAbrir: () => handleAbrirNotificacion(fila),
+      });
+    },
+  });
+
   /* --------------------- CAMBIOS EN VIVO (Realtime) ----------------------
      Lo que otra persona guarda llega solo. Los proyectos que nadie está
      mirando se refrescan en silencio; el que está abierto se avisa y lo
@@ -3132,6 +3163,7 @@ export default function App() {
             directorio={directorio}
             archivarFinalizados
             mostrarFiltroInversionista
+            estadoInicial="activo"
           />
         )}
         {view === 'resumen_inversionistas' && (

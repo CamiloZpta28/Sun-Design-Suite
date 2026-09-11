@@ -11,7 +11,7 @@
    anclado a un lunes concreto.
    ============================================================================ */
 
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import ResumenesView, { diaYMes, esSoloDesarrollador } from './Resumenes.jsx';
 import { lunesDe, sumarDias, viernesDe } from '../shared/resumenes.js';
@@ -256,6 +256,13 @@ describe('copiar para el chat', () => {
 });
 
 describe('la vista del equipo', () => {
+  /* Los chips de entrega dependen del día: el viernes dicen "Cierra hoy" y
+     el sábado "No lo envió". Sin fijar la fecha, estas pruebas pasan de lunes
+     a jueves y fallan el resto de la semana. Se clavan en el lunes de la
+     semana que se está mirando. */
+  beforeEach(() => { vi.setSystemTime(new Date(`${SEMANA}T09:00:00`)); });
+  afterEach(() => { vi.useRealTimers(); });
+
   const soloBeto = {
     id: 'r2', usuario_id: 'u2', semana: SEMANA, enviado: true,
     bloques: { lo_mejor: ['Planos de Chinú 4'] }, proyectos: [],
@@ -801,5 +808,48 @@ describe('la vista de Temas de reuniones', () => {
     expect(copiado).toContain('Reunión civil');
     expect(copiado).toContain('Ana');
     expect(copiado).toContain('-Alcance de Chinú 5');
+  });
+});
+
+describe('el avance compacto de los roles transversales', () => {
+  const conDocumentos = (nombre) => ({
+    id: `p-${nombre}`, nombre, dossier_id: 'dos-1',
+    equipo: { geotecnico: ['Ana'] },
+    documentos: { 'C-PL-001': { estado: 'Entregado' } },
+    data: { general: {} },
+  });
+  /* El dossier reparte los dos documentos a 'geotecnico' para que Ana tenga
+     avance en cada proyecto. */
+  const dossierGeo = [{
+    id: 'dos-1', nombre: 'CFM', version: 1,
+    documentos: [
+      { id: 'a', codigo: 'C-PL-001', nombre: 'Cerramiento', especialidad: 'CIVIL', tipo: 'Plano', responsables: { geotecnico: 'E' } },
+      { id: 'b', codigo: 'C-INF-001', nombre: 'Vías', especialidad: 'CIVIL', tipo: 'Informe', responsables: { geotecnico: 'E' } },
+    ],
+  }];
+  const geotecnista = { id: 'u1', nombre: 'Ana', roles: ['geotecnico'] };
+  const cuatro = ['Chinú 3', 'La Vega', 'Gamarra', 'Totumal'].map(conDocumentos);
+
+  /* Cuatro proyectos y ninguno movido: con el avance de siempre serían cuatro
+     tarjetas; aquí es una línea. */
+  it('resume en un total en vez de listar todos los proyectos', () => {
+    pintar({ perfil: geotecnista, projects: cuatro, dossiers: dossierGeo });
+    expect(screen.getByText(/en total/)).toBeTruthy();
+    expect(screen.getByText(/repartidos en\s+4 proyectos/)).toBeTruthy();
+    expect(screen.getByText('Ningún proyecto se movió esta semana.')).toBeTruthy();
+    expect(screen.queryByText('Chinú 3')).toBe(null);
+  });
+
+  /* A un civil no le cambia nada: sigue viendo sus proyectos uno por uno. */
+  it('a los demás roles no les cambia nada', () => {
+    const civil = { id: 'u1', nombre: 'Ana', roles: ['civil'] };
+    const suyos = cuatro.map((p) => ({ ...p, equipo: { civil: ['Ana'] } }));
+    const dossierCivil = [{
+      ...dossierGeo[0],
+      documentos: dossierGeo[0].documentos.map((d) => ({ ...d, responsables: { civil: 'E' } })),
+    }];
+    pintar({ perfil: civil, projects: suyos, dossiers: dossierCivil });
+    expect(screen.queryByText(/en total/)).toBe(null);
+    expect(screen.getByText('Chinú 3')).toBeTruthy();
   });
 });

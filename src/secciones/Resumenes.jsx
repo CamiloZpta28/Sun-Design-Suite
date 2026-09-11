@@ -39,6 +39,7 @@ import {
   BLOQUES_RESUMEN, DESTINOS_TEMA, DESTINO_POR_DEFECTO, cierreDeSemana, cierreValido, contarTemas, cuentaDeFoto, estadoDeEntrega,
   etiquetaDeSemana, fotoConComparacion, fotoDeLaSemana, lineasDeBloque, lunesDe, normalizarTema,
   notaDeCierre, repartirEnReuniones, MOTIVOS_AUSENCIA, etiquetaDeMotivo, ausenciaDeLaSemana,
+  usaAvanceCompacto, totalDeAvance,
   ausenciasQueTocan, rangoDeAusenciaValido,
   sumarDias, temasDeLaSemana, textoDeTemas, textoDelResumen, ultimasSemanas,
 } from '../shared/resumenes.js';
@@ -196,7 +197,36 @@ function TarjetaAvance({ foto, onAbrirProyecto }) {
   );
 }
 
-function BloqueAvance({ fotos, onAbrirProyecto }) {
+/* El avance de quien está en casi todos los proyectos: primero el total, y
+   debajo solo lo que se movió. Los quietos se cuentan, no se listan. */
+function AvanceCompacto({ fotos, onAbrirProyecto }) {
+  const t = totalDeAvance(fotos);
+  return (
+    <div>
+      <div className="flex items-center gap-3 flex-wrap bg-lime-50 border border-lime-200 rounded-xl px-3 py-2.5 mb-2">
+        <p className="text-sm text-navy-700">
+          <span className="font-bold">{t.pct}%</span> en total ·{' '}
+          <span className="font-mono">{t.apc} de {t.seguidos}</span> documentos en APC, repartidos en{' '}
+          {t.proyectos} {t.proyectos === 1 ? 'proyecto' : 'proyectos'}.
+        </p>
+      </div>
+      {t.conMovimiento.length === 0 ? (
+        <p className="text-sm text-navy-400 italic">Ningún proyecto se movió esta semana.</p>
+      ) : (
+        <div className="space-y-2">
+          {t.conMovimiento.map((f) => <TarjetaAvance key={f.id} foto={f} onAbrirProyecto={onAbrirProyecto} />)}
+          {t.quietos > 0 && (
+            <p className="text-xs text-navy-400">
+              Los otros {t.quietos} siguen igual que la semana pasada.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BloqueAvance({ fotos, onAbrirProyecto, compacto }) {
   if (fotos.length === 0) {
     return (
       <p className="text-sm text-navy-300 italic">
@@ -205,6 +235,7 @@ function BloqueAvance({ fotos, onAbrirProyecto }) {
       </p>
     );
   }
+  if (compacto) return <AvanceCompacto fotos={fotos} onAbrirProyecto={onAbrirProyecto} />;
   return (
     <div className="space-y-2">
       {fotos.map((f) => <TarjetaAvance key={f.id} foto={f} onAbrirProyecto={onAbrirProyecto} />)}
@@ -361,16 +392,16 @@ function BloqueEnLectura({ bloque, lineas }) {
 }
 
 /* Un resumen ya enviado, en lectura: lo que ve el resto del equipo. */
-function ResumenEnLectura({ resumen, onAbrirProyecto }) {
+/* `compacto` se decide por los roles de QUIEN escribió el resumen, no por
+   quien lo lee: el de un geotécnico se resume igual lo mire quien lo mire. */
+function ResumenEnLectura({ resumen, onAbrirProyecto, compacto }) {
   const fotos = resumen?.proyectos || [];
   return (
     <div className="space-y-4">
       {fotos.length > 0 && (
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-2">Avance de sus proyectos</p>
-          <div className="space-y-2">
-            {fotos.map((f) => <TarjetaAvance key={f.id} foto={f} onAbrirProyecto={onAbrirProyecto} />)}
-          </div>
+          <BloqueAvance fotos={fotos} onAbrirProyecto={onAbrirProyecto} compacto={compacto} />
         </div>
       )}
       {BLOQUES_RESUMEN.map((bloque) => (
@@ -382,7 +413,7 @@ function ResumenEnLectura({ resumen, onAbrirProyecto }) {
 
 /* ------------------------------------------------------------- mi resumen */
 
-function MiResumen({ semana, cierre, guardado, fotosEnVivo, onGuardar, onAbrirProyecto }) {
+function MiResumen({ semana, cierre, guardado, fotosEnVivo, onGuardar, onAbrirProyecto, compacto }) {
   const [bloques, setBloques] = useState(() => guardado?.bloques || {});
   const [hasta, setHasta] = useState(() => guardado?.hasta || cierre);
   const [incluirAvance, setIncluirAvance] = useState(true);
@@ -417,7 +448,7 @@ function MiResumen({ semana, cierre, guardado, fotosEnVivo, onGuardar, onAbrirPr
   }
 
   async function copiar() {
-    const texto = textoDelResumen({ bloques, proyectos: fotos, incluirAvance });
+    const texto = textoDelResumen({ bloques, proyectos: fotos, incluirAvance, compacto });
     if (!(await copiarTexto(texto))) {
       window.alert('El navegador no dejó copiar. Selecciona el texto a mano.');
       return;
@@ -467,7 +498,7 @@ function MiResumen({ semana, cierre, guardado, fotosEnVivo, onGuardar, onAbrirPr
 
       <div>
         <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-2">Avance de mis proyectos</p>
-        <BloqueAvance fotos={fotos} onAbrirProyecto={onAbrirProyecto} />
+        <BloqueAvance fotos={fotos} onAbrirProyecto={onAbrirProyecto} compacto={compacto} />
       </div>
 
       {BLOQUES_RESUMEN.map((bloque) => (
@@ -652,7 +683,7 @@ function FilaPersona({ persona, resumen, onAbrirProyecto, cierre, ausencia }) {
       </button>
       {abierto && enviado && (
         <div className="border-t border-navy-100 px-3 py-3">
-          <ResumenEnLectura resumen={resumen} onAbrirProyecto={onAbrirProyecto} />
+          <ResumenEnLectura resumen={resumen} onAbrirProyecto={onAbrirProyecto} compacto={usaAvanceCompacto(persona)} />
         </div>
       )}
     </div>
@@ -1062,6 +1093,7 @@ export default function ResumenesView({ perfil, directorio, projects, dossiers, 
           cierre={cierre}
           guardado={mio}
           fotosEnVivo={fotosEnVivo}
+          compacto={usaAvanceCompacto(perfil)}
           onGuardar={onGuardar}
           onAbrirProyecto={onAbrirProyecto}
         />

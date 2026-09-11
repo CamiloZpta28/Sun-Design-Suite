@@ -50,7 +50,8 @@ Sigue los pasos en orden. No necesitas experiencia previa con Supabase.
 > `supabase/migration_notificaciones_limpieza.sql` y
 > `supabase/migration_resumenes_semanales.sql` y
 > `supabase/migration_cierre_semana.sql` y
-> `supabase/migration_ausencias.sql`. Cada uno agrega
+> `supabase/migration_ausencias.sql` y
+> `supabase/migration_notificaciones_en_vivo.sql`. Cada uno agrega
 > solo lo nuevo sin tocar lo que ya tenías. Si no recuerdas si ya corriste
 > alguno, no pasa nada por intentarlo de nuevo: en el peor caso te marcará
 > un error de "ya existe", que puedes ignorar.
@@ -174,6 +175,44 @@ ingeniero. Cada persona:
 ---
 
 ## Notas y siguientes pasos
+
+- **Las notificaciones llegan al navegador.** En el panel de la campanita hay
+  un interruptor para **activar los avisos del navegador**: desde ahí se pide
+  el permiso y salen como aviso del sistema, con el nombre de quien hizo qué.
+  - Solo salen **cuando la pestaña no está a la vista**: si la estás mirando,
+    la campanita ya te lo dice y el aviso encima sería ruido.
+  - El permiso **no se pide al entrar** a la plataforma: un navegador que
+    pregunta apenas abre una página se responde "bloquear" por reflejo, y eso
+    después cuesta deshacerlo.
+  - **Lo que esto NO es**: una notificación con la plataforma cerrada. Eso
+    pide un service worker, Web Push y un servidor que empuje los avisos —otro
+    proyecto—. Aquí el aviso sale mientras la aplicación esté abierta en
+    alguna pestaña.
+  - De paso, las notificaciones ahora **llegan solas**: antes se leían una vez
+    al entrar, así que quien dejaba la plataforma abierta toda la tarde no se
+    enteraba de nada.
+  - **Necesita migración**: `supabase/migration_notificaciones_en_vivo.sql`.
+    Sin ella siguen apareciendo al entrar, como hasta ahora, y los avisos del
+    navegador no salen.
+
+- **Resúmenes semanales: un proyecto que deja de moverse aparece una vez.** Ya
+  pasaba con los finalizados; ahora también con los que pasan a **En pausa** o
+  **Inactivo**. La semana del cambio sí es noticia, las siguientes son ruido.
+  Reactivarlo lo devuelve a la lista, y pasar de pausa a inactivo también
+  cuenta como cambio.
+
+- **Avance compacto para hidráulico, estructural y geotécnico.** Están en casi
+  todos los proyectos, y treinta tarjetas —veintiocho quietas en el mismo
+  porcentaje— entierran lo único que un resumen semanal tiene que decir. Ahora
+  ven **un total arriba** (X% en total, N de M documentos en APC) y debajo
+  **solo los proyectos que se movieron**; los quietos se cuentan, no se
+  listan. Aplica igual en el texto que se pega al chat y en el resumen que lee
+  el resto del equipo. A los demás roles no les cambia nada.
+
+- **"Todos los proyectos" abre en los activos.** Es lo que se está trabajando;
+  los pausados, inactivos y finalizados siguen a un clic, en el filtro de
+  estado.
+
 
 - **El diseño de vía aterriza en el proyecto**: la pestaña Civil tiene una
   subcategoría nueva, **"Vía"**, con la longitud, el ancho, los espesores y
