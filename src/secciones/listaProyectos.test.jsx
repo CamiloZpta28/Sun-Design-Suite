@@ -102,3 +102,34 @@ describe('el cableado en App.jsx', () => {
     expect(bloque).toContain('estadoInicial="activo"');
   });
 });
+
+describe('la pestaña de finalizados', () => {
+  /* Regresión: al hacer que "Todos los proyectos" abriera en los activos, el
+     filtro de estado se quedaba en 'activo' también en la pestaña de
+     archivados —donde el selector ni siquiera se muestra—, así que los
+     finalizados quedaban escondidos detrás de un filtro invisible. */
+  const irAFinalizados = () => fireEvent.click(screen.getByText(/Finalizados/));
+
+  it('muestra los finalizados aunque la lista abra en los activos', () => {
+    pintar({ estadoInicial: 'activo', archivarFinalizados: true });
+    irAFinalizados();
+    expect(screen.getByText('Finalizado Cuatro')).toBeTruthy();
+    expect(screen.queryByText(/No hay proyectos finalizados/)).toBe(null);
+  });
+
+  it('el contador de la pestaña coincide con lo que se ve', () => {
+    pintar({ estadoInicial: 'activo', archivarFinalizados: true });
+    expect(screen.getByText('Finalizados (1)')).toBeTruthy();
+    irAFinalizados();
+    expect(screen.getAllByText('Finalizado Cuatro')).toHaveLength(1);
+  });
+
+  /* Y al volver, los activos siguen filtrados como estaban. */
+  it('volver a activos conserva el filtro', () => {
+    pintar({ estadoInicial: 'activo', archivarFinalizados: true });
+    irAFinalizados();
+    fireEvent.click(screen.getByText(/Activos/));
+    expect(screen.getByText('Activo Uno')).toBeTruthy();
+    expect(screen.queryByText('Pausado Dos')).toBe(null);
+  });
+});

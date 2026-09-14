@@ -155,3 +155,22 @@ export function esAprobadorDe(perfil, project) {
   const equipo = project.equipo || {};
   return equipo.aprobador_electrico === perfil.nombre;
 }
+
+/* Quiénes elaboraron el proyecto: no solo los civiles. En el rótulo de la
+   hoja de vida y en la cabecera del proyecto aparecía únicamente `civil`,
+   así que los eléctricos y los delineantes hacían el trabajo y no salían
+   por ninguna parte.
+
+   Van en el orden en que se lee un plano —civiles, eléctricos, delineantes—
+   y sin repetidos: alguien con dos roles en el mismo proyecto se nombra una
+   sola vez. */
+export const CLAVES_ELABORARON = ['civil', 'electrico', 'delineante'];
+
+export function equipoQueElaboro(equipo) {
+  const nombres = CLAVES_ELABORARON.flatMap((clave) => equipoComoArray((equipo || {})[clave]));
+  return [...new Set(nombres)];
+}
+
+export function textoQueElaboro(equipo) {
+  return equipoQueElaboro(equipo).join(', ');
+}

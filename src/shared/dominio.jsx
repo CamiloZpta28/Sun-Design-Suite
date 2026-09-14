@@ -264,8 +264,13 @@ export const SCHEMA = [
       { key: 'tipo_predio', label: 'Tipo predio (rural o urbano)', type: 'text' },
       { key: 'area_legal', label: 'Área legal (m²)', type: 'text' },
       { key: 'perimetro_legal', label: 'Perímetro legal (m)', type: 'text' },
-      { key: 'fecha_inicio', label: 'Fecha de Inicio', type: 'date' },
-      { key: 'fecha_entrega', label: 'Fecha de Entrega', type: 'date' },
+      /* Las fechas del proyecto las mueve quien lo dirige, esté o no asignado
+         a él: un líder reprograma una entrega sin tener que meterse al equipo
+         técnico. Es la única excepción a "solo el equipo asignado edita", y va
+         marcada campo por campo para que no se vuelva una puerta abierta al
+         resto de la pestaña. */
+      { key: 'fecha_inicio', label: 'Fecha de Inicio', type: 'date', editaElLider: true },
+      { key: 'fecha_entrega', label: 'Fecha de Entrega', type: 'date', editaElLider: true },
 
       /* Operador de red / Inversionista / Instalador: cada uno es un        */
       /* catálogo compartido (mismo criterio que Mallas/Países/Proveedores)  */

@@ -25,7 +25,7 @@ import { allFieldGroups, allGroupedFieldKeys, displayLabelFor, groupToOpenFor, r
 import { STRUCTURE_LABELS, getStructureType } from '../technical-notes/index.js';
 import {
   ROLES, equipoComoArray, equipoNombres, equipoTexto, isAssignedToProject, isDeveloper,
-  isLeader, isQA, roleLabel,
+  isLeader, isQA, roleLabel, textoQueElaboro,
 } from '../shared/permisos.js';
 import { ResumenLineas, atributosLineas, FiltroFichas, alternarEn } from '../shared/ui.jsx';
 import { SIN_ASIGNAR, responsablesDeDocumento, valoresDeResponsable } from '../shared/responsables.js';
@@ -946,7 +946,7 @@ export function FieldRenderer({
 }
 
 export function SectionFieldsGrid({
-  section, data, editMode, onFieldChange, inversionistas, onAddInversionista, paises, onAddPais,
+  section, data, editMode, soloCamposDelLider, onFieldChange, inversionistas, onAddInversionista, paises, onAddPais,
   proveedores, onAddProveedor, plantillasCimentacion, plantillasEquipos,
   inversionistasDetalle, operadoresRed, onAddOperadorRed, instaladores, onAddInstalador,
   ingenierosProyectos, onUpdateCatalogoAtributo,
@@ -1027,6 +1027,10 @@ export function SectionFieldsGrid({
   /* `contextual`: dentro del acordeón, la jerarquía grupo › subgrupo ya da el
      contexto, así que se usa la etiqueta corta. Fuera de él (campos propios
      de la pestaña) se conserva el label canónico completo. */
+  /* Un líder que no está en el equipo entra a editar solo los campos suyos
+     —hoy, las fechas—; el resto de la pestaña se queda en lectura. */
+  const editaEste = (field) => editMode && (!soloCamposDelLider || !!field.editaElLider);
+
   function renderCampos(fields, { contextual = false } = {}) {
     // Estructural y Eléctrico están dominadas por selectores de plantillas
     // (cimentacion_plantilla / equipo_plantilla) con su propia vista previa;
@@ -1058,7 +1062,7 @@ export function SectionFieldsGrid({
             <FieldRenderer
               field={field}
               value={data ? data[field.key] : undefined}
-              editMode={editMode}
+              editMode={editaEste(field)}
               onChange={(val) => onFieldChange(section.id, field.key, val)}
               siblingData={data}
               inversionistas={inversionistas}
@@ -1084,7 +1088,7 @@ export function SectionFieldsGrid({
                   <FieldRenderer
                     field={{ ...pareja, label: pareja.labelCorto || pareja.label }}
                     value={data ? data[pareja.key] : undefined}
-                    editMode={editMode}
+                    editMode={editaEste(pareja)}
                     onChange={(val) => onFieldChange(section.id, pareja.key, val)}
                     siblingData={data}
                   />
@@ -1924,7 +1928,7 @@ export function PrintableReport({ project, plantillasCimentacion, plantillasEqui
             <td className="px-3 py-2 font-semibold text-navy-500 bg-navy-50 w-1/4">Estado</td>
             <td className="px-3 py-2">{STATUS_CONFIG[project.estado]?.label}</td>
             <td className="px-3 py-2 font-semibold text-navy-500 bg-navy-50 w-1/4">Elaboró</td>
-            <td className="px-3 py-2">{equipoTexto(project.equipo.civil) || 'N/A'}</td>
+            <td className="px-3 py-2">{textoQueElaboro(project.equipo) || 'N/A'}</td>
           </tr>
           <tr>
             <td className="px-3 py-2 font-semibold text-navy-500 bg-navy-50">Fecha de Inicio</td>
@@ -2686,6 +2690,13 @@ export function ProjectDetail({
 
   const dataForRender = editMode ? draftData : project.data;
   const activeSection = SCHEMA.find((s) => s.id === activeTab);
+
+  /* Un líder que no está en el equipo igual dirige el proyecto: puede mover
+     sus fechas. Solo esos campos —los marcados con `editaElLider` en
+     SCHEMA—, no la pestaña entera. */
+  const camposDelLiderEnLaSeccion = (activeSection?.fields || []).filter((f) => f.editaElLider);
+  const puedeEditarFechas = puedeGestionar && !puedeEditarContenido && camposDelLiderEnLaSeccion.length > 0;
+
   /* Un proyecto sin la sección "general" no puede dejar la pantalla en
      blanco: se trabaja sobre un objeto vacío. */
   const general = project.data?.general || {};
@@ -2889,7 +2900,7 @@ export function ProjectDetail({
             <TitleCell label="Inversionista" value={general.inversionista} />
             <TitleCell label="Fecha de Inicio" value={formatDate(general.fecha_inicio)} />
             <TitleCell label="Fecha de Entrega" value={formatDate(general.fecha_entrega)} />
-            <TitleCell label="Elaboró" value={equipoTexto(project.equipo.civil)} />
+            <TitleCell label="Elaboró" value={textoQueElaboro(project.equipo)} />
           </div>
         </div>
 
@@ -3042,13 +3053,16 @@ export function ProjectDetail({
               <>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs text-navy-400">Campos de la especialidad · {activeSection.label}</p>
-                  {!puedeEditarContenido ? (
+                  {!puedeEditarContenido && !puedeEditarFechas ? (
                     <span className="flex items-center gap-1.5 text-xs text-navy-400">
                       <Lock className="w-3.5 h-3.5" /> Solo el equipo asignado puede editar
                     </span>
                   ) : !editMode ? (
                     <button onClick={startEdit} className="flex items-center gap-1.5 text-xs font-semibold text-lime-600 hover:text-lime-700">
-                      <Pencil className="w-3.5 h-3.5" /> Editar campos
+                      <Pencil className="w-3.5 h-3.5" />
+                      {puedeEditarContenido
+                        ? 'Editar campos'
+                        : `Editar ${camposDelLiderEnLaSeccion.length === 1 ? 'la fecha' : 'las fechas'}`}
                     </button>
                   ) : (
                     <div className="flex items-center gap-2">
@@ -3069,6 +3083,7 @@ export function ProjectDetail({
                   section={activeSection}
                   data={dataForRender[activeSection.id]}
                   editMode={editMode}
+                  soloCamposDelLider={!puedeEditarContenido}
                   onFieldChange={handleFieldChange}
                   inversionistas={inversionistas}
                   onAddInversionista={onAddInversionista}

@@ -176,6 +176,25 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **"Elaboró" nombra a todo el que elaboró**: civiles, eléctricos y
+  delineantes, no solo los civiles como hasta ahora. Sale así en la cabecera
+  del proyecto y en la hoja de vida imprimible, sin repetir a quien tiene dos
+  roles en el mismo proyecto. Los transversales —hidráulico, estructural,
+  geotécnico— no entran ahí: apoyan, y ya salen en el equipo asignado.
+
+- **Un líder puede mover las fechas de un proyecto** aunque no esté en su
+  equipo técnico: dirige el proyecto, así que reprograma una entrega sin
+  tener que meterse al equipo. Solo esos dos campos —Fecha de Inicio y Fecha
+  de Entrega—; el resto de la pestaña le sigue en lectura. Van marcados uno
+  por uno en `SCHEMA` para que la excepción no se vuelva una puerta abierta.
+
+- **Corregido: la pestaña de proyectos finalizados salía vacía.** Fue una
+  regresión de hacer que "Todos los proyectos" abriera en los activos: el
+  filtro de estado se quedaba en *activo* también en la pestaña de
+  archivados, donde el selector ni siquiera se muestra, así que los
+  finalizados quedaban escondidos detrás de un filtro invisible.
+
+
 - **Las notificaciones llegan al navegador.** En el panel de la campanita hay
   un interruptor para **activar los avisos del navegador**: desde ahí se pide
   el permiso y salen como aviso del sistema, con el nombre de quien hizo qué.

@@ -705,7 +705,11 @@ export function ProjectListView({
     const codigo = buildProjectCode(general);
     const haystack = `${p.nombre} ${general.municipio || ''} ${general.departamento || ''} ${codigo}`.toLowerCase();
     const matchSearch = haystack.includes(search.toLowerCase());
-    const matchEstado = estadoFiltro === 'todos' || p.estado === estadoFiltro;
+    /* En la pestaña de archivados el selector de estado no se muestra, así
+       que su valor no puede seguir filtrando: con "Todos los proyectos"
+       abriendo en "activo", los finalizados quedaban escondidos detrás de un
+       filtro invisible. */
+    const matchEstado = mostrarArchivados || estadoFiltro === 'todos' || p.estado === estadoFiltro;
     const matchInversionista = inversionistaFiltro === 'todos' || (general.inversionista || '') === inversionistaFiltro;
     return matchSearch && matchEstado && matchInversionista;
   });

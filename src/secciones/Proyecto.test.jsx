@@ -726,3 +726,85 @@ describe('subcategoría Vía, en la pestaña Civil', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
   });
 });
+
+describe('quiénes elaboraron el proyecto', () => {
+  /* Aparecían solo los civiles, así que los eléctricos y los delineantes
+     hacían el trabajo y no salían por ninguna parte. */
+  const conEquipo = () => proyecto({
+    equipo: {
+      civil: ['Ana', 'Caro'],
+      electrico: ['Beto'],
+      delineante: ['Dani', 'Ana'],
+      geotecnico: ['Tito'],
+    },
+  });
+
+  it('nombra a civiles, eléctricos y delineantes', () => {
+    render(<ProjectDetail project={conEquipo()} perfil={perfilLider} {...props} />);
+    const elaboro = screen.getAllByText('Elaboró')[0].parentElement;
+    ['Ana', 'Caro', 'Beto', 'Dani'].forEach((n) => expect(elaboro.textContent, n).toContain(n));
+  });
+
+  /* Quien tiene dos roles en el mismo proyecto se nombra una sola vez. */
+  it('no repite a quien tiene dos roles', () => {
+    render(<ProjectDetail project={conEquipo()} perfil={perfilLider} {...props} />);
+    const elaboro = screen.getAllByText('Elaboró')[0].parentElement.textContent;
+    expect(elaboro.match(/Ana/g)).toHaveLength(1);
+  });
+
+  /* Los transversales no "elaboran" el proyecto: apoyan. Van en el equipo
+     asignado, que se muestra aparte. */
+  it('no incluye a los transversales', () => {
+    render(<ProjectDetail project={conEquipo()} perfil={perfilLider} {...props} />);
+    const elaboro = screen.getAllByText('Elaboró')[0].parentElement.textContent;
+    expect(elaboro).not.toContain('Tito');
+  });
+});
+
+describe('las fechas del proyecto las mueve un líder', () => {
+  const ajeno = () => proyecto({ equipo: { civil: ['Otro'] } });
+  const lider = { id: 'u5', nombre: 'Jefa', roles: ['lider_diseno'] };
+  const irAGeneral = () => fireEvent.click(
+    screen.getAllByRole('button').find((b) => b.textContent.trim().startsWith('General')),
+  );
+
+  /* Un líder dirige el proyecto aunque no esté en su equipo técnico: puede
+     reprogramar una entrega sin tener que meterse al equipo. */
+  it('un líder que no está en el equipo puede editarlas', () => {
+    /* La etiqueta también está en la cabecera del proyecto, así que se busca
+       por la celda del formulario. */
+    const { container } = render(<ProjectDetail project={ajeno()} perfil={lider} {...props} />);
+    irAGeneral();
+    fireEvent.click(screen.getByText(/Editar las fechas/));
+    expect(container.querySelector('[data-field-key="fecha_inicio"] input')).toBeTruthy();
+    expect(container.querySelector('[data-field-key="fecha_entrega"] input')).toBeTruthy();
+  });
+
+  /* Pero solo esas: el resto de la pestaña se queda en lectura. */
+  it('el resto de la pestaña le sigue en lectura', () => {
+    const { container } = render(<ProjectDetail project={ajeno()} perfil={lider} {...props} />);
+    irAGeneral();
+    fireEvent.click(screen.getByText(/Editar las fechas/));
+    const fechas = container.querySelectorAll('input[type="date"]');
+    const todos = container.querySelectorAll('.p-6 input, .p-6 textarea, .p-6 select');
+    expect(fechas.length).toBe(2);
+    expect(todos.length).toBe(fechas.length);
+  });
+
+  /* Quien sí está en el equipo edita todo, como siempre. */
+  it('el equipo asignado sigue editando la pestaña entera', () => {
+    const mio = proyecto({ equipo: { civil: ['Ana'] } });
+    const { container } = render(<ProjectDetail project={mio} perfil={{ id: 'u1', nombre: 'Ana', roles: ['civil'] }} {...props} />);
+    irAGeneral();
+    fireEvent.click(screen.getByText('Editar campos'));
+    expect(container.querySelectorAll('.p-6 input').length).toBeGreaterThan(2);
+  });
+
+  /* Y quien no es ni lo uno ni lo otro, no edita nada. */
+  it('alguien sin rol ni asignación no ve el botón', () => {
+    render(<ProjectDetail project={ajeno()} perfil={perfilAjeno} {...props} />);
+    irAGeneral();
+    expect(screen.getByText(/Solo el equipo asignado puede editar/)).toBeTruthy();
+    expect(screen.queryByText(/Editar/)).toBe(null);
+  });
+});
