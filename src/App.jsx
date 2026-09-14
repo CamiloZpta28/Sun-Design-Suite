@@ -2,7 +2,7 @@ import React, { useState, useEffect, lazy, Suspense } from 'react';
 import {
   LayoutDashboard, FolderKanban, Layers, Link2, Zap, Cog, Plus, Search, X, Trash2, ChevronLeft,
   Pencil, MapPin, Calendar, Users, ExternalLink, Check, UploadCloud, XCircle, Loader2,
-  RefreshCw, LogOut, ShieldCheck, Lock, ClipboardCheck, UserCog, ChevronDown, ChevronRight,
+  RefreshCw, LogOut, ShieldCheck, Lock, UserCog, ChevronDown, ChevronRight,
   Video, PartyPopper, PieChart, AlertTriangle, Menu, UserPlus, Boxes, GitBranch, Bell, Route, FileText, CalendarCheck
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
@@ -26,7 +26,7 @@ import { RECUBRIMIENTO_CIMENTACION, BARRA_ACERO, TRASLAPO_TABLE, aplicarParametr
 import { ACTUALIZACION_CATEGORIAS_SEED } from './secciones/actualizacionesDatos.js';
 import {
   ROLES, usaResumenPersonal, esRolMultiple, equipoComoArray, equipoNombres, ALL_ROLE_DEFS,
-  EQUIPO_CATEGORIAS, rolesLabel, isLeader, isDesignLeader, canAssignRole, esAprobadorDe
+  EQUIPO_CATEGORIAS, rolesLabel, isLeader, isDesignLeader, canAssignRole
 } from './shared/permisos.js';
 import logoMark from './assets/logo-s-mark.png';
 
@@ -479,7 +479,6 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile,
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { key: 'mis', label: 'Mis Proyectos', icon: FolderKanban },
-    { key: 'revision', label: 'Revisión de Proyectos', icon: ClipboardCheck },
     { key: 'todos', label: 'Todos los Proyectos', icon: Layers },
     { key: 'resumen_inversionistas', label: 'Resumen por Inversionista', icon: PieChart },
     { key: 'cimentaciones', label: 'Cimentaciones', icon: Boxes },
@@ -619,7 +618,7 @@ function ProjectCard({ project, onClick, directorio }) {
 /* ============================================================================
    8. VISTAS PRINCIPALES
    ============================================================================ */
-function Dashboard({ projects, misProyectos, proyectosRevision, onNewProject, openProject, setView, directorio, perfil }) {
+function Dashboard({ projects, misProyectos, onNewProject, openProject, setView, directorio, perfil }) {
   const resumenPersonal = usaResumenPersonal(perfil);
   const universoResumen = resumenPersonal ? misProyectos : projects;
   const total = universoResumen.length;
@@ -663,19 +662,6 @@ function Dashboard({ projects, misProyectos, proyectosRevision, onNewProject, op
           <ProjectCard key={p.id} project={p} onClick={() => openProject(p.id)} directorio={directorio} />
         ))}
         {misProyectos.length === 0 && <p className="text-navy-400 text-sm italic col-span-full">No tienes proyectos asignados todavía.</p>}
-      </div>
-
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold text-navy-800">Revisión de proyectos</h2>
-        <button onClick={() => setView('revision')} className="text-sm font-medium text-lime-600 hover:text-lime-700">
-          Ver todos →
-        </button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {proyectosRevision.slice(0, 3).map((p) => (
-          <ProjectCard key={p.id} project={p} onClick={() => openProject(p.id)} directorio={directorio} />
-        ))}
-        {proyectosRevision.length === 0 && <p className="text-navy-400 text-sm italic col-span-full">No tienes proyectos para aprobar todavía.</p>}
       </div>
     </div>
   );
@@ -3055,7 +3041,6 @@ export default function App() {
   const misProyectos = projects
     .filter((p) => equipoNombres(p.equipo).includes(perfil.nombre))
     .sort((a, b) => new Date(misVisitas[b.id] || b.created_at || 0) - new Date(misVisitas[a.id] || a.created_at || 0));
-  const proyectosRevision = projects.filter((p) => esAprobadorDe(perfil, p));
   const selectedProject = projects.find((p) => p.id === selectedId);
   const stats = {
     activo: projects.filter((p) => p.estado === 'activo').length,
@@ -3129,7 +3114,6 @@ export default function App() {
           <Dashboard
             projects={projects}
             misProyectos={misProyectos}
-            proyectosRevision={proyectosRevision}
             onNewProject={() => setShowCreate(true)}
             openProject={openProject}
             setView={setView}
@@ -3142,16 +3126,6 @@ export default function App() {
             projects={misProyectos}
             title="Mis Proyectos"
             subtitle={`Proyectos donde ${perfil.nombre} hace parte del equipo`}
-            onOpen={openProject}
-            onNewProject={() => setShowCreate(true)}
-            directorio={directorio}
-          />
-        )}
-        {view === 'revision' && (
-          <ProjectListView
-            projects={proyectosRevision}
-            title="Revisión de Proyectos"
-            subtitle={`Proyectos donde ${perfil.nombre} es revisor eléctrico`}
             onOpen={openProject}
             onNewProject={() => setShowCreate(true)}
             directorio={directorio}

@@ -80,3 +80,17 @@ describe('estadoDeRuta', () => {
     });
   });
 });
+
+describe('la sección de revisión se retiró', () => {
+  /* La mecánica de revisión eléctrica ya no existe: su dirección tampoco,
+     para que un enlace viejo no abra una pantalla que no está. */
+  it('/revision ya no es una vista', () => {
+    expect(RUTAS_VISTA.revision).toBe(undefined);
+    expect(Object.values(RUTAS_VISTA)).not.toContain('/revision');
+  });
+
+  /* Y un enlace viejo cae en el Dashboard, no en una pantalla en blanco. */
+  it('un enlace viejo a /revision no deja la pantalla rota', () => {
+    expect(estadoDeRuta('/revision').view).toBe('dashboard');
+  });
+});

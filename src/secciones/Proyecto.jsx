@@ -14,7 +14,7 @@ import {
   AlertTriangle, Bold, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck,
   ClipboardList, FileText, Folder, History, Italic, List, Lock, MessageSquare, Package, Pencil,
   Plus, Printer, RefreshCw, Save, StickyNote, Trash2, Underline, UploadCloud, Users, X,
-  XCircle, Zap,
+  XCircle,
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import logoMark from '../assets/logo-s-mark.png';
@@ -24,7 +24,7 @@ import { isBlank } from '../technical-notes/formatters.js';
 import { allFieldGroups, allGroupedFieldKeys, displayLabelFor, groupToOpenFor, requiresAccordion } from '../technical-notes/fieldGroups.js';
 import { STRUCTURE_LABELS, getStructureType } from '../technical-notes/index.js';
 import {
-  ROLES, equipoComoArray, equipoNombres, equipoTexto, isAssignedToProject, isDeveloper,
+  ROLES, equipoNombres, equipoTexto, isAssignedToProject, isDeveloper,
   isLeader, isQA, roleLabel, textoQueElaboro,
 } from '../shared/permisos.js';
 import { ResumenLineas, atributosLineas, FiltroFichas, alternarEn } from '../shared/ui.jsx';
@@ -34,7 +34,7 @@ import { TablaEstaciones } from '../shared/TablaEstaciones.jsx';
 import { SeccionDeVia } from './seccionDeVia.jsx';
 import { usePresenciaProyecto, quienEdita, PresenciaBarra, AvisoPestanaOcupada } from '../shared/presencia.jsx';
 import {
-  camposPlegables, MESES_ENERGIA, COLOMBIA, DOC_ESTADOS, DOC_ESTADO_CONFIG, DOC_ESTADO_CORTO, EquipoField, EquipoSelect,
+  camposPlegables, MESES_ENERGIA, COLOMBIA, DOC_ESTADOS, DOC_ESTADO_CONFIG, DOC_ESTADO_CORTO, EquipoField,
   EspecialidadBarra, GRUPO_NOTAS_TECNICAS, IngenieroProyectosField, InstaladorPicker,
   InversionistaPicker, OperadorRedPicker, PaisPicker, ProgresoDonut, ProveedorPicker,
   SCHEMA, STATUS_CONFIG, StatusBadge, buildProjectCode, categoriaLabel, dossierPorEspecialidad,
@@ -2415,10 +2415,6 @@ export function ProjectDetail({
   const puedeGestionar = isLeader(perfil); // asignar equipo + cambiar estado + eliminar/renombrar proyecto
   const puedeEditarContenido = isDeveloper(perfil) || isAssignedToProject(perfil, project); // campos técnicos + archivos + notas
   const puedeComentar = isQA(perfil); // comentarios en Control Documental
-  /* Además de un líder, el ingeniero eléctrico YA asignado a ESTE proyecto   */
-  /* también puede elegir quién lo revisa (no cualquier eléctrico de la      */
-  /* empresa, solo el de este proyecto).                                     */
-  const puedeAsignarAprobadorElectrico = puedeGestionar || equipoComoArray(project.equipo.electrico).includes(perfil.nombre);
 
   async function loadHistorial() {
     setLoadingHistorial(true);
@@ -2911,10 +2907,7 @@ export function ProjectDetail({
             </span>
             {!puedeGestionar && (
               <span className="flex items-center gap-1 text-xs font-normal text-navy-400">
-                <Lock className="w-3.5 h-3.5" />
-                {puedeAsignarAprobadorElectrico
-                  ? 'Solo un líder puede editar el resto del equipo'
-                  : 'Solo un líder puede editar esto'}
+                <Lock className="w-3.5 h-3.5" /> Solo un líder puede editar esto
               </span>
             )}
           </p>
@@ -2955,26 +2948,6 @@ export function ProjectDetail({
                   onAddNew={onAddIngenieroProyectos}
                   onUpdateMatricula={(nombre, val) => onUpdateCatalogoAtributo('ingenieros_proyectos', nombre, 'matricula', val)}
                   readOnly={!puedeGestionar}
-                />
-              </div>
-            </div>
-
-            {/* Revisor eléctrico: persona real con rol eléctrico, pero que    */}
-            {/* NO desarrolla el proyecto — no cuenta como "asignada" (ver     */}
-            {/* equipoNombres) ni tiene permiso de edición; aparece en         */}
-            {/* "Revisión de proyectos" en vez de "Mis proyectos".              */}
-            <div className="flex items-start gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-navy-100 flex items-center justify-center shrink-0 mt-0.5">
-                <Zap className="w-4 h-4 text-navy-500" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-navy-400 mb-0.5">Revisor eléctrico</p>
-                <EquipoSelect
-                  role={{ key: 'aprobador_electrico', filterRoleKey: 'electrico' }}
-                  valorActual={project.equipo.aprobador_electrico}
-                  directorio={directorio}
-                  onChange={(val) => handleEquipoChange('aprobador_electrico', val)}
-                  readOnly={!puedeAsignarAprobadorElectrico}
                 />
               </div>
             </div>

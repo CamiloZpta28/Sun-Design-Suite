@@ -808,3 +808,19 @@ describe('las fechas del proyecto las mueve un líder', () => {
     expect(screen.queryByText(/Editar/)).toBe(null);
   });
 });
+
+describe('la revisión eléctrica se retiró', () => {
+  it('el proyecto ya no pide un revisor eléctrico', () => {
+    render(<ProjectDetail project={proyecto()} perfil={perfilLider} {...props} />);
+    expect(screen.queryByText('Revisor eléctrico')).toBe(null);
+  });
+
+  /* Los proyectos de antes tienen la clave guardada; eso no puede volver a
+     pintar el campo ni cambiarle los permisos a nadie. */
+  it('un proyecto viejo con revisor guardado no lo muestra', () => {
+    const viejo = proyecto({ equipo: { civil: ['Ana'], aprobador_electrico: 'Caro' } });
+    render(<ProjectDetail project={viejo} perfil={perfilLider} {...props} />);
+    expect(screen.queryByText('Revisor eléctrico')).toBe(null);
+    expect(screen.queryByText(/Caro/)).toBe(null);
+  });
+});

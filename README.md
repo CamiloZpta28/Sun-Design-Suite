@@ -176,6 +176,17 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Se retiró la mecánica de revisión eléctrica**: la sección "Revisión de
+  Proyectos" del menú, su bloque en el Dashboard, su dirección `/revision` y
+  el campo "Revisor eléctrico" de cada proyecto.
+  - Los proyectos de antes **siguen teniendo la clave guardada** en la base.
+    No se borra —no hace daño y perderla no aporta nada—, pero sigue contando
+    como "no asignado" a propósito: si dejara de estarlo, esas personas
+    pasarían de pronto a tener permiso de edición y el proyecto en sus "Mis
+    proyectos". Quitar una pantalla no puede repartir permisos.
+  - Un enlace viejo a `/revision` abre el Dashboard, no una pantalla en blanco.
+
+
 - **"Elaboró" nombra a todo el que elaboró**: civiles, eléctricos y
   delineantes, no solo los civiles como hasta ahora. Sale así en la cabecera
   del proyecto y en la hoja de vida imprimible, sin repetir a quien tiene dos

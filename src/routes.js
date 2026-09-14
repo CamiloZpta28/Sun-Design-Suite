@@ -21,7 +21,6 @@
 export const RUTAS_VISTA = {
   dashboard: '/',
   mis: '/mis-proyectos',
-  revision: '/revision',
   todos: '/proyectos',
   resumen_inversionistas: '/inversionistas',
   cimentaciones: '/cimentaciones',

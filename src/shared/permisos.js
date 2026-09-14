@@ -56,12 +56,17 @@ export function equipoComoArray(valor) {
   if (Array.isArray(valor)) return valor.filter(Boolean);
   return valor ? [valor] : [];
 }
-/* Claves de "equipo" que NO cuentan como asignación real de trabajo: quien  */
-/* aprueba un proyecto no lo desarrolla (no debería tener permiso de        */
-/* edición ni aparecer en sus "Mis proyectos" — ver "Revisión de proyectos" */
-/* aparte), y el ingeniero de proyectos no tiene cuenta con la que iniciar  */
-/* sesión, así que tampoco aplica.                                          */
-export const EQUIPO_CLAVES_SIN_ASIGNACION = ['aprobador_electrico', 'ingeniero_proyectos'];
+/* Claves de "equipo" que NO cuentan como asignación real de trabajo:
+
+   - El ingeniero de proyectos no tiene cuenta con la que iniciar sesión, así
+     que no puede ser el responsable de nada en la plataforma.
+
+   - 'aprobador_electrico' es de la mecánica de revisión, que se retiró. La
+     clave sigue aquí porque los proyectos de antes la tienen guardada: si se
+     quitara, esas personas pasarían de pronto a contar como asignadas, con
+     permiso de edición y el proyecto metido en sus "Mis proyectos". Quitar
+     una pantalla no puede repartir permisos. */
+export const EQUIPO_CLAVES_SIN_ASIGNACION = ['ingeniero_proyectos', 'aprobador_electrico'];
 /* Todos los nombres asignados a un proyecto, sin importar el rol.         */
 export function equipoNombres(equipo) {
   return Object.entries(equipo || {})
@@ -146,14 +151,6 @@ export function canAssignRole(perfil, roleKey) {
 }
 export function isAssignedToProject(perfil, project) {
   return !!perfil && equipoNombres(project.equipo).includes(perfil.nombre);
-}
-/* A diferencia de isAssignedToProject: esto SÍ mira la clave de revisor    */
-/* — para el apartado "Revisión de proyectos" (ver Dashboard), que es lo     */
-/* opuesto de "Mis proyectos" (no lo desarrollo, solo lo reviso).            */
-export function esAprobadorDe(perfil, project) {
-  if (!perfil) return false;
-  const equipo = project.equipo || {};
-  return equipo.aprobador_electrico === perfil.nombre;
 }
 
 /* Quiénes elaboraron el proyecto: no solo los civiles. En el rótulo de la
