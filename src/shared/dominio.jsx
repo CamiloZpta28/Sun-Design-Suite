@@ -1316,6 +1316,18 @@ export function buildProjectCode(general) {
   return `COL${abrev}T${num}P${predio}`;
 }
 
+/* Dos proyectos son el mismo cuando comparten el código documental —país, */
+/* departamento, terreno y predio—, no cuando coinciden solo los dos       */
+/* números: la minigranja 5 predio 1 de Bolívar (COLBOLT5P1) y la de       */
+/* Santander (COLSANT5P1) son proyectos distintos, en departamentos        */
+/* distintos. Si al código le falta algún dato no se afirma nada: sin      */
+/* código completo no hay con qué comparar, y devuelve null.               */
+export function proyectoConMismoCodigo(projects, general) {
+  const codigo = buildProjectCode(general);
+  if (!codigo) return null;
+  return (projects || []).find((p) => buildProjectCode(p.data?.general) === codigo) || null;
+}
+
 /* Nombre del proyecto con el código documental al frente, ej.             */
 /* "Confines Occidente - COLSANT215P1". Si el código aún no está completo  */
 /* (faltan datos en General), se muestra solo el nombre.                   */

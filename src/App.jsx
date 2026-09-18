@@ -17,7 +17,7 @@ import { ultimasSemanas } from './shared/resumenes.js';
 import {
   SCHEMA, emptyStations, emptyEnergiaMensual, COLOMBIA, DOC_ESTADOS, EquipoField, EspecialidadBarra, InversionistaPicker, PaisPicker,
   ProgresoDonut, STATUS_CONFIG, StatusBadge, buildProjectCode, documentosDeProyecto, etiquetaDossier, formatDate, makeId,
-  projectDisplayName
+  projectDisplayName, proyectoConMismoCodigo
 } from './shared/dominio.jsx';
 
 import { EQUIPO_SEED } from './secciones/equiposDatos.jsx';
@@ -953,14 +953,12 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionista
     setForm((prev) => ({ ...prev, equipo: { ...prev.equipo, [roleKey]: val } }));
   }
 
-  // Un mismo par (N.° de minigranja, N.° de predio) identifica un único
-  // proyecto real — si ya existe uno con esos dos datos, es el mismo
-  // proyecto y no se debe volver a crear.
-  const minigranja = form.general.numero_minigranja.trim();
-  const predio = form.general.numero_predio.trim();
-  const duplicado = minigranja && predio
-    ? projects.find((p) => (p.data.general.numero_minigranja || '').trim() === minigranja && (p.data.general.numero_predio || '').trim() === predio)
-    : null;
+  // El código documental es la identidad del proyecto: quien repita el
+  // código completo —país, departamento, terreno y predio— es el mismo
+  // proyecto y no se debe volver a crear. Los dos números por sí solos no
+  // alcanzan: se repiten entre departamentos.
+  const codigoNuevo = buildProjectCode(form.general);
+  const duplicado = proyectoConMismoCodigo(projects, form.general);
 
   function submit(e) {
     e.preventDefault();
@@ -1099,10 +1097,17 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionista
                 <input value={form.general.numero_predio} onChange={(e) => setGeneral('numero_predio', e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm font-mono" />
               </div>
             </div>
+            <p className="text-xs text-navy-500 mt-2">
+              {codigoNuevo
+                ? <>Este proyecto quedará como <strong className="font-mono text-navy-700">{codigoNuevo}</strong>.</>
+                : 'El código aparece aquí en cuanto estén el departamento, la minigranja y el predio.'}
+            </p>
             {duplicado && (
               <p className="flex items-start gap-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-2">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                Ya existe un proyecto con esta minigranja y predio: <strong>{projectDisplayName(duplicado)}</strong>. No se puede crear un duplicado — si es el mismo proyecto, ábrelo desde el listado en vez de crear uno nuevo.
+                <span>
+                  El código <strong className="font-mono">{codigoNuevo}</strong> ya lo tiene <strong>{duplicado.nombre}</strong>. No se puede crear un duplicado — si es el mismo proyecto, ábrelo desde el listado en vez de crear uno nuevo.
+                </span>
               </p>
             )}
           </div>

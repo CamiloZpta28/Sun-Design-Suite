@@ -176,6 +176,18 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Un proyecto repetido se juzga por el código completo, no por dos
+  números.** Antes bastaba con que coincidieran N.º de minigranja y N.º de
+  predio para bloquear la creación, sin mirar el departamento — así que
+  Mompox (Bolívar) terreno 5 predio 1 chocaba contra Girón Sur (Santander)
+  terreno 5 predio 1, siendo proyectos distintos con códigos distintos
+  (`COLBOLT5P1` contra `COLSANT5P1`). Ahora se compara el código documental
+  entero, que es la identidad real del proyecto.
+  - De paso, el formulario **muestra el código que le va a quedar** al
+    proyecto mientras se llena. El aviso de duplicado enseñaba el código del
+    proyecto ya existente y se leía como si fuera el del nuevo.
+
+
 - **Se retiró la mecánica de revisión eléctrica**: la sección "Revisión de
   Proyectos" del menú, su bloque en el Dashboard, su dirección `/revision` y
   el campo "Revisor eléctrico" de cada proyecto.
