@@ -176,6 +176,29 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Recuperar contraseña.** Antes no había forma: quien la olvidaba quedaba
+  bloqueado y solo se desbloqueaba desde el panel de Supabase. Ahora el
+  ingreso tiene "¿Olvidaste tu contraseña?", que manda un enlace al correo;
+  al abrirlo, la plataforma pide elegir una contraseña nueva **antes** de
+  dejar entrar —si no, la persona seguiría sin saber la suya y volvería a
+  quedar bloqueada la próxima vez que se le cerrara la sesión—. Vive en
+  `secciones/Acceso.jsx`, y lo que no toca el servidor en
+  `shared/acceso.js`.
+  - **Al registrarse la contraseña se escribe dos veces.** Se pedía una sola,
+    así que un error de tecleo quedaba guardado y después la persona
+    escribía "bien" una contraseña que nunca fue la suya.
+  - Cada campo de contraseña tiene **su ojo** para verla, y el teclado del
+    celular ya no capitaliza ni corrige el correo ni la contraseña.
+  - **Los errores salen en español**, reconocidos por el código que manda
+    Supabase y no por su texto, que puede cambiar.
+  - El `#` de la dirección ya no se borra al arrancar: ahí vuelve el token
+    del enlace, y borrarlo lo dejaba sin efecto según quién llegara primero.
+  - **Configuración en Supabase** (Authentication → URL Configuration): el
+    *Site URL* tiene que ser la dirección de Vercel, porque el enlace vuelve
+    ahí. El texto del correo se edita en Authentication → Email Templates →
+    *Reset Password* (viene en inglés).
+
+
 - **Un proyecto repetido se juzga por el código completo, no por dos
   números.** Antes bastaba con que coincidieran N.º de minigranja y N.º de
   predio para bloquear la creación, sin mirar el departamento — así que

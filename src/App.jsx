@@ -5,7 +5,8 @@ import {
   RefreshCw, LogOut, ShieldCheck, Lock, UserCog, ChevronDown, ChevronRight,
   Video, PartyPopper, PieChart, AlertTriangle, Menu, UserPlus, Boxes, GitBranch, Bell, Route, FileText, CalendarCheck
 } from 'lucide-react';
-import { supabase } from './supabaseClient';
+import { supabase, retornoDeAcceso } from './supabaseClient';
+import { AuthGate, NuevaContrasena } from './secciones/Acceso.jsx';
 import { rutaDe, estadoDeRuta } from './routes.js';
 import { Avatar } from './shared/ui.jsx';
 import { useCambiosEnVivo, textoDeCambio } from './shared/cambiosEnVivo.js';
@@ -283,79 +284,7 @@ function computeEspecialidadProgressMultiProyecto(proyectos, dossiers) {
 /* ============================================================================
    6. AUTENTICACIÓN Y CUENTA DE INGENIERO
    ============================================================================ */
-function AuthGate() {
-  const [mode, setMode] = useState('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [info, setInfo] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  async function submit(e) {
-    e.preventDefault();
-    setError('');
-    setInfo('');
-    setLoading(true);
-    try {
-      if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
-        setInfo('Cuenta creada. Si tu proyecto de Supabase exige confirmar el correo, revisa tu bandeja de entrada y luego inicia sesión.');
-        setMode('login');
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      }
-    } catch (err) {
-      setError(err.message || 'Ocurrió un error, intenta de nuevo.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 bg-navy-900 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-8">
-        <div className="flex items-center gap-2.5 mb-6">
-          <div className="w-10 h-10 rounded-lg bg-lime-300 flex items-center justify-center shrink-0">
-            <img src={logoMark} alt="" className="w-6 h-6 object-contain" />
-          </div>
-          <div>
-            <p className="font-bold text-navy-800 leading-tight">Sun Design Suite</p>
-            <p className="text-xs text-navy-500">{mode === 'login' ? 'Inicia sesión' : 'Crea tu cuenta'}</p>
-          </div>
-        </div>
-        <form onSubmit={submit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Correo</label>
-            <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" placeholder="tu@empresa.com" />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Contraseña</label>
-            <input required type="password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-lg border border-navy-300 px-3 py-2 text-sm" placeholder="Mínimo 6 caracteres" />
-          </div>
-          {error && <p className="text-xs text-red-500">{error}</p>}
-          {info && <p className="text-xs text-emerald-600">{info}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex items-center justify-center gap-2 bg-lime-500 hover:bg-lime-600 disabled:opacity-60 text-navy-900 font-semibold text-sm py-2.5 rounded-lg shadow-sm transition-colors"
-          >
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            {mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}
-          </button>
-          <button
-            type="button"
-            onClick={() => { setMode((m) => (m === 'login' ? 'signup' : 'login')); setError(''); setInfo(''); }}
-            className="w-full text-xs text-navy-500 hover:text-navy-700"
-          >
-            {mode === 'login' ? '¿No tienes cuenta? Crear una' : '¿Ya tienes cuenta? Inicia sesión'}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
+/* Ingreso, registro y recuperación de contraseña: ver secciones/Acceso.jsx. */
 
 function ProfileGate({ userId, initial, onSaved, onCancel }) {
   const [nombre, setNombre] = useState(initial?.nombre || '');
@@ -1659,6 +1588,9 @@ function EquipoView({ directorio, perfil, projects, selectedPersonId, onOpenPers
    ============================================================================ */
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = verificando, null = sin sesión
+  /* Arranca en true si la dirección trae el enlace de recuperación: el aviso
+     PASSWORD_RECOVERY de Supabase puede llegar antes de que haya quien lo oiga. */
+  const [recuperando, setRecuperando] = useState(retornoDeAcceso.recuperacion);
   const [perfil, setPerfil] = useState(null);
   const [checkingPerfil, setCheckingPerfil] = useState(false);
   const [showProfileEdit, setShowProfileEdit] = useState(false);
@@ -1714,7 +1646,10 @@ export default function App() {
   // Proyectos, un proyecto abierto, etc.) — igual que esperaría cualquiera
   // que use las flechas del navegador en cualquier otra página.
   useEffect(() => {
-    window.history.replaceState(rutaInicial, '', rutaDe(rutaInicial));
+    /* El "#" se conserva: ahí vuelve el enlace de recuperar contraseña con su
+       token, y Supabase lo lee por su cuenta un instante después. Borrarlo
+       aquí dejaba el enlace sin efecto según quién llegara primero. */
+    window.history.replaceState(rutaInicial, '', rutaDe(rutaInicial) + window.location.hash);
     function onPopState(e) {
       /* Si el punto del historial no trae estado (ej. alguien editó la
          dirección a mano), se deduce de la dirección misma. */
@@ -1751,7 +1686,12 @@ export default function App() {
   // Sesión de Supabase
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((evento, newSession) => {
+      /* Quien vuelve del enlace de "recuperar contraseña" entra con sesión,
+         pero antes de pasar tiene que elegir la nueva. Salir cancela eso: si
+         no, al entrar la próxima vez le volvería a pedir contraseña nueva. */
+      if (evento === 'PASSWORD_RECOVERY') setRecuperando(true);
+      if (evento === 'SIGNED_OUT') setRecuperando(false);
       setSession(newSession);
     });
     return () => listener.subscription.unsubscribe();
@@ -3038,7 +2978,8 @@ export default function App() {
   }
 
   if (session === undefined) return <LoadingScreen mensaje="Verificando sesión…" />;
-  if (!session) return <AuthGate />;
+  if (!session) return <AuthGate avisoInicial={retornoDeAcceso.error} />;
+  if (recuperando) return <NuevaContrasena correo={session.user.email} onListo={() => setRecuperando(false)} />;
   if (checkingPerfil) return <LoadingScreen mensaje="Cargando tu perfil…" />;
   if (!perfil) return <ProfileGate userId={session.user.id} onSaved={handleProfileSaved} />;
   if (!dataLoaded) return <LoadingScreen mensaje="Cargando proyectos…" />;
