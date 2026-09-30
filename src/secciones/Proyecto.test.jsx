@@ -134,6 +134,52 @@ describe('ProjectDetail', () => {
   });
 });
 
+/* Un invitado —quien no tiene ningún rol de equipo— ve todo el proyecto y
+   no puede tocar nada. Se prueba con el peor caso: alguien que sigue
+   figurando en el equipo del proyecto pero a quien le quitaron los roles.
+   La comparación es contra esa misma persona con sus roles de Líder de
+   Diseño e Ing. Civil: si ella no tuviera botones de edición, la prueba no
+   estaría diciendo nada. */
+describe('un invitado', () => {
+  const PESTANAS = [...SCHEMA.map((s) => s.label), 'Control Documental', 'Notas Técnicas', 'Notas', 'Historial'];
+  const botonDePestana = (etiqueta) => screen.getAllByRole('button')
+    .find((b) => b.textContent.trim().replace(/\s+/g, ' ').startsWith(etiqueta));
+  const ACCIONES_DE_EDICION = /^(Editar|Eliminar|Borrar|Agregar|Añadir|Guardar|Nuev[oa]|Subir|Cambiar|Asignar|Renombrar|Marcar)/i;
+
+  /* Recorre todas las pestañas y junta los botones que editan algo. */
+  function botonesDeEdicion(perfil) {
+    render(<ProjectDetail project={proyecto()} perfil={perfil} {...props} />);
+    const encontrados = new Set();
+    const juntar = () => screen.getAllByRole('button')
+      .map((b) => b.textContent.trim().replace(/\s+/g, ' '))
+      .filter((t) => ACCIONES_DE_EDICION.test(t))
+      .forEach((t) => encontrados.add(t));
+    juntar();
+    PESTANAS.forEach((etiqueta) => {
+      fireEvent.click(botonDePestana(etiqueta));
+      juntar();
+    });
+    cleanup();
+    return [...encontrados];
+  }
+
+  const todoPoderosa = { id: 'u1', nombre: 'Ana', roles: ['lider_diseno', 'civil'] };
+
+  it('con sus roles, la persona tiene cómo editar', () => {
+    expect(botonesDeEdicion(todoPoderosa).length).toBeGreaterThan(0);
+  });
+
+  it('sin roles, no le queda ningún botón de edición en ninguna pestaña', () => {
+    expect(botonesDeEdicion({ ...todoPoderosa, roles: [] })).toEqual([]);
+  });
+
+  it('pero ve todas las pestañas', () => {
+    render(<ProjectDetail project={proyecto()} perfil={{ id: 'u9', nombre: 'Invi', roles: [] }} {...props} />);
+    PESTANAS.forEach((etiqueta) => expect(botonDePestana(etiqueta), etiqueta).toBeTruthy());
+    expect(screen.getAllByText(/Minigranja de prueba/).length).toBeGreaterThan(0);
+  });
+});
+
 describe('aviso de que otra persona guardó', () => {
   it('no aparece si no hay nada nuevo', () => {
     render(<ProjectDetail project={proyecto()} perfil={perfilLider} {...props} cambioPendiente={null} />);

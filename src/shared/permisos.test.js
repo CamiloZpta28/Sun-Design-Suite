@@ -9,13 +9,16 @@ import { describe, it, expect } from 'vitest';
 import {
   EQUIPO_CLAVES_SIN_ASIGNACION, equipoNombres, equipoComoArray, equipoTexto,
   isAssignedToProject, equipoQueElaboro, textoQueElaboro, CLAVES_ELABORARON,
+  esInvitado, isLeader, isDeveloper, isDesignLeader, isQA, canAssignRole, rolesLabel,
+  puedeVerVista, VISTAS_DEL_INVITADO, puedeVerDatosPersonales, separarDatosPersonales,
+  CAMPOS_DATOS_PERSONALES, ALL_ROLE_DEFS, EQUIPO_CATEGORIAS,
 } from './permisos.js';
 
 const proyecto = (equipo) => ({ id: 'p1', nombre: 'Chinú 3', equipo });
 
 describe('quién cuenta como asignado', () => {
   it('quien está en un rol técnico, sí', () => {
-    expect(isAssignedToProject({ nombre: 'Ana' }, proyecto({ civil: ['Ana'] }))).toBe(true);
+    expect(isAssignedToProject({ nombre: 'Ana', roles: ['civil'] }, proyecto({ civil: ['Ana'] }))).toBe(true);
     expect(isAssignedToProject({ nombre: 'Beto' }, proyecto({ civil: ['Ana'] }))).toBe(false);
   });
 
@@ -82,4 +85,117 @@ describe('un rol puede tener una persona o varias', () => {
     expect(equipoComoArray(null)).toEqual([]);
     expect(equipoTexto(['Ana', 'Beto'])).toBe('Ana, Beto');
   });
+});
+
+/* Invitado = quien no tiene ningún rol de equipo. Es el estado de toda
+   cuenta nueva: se sale de él cuando un líder da un rol, y se vuelve a él si
+   se los quitan todos. */
+describe('quién es invitado', () => {
+  it('quien no tiene ningún rol, empezando por toda cuenta nueva', () => {
+    expect(esInvitado({ id: 'n', nombre: 'Nueva', roles: [] })).toBe(true);
+    expect(esInvitado({ id: 'n', nombre: 'Nueva' })).toBe(true);
+  });
+
+  it('quien tiene cualquier rol de equipo, no', () => {
+    ['civil', 'delineante', 'tramites_bt', 'control_calidad', 'lider_civil', 'desarrollador'].forEach((rol) => {
+      expect(esInvitado({ roles: [rol] }), rol).toBe(false);
+    });
+  });
+
+  /* No es un rol que se otorgue: no está entre los que se asignan, así que
+     nadie puede quedar con "Invitado" y otro rol a la vez. */
+  it('no aparece entre los roles que se asignan', () => {
+    expect(ALL_ROLE_DEFS.map((r) => r.key)).not.toContain('invitado');
+  });
+
+  it('sin sesión no es nada', () => {
+    expect(esInvitado(null)).toBe(false);
+  });
+
+  it('se presenta como Invitado', () => {
+    expect(rolesLabel({ roles: [] })).toBe('Invitado');
+    expect(rolesLabel({ roles: ['civil'] })).toBe('Ing. Civil');
+  });
+});
+
+describe('lo que un invitado no puede', () => {
+  const invitada = { id: 'u9', nombre: 'Ana', roles: [] };
+
+  it('ningún permiso de edición', () => {
+    expect(isLeader(invitada)).toBe(false);
+    expect(isDeveloper(invitada)).toBe(false);
+    expect(isDesignLeader(invitada)).toBe(false);
+    expect(isQA(invitada)).toBe(false);
+    expect(canAssignRole(invitada, 'civil')).toBe(false);
+  });
+
+  /* A alguien le quitaron los roles pero sigue escrito en el equipo de un
+     proyecto: no por eso puede editarlo. */
+  it('aunque figure en el equipo de un proyecto, no cuenta como asignada', () => {
+    expect(isAssignedToProject(invitada, proyecto({ civil: ['Ana'] }))).toBe(false);
+    expect(isAssignedToProject({ ...invitada, roles: ['civil'] }, proyecto({ civil: ['Ana'] }))).toBe(true);
+  });
+});
+
+describe('qué secciones ve', () => {
+  const invitada = { roles: [] };
+  const ingeniero = { roles: ['civil'] };
+
+  it('las cuatro de consulta y la ficha de un proyecto', () => {
+    expect(VISTAS_DEL_INVITADO).toEqual(['dashboard', 'todos', 'resumen_inversionistas', 'equipo', 'detalle']);
+    VISTAS_DEL_INVITADO.forEach((v) => expect(puedeVerVista(invitada, v), v).toBe(true));
+  });
+
+  it('ninguna de trabajo', () => {
+    ['mis', 'cimentaciones', 'equipos_electricos', 'canalizaciones', 'cruces', 'diseno_via',
+      'actualizaciones', 'resumenes', 'dossiers', 'instructivos', 'enlaces']
+      .forEach((v) => expect(puedeVerVista(invitada, v), v).toBe(false));
+  });
+
+  it('quien es del equipo sigue viéndolo todo', () => {
+    ['mis', 'cimentaciones', 'resumenes', 'dossiers', 'enlaces'].forEach((v) => expect(puedeVerVista(ingeniero, v), v).toBe(true));
+  });
+});
+
+describe('datos personales', () => {
+  const ana = { id: 'a', roles: ['civil'] };
+  const beto = { id: 'b', roles: ['electrico'] };
+  const invitada = { id: 'i', roles: [] };
+
+  it('cada quien ve los suyos, incluso un invitado', () => {
+    expect(puedeVerDatosPersonales(invitada, invitada)).toBe(true);
+    expect(puedeVerDatosPersonales(ana, ana)).toBe(true);
+  });
+
+  it('los de los demás, solo quien es del equipo', () => {
+    expect(puedeVerDatosPersonales(ana, beto)).toBe(true);
+    expect(puedeVerDatosPersonales(invitada, ana)).toBe(false);
+  });
+
+  it('sin datos no revienta', () => {
+    expect(puedeVerDatosPersonales(null, ana)).toBe(false);
+    expect(puedeVerDatosPersonales(ana, null)).toBe(false);
+  });
+
+  /* Al guardar la ficha, cada campo va a su tabla: si una cédula terminara en
+     el perfil, cualquier cuenta la podría volver a leer. */
+  it('al guardar se separan de lo que va al perfil', () => {
+    const { perfil, datos } = separarDatosPersonales({
+      fecha_cumpleanos: '1990-01-01', cedula: '123', celular: '300', nombre: 'Ana',
+    });
+    expect(perfil).toEqual({ fecha_cumpleanos: '1990-01-01', nombre: 'Ana' });
+    expect(datos).toEqual({ cedula: '123', celular: '300' });
+  });
+
+  it('son los seis de la ficha', () => {
+    expect(CAMPOS_DATOS_PERSONALES).toEqual([
+      'cedula', 'ciudad_expedicion_cedula', 'matricula_profesional', 'celular', 'direccion', 'correo_personal',
+    ]);
+  });
+});
+
+/* En Equipo, los invitados van en un bloque propio al principio (ver
+   TeamRolesView), no como una categoría más. */
+it('los invitados no son una categoría de Equipo', () => {
+  expect(EQUIPO_CATEGORIAS.map((c) => c.id)).not.toContain('invitados');
 });

@@ -97,7 +97,7 @@ describe('el cableado en App.jsx', () => {
     const { fileURLToPath } = await import('node:url');
     const { dirname, join } = await import('node:path');
     const app = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../App.jsx'), 'utf8');
-    const bloque = app.slice(app.indexOf("view === 'todos'"), app.indexOf("view === 'resumen_inversionistas'"));
+    const bloque = app.slice(app.indexOf("vistaActual === 'todos'"), app.indexOf("vistaActual === 'resumen_inversionistas'"));
     expect(bloque).toContain('title="Todos los Proyectos"');
     expect(bloque).toContain('estadoInicial="activo"');
   });

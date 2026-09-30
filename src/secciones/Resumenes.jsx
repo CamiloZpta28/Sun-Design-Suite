@@ -32,7 +32,7 @@ import {
   Pencil, Plus, Send, Users, X,
 } from 'lucide-react';
 import { DOC_ESTADOS, DOC_ESTADO_HEX, DOC_ESTADO_CORTO } from '../shared/dominio.jsx';
-import { ROLES, isLeader, roleLabel } from '../shared/permisos.js';
+import { ROLES, isLeader, roleLabel, esInvitado } from '../shared/permisos.js';
 import { FiltroFichas, alternarEn, Avatar } from '../shared/ui.jsx';
 import { copiarTexto } from '../shared/copiar.jsx';
 import {
@@ -698,6 +698,13 @@ export function esSoloDesarrollador(persona) {
   return roles.length > 0 && roles.every((r) => r === 'desarrollador');
 }
 
+/* A quién se le espera un resumen cada semana. Un invitado nunca: sigue los
+   proyectos, no los trabaja, así que en la lista solo saldría como alguien
+   que "no lo envió". */
+export function haceSeguimientoSemanal(persona) {
+  return !esSoloDesarrollador(persona) && !esInvitado(persona);
+}
+
 /* Registrar que alguien no estuvo. Se anota una vez con su rango y cubre todas
    las semanas que toque: nadie tiene que acordarse cada lunes.
 
@@ -828,7 +835,7 @@ function VistaEquipo({ directorio, resumenesDeLaSemana, onAbrirProyecto, cierre,
   const [roles, setRoles] = useState([]);
 
   const porUsuario = new Map(resumenesDeLaSemana.map((r) => [r.usuario_id, r]));
-  const gente = (directorio || []).filter((p) => !esSoloDesarrollador(p)).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const gente = (directorio || []).filter(haceSeguimientoSemanal).sort((a, b) => a.nombre.localeCompare(b.nombre));
   const ausenciaDe = (id) => ausenciaDeLaSemana(ausencias, id, semana, cierre);
 
   /* Las fichas de filtro solo ofrecen los roles que alguien tiene de verdad:

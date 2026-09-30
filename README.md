@@ -176,6 +176,29 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Invitados: quien no tiene ningún rol de equipo.** No es un rol que se
+  otorgue: es el estado de toda cuenta nueva hasta que un líder o un
+  desarrollador le da un rol del equipo, y se vuelve a él si se los quitan
+  todos. Así nunca se es invitado y otra cosa a la vez.
+  - Un invitado ve Dashboard, Todos los proyectos, Resumen por inversionista
+    y Equipo. Abre cualquier proyecto con todas sus pestañas, pero no edita
+    nada, no crea proyectos, no aparece en los resúmenes semanales y no ve los
+    datos personales de nadie más. Una dirección pegada a mano hacia otra
+    sección lo lleva al Dashboard.
+  - En Equipo salen en su propio bloque, al principio, para que un líder vea
+    enseguida a quien acaba de crear su cuenta y le dé su rol.
+  - **La base de datos aplica la misma regla** (`supabase/migration_rol_invitado.sql`):
+    antes cualquier cuenta con sesión podía escribir en cualquier tabla, y los
+    permisos vivían solo en la pantalla. Ahora la base rechaza lo que escriba
+    un invitado, venga de donde venga. Si se crea una tabla nueva, hay que
+    volver a correr esa migración para que la cubra.
+  - **Los datos personales** (cédula, dirección, celular…) pasaron del perfil
+    a su propia tabla, `datos_personales`: el perfil lo lee cualquier cuenta,
+    así que esconderlos solo en la pantalla no bastaba.
+  - Las cuentas que no tenían ningún rol quedaron como invitadas al correr la
+    migración.
+
+
 - **Recuperar contraseña.** Antes no había forma: quien la olvidaba quedaba
   bloqueado y solo se desbloqueaba desde el panel de Supabase. Ahora el
   ingreso tiene "¿Olvidaste tu contraseña?", que manda un enlace al correo;

@@ -27,7 +27,8 @@ import { RECUBRIMIENTO_CIMENTACION, BARRA_ACERO, TRASLAPO_TABLE, aplicarParametr
 import { ACTUALIZACION_CATEGORIAS_SEED } from './secciones/actualizacionesDatos.js';
 import {
   ROLES, usaResumenPersonal, esRolMultiple, equipoComoArray, equipoNombres, ALL_ROLE_DEFS,
-  EQUIPO_CATEGORIAS, rolesLabel, isLeader, isDesignLeader, canAssignRole
+  EQUIPO_CATEGORIAS, rolesLabel, isLeader, isDesignLeader, canAssignRole,
+  esInvitado, puedeVerVista, puedeVerDatosPersonales, separarDatosPersonales
 } from './shared/permisos.js';
 import logoMark from './assets/logo-s-mark.png';
 
@@ -131,19 +132,24 @@ function rowToProject(row) {
     created_at: row.created_at || null,
   };
 }
-function rowToProfile(row, roles) {
+/* Los datos personales llegan de su propia tabla (datos_personales), que la
+   base solo le entrega a quien puede verlos: a un invitado, solo los suyos.
+   Si la migración aún no se ha corrido, se leen de la fila del perfil como
+   antes, para que nada se vea vacío mientras tanto. */
+function rowToProfile(row, roles, datos) {
+  const d = datos || row;
   return {
     id: row.id,
     nombre: row.nombre,
     foto: row.foto_url,
     fecha_cumpleanos: row.fecha_cumpleanos || '',
     fecha_ingreso: row.fecha_ingreso || '',
-    cedula: row.cedula || '',
-    ciudad_expedicion_cedula: row.ciudad_expedicion_cedula || '',
-    matricula_profesional: row.matricula_profesional || '',
-    celular: row.celular || '',
-    direccion: row.direccion || '',
-    correo_personal: row.correo_personal || '',
+    cedula: d.cedula || '',
+    ciudad_expedicion_cedula: d.ciudad_expedicion_cedula || '',
+    matricula_profesional: d.matricula_profesional || '',
+    celular: d.celular || '',
+    direccion: d.direccion || '',
+    correo_personal: d.correo_personal || '',
     roles: roles || [],
   };
 }
@@ -405,7 +411,7 @@ function LoadingScreen({ mensaje = 'Cargando…' }) {
    7. NAVEGACIÓN Y LAYOUT
    ============================================================================ */
 function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile, onRefresh, onLogout, mobileOpen, onCloseMobile, notificaciones, onAbrirNotificacion, onMarcarTodasLeidas }) {
-  const navItems = [
+  const todasLasSecciones = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { key: 'mis', label: 'Mis Proyectos', icon: FolderKanban },
     { key: 'todos', label: 'Todos los Proyectos', icon: Layers },
@@ -422,6 +428,8 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile,
     { key: 'instructivos', label: 'Instructivos', icon: Video },
     { key: 'enlaces', label: 'Enlaces de Interés', icon: Link2 },
   ];
+  /* Un invitado solo ve las secciones de consulta (ver VISTAS_DEL_INVITADO). */
+  const navItems = todasLasSecciones.filter((item) => puedeVerVista(perfil, item.key));
 
   return (
     <>
@@ -567,9 +575,11 @@ function Dashboard({ projects, misProyectos, onNewProject, openProject, setView,
             <p className="text-navy-500 text-sm mt-1">{rolesLabel(perfil)} · {resumenPersonal ? 'Resumen de tus proyectos asignados' : 'Panel general de proyectos'}</p>
           </div>
         </div>
-        <button onClick={onNewProject} className="flex items-center gap-2 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition-colors">
-          <Plus className="w-4 h-4" /> Nuevo Proyecto
-        </button>
+        {onNewProject && (
+          <button onClick={onNewProject} className="flex items-center gap-2 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition-colors">
+            <Plus className="w-4 h-4" /> Nuevo Proyecto
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
@@ -580,18 +590,24 @@ function Dashboard({ projects, misProyectos, onNewProject, openProject, setView,
         <StatCard label="Finalizados" value={finalizados} icon={PartyPopper} accent="border-violet-400" textColor="text-violet-600" />
       </div>
 
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold text-navy-800">Mis proyectos</h2>
-        <button onClick={() => setView('mis')} className="text-sm font-medium text-lime-600 hover:text-lime-700">
-          Ver todos →
-        </button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
-        {misProyectos.slice(0, 3).map((p) => (
-          <ProjectCard key={p.id} project={p} onClick={() => openProject(p.id)} directorio={directorio} />
-        ))}
-        {misProyectos.length === 0 && <p className="text-navy-400 text-sm italic col-span-full">No tienes proyectos asignados todavía.</p>}
-      </div>
+      {/* Un invitado no tiene proyectos asignados: el bloque solo diría que
+          no tiene ninguno. */}
+      {!esInvitado(perfil) && (
+        <>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-navy-800">Mis proyectos</h2>
+            <button onClick={() => setView('mis')} className="text-sm font-medium text-lime-600 hover:text-lime-700">
+              Ver todos →
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
+            {misProyectos.slice(0, 3).map((p) => (
+              <ProjectCard key={p.id} project={p} onClick={() => openProject(p.id)} directorio={directorio} />
+            ))}
+            {misProyectos.length === 0 && <p className="text-navy-400 text-sm italic col-span-full">No tienes proyectos asignados todavía.</p>}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -636,9 +652,11 @@ export function ProjectListView({
           <h1 className="text-2xl font-bold text-navy-800">{title}</h1>
           <p className="text-navy-500 text-sm mt-1">{subtitle}</p>
         </div>
-        <button onClick={onNewProject} className="flex items-center gap-2 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition-colors">
-          <Plus className="w-4 h-4" /> Nuevo Proyecto
-        </button>
+        {onNewProject && (
+          <button onClick={onNewProject} className="flex items-center gap-2 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg shadow-sm transition-colors">
+            <Plus className="w-4 h-4" /> Nuevo Proyecto
+          </button>
+        )}
       </div>
 
       {archivarFinalizados && (
@@ -1389,6 +1407,7 @@ function PersonProfileView({ persona, perfil, projects, onBack, onToggleRole, on
         </div>
       </div>
 
+      {puedeVerDatosPersonales(perfil, persona) && (
       <div className="bg-white border border-navy-200 rounded-xl p-6 mb-6">
         <p className="text-xs font-semibold uppercase tracking-wide text-navy-400 mb-4">Datos personales</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1435,9 +1454,15 @@ function PersonProfileView({ persona, perfil, projects, onBack, onToggleRole, on
           )}
         </div>
       </div>
+      )}
 
       <div className="bg-white border border-navy-200 rounded-xl p-6 mb-6">
         <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-3">Roles</p>
+        {esInvitado(persona) && (
+          <p className="text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 mb-3">
+            Es <strong>invitado</strong>: ve los proyectos, pero no edita nada. Al darle un rol del equipo deja de serlo.
+          </p>
+        )}
         <RoleBadgesEditor persona={persona} perfil={perfil} onToggleRole={onToggleRole} />
       </div>
 
@@ -1494,16 +1519,22 @@ function TeamCategoriesView({ directorio, perfil, onOpenPerson }) {
 
       <div className="space-y-8">
         {(() => {
-          const sinRol = directorio.filter((u) => !EQUIPO_CATEGORIAS.some((cat) => u.roles.some((r) => cat.roles.includes(r))));
+          /* Invitados: quien no tiene ningún rol de equipo, empezando por toda
+             cuenta recién creada. Van primero para que un líder vea enseguida
+             a quien acaba de entrar y, si es del equipo, le dé su rol. */
+          const sinRol = directorio.filter(esInvitado);
           if (sinRol.length === 0) return null;
           return (
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <UserPlus className="w-4 h-4 text-orange-500" />
-                <h2 className="text-sm font-bold uppercase tracking-wide text-orange-600">Sin rol asignado</h2>
+                <h2 className="text-sm font-bold uppercase tracking-wide text-orange-600">Invitados</h2>
                 <span className="text-xs text-navy-400">({sinRol.length})</span>
               </div>
-              <p className="text-xs text-navy-400 mb-2">Personas que crearon su cuenta pero todavía no tienen ningún rol — haz clic para asignarles uno.</p>
+              <p className="text-xs text-navy-400 mb-2">
+                Ven los proyectos sin poder editar nada. Toda cuenta nueva entra así; si la persona hace parte del
+                equipo, ábrela y dale su rol.
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {sinRol.map((u) => (
                   <button
@@ -1514,7 +1545,7 @@ function TeamCategoriesView({ directorio, perfil, onOpenPerson }) {
                     <Avatar name={u.nombre} foto={u.foto} />
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-navy-800 truncate text-sm">{u.nombre}{u.id === perfil.id ? ' (tú)' : ''}</p>
-                      <p className="text-xs text-orange-600 truncate">Sin rol — pendiente de asignar</p>
+                      <p className="text-xs text-orange-600 truncate">Invitado · solo lectura</p>
                     </div>
                     <ChevronRight className="w-4 h-4 text-navy-300 shrink-0" />
                   </button>
@@ -1683,6 +1714,16 @@ export default function App() {
     navegar({ view: 'dashboard' }, { reemplazar: true });
   }, [dataLoaded, view, selectedId, projects]);
 
+  /* Lo mismo si un invitado llega a una sección que no le toca (un link
+     viejo, una dirección pegada a mano): se le lleva al Dashboard y se
+     corrige la dirección, para que "atrás" no lo devuelva ahí. */
+  useEffect(() => {
+    if (!perfil || puedeVerVista(perfil, view)) return;
+    setViewState('dashboard');
+    setSelectedId(null);
+    navegar({ view: 'dashboard' }, { reemplazar: true });
+  }, [perfil, view]);
+
   // Sesión de Supabase
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -1817,16 +1858,23 @@ export default function App() {
       setLinks(linkRows);
     }
 
-    const [{ data: profileRows }, { data: roleRows }] = await Promise.all([
+    const [{ data: profileRows }, { data: roleRows }, { data: datosRows, error: errorDatos }] = await Promise.all([
       supabase.from('profiles').select('*'),
       supabase.from('user_roles').select('*'),
+      supabase.from('datos_personales').select('*'),
     ]);
+    if (errorDatos) console.warn('No se pudieron cargar los datos personales (¿falta la migración del rol Invitado?):', errorDatos.message);
     const rolesByUser = new Map();
     (roleRows || []).forEach((r) => {
       if (!rolesByUser.has(r.user_id)) rolesByUser.set(r.user_id, []);
       rolesByUser.get(r.user_id).push(r.role_key);
     });
-    const merged = (profileRows || []).map((row) => rowToProfile(row, rolesByUser.get(row.id) || []));
+    const datosByUser = new Map((datosRows || []).map((d) => [d.user_id, d]));
+    /* Con la tabla ya creada, quien no tiene fila ahí (o no puede verla) se
+       queda sin datos: no se vuelve a buscar en el perfil. */
+    const merged = (profileRows || []).map((row) => rowToProfile(
+      row, rolesByUser.get(row.id) || [], errorDatos ? null : (datosByUser.get(row.id) || {}),
+    ));
     setDirectorio(merged);
     if (ownUserId) {
       const yo = merged.find((u) => u.id === ownUserId);
@@ -2925,10 +2973,20 @@ export default function App() {
   async function handleUpdatePersonaInfo(userId, patch) {
     setDirectorio((prev) => prev.map((u) => (u.id === userId ? { ...u, ...patch } : u)));
     if (userId === perfil.id) setPerfil((prev) => ({ ...prev, ...patch }));
-    const { error } = await supabase.from('profiles').update(patch).eq('id', userId);
-    if (error) {
-      console.error('Error actualizando datos de la persona:', error);
-      alert('No se pudo guardar este dato. Detalle: ' + error.message);
+    /* Las fechas van al perfil; cédula, celular y demás, a datos_personales. */
+    const { perfil: delPerfil, datos } = separarDatosPersonales(patch);
+    const escrituras = [];
+    if (Object.keys(delPerfil).length > 0) {
+      escrituras.push(supabase.from('profiles').update(delPerfil).eq('id', userId));
+    }
+    if (Object.keys(datos).length > 0) {
+      escrituras.push(supabase.from('datos_personales').upsert({ user_id: userId, ...datos, updated_at: new Date().toISOString() }));
+    }
+    const resultados = await Promise.all(escrituras);
+    const fallo = resultados.find((r) => r.error);
+    if (fallo) {
+      console.error('Error actualizando datos de la persona:', fallo.error);
+      alert('No se pudo guardar este dato. Detalle: ' + fallo.error.message);
     }
   }
   async function handleToggleRole(userId, roleKey, tieneRol) {
@@ -2994,6 +3052,12 @@ export default function App() {
     inactivo: projects.filter((p) => p.estado === 'inactivo').length,
     finalizado: projects.filter((p) => p.estado === 'finalizado').length,
   };
+  /* Lo que se pinta pasa por aquí: aunque el efecto de arriba todavía no
+     haya corregido la dirección, un invitado nunca ve una sección ajena, ni
+     por un instante. */
+  const vistaActual = puedeVerVista(perfil, view) ? view : 'dashboard';
+  const puedeCrearProyectos = !esInvitado(perfil);
+  const abrirCrearProyecto = puedeCrearProyectos ? () => setShowCreate(true) : null;
 
   return (
     <div className="app-shell flex h-screen bg-navy-50 font-sans text-navy-800 antialiased">
@@ -3025,7 +3089,7 @@ export default function App() {
       `}</style>
 
       <Sidebar
-        view={view}
+        view={vistaActual}
         setView={setView}
         stats={stats}
         perfil={perfil}
@@ -3056,51 +3120,51 @@ export default function App() {
         </div>
         {/* Las secciones pesadas se descargan al abrirlas (ver SECCIONES). */}
         <Suspense fallback={<LoadingScreen mensaje="Cargando sección…" />}>
-        {view === 'dashboard' && (
+        {vistaActual === 'dashboard' && (
           <Dashboard
             projects={projects}
             misProyectos={misProyectos}
-            onNewProject={() => setShowCreate(true)}
+            onNewProject={abrirCrearProyecto}
             openProject={openProject}
             setView={setView}
             directorio={directorio}
             perfil={perfil}
           />
         )}
-        {view === 'mis' && (
+        {vistaActual === 'mis' && (
           <ProjectListView
             projects={misProyectos}
             title="Mis Proyectos"
             subtitle={`Proyectos donde ${perfil.nombre} hace parte del equipo`}
             onOpen={openProject}
-            onNewProject={() => setShowCreate(true)}
+            onNewProject={abrirCrearProyecto}
             directorio={directorio}
           />
         )}
-        {view === 'todos' && (
+        {vistaActual === 'todos' && (
           <ProjectListView
             projects={projects}
             title="Todos los Proyectos"
             subtitle="Portafolio completo de minigranjas fotovoltaicas"
             onOpen={openProject}
-            onNewProject={() => setShowCreate(true)}
+            onNewProject={abrirCrearProyecto}
             directorio={directorio}
             archivarFinalizados
             mostrarFiltroInversionista
             estadoInicial="activo"
           />
         )}
-        {view === 'resumen_inversionistas' && (
+        {vistaActual === 'resumen_inversionistas' && (
           <ResumenInversionistasView projects={projects} onOpenProject={openProject} dossiers={dossiers} />
         )}
-        {view === 'diseno_via' && (
+        {vistaActual === 'diseno_via' && (
           <DisenoViaView
             perfil={perfil}
             projects={projects}
             onGuardarEnProyecto={handleGuardarDisenoVia}
           />
         )}
-        {view === 'cimentaciones' && (
+        {vistaActual === 'cimentaciones' && (
           <CimentacionesView
             plantillas={plantillasCimentacion}
             onAdd={handleAddPlantillaCimentacion}
@@ -3113,7 +3177,7 @@ export default function App() {
             onGuardarParametros={handleGuardarParametrosIngenieria}
           />
         )}
-        {view === 'equipos_electricos' && (
+        {vistaActual === 'equipos_electricos' && (
           <EquiposElectricosView
             plantillas={plantillasEquipos}
             onAdd={handleAddPlantillaEquipo}
@@ -3121,7 +3185,7 @@ export default function App() {
             onDelete={handleDeletePlantillaEquipo}
           />
         )}
-        {view === 'canalizaciones' && (
+        {vistaActual === 'canalizaciones' && (
           <CanalizacionesView
             plantillas={plantillasCanalizaciones}
             onAdd={handleAddPlantillaCanalizacion}
@@ -3133,7 +3197,7 @@ export default function App() {
             perfil={perfil}
           />
         )}
-        {view === 'cruces' && (
+        {vistaActual === 'cruces' && (
           <CrucesView
             plantillas={plantillasCruces}
             plantillasCanalizaciones={plantillasCanalizaciones}
@@ -3143,7 +3207,7 @@ export default function App() {
             perfil={perfil}
           />
         )}
-        {view === 'actualizaciones' && (
+        {vistaActual === 'actualizaciones' && (
           <ActualizacionesView
             categorias={actualizacionCategorias}
             actualizaciones={actualizaciones}
@@ -3157,7 +3221,7 @@ export default function App() {
             categoriaPreseleccionada={categoriaActualizacionDestino}
           />
         )}
-        {view === 'equipo' && (
+        {vistaActual === 'equipo' && (
           <EquipoView
             directorio={directorio}
             perfil={perfil}
@@ -3172,7 +3236,7 @@ export default function App() {
             dossiers={dossiers}
           />
         )}
-        {view === 'resumenes' && (
+        {vistaActual === 'resumenes' && (
           <ResumenesView
             perfil={perfil}
             directorio={directorio}
@@ -3188,7 +3252,7 @@ export default function App() {
             onBorrarAusencia={handleBorrarAusencia}
           />
         )}
-        {view === 'dossiers' && (
+        {vistaActual === 'dossiers' && (
           <DossiersView
             dossiers={dossiers}
             projects={projects}
@@ -3204,7 +3268,7 @@ export default function App() {
             onAsignarInversionista={handleAsignarDossierInversionista}
           />
         )}
-        {view === 'instructivos' && (
+        {vistaActual === 'instructivos' && (
           <InstructivosView
             carpetas={carpetas}
             videos={videos}
@@ -3216,8 +3280,8 @@ export default function App() {
             onDeleteVideo={handleDeleteVideo}
           />
         )}
-        {view === 'enlaces' && <LinksView links={links} onAdd={handleAddLink} onUpdate={handleUpdateLink} onRemove={handleRemoveLink} />}
-        {view === 'detalle' && selectedProject && (
+        {vistaActual === 'enlaces' && <LinksView links={links} onAdd={handleAddLink} onUpdate={handleUpdateLink} onRemove={handleRemoveLink} />}
+        {vistaActual === 'detalle' && selectedProject && (
           <ProjectDetail
             key={selectedProject.id}
             project={selectedProject}
@@ -3250,7 +3314,7 @@ export default function App() {
         </Suspense>
       </main>
 
-      {showCreate && (
+      {showCreate && puedeCrearProyectos && (
         <ProjectFormModal
           onClose={() => setShowCreate(false)}
           onCreate={handleCreate}

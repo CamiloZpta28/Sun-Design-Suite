@@ -12,7 +12,7 @@
 
 import {
   HardHat, Droplets, Building2, Zap, Mountain, PenTool, FileText,
-  ShieldCheck, ClipboardCheck, Code2,
+  ShieldCheck, ClipboardCheck, Code2, Eye,
 } from 'lucide-react';
 
 /* --------------------------- 1. ROLES / ESPECIALIDADES --------------------- */
@@ -99,6 +99,21 @@ export const QA_ROLE = { key: 'control_calidad', label: 'Control de Calidad Inte
 /* Pensado para quien mantiene la plataforma, no para el equipo de diseño.  */
 export const DEV_ROLE = { key: 'desarrollador', label: 'Desarrollador', icon: Code2 };
 
+/* Invitado: quien NO tiene ningún rol de equipo. No es un rol que se otorgue
+   —no aparece entre los que se asignan—: es el estado de toda cuenta nueva
+   hasta que un líder o un desarrollador le da un rol del equipo, y vuelve a
+   serlo si se los quitan todos. Así nunca se es invitado y otra cosa a la
+   vez, y nadie entra a editar solo por haberse creado una cuenta.
+
+   Sirve para gente de Solenium que sigue los proyectos sin trabajarlos
+   (gerencia, comercial, otras áreas). Ve Dashboard, Todos los proyectos,
+   Resumen por inversionista y Equipo; abre cualquier proyecto con todas sus
+   pestañas, pero no edita nada, no aparece en los resúmenes semanales y no
+   ve los datos personales de nadie más. La base de datos aplica la misma
+   regla (ver supabase/migration_rol_invitado.sql), así que no depende solo
+   de que la pantalla esconda los botones. */
+export const INVITADO_ROLE = { key: 'invitado', label: 'Invitado', icon: Eye };
+
 export const ALL_ROLE_DEFS = [...ROLES, ...LEADER_ROLES, QA_ROLE, DEV_ROLE];
 /* Roles que solo el Líder de Diseño (o un Desarrollador) puede otorgar.     */
 export const ROLES_DE_ALTO_NIVEL = [...LEADER_ROLE_KEYS, DEV_ROLE.key];
@@ -119,20 +134,64 @@ export function roleLabel(key) {
   return ALL_ROLE_DEFS.find((r) => r.key === key)?.label || key;
 }
 export function rolesLabel(perfil) {
-  if (!perfil || !perfil.roles || perfil.roles.length === 0) return 'Sin rol asignado';
+  if (!perfil) return 'Sin rol asignado';
+  if (esInvitado(perfil)) return INVITADO_ROLE.label;
   return perfil.roles.map(roleLabel).join(' · ');
 }
+/* Ser invitado es no tener ningún rol de equipo. Si los roles todavía no se
+   pudieron cargar, la persona queda como invitada: ante la duda, en solo
+   lectura, nunca al revés. */
+export function esInvitado(perfil) {
+  return !!perfil && !(perfil.roles || []).some((rol) => rol !== INVITADO_ROLE.key);
+}
+/* Cada permiso empieza preguntando si es invitado: así, todo lo que ya
+   dependía de estas funciones —editar campos, asignar equipo, comentar,
+   borrar— queda cerrado para él sin tener que tocarlo uno por uno. */
 export function isDeveloper(perfil) {
-  return !!perfil && !!perfil.roles && perfil.roles.includes(DEV_ROLE.key);
+  return !esInvitado(perfil) && !!perfil && !!perfil.roles && perfil.roles.includes(DEV_ROLE.key);
 }
 export function isLeader(perfil) {
+  if (esInvitado(perfil)) return false;
   return isDeveloper(perfil) || (!!perfil && !!perfil.roles && perfil.roles.some((k) => LEADER_ROLE_KEYS.includes(k)));
 }
 export function isDesignLeader(perfil) {
+  if (esInvitado(perfil)) return false;
   return isDeveloper(perfil) || (!!perfil && !!perfil.roles && perfil.roles.includes('lider_diseno'));
 }
 export function isQA(perfil) {
+  if (esInvitado(perfil)) return false;
   return isDeveloper(perfil) || (!!perfil && !!perfil.roles && perfil.roles.includes(QA_ROLE.key));
+}
+
+/* Las secciones del menú que ve un invitado. "detalle" es la ficha de un
+   proyecto, que se abre desde las listas. */
+export const VISTAS_DEL_INVITADO = ['dashboard', 'todos', 'resumen_inversionistas', 'equipo', 'detalle'];
+export function puedeVerVista(perfil, vista) {
+  return !esInvitado(perfil) || VISTAS_DEL_INVITADO.includes(vista);
+}
+
+/* Datos personales de la ficha de cada persona. Viven en su propia tabla
+   (datos_personales), aparte del perfil: el perfil lo lee todo el mundo y
+   estos no. Los ve la propia persona y quien tenga un rol de equipo; un
+   invitado —incluida toda cuenta recién creada— solo ve los suyos. */
+export const CAMPOS_DATOS_PERSONALES = [
+  'cedula', 'ciudad_expedicion_cedula', 'matricula_profesional', 'celular', 'direccion', 'correo_personal',
+];
+export function puedeVerDatosPersonales(perfil, persona) {
+  if (!perfil || !persona) return false;
+  if (perfil.id === persona.id) return true;
+  return !esInvitado(perfil);
+}
+/* Parte un cambio de la ficha de una persona en lo que va al perfil y lo
+   que va a datos_personales, para guardar cada cosa en su tabla. */
+export function separarDatosPersonales(patch) {
+  const perfil = {};
+  const datos = {};
+  Object.entries(patch || {}).forEach(([clave, valor]) => {
+    if (CAMPOS_DATOS_PERSONALES.includes(clave)) datos[clave] = valor;
+    else perfil[clave] = valor;
+  });
+  return { perfil, datos };
 }
 /* Los dossiers los gestionan los líderes (y el Desarrollador): asignar el   */
 /* dossier de un inversionista, duplicar una versión, agregar o quitar        */
@@ -150,7 +209,7 @@ export function canAssignRole(perfil, roleKey) {
   return isLeader(perfil);
 }
 export function isAssignedToProject(perfil, project) {
-  return !!perfil && equipoNombres(project.equipo).includes(perfil.nombre);
+  return !!perfil && !esInvitado(perfil) && equipoNombres(project.equipo).includes(perfil.nombre);
 }
 
 /* Quiénes elaboraron el proyecto: no solo los civiles. En el rótulo de la
