@@ -548,6 +548,23 @@ create index if not exists reuniones_pendientes_serie_idx on reuniones_pendiente
 create index if not exists reuniones_historial_pendiente_idx on reuniones_historial (pendiente_id);
 create index if not exists reuniones_temas_sesion_idx on reuniones_temas (sesion_id);
 
+-- ---------- Plan de la semana de la reunión civil ----------
+create table if not exists reuniones_planes (
+  -- 'plan-<reunión>-<lunes>-<persona>': guardar dos veces el plan de alguien
+  -- actualiza la fila en vez de crear otra.
+  id text primary key,
+  serie text not null,
+  semana date not null,
+  usuario_id uuid not null references auth.users(id) on delete cascade,
+  -- [{ id, proyecto_id, tarea }], en orden de prioridad.
+  items jsonb not null default '[]'::jsonb,
+  actualizado_por text,
+  updated_at timestamptz default now(),
+  unique (serie, semana, usuario_id)
+);
+
+create index if not exists reuniones_planes_semana_idx on reuniones_planes (semana);
+
 -- ---------- Seguridad a nivel de fila (RLS) ----------
 -- Estas políticas asumen un equipo interno de confianza: cualquier
 -- persona autenticada puede leer y escribir los datos compartidos
@@ -896,6 +913,22 @@ create policy "Editar temas tratados" on reuniones_temas
   for update using (auth.role() = 'authenticated');
 create policy "Borrar temas tratados" on reuniones_temas
   for delete using (auth.role() = 'authenticated');
+
+alter table reuniones_planes enable row level security;
+
+create policy "Lectura de planes" on reuniones_planes
+  for select using (auth.role() = 'authenticated');
+
+-- El plan lo reparte el líder civil (y, como en el resto de la plataforma,
+-- el Líder de Diseño y el Desarrollador). Nadie más: es su decisión.
+create policy "Planes solo lider civil" on reuniones_planes
+  for all using (
+    exists (
+      select 1 from user_roles ur
+      where ur.user_id = auth.uid()
+      and ur.role_key in ('lider_civil','lider_diseno','desarrollador')
+    )
+  );
 
 alter table notificaciones enable row level security;
 create policy "Lectura de mis notificaciones" on notificaciones
@@ -1483,7 +1516,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['reuniones_sesiones','reuniones_rotacion','reuniones_pendientes','reuniones_historial','reuniones_temas']
+  foreach t in array array['reuniones_sesiones','reuniones_rotacion','reuniones_pendientes','reuniones_historial','reuniones_temas','reuniones_planes']
   loop
     execute format('create policy "Invitado no ve reuniones" on %I as restrictive for select to authenticated using (not es_invitado())', t);
   end loop;

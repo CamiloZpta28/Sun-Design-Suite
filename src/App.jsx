@@ -9,7 +9,7 @@ import {
 import { supabase, retornoDeAcceso } from './supabaseClient';
 import { AuthGate, NuevaContrasena } from './secciones/Acceso.jsx';
 import { rutaDe, estadoDeRuta } from './routes.js';
-import { idDeSesion, reunionPorId } from './shared/reuniones.js';
+import { idDePlan, idDeSesion, reunionPorId } from './shared/reuniones.js';
 import { Avatar } from './shared/ui.jsx';
 import { useCambiosEnVivo, textoDeCambio } from './shared/cambiosEnVivo.js';
 import { NotificationBell, notificacionesVigentes, fechaDeCorte } from './shared/notificaciones.jsx';
@@ -1653,6 +1653,10 @@ export default function App() {
   const [historialReunion, setHistorialReunion] = useState([]);
   const [temasReunion, setTemasReunion] = useState([]);
   const [reunionesDisponibles, setReunionesDisponibles] = useState(true);
+  /* El plan de la semana va en su propia migración: si falta, la reunión
+     sigue funcionando y solo el plan avisa. */
+  const [planesReunion, setPlanesReunion] = useState([]);
+  const [planesDisponibles, setPlanesDisponibles] = useState(true);
   const [ausencias, setAusencias] = useState([]);
   // Objetos completos (correo/teléfono/NIT/logo) de cada inversionista — se
   // cargan por separado de la lista de nombres de arriba (que no se toca,
@@ -1878,6 +1882,20 @@ export default function App() {
     setPendientesReunion(pendientesR.data || []);
     setHistorialReunion(historialR.data || []);
     setTemasReunion(temasR.data || []);
+
+    /* Solo las últimas semanas: el plan de hace tres meses ya no sirve para
+       partir de él, y se acumula una fila por persona cada semana. */
+    const { data: planes, error: errorPlanes } = await supabase
+      .from('reuniones_planes')
+      .select('*')
+      .gte('semana', ultimasSemanas(12).slice(-1)[0]);
+    if (errorPlanes) {
+      console.warn('No se pudo cargar el plan de la semana (¿falta la migración?):', errorPlanes.message);
+      setPlanesDisponibles(false);
+      return;
+    }
+    setPlanesDisponibles(true);
+    setPlanesReunion(planes || []);
   }
 
   async function loadSharedData(ownUserId) {
@@ -2870,6 +2888,36 @@ export default function App() {
 
   /* Deshacer una resolución por error. El pendiente que haya creado NO se
      borra: ya puede tener responsables avisados y su propia vida. */
+  /* Guarda el plan de una persona para una semana y le avisa. Un plan sin
+     tareas se guarda igual —es "esta semana no tienes nada asignado"—, pero
+     no se avisa: no hay nada nuevo que decirle. */
+  async function handleGuardarPlan(serie, semana, usuarioId, items) {
+    const id = idDePlan(serie, semana, usuarioId);
+    const anterior = planesReunion.find((pl) => pl.id === id);
+    const fila = {
+      id, serie, semana, usuario_id: usuarioId, items,
+      actualizado_por: perfil?.nombre || null, updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('reuniones_planes').upsert(fila);
+    if (error) {
+      console.error('Error guardando el plan de la semana:', error);
+      alert('No se pudo guardar el plan. Detalle: ' + error.message);
+      return false;
+    }
+    setPlanesReunion((prev) => [...prev.filter((pl) => pl.id !== id), fila]);
+    if (usuarioId !== perfil?.id && items.length > 0) {
+      const verbo = anterior && (anterior.items || []).length > 0 ? 'cambió' : 'te asignó';
+      const mensaje = verbo === 'cambió'
+        ? `${perfil.nombre} cambió tu plan de la semana (${items.length} ${items.length === 1 ? 'tarea' : 'tareas'})`
+        : `${perfil.nombre} te asignó el plan de la semana (${items.length} ${items.length === 1 ? 'tarea' : 'tareas'})`;
+      const { error: errorNotif } = await supabase.from('notificaciones').insert({
+        id: makeId('notif'), usuario_id: usuarioId, tipo: 'reunion', mensaje, leida: false,
+      });
+      if (errorNotif) console.error('Error avisando del plan de la semana:', errorNotif);
+    }
+    return true;
+  }
+
   async function handleDeshacerTema(tratado) {
     const { error } = await supabase.from('reuniones_temas').delete().eq('id', tratado.id);
     if (error) {
@@ -3495,6 +3543,11 @@ export default function App() {
             onEliminarPendiente={handleEliminarPendiente}
             onResolverTema={handleResolverTema}
             onDeshacerTema={handleDeshacerTema}
+            proyectos={projects}
+            planes={planesReunion}
+            planesDisponibles={planesDisponibles}
+            onGuardarPlan={handleGuardarPlan}
+            onAbrirProyecto={openProject}
           />
         )}
         {vistaActual === 'dossiers' && (

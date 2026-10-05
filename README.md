@@ -176,6 +176,32 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **El plan de la semana, en la reunión civil.** Al final de la reunión el
+  líder civil reparte el trabajo: a cada quien, una lista de tareas en la que
+  **el orden es la prioridad**, cada una con su proyecto elegido de la lista
+  —para no escribir "Chinú 3" de cinco maneras— o sin proyecto si no aplica.
+  - **Cada quien ve su semana arriba del todo** al entrar a Reuniones, con
+    cada proyecto a un clic. Recibe una notificación cuando el líder le asigna
+    o le cambia el plan.
+  - **Es de esa semana: no se arrastra solo.** Pero como casi siempre el
+    trabajo continúa, al editar el de alguien hay un botón para **traer su
+    último plan** —no necesariamente el de la semana anterior: si esa semana
+    no hubo plan, se toma el último que sí hubo— y ajustarlo.
+  - **El equipo del proyecto no se toca desde aquí**: sigue viviendo en el
+    proyecto, para no tener dos sitios diciendo quién trabaja qué. Si el líder
+    le asigna a alguien un proyecto donde no está en el equipo, se avisa en
+    ámbar; no se impide.
+  - Las tareas **no llevan estado**: el seguimiento es de los pendientes. Si
+    una tarea necesita seguimiento, se vuelve pendiente.
+  - Al asignar solo se ofrecen los proyectos que no están finalizados.
+  - El plan **entra al registro de la sesión** y a su texto para el chat.
+  - Lo edita el líder civil (y el Líder de Diseño y el Desarrollador), en la
+    pantalla y en la RLS. Solo la reunión civil lo tiene; si otra lo necesita,
+    es agregarla a `REUNIONES_CON_PLAN`.
+  - **Necesita migración**: `supabase/migration_reuniones_plan.sql`, aparte de
+    la de reuniones. Sin ella la reunión civil funciona igual y solo el bloque
+    del plan avisa que falta.
+
 - **Reuniones: sección nueva para las reuniones del lunes** —civil, eléctrica
   y delineantes—. Abre en la de cada quien según su rol, con las otras a un
   clic. Cada sesión sigue el orden de la reunión: quién modera, los

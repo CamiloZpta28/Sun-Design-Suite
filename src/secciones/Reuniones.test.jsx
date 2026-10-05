@@ -33,6 +33,12 @@ const directorio = [
 ];
 const yo = (id) => directorio.find((p) => p.id === id);
 
+const proyectos = [
+  { id: 'chinu3', nombre: 'Chinú 3', estado: 'activo', equipo: { civil: ['Ana'], hidraulico: 'Dani' } },
+  { id: 'santomas', nombre: 'San Tomás', estado: 'activo', equipo: { civil: ['Ana'] } },
+  { id: 'viejo', nombre: 'Proyecto cerrado', estado: 'finalizado', equipo: {} },
+];
+
 const pendienteViejo = {
   id: 'p1', serie: 'civil', texto: 'Revisar alcance de Chinú 5', responsables: ['dani'],
   estado: 'en_curso', sesion_origen: 'vieja', created_at: haceDias(16), updated_at: haceDias(3),
@@ -53,6 +59,8 @@ function pintar(props = {}) {
     onEliminarPendiente: vi.fn(),
     onResolverTema: vi.fn(async () => true),
     onDeshacerTema: vi.fn(),
+    onGuardarPlan: vi.fn(async () => true),
+    onAbrirProyecto: vi.fn(),
   };
   const utils = render(
     <ReunionesView
@@ -65,6 +73,8 @@ function pintar(props = {}) {
       pendientes={[pendienteViejo]}
       historial={historial}
       temasTratados={[]}
+      proyectos={proyectos}
+      planes={[]}
       {...handlers}
       {...props}
     />,
@@ -265,5 +275,106 @@ describe('los temas que llegan de los resúmenes', () => {
     pintar({ resumenes: [resumen], temasTratados: [tratado] });
     expect(screen.getAllByText(/Se mantiene el trazado/).length).toBe(2);
     expect(screen.getByText('Copiar el registro')).toBeTruthy();
+  });
+});
+
+
+describe('el plan de la semana', () => {
+  const planDeDani = {
+    id: `plan-civil-${SEMANA}-dani`, serie: 'civil', semana: SEMANA, usuario_id: 'dani',
+    items: [{ id: 'i1', proyecto_id: 'chinu3', tarea: 'Diseño de drenaje' }, { id: 'i2', proyecto_id: 'santomas', tarea: 'Revisar caudales' }],
+    updated_at: '2026-01-01T00:00:00Z',
+  };
+
+  it('solo la reunión civil lo tiene', () => {
+    pintar({ perfil: yo('lucho') });
+    expect(screen.getByText('Plan de la semana')).toBeTruthy();
+    cleanup();
+    pintar({ perfil: yo('caro'), rotaciones: [] });
+    expect(screen.queryByText('Plan de la semana')).toBe(null);
+  });
+
+  it('lo edita el líder; un ingeniero solo lo ve', () => {
+    pintar({ perfil: yo('lucho') });
+    expect(screen.getAllByTitle('Editar el plan').length).toBeGreaterThan(0);
+    cleanup();
+    pintar({ perfil: yo('ana'), planes: [planDeDani] });
+    expect(screen.queryByTitle('Editar el plan')).toBe(null);
+    expect(screen.getAllByText(/Diseño de drenaje/).length).toBeGreaterThan(0);
+  });
+
+  it('el líder arma el plan en orden de prioridad, y nace dentro de la sesión', async () => {
+    const { handlers, container } = pintar({ perfil: yo('lucho') });
+    const tarjetaDeDani = [...container.querySelectorAll('div')]
+      .find((d) => d.firstChild?.firstChild?.textContent === 'Dani');
+    fireEvent.click(tarjetaDeDani.querySelector('[title="Editar el plan"]'));
+    fireEvent.change(screen.getByLabelText('Tarea 1'), { target: { value: 'Revisar caudales' } });
+    fireEvent.click(screen.getByText('Agregar tarea'));
+    fireEvent.change(screen.getByLabelText('Proyecto de la tarea 2'), { target: { value: 'chinu3' } });
+    fireEvent.change(screen.getByLabelText('Tarea 2'), { target: { value: 'Diseño de drenaje' } });
+    /* Lo de Chinú 3 es más urgente: sube al primer puesto. */
+    fireEvent.click(screen.getAllByTitle('Subir prioridad')[1]);
+    fireEvent.click(screen.getByText('Agregar tarea'));
+    fireEvent.click(screen.getByText('Guardar'));
+    await vi.waitFor(() => expect(handlers.onGuardarPlan).toHaveBeenCalled());
+    expect(handlers.onAsegurarSesion).toHaveBeenCalled();
+    const [serie, semana, usuario, items] = handlers.onGuardarPlan.mock.calls[0];
+    expect([serie, semana, usuario]).toEqual(['civil', SEMANA, 'dani']);
+    /* El renglón que quedó vacío se descarta al guardar. */
+    expect(items.map((i) => [i.proyecto_id, i.tarea])).toEqual([
+      ['chinu3', 'Diseño de drenaje'],
+      [null, 'Revisar caudales'],
+    ]);
+  });
+
+  it('no ofrece los proyectos finalizados', () => {
+    const { container } = pintar({ perfil: yo('lucho') });
+    fireEvent.click(container.querySelector('[title="Editar el plan"]'));
+    const opciones = [...screen.getByLabelText('Proyecto de la tarea 1').querySelectorAll('option')].map((o) => o.textContent);
+    expect(opciones).toContain('Chinú 3');
+    expect(opciones).not.toContain('Proyecto cerrado');
+  });
+
+  /* Casi siempre el trabajo continúa: se parte del último plan. */
+  it('se puede partir del plan anterior', () => {
+    const anterior = { ...planDeDani, id: 'viejo', semana: ANTERIOR };
+    const { container } = pintar({ perfil: yo('lucho'), planes: [anterior] });
+    const tarjetaDeDani = [...container.querySelectorAll('div')]
+      .find((d) => d.firstChild?.firstChild?.textContent === 'Dani');
+    fireEvent.click(tarjetaDeDani.querySelector('[title="Editar el plan"]'));
+    fireEvent.click(screen.getByText(/Traer el plan de la semana del/));
+    expect(screen.getByLabelText('Tarea 1').value).toBe('Diseño de drenaje');
+    expect(screen.getByLabelText('Tarea 2').value).toBe('Revisar caudales');
+  });
+
+  /* No se impide —el equipo se cambia en el proyecto—, pero se avisa. */
+  it('avisa si le asignaron un proyecto donde no está en el equipo', () => {
+    pintar({ perfil: yo('ana'), planes: [planDeDani] });
+    /* Dani está en Chinú 3 pero no en San Tomás. */
+    expect(screen.getAllByText(/No está en el equipo de este proyecto/).length).toBe(1);
+  });
+
+  it('cada quien ve su semana arriba del todo, con el proyecto a un clic', () => {
+    const { handlers } = pintar({ perfil: yo('dani'), planes: [planDeDani] });
+    expect(screen.getByText('Tu semana')).toBeTruthy();
+    fireEvent.click(screen.getAllByText('Chinú 3')[0]);
+    expect(handlers.onAbrirProyecto).toHaveBeenCalledWith('chinu3');
+  });
+
+  it('quien no tiene plan no ve el bloque de su semana', () => {
+    pintar({ perfil: yo('ana'), planes: [planDeDani] });
+    expect(screen.queryByText('Tu semana')).toBe(null);
+  });
+
+  it('el plan entra al registro de la sesión', () => {
+    pintar({ perfil: yo('ana'), planes: [planDeDani] });
+    expect(screen.getByText(/1\. Chinú 3 · Diseño de drenaje; 2\. San Tomás · Revisar caudales/)).toBeTruthy();
+  });
+
+  it('sin la migración del plan, la reunión sigue y solo el plan avisa', () => {
+    pintar({ perfil: yo('lucho'), planesDisponibles: false });
+    expect(screen.getByText(/Falta correr la migración del plan/)).toBeTruthy();
+    expect(screen.queryByTitle('Editar el plan')).toBe(null);
+    expect(screen.getByText('Revisar alcance de Chinú 5')).toBeTruthy();
   });
 });

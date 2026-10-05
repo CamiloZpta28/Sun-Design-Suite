@@ -23,7 +23,7 @@
    ============================================================================ */
 
 import { REUNIONES, isoDeFecha, repartirEnReuniones, sumarDias, temasDeLaSemana } from './resumenes.js';
-import { esInvitado, isDesignLeader, isDeveloper } from './permisos.js';
+import { equipoNombres, esInvitado, isDesignLeader, isDeveloper } from './permisos.js';
 
 /* Los estados de un pendiente, en el orden en que avanza. */
 export const ESTADOS_PENDIENTE = [
@@ -274,6 +274,62 @@ export function resolucionValida(resultado, conclusion) {
   return resultado === 'pendiente';
 }
 
+/* ------------------------------------------------- el plan de la semana */
+
+/* Al final de la reunión civil, el líder reparte el trabajo de la semana:
+   a cada quien, una lista ordenada de tareas —el orden ES la prioridad—, casi
+   siempre ligadas a un proyecto. Solo la reunión civil lo hace; si mañana
+   otra lo necesita, es agregarla aquí. */
+export const REUNIONES_CON_PLAN = ['civil'];
+
+export function tienePlan(reunionId) {
+  return REUNIONES_CON_PLAN.includes(reunionId);
+}
+
+/* Un plan por reunión, semana y persona. Determinista: guardar dos veces el
+   de alguien actualiza la fila en vez de crear otra. */
+export function idDePlan(reunionId, semana, usuarioId) {
+  return `plan-${reunionId}-${semana}-${usuarioId}`;
+}
+
+export function planDe(planes, reunionId, semana, usuarioId) {
+  return (planes || []).find((p) => p.serie === reunionId && p.semana === semana && p.usuario_id === usuarioId) || null;
+}
+
+/* El último plan que tuvo alguien antes de esta semana, para partir de él:
+   casi siempre el trabajo continúa. No necesariamente el de la semana
+   inmediatamente anterior —si esa semana no hubo plan (vacaciones, un
+   festivo), se toma el último que sí hubo—. */
+export function planAnterior(planes, reunionId, semana, usuarioId) {
+  return (planes || [])
+    .filter((p) => p.serie === reunionId && p.usuario_id === usuarioId && p.semana < semana && (p.items || []).length > 0)
+    .sort((a, b) => b.semana.localeCompare(a.semana))[0] || null;
+}
+
+/* Los renglones listos para guardarse: sin espacios sobrantes y sin los que
+   quedaron sin tarea. Un renglón con proyecto pero sin tarea no dice qué hay
+   que hacer. */
+export function limpiarItems(items) {
+  return (items || [])
+    .map((i) => ({ ...i, tarea: (i.tarea || '').trim(), proyecto_id: i.proyecto_id || null }))
+    .filter((i) => i.tarea);
+}
+
+/* ¿Le asignaron un proyecto donde no está en el equipo? No se impide —el
+   líder puede tener sus razones, y el equipo se cambia en el proyecto—, pero
+   se avisa: o falta agregarla allá, o se equivocó de proyecto. */
+export function fueraDelEquipo(item, nombre, proyectos) {
+  if (!item?.proyecto_id || !nombre) return false;
+  const proyecto = (proyectos || []).find((p) => p.id === item.proyecto_id);
+  if (!proyecto) return false;
+  return !equipoNombres(proyecto.equipo).includes(nombre);
+}
+
+export function nombreDeProyecto(proyectos, id) {
+  if (!id) return null;
+  return ((proyectos || []).find((p) => p.id === id) || {}).nombre || 'Proyecto que ya no existe';
+}
+
 /* ---------------------------------------------------------- el registro */
 
 /* Lo que pasó en una sesión, armado con lo que ya quedó guardado:
@@ -284,7 +340,7 @@ export function resolucionValida(resultado, conclusion) {
      que actualiza lo suyo un miércoles— quedan en el historial del
      pendiente, pero no son de la reunión;
    - los pendientes que nacieron en ella. */
-export function registroDeLaSesion({ sesionId, fecha, temasTratados, pendientes, historial, reunionId }) {
+export function registroDeLaSesion({ sesionId, fecha, temasTratados, pendientes, historial, reunionId, semana, planes }) {
   const porId = new Map((pendientes || []).map((p) => [p.id, p]));
   const temas = (temasTratados || [])
     .filter((t) => t.sesion_id === sesionId)
@@ -301,16 +357,21 @@ export function registroDeLaSesion({ sesionId, fecha, temasTratados, pendientes,
     .filter((p) => p.sesion_origen === sesionId)
     .sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
 
-  return { temas, revisados, nuevos };
+  /* El plan que el líder repartió esa semana, solo de quien tiene algo. */
+  const plan = (planes || [])
+    .filter((p) => p.serie === reunionId && p.semana === semana && (p.items || []).length > 0);
+
+  return { temas, revisados, nuevos, plan };
 }
 
 export function registroVacio(registro) {
-  return !registro || (registro.temas.length === 0 && registro.revisados.length === 0 && registro.nuevos.length === 0);
+  return !registro || (registro.temas.length === 0 && registro.revisados.length === 0
+    && registro.nuevos.length === 0 && (registro.plan || []).length === 0);
 }
 
 /* El registro como texto, para pegarlo en el chat. Mismo formato de viñetas
    que el resto de la plataforma; las secciones vacías no salen. */
-export function textoDelRegistro(registro, { titulo, moderador, directorio }) {
+export function textoDelRegistro(registro, { titulo, moderador, directorio, proyectos }) {
   const nombre = (id) => ((directorio || []).find((p) => p.id === id) || {}).nombre || 'Alguien';
   const partes = [titulo];
   if (moderador) partes.push(`Moderó: ${moderador}`);
@@ -343,6 +404,19 @@ export function textoDelRegistro(registro, { titulo, moderador, directorio }) {
       const quienes = (p.responsables || []).map(nombre).join(', ');
       partes.push(`-${p.texto}${quienes ? ` · ${quienes}` : ''}`);
     });
+  }
+
+  if ((registro.plan || []).length > 0) {
+    partes.push('', 'Plan de la semana');
+    [...registro.plan]
+      .sort((a, b) => nombre(a.usuario_id).localeCompare(nombre(b.usuario_id), 'es'))
+      .forEach((p) => {
+        partes.push(nombre(p.usuario_id));
+        p.items.forEach((item, i) => {
+          const proyecto = nombreDeProyecto(proyectos, item.proyecto_id);
+          partes.push(`-${i + 1}. ${proyecto ? `${proyecto} · ` : ''}${item.tarea}`);
+        });
+      });
   }
 
   return partes.join('\n');

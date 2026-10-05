@@ -12,7 +12,8 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  actualizacionValida, ausenteEl, bandejaDeLaSesion, fechaLegible, nombreDe, claveDeTema, fechaDeSesion, fechaDeSesionValida,
+  actualizacionValida, ausenteEl, bandejaDeLaSesion, fechaLegible, nombreDe,
+  fueraDelEquipo, idDePlan, limpiarItems, nombreDeProyecto, planAnterior, planDe, tienePlan, claveDeTema, fechaDeSesion, fechaDeSesionValida,
   gestionaReunion, historialDe, idDeSesion, moderadorSugerido, participantes, pendientesDeReunion,
   puedeActualizarPendiente, registroDeLaSesion, registroVacio, resolucionValida, reunionInicial,
   reunionesDePersona, semanaDeLosTemas, semanasAbierto, temasParaLaSesion, textoDelRegistro,
@@ -377,5 +378,96 @@ describe('nombres y fechas', () => {
   it('quien ya no está en el equipo se nombra así, no con un hueco', () => {
     expect(nombreDe(directorio, 'ana')).toBe('Ana');
     expect(nombreDe(directorio, 'se-fue')).toBe('Alguien que ya no está en el equipo');
+  });
+});
+
+describe('el plan de la semana', () => {
+  const planes = [
+    { serie: 'civil', semana: '2026-09-21', usuario_id: 'ana', items: [{ id: 'a', tarea: 'Hace dos semanas' }] },
+    { serie: 'civil', semana: '2026-09-28', usuario_id: 'ana', items: [] },
+    { serie: 'civil', semana: '2026-10-05', usuario_id: 'ana', items: [{ id: 'b', tarea: 'Esta semana' }] },
+    { serie: 'civil', semana: '2026-10-05', usuario_id: 'dani', items: [{ id: 'c', tarea: 'De Dani' }] },
+  ];
+
+  it('solo la reunión civil lleva plan', () => {
+    expect(tienePlan('civil')).toBe(true);
+    expect(tienePlan('electrica')).toBe(false);
+    expect(tienePlan('delineantes')).toBe(false);
+  });
+
+  it('un plan por reunión, semana y persona', () => {
+    expect(idDePlan('civil', '2026-10-05', 'ana')).toBe('plan-civil-2026-10-05-ana');
+    expect(planDe(planes, 'civil', '2026-10-05', 'ana').items[0].tarea).toBe('Esta semana');
+    expect(planDe(planes, 'civil', '2026-10-05', 'eva')).toBe(null);
+  });
+
+  /* Si la semana pasada no hubo plan (vacaciones, un festivo), se parte del
+     último que sí hubo: casi siempre el trabajo continúa. */
+  it('para partir de algo, toma el último plan con tareas, no el de hace exactamente una semana', () => {
+    expect(planAnterior(planes, 'civil', '2026-10-05', 'ana').semana).toBe('2026-09-21');
+    expect(planAnterior(planes, 'civil', '2026-10-05', 'eva')).toBe(null);
+  });
+
+  it('al guardar, se recortan las tareas y se descartan las vacías', () => {
+    expect(limpiarItems([
+      { id: '1', tarea: '  Memoria de cimentaciones ', proyecto_id: 'p1' },
+      { id: '2', tarea: '   ', proyecto_id: 'p2' },
+      { id: '3', tarea: 'Capacitación', proyecto_id: '' },
+    ])).toEqual([
+      { id: '1', tarea: 'Memoria de cimentaciones', proyecto_id: 'p1' },
+      { id: '3', tarea: 'Capacitación', proyecto_id: null },
+    ]);
+  });
+
+  /* No se impide —el equipo se cambia en el proyecto—, pero se avisa. */
+  it('avisa si el proyecto asignado no tiene a la persona en su equipo', () => {
+    const proyectos = [{ id: 'p1', nombre: 'Chinú 3', equipo: { civil: ['Ana'] } }];
+    expect(fueraDelEquipo({ proyecto_id: 'p1' }, 'Ana', proyectos)).toBe(false);
+    expect(fueraDelEquipo({ proyecto_id: 'p1' }, 'Dani', proyectos)).toBe(true);
+    expect(fueraDelEquipo({ proyecto_id: null }, 'Dani', proyectos)).toBe(false);
+    expect(fueraDelEquipo({ proyecto_id: 'no-existe' }, 'Dani', proyectos)).toBe(false);
+  });
+
+  it('un proyecto borrado no deja un hueco en el plan', () => {
+    expect(nombreDeProyecto([{ id: 'p1', nombre: 'Chinú 3' }], 'p1')).toBe('Chinú 3');
+    expect(nombreDeProyecto([], 'p9')).toBe('Proyecto que ya no existe');
+    expect(nombreDeProyecto([], null)).toBe(null);
+  });
+});
+
+describe('el plan entra al registro de la sesión', () => {
+  const planes = [
+    { serie: 'civil', semana: '2026-10-05', usuario_id: 'dani', items: [{ id: 'x', tarea: 'Planos de vía', proyecto_id: 'p1' }] },
+    { serie: 'civil', semana: '2026-10-05', usuario_id: 'ana', items: [{ id: 'y', tarea: 'Memoria', proyecto_id: null }, { id: 'z', tarea: 'Revisar CBR', proyecto_id: 'p1' }] },
+    { serie: 'civil', semana: '2026-10-05', usuario_id: 'eva', items: [] },
+    { serie: 'civil', semana: '2026-09-28', usuario_id: 'ana', items: [{ id: 'w', tarea: 'De otra semana' }] },
+  ];
+  const registro = registroDeLaSesion({
+    sesionId: 's', fecha: '2026-10-05', temasTratados: [], pendientes: [], historial: [],
+    reunionId: 'civil', semana: '2026-10-05', planes,
+  });
+
+  it('trae el plan de esa semana, solo de quien tiene tareas', () => {
+    expect(registro.plan.map((p) => p.usuario_id).sort()).toEqual(['ana', 'dani']);
+  });
+
+  it('una sesión con solo el plan no está vacía', () => {
+    expect(registroVacio(registro)).toBe(false);
+  });
+
+  it('en el texto sale por persona, numerado en el orden de prioridad', () => {
+    const texto = textoDelRegistro(registro, {
+      titulo: 'Reunión civil', directorio, proyectos: [{ id: 'p1', nombre: 'Chinú 3' }],
+    });
+    expect(texto).toBe([
+      'Reunión civil',
+      '',
+      'Plan de la semana',
+      'Ana',
+      '-1. Memoria',
+      '-2. Chinú 3 · Revisar CBR',
+      'Dani',
+      '-1. Chinú 3 · Planos de vía',
+    ].join('\n'));
   });
 });

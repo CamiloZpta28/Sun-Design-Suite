@@ -17,18 +17,20 @@
 
 import React, { useMemo, useState } from 'react';
 import {
-  ArrowDown, ArrowUp, Check, ChevronDown, ChevronRight, Copy, Handshake, History, Plus, Trash2, UserCog, X,
+  AlertTriangle, ArrowDown, ArrowUp, Check, ChevronDown, ChevronRight, ClipboardList, Copy, Handshake, History,
+  Pencil, Plus, Trash2, UserCog, X,
 } from 'lucide-react';
 import { copiarTexto } from '../shared/copiar.jsx';
+import { makeId } from '../shared/dominio.jsx';
 import { esInvitado } from '../shared/permisos.js';
 import { REUNIONES, lunesDe, ultimasSemanas } from '../shared/resumenes.js';
 import {
   ESTADOS_PENDIENTE, actualizacionValida, bandejaDeLaSesion, etiquetaDeEstado, fechaDeSesion,
-  fechaDeSesionValida, fechaLegible, gestionaReunion, historialDe, idDeSesion, moderadorSugerido,
-  nombreDe, ordenDeRotacion, participantes, pendientesDeReunion, puedeActualizarPendiente,
-  registroDeLaSesion, registroVacio, resolucionValida, reunionInicial, reunionPorId,
-  reunionesDePersona, semanasAbierto, sesionDe, temasParaLaSesion, textoDelRegistro,
-  ultimaJustificacion,
+  fechaDeSesionValida, fechaLegible, fueraDelEquipo, gestionaReunion, historialDe, idDeSesion,
+  limpiarItems, moderadorSugerido, nombreDe, nombreDeProyecto, ordenDeRotacion, participantes,
+  pendientesDeReunion, planAnterior, planDe, puedeActualizarPendiente, registroDeLaSesion,
+  registroVacio, resolucionValida, reunionInicial, reunionPorId, reunionesDePersona, semanasAbierto,
+  sesionDe, temasParaLaSesion, textoDelRegistro, tienePlan, ultimaJustificacion,
 } from '../shared/reuniones.js';
 
 const entrada = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
@@ -524,13 +526,217 @@ function CabeceraSesion({
   );
 }
 
+/* ---------------------------------------------------- el plan de la semana */
+
+/* Un renglón del plan, en lectura: el número es la prioridad. Si el proyecto
+   no tiene a esa persona en su equipo se avisa —no se impide: el equipo se
+   cambia en el proyecto, y el líder puede tener sus razones—. */
+function RenglonPlan({ item, posicion, nombrePersona, proyectos, onAbrirProyecto }) {
+  const proyecto = nombreDeProyecto(proyectos, item.proyecto_id);
+  const fuera = fueraDelEquipo(item, nombrePersona, proyectos);
+  return (
+    <li className="text-sm text-navy-700">
+      <span className="text-navy-400 tabular-nums">{posicion}.</span>{' '}
+      {proyecto && (
+        onAbrirProyecto && proyecto !== 'Proyecto que ya no existe' ? (
+          <button onClick={() => onAbrirProyecto(item.proyecto_id)} className="font-semibold text-navy-800 hover:text-lime-600 hover:underline">
+            {proyecto}
+          </button>
+        ) : <span className="font-semibold">{proyecto}</span>
+      )}
+      {proyecto && ' · '}
+      {item.tarea}
+      {fuera && (
+        <span className="block text-xs text-amber-700 pl-5">
+          <AlertTriangle className="w-3 h-3 inline -mt-0.5 mr-1" />
+          No está en el equipo de este proyecto; se agrega desde el proyecto.
+        </span>
+      )}
+    </li>
+  );
+}
+
+/* Los proyectos que se ofrecen al asignar: los que no están finalizados,
+   más el que ya tenga el renglón aunque se haya finalizado después, para que
+   no desaparezca del selector. */
+function opcionesDeProyecto(proyectos, actual) {
+  return (proyectos || [])
+    .filter((p) => p.estado !== 'finalizado' || p.id === actual)
+    .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'));
+}
+
+function PlanDePersona({ persona, plan, anterior, proyectos, puedeEditar, onGuardar, onAbrirProyecto }) {
+  const [editando, setEditando] = useState(false);
+  const [items, setItems] = useState(plan?.items || []);
+  const [guardando, setGuardando] = useState(false);
+  const vigentes = plan?.items || [];
+
+  function empezar() {
+    setItems(vigentes.length > 0 ? vigentes : [{ id: makeId('tarea'), proyecto_id: null, tarea: '' }]);
+    setEditando(true);
+  }
+  function cambiar(i, patch) {
+    setItems(items.map((it, j) => (j === i ? { ...it, ...patch } : it)));
+  }
+  function mover(i, delta) {
+    const j = i + delta;
+    if (j < 0 || j >= items.length) return;
+    const copia = [...items];
+    [copia[i], copia[j]] = [copia[j], copia[i]];
+    setItems(copia);
+  }
+  /* El trabajo casi siempre continúa: se parte del último plan, con ids
+     nuevos para que no se mezcle con aquel. */
+  function traerAnterior() {
+    setItems((anterior?.items || []).map((it) => ({ ...it, id: makeId('tarea') })));
+  }
+  async function guardar() {
+    setGuardando(true);
+    const ok = await onGuardar(persona.id, limpiarItems(items));
+    setGuardando(false);
+    if (ok !== false) setEditando(false);
+  }
+
+  return (
+    <div className="bg-white border border-navy-200 rounded-xl px-3 py-2.5">
+      <div className="flex items-center gap-2 mb-1.5">
+        <p className="text-sm font-semibold text-navy-700 flex-1 min-w-0 truncate">{persona.nombre}</p>
+        {puedeEditar && !editando && (
+          <button onClick={empezar} title="Editar el plan" className="text-navy-300 hover:text-navy-600 p-0.5">
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {!editando && (
+        vigentes.length === 0 ? (
+          <p className="text-xs text-navy-300 italic">Sin tareas asignadas.</p>
+        ) : (
+          <ol className="space-y-1">
+            {vigentes.map((it, i) => (
+              <RenglonPlan
+                key={it.id}
+                item={it}
+                posicion={i + 1}
+                nombrePersona={persona.nombre}
+                proyectos={proyectos}
+                onAbrirProyecto={onAbrirProyecto}
+              />
+            ))}
+          </ol>
+        )
+      )}
+
+      {editando && (
+        <div className="space-y-2">
+          {items.map((it, i) => (
+            <div key={it.id} className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-navy-400 text-sm tabular-nums w-5 text-right shrink-0">{i + 1}.</span>
+              <select
+                value={it.proyecto_id || ''}
+                aria-label={`Proyecto de la tarea ${i + 1}`}
+                onChange={(e) => cambiar(i, { proyecto_id: e.target.value || null })}
+                className="rounded-md border border-navy-300 px-2 py-1.5 text-sm max-w-[12rem]"
+              >
+                <option value="">— Sin proyecto —</option>
+                {opcionesDeProyecto(proyectos, it.proyecto_id).map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              </select>
+              <input
+                value={it.tarea}
+                aria-label={`Tarea ${i + 1}`}
+                onChange={(e) => cambiar(i, { tarea: e.target.value })}
+                placeholder="Qué hay que hacer"
+                className="flex-1 min-w-[10rem] rounded-md border border-navy-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400"
+              />
+              <button onClick={() => mover(i, -1)} title="Subir prioridad" className="text-navy-300 hover:text-navy-600 p-0.5"><ArrowUp className="w-3.5 h-3.5" /></button>
+              <button onClick={() => mover(i, 1)} title="Bajar prioridad" className="text-navy-300 hover:text-navy-600 p-0.5"><ArrowDown className="w-3.5 h-3.5" /></button>
+              <button onClick={() => setItems(items.filter((_, j) => j !== i))} title="Quitar tarea" className="text-navy-300 hover:text-red-500 p-0.5"><X className="w-3.5 h-3.5" /></button>
+            </div>
+          ))}
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={() => setItems([...items, { id: makeId('tarea'), proyecto_id: null, tarea: '' }])}
+              className="flex items-center gap-1 text-xs font-semibold text-lime-600 hover:text-lime-700"
+            >
+              <Plus className="w-3.5 h-3.5" /> Agregar tarea
+            </button>
+            {anterior && (
+              <button onClick={traerAnterior} className="text-xs font-semibold text-navy-500 hover:text-navy-700 underline">
+                Traer el plan de la semana del {fechaLegible(anterior.semana).replace(/^\S+ /, '')}
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={guardar}
+              disabled={guardando}
+              className="bg-lime-500 hover:bg-lime-600 disabled:opacity-40 text-navy-900 font-semibold text-sm px-3 py-1.5 rounded-lg"
+            >
+              Guardar
+            </button>
+            <button onClick={() => setEditando(false)} className="text-sm text-navy-500 hover:text-navy-700 px-2">Cancelar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PlanDeLaSemana({ reunionId, semana, planes, directorio, proyectos, puedeEditar, onGuardar, onAbrirProyecto }) {
+  const gente = participantes(reunionId, directorio);
+  if (gente.length === 0) {
+    return <p className="text-sm text-navy-300 italic">Nadie va a esta reunión todavía.</p>;
+  }
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+      {gente.map((persona) => (
+        <PlanDePersona
+          key={`${persona.id}-${semana}-${planDe(planes, reunionId, semana, persona.id)?.updated_at || 'nuevo'}`}
+          persona={persona}
+          plan={planDe(planes, reunionId, semana, persona.id)}
+          anterior={planAnterior(planes, reunionId, semana, persona.id)}
+          proyectos={proyectos}
+          puedeEditar={puedeEditar}
+          onGuardar={onGuardar}
+          onAbrirProyecto={onAbrirProyecto}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* Lo que a uno le toca esta semana, arriba del todo: es lo primero que se
+   busca al entrar el lunes por la tarde. */
+function MiSemana({ plan, nombrePersona, proyectos, onAbrirProyecto }) {
+  if (!plan || (plan.items || []).length === 0) return null;
+  return (
+    <div className="bg-lime-50 border border-lime-300 rounded-xl px-3 py-2.5 mb-5">
+      <p className="text-xs font-bold uppercase tracking-wide text-navy-600 mb-1.5 flex items-center gap-1.5">
+        <ClipboardList className="w-3.5 h-3.5" /> Tu semana
+      </p>
+      <ol className="space-y-1">
+        {plan.items.map((it, i) => (
+          <RenglonPlan
+            key={it.id}
+            item={it}
+            posicion={i + 1}
+            nombrePersona={nombrePersona}
+            proyectos={proyectos}
+            onAbrirProyecto={onAbrirProyecto}
+          />
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------- registro */
 
-function Registro({ registro, titulo, moderador, directorio }) {
+function Registro({ registro, titulo, moderador, directorio, proyectos }) {
   const [copiado, setCopiado] = useState(false);
 
   async function copiar() {
-    if (!(await copiarTexto(textoDelRegistro(registro, { titulo, moderador, directorio })))) {
+    if (!(await copiarTexto(textoDelRegistro(registro, { titulo, moderador, directorio, proyectos })))) {
       window.alert('El navegador no dejó copiar. Selecciona el texto a mano.');
       return;
     }
@@ -582,6 +788,24 @@ function Registro({ registro, titulo, moderador, directorio }) {
           </ul>
         </div>
       )}
+      {(registro.plan || []).length > 0 && (
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wide text-navy-400 mb-1">Plan de la semana</p>
+          <ul className="space-y-1">
+            {[...registro.plan]
+              .sort((a, b) => nombreDe(directorio, a.usuario_id).localeCompare(nombreDe(directorio, b.usuario_id), 'es'))
+              .map((pl) => (
+                <li key={pl.id || pl.usuario_id} className="text-sm text-navy-700">
+                  <span className="font-semibold">{nombreDe(directorio, pl.usuario_id)}:</span>{' '}
+                  {pl.items.map((it, i) => {
+                    const proyecto = nombreDeProyecto(proyectos, it.proyecto_id);
+                    return `${i + 1}. ${proyecto ? `${proyecto} · ` : ''}${it.tarea}`;
+                  }).join('; ')}
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
       <button onClick={copiar} className="flex items-center gap-1.5 text-xs font-semibold text-navy-500 hover:text-navy-700">
         {copiado ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
         {copiado ? 'Copiado' : 'Copiar el registro'}
@@ -610,6 +834,7 @@ export default function ReunionesView({
   onAsegurarSesion, onGuardarSesion, onGuardarRotacion,
   onCrearPendiente, onActualizarPendiente, onCambiarResponsables, onEliminarPendiente,
   onResolverTema, onDeshacerTema,
+  proyectos, planes, planesDisponibles = true, onGuardarPlan, onAbrirProyecto,
 }) {
   const [reunionId, setReunionId] = useState(() => reunionInicial(perfil));
   const [semana, setSemana] = useState(() => lunesDe());
@@ -640,7 +865,12 @@ export default function ReunionesView({
   const sesionId = idDeSesion(reunionId, semana);
   const temas = bandejaDeLaSesion(temasParaLaSesion(resumenes, reunionId, semana, directorio), temasTratados, sesionId);
   const porTratar = temas.filter((t) => !t.resolucion).length;
-  const registro = registroDeLaSesion({ sesionId, fecha, temasTratados, pendientes, historial, reunionId });
+  const registro = registroDeLaSesion({ sesionId, fecha, temasTratados, pendientes, historial, reunionId, semana, planes });
+
+  /* El plan lo reparte quien gestiona la reunión civil. */
+  const puedeEditarPlan = disponible && planesDisponibles && tienePlan(reunionId) && gestiona;
+  const miPlan = planDe(planes, 'civil', semanaActual, perfil?.id);
+  const guardarPlan = (usuarioId, items) => conSesion(() => onGuardarPlan(reunionId, semana, usuarioId, items));
 
   /* Lo primero que se hace en una sesión la crea, con el moderador que le
      tocaba: así la rotación avanza sola desde quien moderó de verdad. */
@@ -677,6 +907,8 @@ export default function ReunionesView({
           tanto esta sección se ve, pero no se puede guardar nada.
         </p>
       )}
+
+      <MiSemana plan={miPlan} nombrePersona={perfil?.nombre} proyectos={proyectos} onAbrirProyecto={onAbrirProyecto} />
 
       <div className="flex items-center gap-3 flex-wrap mb-5">
         <div className="flex gap-1 flex-wrap">
@@ -765,12 +997,39 @@ export default function ReunionesView({
         )}
       </Bloque>
 
+      {tienePlan(reunionId) && (
+        <Bloque titulo="Plan de la semana">
+          {!planesDisponibles ? (
+            <p className="text-sm text-amber-700">
+              Falta correr la migración del plan (<span className="font-mono">migration_reuniones_plan.sql</span>).
+            </p>
+          ) : (
+            <>
+              <p className="text-xs text-navy-400 mb-2">
+                Lo reparte el líder al final de la reunión. El orden es la prioridad.
+              </p>
+              <PlanDeLaSemana
+                reunionId={reunionId}
+                semana={semana}
+                planes={planes}
+                directorio={directorio}
+                proyectos={proyectos}
+                puedeEditar={puedeEditarPlan}
+                onGuardar={guardarPlan}
+                onAbrirProyecto={onAbrirProyecto}
+              />
+            </>
+          )}
+        </Bloque>
+      )}
+
       <Bloque titulo="Registro de la sesión">
         <Registro
           registro={registro}
           titulo={`${reunion?.label || 'Reunión'} · ${fechaLegible(fecha)}`}
           moderador={moderadorId ? nombreDe(directorio, moderadorId) : null}
           directorio={directorio}
+          proyectos={proyectos}
         />
       </Bloque>
 
