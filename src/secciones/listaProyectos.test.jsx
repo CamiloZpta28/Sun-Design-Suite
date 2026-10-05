@@ -24,7 +24,7 @@ vi.mock('../supabaseClient', () => {
   return { supabase: cadena() };
 });
 
-const { ProjectListView } = await import('../App.jsx');
+const { ProjectListView, ProjectFormModal } = await import('../App.jsx');
 
 afterEach(cleanup);
 
@@ -131,5 +131,96 @@ describe('la pestaña de finalizados', () => {
     fireEvent.click(screen.getByText(/Activos/));
     expect(screen.getByText('Activo Uno')).toBeTruthy();
     expect(screen.queryByText('Pausado Dos')).toBe(null);
+  });
+});
+
+describe('lo que la búsqueda encuentra pero el filtro esconde', () => {
+  /* Pasó de verdad: alguien buscó un proyecto en pausa, la lista abría en
+     Activos, no salió nada, y creyó que se había borrado. */
+  const buscar = (texto) => fireEvent.change(screen.getByPlaceholderText(/Buscar por nombre/), { target: { value: texto } });
+
+  it('si el filtro esconde lo que se buscó, lo dice y deja verlo', () => {
+    pintar({ archivarFinalizados: true, estadoInicial: 'activo' });
+    buscar('pausado');
+    expect(screen.getByText(/Con este filtro no hay nada, pero hay/)).toBeTruthy();
+    fireEvent.click(screen.getByText('1 en pausa'));
+    expect(screen.getByText('Pausado Dos')).toBeTruthy();
+  });
+
+  it('un finalizado escondido lleva a la pestaña de finalizados', () => {
+    pintar({ archivarFinalizados: true, estadoInicial: 'activo' });
+    buscar('cuatro');
+    fireEvent.click(screen.getByText('1 finalizado'));
+    expect(screen.getByText('Finalizado Cuatro')).toBeTruthy();
+  });
+
+  it('si algo sí se ve, avisa de lo demás como "además"', () => {
+    pintar({ archivarFinalizados: true, estadoInicial: 'activo' });
+    buscar('o');
+    expect(screen.getByText('Activo Uno')).toBeTruthy();
+    expect(screen.getByText(/Además hay/)).toBeTruthy();
+  });
+
+  /* Sin nada escrito, lo escondido es lo que uno filtró a propósito. */
+  it('sin búsqueda no dice nada', () => {
+    pintar({ archivarFinalizados: true, estadoInicial: 'activo' });
+    expect(screen.queryByText(/Además hay|pero hay/)).toBe(null);
+  });
+
+  it('si no hay nada escondido, no dice nada', () => {
+    pintar({ archivarFinalizados: true, estadoInicial: 'todos' });
+    buscar('pausado');
+    expect(screen.getByText('Pausado Dos')).toBeTruthy();
+    expect(screen.queryByText(/Además hay|pero hay/)).toBe(null);
+  });
+});
+
+describe('el aviso de proyecto repetido', () => {
+  const existente = {
+    id: 'pb', nombre: 'Paratebueno Sur', estado: 'pausa', equipo: {}, documentos: {},
+    data: { general: { departamento: 'Cundinamarca', numero_minigranja: '3', numero_predio: '1' } },
+  };
+
+  function llenarCodigo() {
+    const departamento = screen.getAllByRole('combobox')
+      .find((c) => [...c.options].some((o) => o.value === 'Cundinamarca'));
+    fireEvent.change(departamento, { target: { value: 'Cundinamarca' } });
+    fireEvent.change(screen.getByText('N.° de minigranja').parentElement.querySelector('input'), { target: { value: '3' } });
+    fireEvent.change(screen.getByText('N.° de predio').parentElement.querySelector('input'), { target: { value: '1' } });
+  }
+
+  function pintarFormulario(props = {}) {
+    return render(
+      <ProjectFormModal
+        onClose={() => {}}
+        onCreate={() => {}}
+        directorio={[]}
+        perfil={{ id: 'u1', nombre: 'Ana', roles: ['lider_diseno'] }}
+        inversionistas={[]}
+        onAddInversionista={() => {}}
+        paises={['Colombia']}
+        onAddPais={() => {}}
+        projects={[existente]}
+        dossiers={[]}
+        inversionistasDetalle={[]}
+        {...props}
+      />,
+    );
+  }
+
+  /* Decir el estado es lo que faltaba: uno en pausa no sale en Activos. */
+  it('dice en qué estado está el proyecto que ya tiene ese código', () => {
+    pintarFormulario();
+    llenarCodigo();
+    expect(screen.getByText('Paratebueno Sur')).toBeTruthy();
+    expect(screen.getByText(/\(en pausa\)/)).toBeTruthy();
+  });
+
+  it('y deja abrirlo de una vez', () => {
+    const abiertos = [];
+    pintarFormulario({ onAbrirProyecto: (id) => abiertos.push(id) });
+    llenarCodigo();
+    fireEvent.click(screen.getByText('ábrelo aquí'));
+    expect(abiertos).toEqual(['pb']);
   });
 });

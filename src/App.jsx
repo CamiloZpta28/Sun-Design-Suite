@@ -616,6 +616,14 @@ function Dashboard({ projects, misProyectos, onNewProject, openProject, setView,
   );
 }
 
+/* "1 en pausa", "2 finalizados": cómo se lee cuántos proyectos hay en un
+   estado. La etiqueta de pausa ya trae su "en"; las demás van en plural. */
+function cuantosEnEstado(n, estado) {
+  if (estado === 'pausa') return `${n} en pausa`;
+  const palabra = (STATUS_CONFIG[estado]?.label || estado).toLowerCase();
+  return `${n} ${palabra}${n === 1 ? '' : 's'}`;
+}
+
 export function ProjectListView({
   projects, title, subtitle, onOpen, onNewProject, directorio,
   archivarFinalizados = false, mostrarFiltroInversionista = false, estadoInicial = 'todos',
@@ -635,11 +643,16 @@ export function ProjectListView({
     ? [...new Set(pool.map((p) => p.data.general?.inversionista).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'))
     : [];
 
-  const filtered = pool.filter((p) => {
-    const general = p.data.general;
+  const coincideBusqueda = (p) => {
+    const general = p.data.general || {};
     const codigo = buildProjectCode(general);
     const haystack = `${p.nombre} ${general.municipio || ''} ${general.departamento || ''} ${codigo}`.toLowerCase();
-    const matchSearch = haystack.includes(search.toLowerCase());
+    return haystack.includes(search.toLowerCase());
+  };
+
+  const filtered = pool.filter((p) => {
+    const general = p.data.general;
+    const matchSearch = coincideBusqueda(p);
     /* En la pestaña de archivados el selector de estado no se muestra, así
        que su valor no puede seguir filtrando: con "Todos los proyectos"
        abriendo en "activo", los finalizados quedaban escondidos detrás de un
@@ -648,6 +661,29 @@ export function ProjectListView({
     const matchInversionista = inversionistaFiltro === 'todos' || (general.inversionista || '') === inversionistaFiltro;
     return matchSearch && matchEstado && matchInversionista;
   });
+
+  /* Lo que la búsqueda encontró pero el filtro de estado (o la pestaña de
+     finalizados) está escondiendo. "Todos los proyectos" abre en Activos, así
+     que buscar un proyecto en pausa no devolvía nada y nada decía que
+     existía: alguien llegó a creer que se había borrado. Solo se cuenta con
+     algo escrito en el buscador — sin búsqueda, lo escondido es lo que uno
+     filtró a propósito. */
+  const visibles = new Set(filtered.map((p) => p.id));
+  const ocultosPorEstado = {};
+  if (search.trim()) {
+    projects
+      .filter((p) => !visibles.has(p.id) && coincideBusqueda(p)
+        && (inversionistaFiltro === 'todos' || (p.data.general?.inversionista || '') === inversionistaFiltro))
+      .forEach((p) => { ocultosPorEstado[p.estado] = (ocultosPorEstado[p.estado] || 0) + 1; });
+  }
+  function verEstado(estado) {
+    if (archivarFinalizados && estado === 'finalizado') {
+      setMostrarArchivados(true);
+      return;
+    }
+    setMostrarArchivados(false);
+    setEstadoFiltro(estado);
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto">
@@ -722,6 +758,21 @@ export function ProjectListView({
           </select>
         )}
       </div>
+
+      {Object.keys(ocultosPorEstado).length > 0 && (
+        <p className="flex items-center gap-2 flex-wrap text-sm text-navy-600 bg-nashville-50 border border-nashville-300 rounded-lg px-3 py-2 mb-4">
+          <Search className="w-4 h-4 text-navy-400 shrink-0" />
+          {filtered.length === 0 ? 'Con este filtro no hay nada, pero hay' : 'Además hay'}
+          {Object.entries(ocultosPorEstado).map(([estado, n], i) => (
+            <span key={estado}>
+              {i > 0 && ' · '}
+              <button onClick={() => verEstado(estado)} className="font-semibold text-lime-700 hover:text-lime-800 underline">
+                {cuantosEnEstado(n, estado)}
+              </button>
+            </span>
+          ))}
+        </p>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map((p) => (
@@ -867,7 +918,7 @@ function ResumenInversionistasView({ projects, onOpenProject, dossiers }) {
   );
 }
 
-function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionistas, onAddInversionista, paises, onAddPais, projects, dossiers, inversionistasDetalle }) {
+export function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionistas, onAddInversionista, paises, onAddPais, projects, dossiers, inversionistasDetalle, onAbrirProyecto }) {
   const puedeGestionar = isLeader(perfil);
   /* El dossier queda fijo para toda la vida del proyecto (cambiarlo después
      obliga a borrar Control Documental y volver a empezar), así que se elige
@@ -1057,7 +1108,17 @@ function ProjectFormModal({ onClose, onCreate, directorio, perfil, inversionista
               <p className="flex items-start gap-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-2">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 <span>
-                  El código <strong className="font-mono">{codigoNuevo}</strong> ya lo tiene <strong>{duplicado.nombre}</strong>. No se puede crear un duplicado — si es el mismo proyecto, ábrelo desde el listado en vez de crear uno nuevo.
+                  El código <strong className="font-mono">{codigoNuevo}</strong> ya lo tiene <strong>{duplicado.nombre}</strong>
+                  {' '}({(STATUS_CONFIG[duplicado.estado]?.label || duplicado.estado || '').toLowerCase()}).
+                  {' '}No se puede crear un duplicado: si es el mismo proyecto,{' '}
+                  {onAbrirProyecto ? (
+                    /* Decir el estado importa: un proyecto en pausa no sale en la
+                       lista de activos, y sin eso parecía que no existía. */
+                    <button type="button" onClick={() => onAbrirProyecto(duplicado.id)} className="font-semibold underline hover:text-red-800">
+                      ábrelo aquí
+                    </button>
+                  ) : 'ábrelo desde el listado'}
+                  {' '}en vez de crear uno nuevo.
                 </span>
               </p>
             )}
@@ -3616,6 +3677,7 @@ export default function App() {
         <ProjectFormModal
           onClose={() => setShowCreate(false)}
           onCreate={handleCreate}
+          onAbrirProyecto={(id) => { setShowCreate(false); openProject(id); }}
           dossiers={dossiers}
           inversionistasDetalle={inversionistasDetalle}
           directorio={directorio}

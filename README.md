@@ -176,6 +176,18 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Un proyecto escondido por el filtro ya no parece borrado.** Pasó de
+  verdad: alguien intentó crear un proyecto, el aviso dijo que ese código ya
+  lo tenía "Paratebueno Sur", lo buscó en la lista y no salió — estaba en
+  pausa, y "Todos los proyectos" abre en Activos. Parecía un proyecto
+  fantasma.
+  - **La búsqueda avisa lo que el filtro está escondiendo**: *"Con este filtro
+    no hay nada, pero hay 1 en pausa"*, con un clic para verlo. Si algo sí se
+    ve, dice *"Además hay…"*. Solo con algo escrito en el buscador: sin
+    búsqueda, lo escondido es lo que uno filtró a propósito.
+  - **El aviso de código repetido dice en qué estado está el proyecto** que ya
+    lo tiene y trae un botón para **abrirlo** de una vez.
+
 - **El plan de la semana, en la reunión civil.** Al final de la reunión el
   líder civil reparte el trabajo: a cada quien, una lista de tareas en la que
   **el orden es la prioridad**, cada una con su proyecto elegido de la lista
