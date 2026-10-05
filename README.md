@@ -176,6 +176,19 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **La rotación de moderadores la ve todo el mundo**, no solo el líder: quien
+  sigue tiene que saber con tiempo que le toca para preparar la reunión. En
+  la cabecera de cada sesión sale *"La semana siguiente modera Dani"* —o *"te
+  toca moderar a ti"* si eres tú— y el enlace *rotación* abre la lista en
+  orden, marcando a quien modera esa semana y a quien le toca la siguiente.
+  Editarla sigue siendo solo del líder, en la pantalla y en la RLS.
+  - El de la semana siguiente es un **pronóstico**: se calcula contando con
+    quien modera esta semana, aunque su sesión todavía no se haya creado (si
+    no, la rotación repetiría el mismo nombre), y saltando a quien tenga
+    ausencia registrada ese lunes. Si el líder elige a otra persona o alguien
+    registra una ausencia, se recalcula.
+  - No necesita migración.
+
 - **Un proyecto escondido por el filtro ya no parece borrado.** Pasó de
   verdad: alguien intentó crear un proyecto, el aviso dijo que ese código ya
   lo tenía "Paratebueno Sur", lo buscó en la lista y no salió — estaba en

@@ -165,6 +165,27 @@ export function moderadorSugerido({ reunionId, semana, fecha, sesiones, rotacion
   return { usuarioId: null, saltados };
 }
 
+/* A quién le toca la semana siguiente, para que lo sepa con tiempo y prepare
+   la reunión. Se calcula como si la sesión de esta semana ya estuviera
+   guardada con quien la modera: si todavía no se ha creado (nadie ha hecho
+   nada en ella), la rotación no la vería y repetiría el mismo nombre.
+
+   Es un pronóstico: si el líder elige a otra persona esta semana, o alguien
+   registra una ausencia, cambia. Se mira la ausencia en el lunes siguiente;
+   si ese lunes resulta festivo y la reunión se corre, se recalcula sola. */
+export function proximoModerador({ reunionId, semana, sesiones, rotaciones, ausencias, moderadorActualId }) {
+  const siguiente = sumarDias(semana, 7);
+  const conLaDeEsta = moderadorActualId
+    ? [
+      ...(sesiones || []).filter((s) => !(s.serie === reunionId && s.semana === semana)),
+      { serie: reunionId, semana, moderador_id: moderadorActualId },
+    ]
+    : sesiones;
+  return moderadorSugerido({
+    reunionId, semana: siguiente, fecha: siguiente, sesiones: conLaDeEsta, rotaciones, ausencias,
+  }).usuarioId;
+}
+
 /* ----------------------------------------------------------- pendientes */
 
 /* Los pendientes de una reunión, separados en abiertos y finalizados. Los

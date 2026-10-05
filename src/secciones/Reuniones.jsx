@@ -28,7 +28,7 @@ import {
   ESTADOS_PENDIENTE, actualizacionValida, bandejaDeLaSesion, etiquetaDeEstado, fechaDeSesion,
   fechaDeSesionValida, fechaLegible, fueraDelEquipo, gestionaReunion, historialDe, idDeSesion,
   limpiarItems, moderadorSugerido, nombreDe, nombreDeProyecto, ordenDeRotacion, participantes,
-  pendientesDeReunion, planAnterior, planDe, puedeActualizarPendiente, registroDeLaSesion,
+  pendientesDeReunion, planAnterior, planDe, proximoModerador, puedeActualizarPendiente, registroDeLaSesion,
   registroVacio, resolucionValida, reunionInicial, reunionPorId, reunionesDePersona, semanasAbierto,
   sesionDe, temasParaLaSesion, textoDelRegistro, tienePlan, ultimaJustificacion,
 } from '../shared/reuniones.js';
@@ -430,14 +430,49 @@ function EditorRotacion({ orden, reunionId, directorio, onGuardar, onCerrar }) {
   );
 }
 
+/* La rotación en lectura, para todos: así quien sigue sabe con tiempo que le
+   toca y prepara la reunión. Marca a quien modera la semana elegida y a quien
+   le toca la siguiente. Editarla sigue siendo solo del líder. */
+function RotacionEnLectura({ orden, directorio, moderadorId, proximoId, miId, gestiona, onEditar }) {
+  return (
+    <div className="bg-navy-50 border border-navy-200 rounded-xl px-3 py-2.5 mb-4">
+      <div className="flex items-center gap-2 mb-2">
+        <p className="text-xs font-semibold text-navy-600 flex-1">Orden de moderación</p>
+        {gestiona && (
+          <button onClick={onEditar} className="flex items-center gap-1 text-xs font-semibold text-lime-600 hover:text-lime-700">
+            <Pencil className="w-3 h-3" /> editar
+          </button>
+        )}
+      </div>
+      {orden.length === 0 ? (
+        <p className="text-xs text-navy-400 italic">
+          {gestiona ? 'La lista está vacía: dale a editar para armarla.' : 'El líder todavía no ha armado la rotación.'}
+        </p>
+      ) : (
+        <ol className="space-y-0.5">
+          {orden.map((id, i) => (
+            <li key={id} className={`text-sm flex items-center gap-2 ${id === miId ? 'font-semibold text-navy-800' : 'text-navy-700'}`}>
+              <span className="text-navy-300 w-5 text-right tabular-nums">{i + 1}.</span>
+              <span className="min-w-0 truncate">{nombreDe(directorio, id)}</span>
+              {id === moderadorId && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-navy-800 text-white shrink-0">esta semana</span>}
+              {id === proximoId && id !== moderadorId && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-lime-300 text-navy-900 shrink-0">la siguiente</span>}
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------ cabecera */
 
 function CabeceraSesion({
   reunionId, semana, fecha, moderadorId, origenModerador, saltados, gestiona, directorio,
-  orden, onGuardarSesion, onGuardarRotacion,
+  orden, proximoId, miId, onGuardarSesion, onGuardarRotacion,
 }) {
   const [editandoFecha, setEditandoFecha] = useState(false);
   const [nuevaFecha, setNuevaFecha] = useState(fecha);
+  const [verRotacion, setVerRotacion] = useState(false);
   const [editandoRotacion, setEditandoRotacion] = useState(false);
   const corrida = fecha !== semana;
 
@@ -474,13 +509,22 @@ function CabeceraSesion({
               {participantes(reunionId, directorio).map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
             </select>
           )}
-          {gestiona && (
-            <button onClick={() => setEditandoRotacion((v) => !v)} className="text-xs font-semibold text-lime-600 hover:text-lime-700 underline">
-              rotación
-            </button>
-          )}
+          <button
+            onClick={() => { setVerRotacion((v) => !v); setEditandoRotacion(false); }}
+            className="text-xs font-semibold text-lime-600 hover:text-lime-700 underline"
+          >
+            rotación
+          </button>
         </p>
       </div>
+
+      {proximoId && (
+        <p className={`text-xs mt-1 ${proximoId === miId ? 'text-navy-800 font-semibold' : 'text-navy-500'}`}>
+          {proximoId === miId
+            ? 'La semana siguiente te toca moderar a ti.'
+            : `La semana siguiente modera ${nombreDe(directorio, proximoId)}.`}
+        </p>
+      )}
 
       {saltados.length > 0 && (
         <p className="text-xs text-navy-400 mt-1">
@@ -511,15 +555,27 @@ function CabeceraSesion({
         </div>
       )}
 
-      {editandoRotacion && (
+      {verRotacion && (
         <div className="mt-3">
-          <EditorRotacion
-            orden={orden}
-            reunionId={reunionId}
-            directorio={directorio}
-            onGuardar={onGuardarRotacion}
-            onCerrar={() => setEditandoRotacion(false)}
-          />
+          {editandoRotacion && gestiona ? (
+            <EditorRotacion
+              orden={orden}
+              reunionId={reunionId}
+              directorio={directorio}
+              onGuardar={onGuardarRotacion}
+              onCerrar={() => setEditandoRotacion(false)}
+            />
+          ) : (
+            <RotacionEnLectura
+              orden={orden}
+              directorio={directorio}
+              moderadorId={moderadorId}
+              proximoId={proximoId}
+              miId={miId}
+              gestiona={gestiona}
+              onEditar={() => setEditandoRotacion(true)}
+            />
+          )}
         </div>
       )}
     </div>
@@ -948,6 +1004,8 @@ export default function ReunionesView({
         gestiona={gestiona && disponible}
         directorio={directorio}
         orden={ordenDeRotacion(rotaciones, reunionId)}
+        proximoId={proximoModerador({ reunionId, semana, sesiones, rotaciones, ausencias, moderadorActualId: moderadorId })}
+        miId={perfil?.id}
         onGuardarSesion={(patch) => onGuardarSesion(reunionId, semana, patch, moderadorId)}
         onGuardarRotacion={(orden) => onGuardarRotacion(reunionId, orden)}
       />

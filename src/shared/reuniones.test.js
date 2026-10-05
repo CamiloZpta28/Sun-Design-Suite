@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   actualizacionValida, ausenteEl, bandejaDeLaSesion, fechaLegible, nombreDe,
-  fueraDelEquipo, idDePlan, limpiarItems, nombreDeProyecto, planAnterior, planDe, tienePlan, claveDeTema, fechaDeSesion, fechaDeSesionValida,
+  fueraDelEquipo, idDePlan, proximoModerador, limpiarItems, nombreDeProyecto, planAnterior, planDe, tienePlan, claveDeTema, fechaDeSesion, fechaDeSesionValida,
   gestionaReunion, historialDe, idDeSesion, moderadorSugerido, participantes, pendientesDeReunion,
   puedeActualizarPendiente, registroDeLaSesion, registroVacio, resolucionValida, reunionInicial,
   reunionesDePersona, semanaDeLosTemas, semanasAbierto, temasParaLaSesion, textoDelRegistro,
@@ -469,5 +469,30 @@ describe('el plan entra al registro de la sesión', () => {
       'Dani',
       '-1. Chinú 3 · Planos de vía',
     ].join('\n'));
+  });
+});
+
+describe('a quién le toca la semana siguiente', () => {
+  const rotaciones = [{ serie: 'civil', orden: ['ana', 'dani', 'eva'] }];
+  const base = { reunionId: 'civil', semana: '2026-10-05', rotaciones, ausencias: [] };
+
+  /* La sesión de esta semana todavía no existe (nadie ha hecho nada en ella):
+     sin contarla, la rotación repetiría el nombre de esta semana. */
+  it('cuenta con quien modera esta semana, aunque su sesión no se haya creado', () => {
+    expect(proximoModerador({ ...base, sesiones: [], moderadorActualId: 'ana' })).toBe('dani');
+  });
+
+  it('si el líder eligió a otra persona esta semana, sigue desde ella', () => {
+    const sesiones = [{ serie: 'civil', semana: '2026-10-05', moderador_id: 'eva' }];
+    expect(proximoModerador({ ...base, sesiones, moderadorActualId: 'eva' })).toBe('ana');
+  });
+
+  it('se salta a quien estará ausente el lunes siguiente', () => {
+    const ausencias = [{ usuario_id: 'dani', desde: '2026-10-12', hasta: '2026-10-16' }];
+    expect(proximoModerador({ ...base, sesiones: [], ausencias, moderadorActualId: 'ana' })).toBe('eva');
+  });
+
+  it('sin rotación no hay pronóstico', () => {
+    expect(proximoModerador({ ...base, rotaciones: [], sesiones: [], moderadorActualId: 'ana' })).toBe(null);
   });
 });

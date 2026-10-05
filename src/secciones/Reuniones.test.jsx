@@ -121,17 +121,49 @@ describe('quién modera', () => {
   it('el líder ve los controles de la sesión; un ingeniero no', () => {
     pintar({ perfil: yo('lucho') });
     expect(screen.getByText('cambiar fecha')).toBeTruthy();
-    expect(screen.getByText('rotación')).toBeTruthy();
     expect(screen.getByLabelText('Elegir moderador')).toBeTruthy();
     cleanup();
     pintar({ perfil: yo('dani') });
     expect(screen.queryByText('cambiar fecha')).toBe(null);
-    expect(screen.queryByText('rotación')).toBe(null);
+    expect(screen.queryByLabelText('Elegir moderador')).toBe(null);
+  });
+
+  /* Quien sigue tiene que saber con tiempo que le toca, para preparar la
+     reunión: la rotación la ve todo el mundo. */
+  it('todos ven la rotación, pero solo el líder la edita', () => {
+    pintar({ perfil: yo('dani') });
+    fireEvent.click(screen.getByText('rotación'));
+    expect(screen.getByText('Orden de moderación')).toBeTruthy();
+    expect(screen.getByText('esta semana')).toBeTruthy();
+    expect(screen.queryByText('editar')).toBe(null);
+    expect(screen.queryByLabelText('Agregar a la rotación')).toBe(null);
+  });
+
+  it('marca a quien modera esta semana y a quien le toca la siguiente', () => {
+    pintar({ perfil: yo('lucho') });
+    fireEvent.click(screen.getByText('rotación'));
+    const fila = (nombre) => screen.getAllByRole('listitem').find((li) => li.textContent.includes(nombre));
+    expect(fila('Ana').textContent).toContain('esta semana');
+    expect(fila('Dani').textContent).toContain('la siguiente');
+  });
+
+  it('a quien le toca la semana siguiente se le dice directamente', () => {
+    pintar({ perfil: yo('dani') });
+    expect(screen.getByText('La semana siguiente te toca moderar a ti.')).toBeTruthy();
+    cleanup();
+    pintar({ perfil: yo('lucho') });
+    expect(screen.getByText('La semana siguiente modera Dani.')).toBeTruthy();
+  });
+
+  it('sin rotación no promete a nadie para la semana siguiente', () => {
+    pintar({ rotaciones: [] });
+    expect(screen.queryByText(/La semana siguiente/)).toBe(null);
   });
 
   it('el líder arma la rotación y la guarda en orden', () => {
     const { handlers } = pintar({ perfil: yo('lucho'), rotaciones: [] });
     fireEvent.click(screen.getByText('rotación'));
+    fireEvent.click(screen.getByText('editar'));
     fireEvent.change(screen.getByLabelText('Agregar a la rotación'), { target: { value: 'dani' } });
     fireEvent.change(screen.getByLabelText('Agregar a la rotación'), { target: { value: 'ana' } });
     fireEvent.click(screen.getByText('Guardar'));
