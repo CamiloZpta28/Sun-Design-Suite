@@ -3,11 +3,13 @@ import {
   LayoutDashboard, FolderKanban, Layers, Link2, Zap, Cog, Plus, Search, X, Trash2, ChevronLeft,
   Pencil, MapPin, Calendar, Users, ExternalLink, Check, UploadCloud, XCircle, Loader2,
   RefreshCw, LogOut, ShieldCheck, Lock, UserCog, ChevronDown, ChevronRight,
-  Video, PartyPopper, PieChart, AlertTriangle, Menu, UserPlus, Boxes, GitBranch, Bell, Route, FileText, CalendarCheck
+  Video, PartyPopper, PieChart, AlertTriangle, Menu, UserPlus, Boxes, GitBranch, Bell, Route, FileText, CalendarCheck,
+  Handshake
 } from 'lucide-react';
 import { supabase, retornoDeAcceso } from './supabaseClient';
 import { AuthGate, NuevaContrasena } from './secciones/Acceso.jsx';
 import { rutaDe, estadoDeRuta } from './routes.js';
+import { idDeSesion, reunionPorId } from './shared/reuniones.js';
 import { Avatar } from './shared/ui.jsx';
 import { useCambiosEnVivo, textoDeCambio } from './shared/cambiosEnVivo.js';
 import { NotificationBell, notificacionesVigentes, fechaDeCorte } from './shared/notificaciones.jsx';
@@ -52,6 +54,7 @@ const DisenoViaView = lazy(() => import('./secciones/DisenoVia.jsx'));
 const ProjectDetail = lazy(() => import('./secciones/Proyecto.jsx'));
 const DossiersView = lazy(() => import('./secciones/Dossiers.jsx'));
 const ResumenesView = lazy(() => import('./secciones/Resumenes.jsx'));
+const ReunionesView = lazy(() => import('./secciones/Reuniones.jsx'));
 /* El dibujo de una plantilla de cimentación dentro de un proyecto: llega
    aparte, solo si esa pestaña tiene una plantilla elegida. */
 const PreviewPlantillaCimentacion = lazy(() => import('./secciones/Cimentaciones.jsx').then((m) => ({ default: m.PreviewPlantilla })));
@@ -423,6 +426,7 @@ function Sidebar({ view, setView, stats, perfil, onEditProfile, onViewMyProfile,
     { key: 'diseno_via', label: 'Diseño de vía', icon: Route },
     { key: 'actualizaciones', label: 'Actualizaciones', icon: Bell },
     { key: 'resumenes', label: 'Resúmenes semanales', icon: CalendarCheck },
+    { key: 'reuniones', label: 'Reuniones', icon: Handshake },
     { key: 'dossiers', label: 'Dossiers', icon: FileText },
     { key: 'equipo', label: 'Equipo', icon: UserCog },
     { key: 'instructivos', label: 'Instructivos', icon: Video },
@@ -1640,6 +1644,15 @@ export default function App() {
   /* Solo las semanas cuyo cierre se corrió (un viernes festivo, por ejemplo).
      Las demás cierran el viernes sin necesidad de fila. */
   const [cierresDeSemana, setCierresDeSemana] = useState([]);
+  /* Reuniones del lunes (ver shared/reuniones.js). `reunionesDisponibles` es
+     false cuando la migración no se ha corrido: la sección lo avisa en vez de
+     mostrarse vacía como si no hubiera pasado nada. */
+  const [sesionesReunion, setSesionesReunion] = useState([]);
+  const [rotacionesReunion, setRotacionesReunion] = useState([]);
+  const [pendientesReunion, setPendientesReunion] = useState([]);
+  const [historialReunion, setHistorialReunion] = useState([]);
+  const [temasReunion, setTemasReunion] = useState([]);
+  const [reunionesDisponibles, setReunionesDisponibles] = useState(true);
   const [ausencias, setAusencias] = useState([]);
   // Objetos completos (correo/teléfono/NIT/logo) de cada inversionista — se
   // cargan por separado de la lista de nombres de arriba (que no se toca,
@@ -1841,6 +1854,32 @@ export default function App() {
     setAusencias(filasAusencia || []);
   }
 
+  /* Todo lo de las reuniones de una vez. Los pendientes son pocos y se
+     arrastran meses, así que se cargan todos; el historial y los temas
+     tratados van con ellos. Un invitado recibe todo vacío: la base no le
+     entrega nada de esto. */
+  async function cargarReuniones() {
+    const [sesionesR, rotacionR, pendientesR, historialR, temasR] = await Promise.all([
+      supabase.from('reuniones_sesiones').select('*'),
+      supabase.from('reuniones_rotacion').select('*'),
+      supabase.from('reuniones_pendientes').select('*'),
+      supabase.from('reuniones_historial').select('*'),
+      supabase.from('reuniones_temas').select('*'),
+    ]);
+    const error = sesionesR.error || rotacionR.error || pendientesR.error || historialR.error || temasR.error;
+    if (error) {
+      console.warn('No se pudieron cargar las reuniones (¿falta la migración?):', error.message);
+      setReunionesDisponibles(false);
+      return;
+    }
+    setReunionesDisponibles(true);
+    setSesionesReunion(sesionesR.data || []);
+    setRotacionesReunion(rotacionR.data || []);
+    setPendientesReunion(pendientesR.data || []);
+    setHistorialReunion(historialR.data || []);
+    setTemasReunion(temasR.data || []);
+  }
+
   async function loadSharedData(ownUserId) {
     const { data: projRows } = await supabase.from('projects').select('*').order('created_at', { ascending: true });
     if (!projRows || projRows.length === 0) {
@@ -1955,6 +1994,7 @@ export default function App() {
 
     await cargarDossiers();
     await cargarResumenes();
+    await cargarReuniones();
 
     const { data: plantillaRows } = await supabase.from('cimentacion_plantillas').select('*').order('created_at', { ascending: true });
     setPlantillasCimentacion((plantillaRows || []).map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {} })));
@@ -2661,6 +2701,185 @@ export default function App() {
     );
   }
 
+  /* ------------------------------ REUNIONES ------------------------------
+     La sesión de una semana se crea con lo primero que se hace en ella, con el
+     moderador que le tocaba por rotación. Así la rotación avanza sola desde
+     quien moderó de verdad, sin que nadie tenga que "abrir" la reunión.
+     ------------------------------------------------------------------------ */
+  async function handleAsegurarSesion(serie, semana, moderadorId) {
+    const id = idDeSesion(serie, semana);
+    if (sesionesReunion.some((s) => s.id === id)) return id;
+    const fila = {
+      id, serie, semana, fecha: semana, moderador_id: moderadorId || null,
+      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    };
+    /* ignoreDuplicates: si otra persona la creó un segundo antes, se respeta
+       la suya en vez de pisarle el moderador. */
+    const { error } = await supabase.from('reuniones_sesiones').upsert(fila, { onConflict: 'id', ignoreDuplicates: true });
+    if (error) {
+      console.error('Error creando la sesión de la reunión:', error);
+      alert('No se pudo abrir la sesión. Detalle: ' + error.message);
+      return null;
+    }
+    setSesionesReunion((prev) => (prev.some((s) => s.id === id) ? prev : [...prev, fila]));
+    return id;
+  }
+
+  /* La fecha (si el lunes es festivo) y el moderador. Solo lo hace quien
+     gestiona la reunión; eso lo decide la pantalla. */
+  async function handleGuardarSesion(serie, semana, patch, moderadorSugeridoId) {
+    const id = idDeSesion(serie, semana);
+    const actual = sesionesReunion.find((s) => s.id === id);
+    const fila = {
+      id, serie, semana,
+      fecha: actual?.fecha || semana,
+      moderador_id: actual?.moderador_id ?? moderadorSugeridoId ?? null,
+      created_at: actual?.created_at || new Date().toISOString(),
+      ...patch,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('reuniones_sesiones').upsert(fila);
+    if (error) {
+      console.error('Error guardando la sesión:', error);
+      alert('No se pudo guardar el cambio. Detalle: ' + error.message);
+      return;
+    }
+    setSesionesReunion((prev) => [...prev.filter((s) => s.id !== id), fila]);
+  }
+
+  async function handleGuardarRotacion(serie, orden) {
+    const fila = { serie, orden, actualizado_por: perfil?.nombre || null, updated_at: new Date().toISOString() };
+    const { error } = await supabase.from('reuniones_rotacion').upsert(fila);
+    if (error) {
+      console.error('Error guardando la rotación:', error);
+      alert('No se pudo guardar la rotación. Detalle: ' + error.message);
+      return;
+    }
+    setRotacionesReunion((prev) => [...prev.filter((r) => r.serie !== serie), fila]);
+  }
+
+  /* Avisa a quien acaban de poner como responsable (menos a uno mismo). */
+  async function notificarResponsables(ids, serie, texto) {
+    const destinatarios = (ids || []).filter((id) => id && id !== perfil?.id);
+    if (destinatarios.length === 0) return;
+    const reunion = reunionPorId(serie);
+    const filas = destinatarios.map((usuarioId) => ({
+      id: makeId('notif'),
+      usuario_id: usuarioId,
+      tipo: 'reunion',
+      mensaje: `${perfil.nombre} te puso como responsable de un pendiente de la ${(reunion?.label || 'reunión').toLowerCase()}: "${texto}"`,
+      leida: false,
+    }));
+    const { error } = await supabase.from('notificaciones').insert(filas);
+    if (error) console.error('Error avisando a los responsables:', error);
+  }
+
+  /* Crea el pendiente con su primera entrada de historial. Se espera a la base
+     antes de mostrarlo: un pendiente que aparece y después desaparece porque
+     no se guardó es peor que esperar un segundo. */
+  async function handleCrearPendiente({ serie, texto, responsables, sesionId }) {
+    const ahora = new Date().toISOString();
+    const pendiente = {
+      id: makeId('pend'), serie, texto, responsables: responsables || [], estado: 'pendiente',
+      sesion_origen: sesionId || null, creado_por: perfil?.id || null, created_at: ahora, updated_at: ahora,
+    };
+    const { error } = await supabase.from('reuniones_pendientes').insert(pendiente);
+    if (error) {
+      console.error('Error creando el pendiente:', error);
+      alert('No se pudo crear el pendiente. Detalle: ' + error.message);
+      return null;
+    }
+    const entrada = {
+      id: makeId('hist'), pendiente_id: pendiente.id, accion: 'creado', estado: 'pendiente', justificacion: '',
+      usuario_id: perfil?.id || null, usuario_nombre: perfil?.nombre || null, created_at: ahora,
+    };
+    const { error: errorHist } = await supabase.from('reuniones_historial').insert(entrada);
+    if (errorHist) console.error('Error escribiendo el historial:', errorHist);
+    setPendientesReunion((prev) => [...prev, pendiente]);
+    if (!errorHist) setHistorialReunion((prev) => [...prev, entrada]);
+    notificarResponsables(pendiente.responsables, serie, texto);
+    return pendiente;
+  }
+
+  /* Cada actualización deja su rastro: estado y justificación, con quién y
+     cuándo. Puede no cambiar el estado — "sigue en curso porque…" es
+     justamente lo que se quiere poder decir. */
+  async function handleActualizarPendiente(pendiente, { estado, justificacion }) {
+    const ahora = new Date().toISOString();
+    const entrada = {
+      id: makeId('hist'), pendiente_id: pendiente.id, accion: 'actualizado', estado, justificacion,
+      usuario_id: perfil?.id || null, usuario_nombre: perfil?.nombre || null, created_at: ahora,
+    };
+    const { error: errorHist } = await supabase.from('reuniones_historial').insert(entrada);
+    if (errorHist) {
+      console.error('Error escribiendo el historial:', errorHist);
+      alert('No se pudo guardar la actualización. Detalle: ' + errorHist.message);
+      return false;
+    }
+    setHistorialReunion((prev) => [...prev, entrada]);
+    const { error } = await supabase.from('reuniones_pendientes').update({ estado, updated_at: ahora }).eq('id', pendiente.id);
+    if (error) {
+      console.error('Error cambiando el estado del pendiente:', error);
+      alert('La justificación quedó guardada, pero no se pudo cambiar el estado. Detalle: ' + error.message);
+      return false;
+    }
+    setPendientesReunion((prev) => prev.map((p) => (p.id === pendiente.id ? { ...p, estado, updated_at: ahora } : p)));
+    return true;
+  }
+
+  async function handleCambiarResponsables(pendiente, responsables) {
+    const ahora = new Date().toISOString();
+    const { error } = await supabase.from('reuniones_pendientes').update({ responsables, updated_at: ahora }).eq('id', pendiente.id);
+    if (error) {
+      console.error('Error cambiando los responsables:', error);
+      alert('No se pudieron cambiar los responsables. Detalle: ' + error.message);
+      return;
+    }
+    setPendientesReunion((prev) => prev.map((p) => (p.id === pendiente.id ? { ...p, responsables, updated_at: ahora } : p)));
+    /* Solo a los que entraron: a quien ya estaba no hay nada nuevo que decirle. */
+    const nuevos = responsables.filter((id) => !(pendiente.responsables || []).includes(id));
+    notificarResponsables(nuevos, pendiente.serie, pendiente.texto);
+  }
+
+  async function handleEliminarPendiente(pendiente) {
+    const { error } = await supabase.from('reuniones_pendientes').delete().eq('id', pendiente.id);
+    if (error) {
+      console.error('Error borrando el pendiente:', error);
+      alert('No se pudo borrar el pendiente. Detalle: ' + error.message);
+      return;
+    }
+    setPendientesReunion((prev) => prev.filter((p) => p.id !== pendiente.id));
+    setHistorialReunion((prev) => prev.filter((h) => h.pendiente_id !== pendiente.id));
+  }
+
+  async function handleResolverTema({ sesionId, tema, resultado, conclusion, pendienteId }) {
+    const fila = {
+      id: makeId('tema'), sesion_id: sesionId, clave: tema.clave, autor_id: tema.autorId || null,
+      texto: tema.texto, resultado, conclusion: conclusion || null, pendiente_id: pendienteId || null,
+      usuario_id: perfil?.id || null, created_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('reuniones_temas').insert(fila);
+    if (error) {
+      console.error('Error guardando el tema tratado:', error);
+      alert('No se pudo guardar lo que se decidió del tema. Detalle: ' + error.message);
+      return false;
+    }
+    setTemasReunion((prev) => [...prev, fila]);
+    return true;
+  }
+
+  /* Deshacer una resolución por error. El pendiente que haya creado NO se
+     borra: ya puede tener responsables avisados y su propia vida. */
+  async function handleDeshacerTema(tratado) {
+    const { error } = await supabase.from('reuniones_temas').delete().eq('id', tratado.id);
+    if (error) {
+      console.error('Error deshaciendo el tema:', error);
+      alert('No se pudo deshacer. Detalle: ' + error.message);
+      return;
+    }
+    setTemasReunion((prev) => prev.filter((t) => t.id !== tratado.id));
+  }
+
   function handleAddPlantillaCimentacion(tipo, nombre, datos) {
     const nueva = { id: makeId('cim'), tipo, nombre, datos };
     setPlantillasCimentacion((prev) => [...prev, nueva]);
@@ -2917,6 +3136,9 @@ export default function App() {
     } else if (n.tipo === 'actualizacion') {
       setCategoriaActualizacionDestino(n.categoria_actualizacion_id || null);
       setView('actualizaciones');
+      setSidebarOpen(false);
+    } else if (n.tipo === 'reunion') {
+      setView('reuniones');
       setSidebarOpen(false);
     }
   }
@@ -3250,6 +3472,29 @@ export default function App() {
             ausencias={ausencias}
             onGuardarAusencia={handleGuardarAusencia}
             onBorrarAusencia={handleBorrarAusencia}
+          />
+        )}
+        {vistaActual === 'reuniones' && (
+          <ReunionesView
+            perfil={perfil}
+            directorio={directorio}
+            resumenes={resumenes}
+            ausencias={ausencias}
+            disponible={reunionesDisponibles}
+            sesiones={sesionesReunion}
+            rotaciones={rotacionesReunion}
+            pendientes={pendientesReunion}
+            historial={historialReunion}
+            temasTratados={temasReunion}
+            onAsegurarSesion={handleAsegurarSesion}
+            onGuardarSesion={handleGuardarSesion}
+            onGuardarRotacion={handleGuardarRotacion}
+            onCrearPendiente={handleCrearPendiente}
+            onActualizarPendiente={handleActualizarPendiente}
+            onCambiarResponsables={handleCambiarResponsables}
+            onEliminarPendiente={handleEliminarPendiente}
+            onResolverTema={handleResolverTema}
+            onDeshacerTema={handleDeshacerTema}
           />
         )}
         {vistaActual === 'dossiers' && (

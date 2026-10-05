@@ -176,6 +176,57 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Reuniones: sección nueva para las reuniones del lunes** —civil, eléctrica
+  y delineantes—. Abre en la de cada quien según su rol, con las otras a un
+  clic. Cada sesión sigue el orden de la reunión: quién modera, los
+  pendientes que vienen de antes, los temas que llegaron de los resúmenes y el
+  registro de lo que se habló.
+  - **Tema y pendiente son cosas distintas.** Un *tema* (del resumen del
+    viernes) es lo que llega a la reunión y vive con su semana. Un
+    *pendiente* es lo que sale de ella: un compromiso con uno o más
+    responsables, que pertenece a la reunión y no a una sesión, así que se
+    arrastra solo lunes tras lunes hasta que se finaliza.
+  - **Los temas llegan de los resúmenes de la semana anterior** —la reunión es
+    el lunes y habla de lo que se cerró el viernes—: los marcados para *Mi
+    equipo*, con el mismo reparto por área de la pestaña de temas. Los de la
+    reunión de diseño no entran, porque esa reunión no se lleva aquí. Cada tema
+    se **vuelve pendiente** (con su autor de responsable por defecto) o se
+    **cierra sin compromiso** diciendo en qué quedó. No se convierten solos:
+    muchos se resuelven conversando, y cada uno volvería ruido.
+  - **Cada actualización de un pendiente pide su porqué** y queda en un
+    historial —quién, cuándo, qué estado, por qué— que la base no deja editar
+    ni borrar. A la vista queda la última justificación y cuántas semanas
+    lleva abierto (en ámbar desde la tercera). Se puede actualizar sin cambiar
+    el estado: "sigue en curso porque…" es justamente lo que se quería poder
+    decir.
+  - **El registro de la sesión no se escribe: se arma solo** con los temas
+    tratados y su conclusión, los pendientes que se revisaron **ese día** —lo
+    que un responsable movió un miércoles queda en el historial del pendiente,
+    pero no es de la reunión— y los que nacieron en ella. Tiene botón de
+    copiar para el chat.
+  - **Moderador por rotación**, una lista por reunión que solo arma su líder.
+    Sigue desde quien moderó de verdad la sesión anterior —aunque el líder
+    haya elegido a otra persona esa semana— y **se salta a quien tenga
+    ausencia registrada ese día**. La sesión se crea con lo primero que se
+    hace en ella, con el moderador que le tocaba; así la rotación avanza sola.
+  - **Quién puede qué**: el líder de cada área (y el Líder de Diseño y el
+    Desarrollador) corre la fecha si el lunes es festivo, elige al moderador y
+    arma la rotación. El moderador y el líder tratan temas y crean pendientes.
+    El estado lo mueven **los responsables** —cada quien actualiza lo suyo
+    durante la semana—, el moderador y el líder. Quien queda como responsable
+    recibe una **notificación**. Borrar un pendiente es solo del líder: es
+    para corregir un error, no para cerrarlo.
+  - **Los invitados no ven la sección**, y la base tampoco les entrega nada de
+    estas tablas.
+  - **Lo que no entra en esta entrega**: el plan de la semana de la reunión
+    civil (los proyectos y tareas que asigna el líder), que va en la segunda.
+    Y los cambios de los demás no llegan solos: aparecen al refrescar.
+  - **Necesita migración**: `supabase/migration_reuniones.sql`. **Requiere que
+    ya esté corrida `migration_rol_invitado.sql`** (lo verifica y avisa si
+    no), y ya les pone a sus cinco tablas la regla de invitados: no hace falta
+    volver a correr aquella. Sin esta migración la sección avisa que falta y
+    no deja guardar nada; el resto de la plataforma no se entera.
+
 - **Invitados: quien no tiene ningún rol de equipo.** No es un rol que se
   otorgue: es el estado de toda cuenta nueva hasta que un líder o un
   desarrollador le da un rol del equipo, y se vuelve a él si se los quitan

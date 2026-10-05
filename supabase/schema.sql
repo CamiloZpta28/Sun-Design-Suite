@@ -476,6 +476,78 @@ create table if not exists semanas_cierre (
   updated_at timestamptz default now()
 );
 
+-- ---------- Reuniones del lunes (ver migration_reuniones.sql) ----------
+create table if not exists reuniones_sesiones (
+  -- 'sesion-<reunión>-<lunes>': determinista, para que dos personas que la
+  -- abren a la vez no creen dos filas.
+  id text primary key,
+  serie text not null,           -- 'civil' | 'electrica' | 'delineantes'
+  semana date not null,          -- el lunes de la semana
+  fecha date,                    -- el día real; otro si el lunes era festivo
+  moderador_id uuid references auth.users(id) on delete set null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (serie, semana)
+);
+
+create table if not exists reuniones_rotacion (
+  serie text primary key,
+  -- Los ids de las personas, en el orden en que moderan.
+  orden jsonb not null default '[]'::jsonb,
+  actualizado_por text,
+  updated_at timestamptz default now()
+);
+
+create table if not exists reuniones_pendientes (
+  id text primary key,
+  serie text not null,
+  texto text not null,
+  -- Los ids de los responsables: uno o más.
+  responsables jsonb not null default '[]'::jsonb,
+  estado text not null default 'pendiente'
+    check (estado in ('pendiente', 'en_curso', 'finalizado')),
+  -- La sesión donde nació, para el registro de esa sesión.
+  sesion_origen text,
+  creado_por uuid references auth.users(id) on delete set null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists reuniones_historial (
+  id text primary key,
+  pendiente_id text not null references reuniones_pendientes(id) on delete cascade,
+  accion text not null default 'actualizado'
+    check (accion in ('creado', 'actualizado')),
+  estado text not null,
+  justificacion text,
+  usuario_id uuid references auth.users(id) on delete set null,
+  -- El nombre se guarda tal cual: si la persona sale del equipo, el
+  -- historial tiene que seguir diciendo quién lo escribió.
+  usuario_nombre text,
+  created_at timestamptz default now()
+);
+
+create table if not exists reuniones_temas (
+  id text primary key,
+  sesion_id text not null,
+  -- '<autor>:<texto>'. Lleva el texto y no la posición: si alguien reordena
+  -- sus temas, la conclusión no puede quedar pegada al tema equivocado.
+  clave text not null,
+  autor_id uuid,
+  -- Copia del texto: el registro tiene que leerse aunque el resumen cambie.
+  texto text not null,
+  resultado text not null check (resultado in ('pendiente', 'sin_compromiso')),
+  conclusion text,
+  pendiente_id text references reuniones_pendientes(id) on delete set null,
+  usuario_id uuid,
+  created_at timestamptz default now(),
+  unique (sesion_id, clave)
+);
+
+create index if not exists reuniones_pendientes_serie_idx on reuniones_pendientes (serie);
+create index if not exists reuniones_historial_pendiente_idx on reuniones_historial (pendiente_id);
+create index if not exists reuniones_temas_sesion_idx on reuniones_temas (sesion_id);
+
 -- ---------- Seguridad a nivel de fila (RLS) ----------
 -- Estas políticas asumen un equipo interno de confianza: cualquier
 -- persona autenticada puede leer y escribir los datos compartidos
@@ -764,6 +836,66 @@ create policy "Borrar ausencias" on ausencias
       and ur.role_key in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno','desarrollador')
     )
   );
+
+alter table reuniones_sesiones enable row level security;
+alter table reuniones_rotacion enable row level security;
+alter table reuniones_pendientes enable row level security;
+alter table reuniones_historial enable row level security;
+alter table reuniones_temas enable row level security;
+
+-- ---------- Lo que puede hacer el equipo ----------
+
+create policy "Lectura de sesiones" on reuniones_sesiones
+  for select using (auth.role() = 'authenticated');
+create policy "Crear sesiones" on reuniones_sesiones
+  for insert with check (auth.role() = 'authenticated');
+create policy "Editar sesiones" on reuniones_sesiones
+  for update using (auth.role() = 'authenticated');
+
+-- La rotación la editan solo los líderes: decide a quién le toca cada lunes.
+create policy "Lectura de la rotacion" on reuniones_rotacion
+  for select using (auth.role() = 'authenticated');
+create policy "Rotacion solo lideres" on reuniones_rotacion
+  for all using (
+    exists (
+      select 1 from user_roles ur
+      where ur.user_id = auth.uid()
+      and ur.role_key in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno','desarrollador')
+    )
+  );
+
+create policy "Lectura de pendientes" on reuniones_pendientes
+  for select using (auth.role() = 'authenticated');
+create policy "Crear pendientes" on reuniones_pendientes
+  for insert with check (auth.role() = 'authenticated');
+create policy "Editar pendientes" on reuniones_pendientes
+  for update using (auth.role() = 'authenticated');
+-- Borrar un pendiente es solo de los líderes: es para corregir un error, no
+-- para cerrar uno (para eso está "Finalizado").
+create policy "Borrar pendientes solo lideres" on reuniones_pendientes
+  for delete using (
+    exists (
+      select 1 from user_roles ur
+      where ur.user_id = auth.uid()
+      and ur.role_key in ('lider_civil','lider_electrico','lider_delineantes','lider_diseno','desarrollador')
+    )
+  );
+
+-- El historial solo se escribe, y cada quien firma con su propia cuenta.
+-- No hay regla de editar ni de borrar: sin ella, la base lo rechaza.
+create policy "Lectura del historial" on reuniones_historial
+  for select using (auth.role() = 'authenticated');
+create policy "Escribir en el historial" on reuniones_historial
+  for insert with check (usuario_id = auth.uid());
+
+create policy "Lectura de temas tratados" on reuniones_temas
+  for select using (auth.role() = 'authenticated');
+create policy "Crear temas tratados" on reuniones_temas
+  for insert with check (auth.role() = 'authenticated');
+create policy "Editar temas tratados" on reuniones_temas
+  for update using (auth.role() = 'authenticated');
+create policy "Borrar temas tratados" on reuniones_temas
+  for delete using (auth.role() = 'authenticated');
 
 alter table notificaciones enable row level security;
 create policy "Lectura de mis notificaciones" on notificaciones
@@ -1342,3 +1474,17 @@ begin
 end $$;
 
 commit;
+
+-- ---------- Reuniones: los invitados no las ven ----------
+-- Las reglas de crear, editar y borrar ya las puso el bloque de invitados de
+-- arriba, que recorre todas las tablas. Esta es la de LEER, que es propia de
+-- las reuniones: el resto de tablas sí las lee un invitado.
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['reuniones_sesiones','reuniones_rotacion','reuniones_pendientes','reuniones_historial','reuniones_temas']
+  loop
+    execute format('create policy "Invitado no ve reuniones" on %I as restrictive for select to authenticated using (not es_invitado())', t);
+  end loop;
+end $$;
