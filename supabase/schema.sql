@@ -295,6 +295,7 @@ create table if not exists actualizaciones (
   descripcion text,
   interesados jsonb not null default '[]'::jsonb,
   ubicacion text,
+  ubicacion_url text,             -- link opcional para abrir la ubicación
   etiquetas jsonb not null default '[]'::jsonb,
   imagen text,
   creado_por text,

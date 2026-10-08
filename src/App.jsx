@@ -2180,7 +2180,7 @@ export default function App() {
 
     async function cargarActualizaciones() {
       const { data: actRows } = await supabase.from('actualizaciones').select('*').order('created_at', { ascending: false });
-      setActualizaciones((actRows || []).map((r) => ({ id: r.id, categoria_id: r.categoria_id, nombre: r.nombre, descripcion: r.descripcion || '', interesados: r.interesados || [], ubicacion: r.ubicacion || '', etiquetas: r.etiquetas || [], imagen: r.imagen || null, creado_por: r.creado_por, created_at: r.created_at })));
+      setActualizaciones((actRows || []).map((r) => ({ id: r.id, categoria_id: r.categoria_id, nombre: r.nombre, descripcion: r.descripcion || '', interesados: r.interesados || [], ubicacion: r.ubicacion || '', ubicacion_url: r.ubicacion_url || '', etiquetas: r.etiquetas || [], imagen: r.imagen || null, creado_por: r.creado_por, created_at: r.created_at })));
     }
 
     async function cargarMallas() {
@@ -3269,10 +3269,30 @@ export default function App() {
       }
     });
   }
+  /* El link de la ubicación es una columna nueva (migration_actualizaciones_
+     ubicacion_url.sql). Si la migración no se ha corrido, la base rechaza la
+     fila entera por esa columna: se reintenta sin ella, para que la
+     actualización no se pierda por un dato opcional, y solo se avisa si
+     alguien había escrito un link. */
+  async function guardarActualizacionSinPerderla(fila, operacion) {
+    let { error } = await operacion(fila);
+    if (error && /ubicacion_url/.test(error.message || '')) {
+      const { ubicacion_url: link, ...sinLink } = fila;
+      ({ error } = await operacion(sinLink));
+      if (!error && link) {
+        alert('La actualización se guardó, pero sin el link de la ubicación: falta correr la migración migration_actualizaciones_ubicacion_url.sql.');
+      }
+    }
+    return error;
+  }
   function handleAddActualizacion(categoriaId, datos) {
     const nueva = { id: makeId('act'), categoria_id: categoriaId, ...datos, creado_por: perfil?.nombre || null, created_at: new Date().toISOString() };
     setActualizaciones((prev) => [nueva, ...prev]);
-    supabase.from('actualizaciones').insert({ id: nueva.id, categoria_id: categoriaId, nombre: datos.nombre, descripcion: datos.descripcion, interesados: datos.interesados, ubicacion: datos.ubicacion, etiquetas: datos.etiquetas, imagen: datos.imagen, creado_por: perfil?.nombre || null }).then(({ error }) => {
+    const fila = {
+      id: nueva.id, categoria_id: categoriaId, nombre: datos.nombre, descripcion: datos.descripcion, interesados: datos.interesados,
+      ubicacion: datos.ubicacion, ubicacion_url: datos.ubicacion_url, etiquetas: datos.etiquetas, imagen: datos.imagen, creado_por: perfil?.nombre || null,
+    };
+    guardarActualizacionSinPerderla(fila, (f) => supabase.from('actualizaciones').insert(f)).then((error) => {
       if (error) {
         console.error('Error creando actualización:', error);
         alert('No se pudo guardar la actualización. Detalle: ' + error.message);
@@ -3282,7 +3302,7 @@ export default function App() {
   }
   function handleUpdateActualizacion(id, datos) {
     setActualizaciones((prev) => prev.map((a) => (a.id === id ? { ...a, ...datos } : a)));
-    supabase.from('actualizaciones').update(datos).eq('id', id).then(({ error }) => {
+    guardarActualizacionSinPerderla(datos, (f) => supabase.from('actualizaciones').update(f).eq('id', id)).then((error) => {
       if (error) {
         console.error('Error editando actualización:', error);
         alert('No se pudo guardar el cambio. Detalle: ' + error.message);

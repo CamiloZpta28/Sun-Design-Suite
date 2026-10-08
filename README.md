@@ -176,6 +176,28 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Actualizaciones: pegar pantallazos y ubicación con link.**
+  - **Imagen:** además de *Subir imagen*, se puede pegar un pantallazo con
+    Ctrl+V en cualquier parte del formulario, o con el botón *Pegar del
+    portapapeles*. Pegar texto en los campos sigue igual: solo se intercepta
+    si lo pegado es una imagen. El botón no funciona en todos los navegadores
+    (Firefox no lo permite, y Chrome pide permiso la primera vez); cuando no
+    puede, explica que se use Ctrl+V. El límite sigue en 3 MB.
+  - **Ubicación con link:** debajo de la ubicación hay un campo opcional para
+    su link. En la tarjeta, la ubicación se vuelve un enlace que abre en otra
+    pestaña.
+  - **Ubicaciones que se repiten** ("Biblioteca civil", "Carpeta de
+    cantidades"…): en vez de una lista aparte que alguien tenga que mantener,
+    se recuerdan las que ya se usaron. Al escribir aparecen como sugerencia,
+    y al elegir una su link se llena solo (el de la más reciente que tenga
+    link). Si la persona escribió su propio link, no se le pisa. Escrita
+    distinto ("biblioteca civil"), queda con la escritura de siempre, como
+    las etiquetas.
+  - **Necesita migración:** `migration_actualizaciones_ubicacion_url.sql`
+    agrega la columna `ubicacion_url`. Si no se corre, nada se rompe: la
+    actualización se guarda sin el link y la plataforma avisa si alguien
+    había escrito uno.
+
 - **Menos espera al entrar, y sin pantallazo blanco.** Se reportó que la
   plataforma tardaba en cargar y a veces quedaba en blanco hasta recargar.
   Tres causas, tres arreglos:

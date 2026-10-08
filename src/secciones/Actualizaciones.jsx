@@ -9,9 +9,10 @@
    ============================================================================ */
 
 import React, { useState, useEffect } from 'react';
-import { MapPin, Pencil, Plus, Search, Trash2, UploadCloud, X } from 'lucide-react';
+import { ClipboardPaste, ExternalLink, MapPin, Pencil, Plus, Search, Trash2, UploadCloud, X } from 'lucide-react';
 import { ALL_ROLE_DEFS, isLeader } from '../shared/permisos.js';
 import { formatoFechaHora } from '../shared/formatos.js';
+import { normalizeUrl } from '../shared/dominio.jsx';
 
 
 /* Quita tildes/mayúsculas para comparar texto "a ojo" (ej. para que        */
@@ -20,11 +21,53 @@ export function normalizarTexto(s) {
   return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
-export function ActualizacionForm({ actualizacion, etiquetasConocidas, onCancel, onSave }) {
+/* Las ubicaciones que ya se usaron, con su link. Hay unas pocas que se
+   repiten siempre ("Biblioteca civil", "Carpeta de cantidades"…): en vez de
+   una lista aparte que alguien tenga que mantener, la primera vez que se
+   escribe una con su link queda disponible para las siguientes.
+
+   Se comparan sin tildes ni mayúsculas, como las etiquetas, y se queda la
+   escritura y el link de la más reciente que tenga link: si la carpeta se
+   movió y alguien puso el link nuevo, ese es el que se sugiere. */
+export function ubicacionesConocidas(actualizaciones) {
+  const porNombre = new Map();
+  [...(actualizaciones || [])]
+    .filter((a) => (a.ubicacion || '').trim())
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+    .forEach((a) => {
+      const clave = normalizarTexto(a.ubicacion.trim());
+      const previa = porNombre.get(clave);
+      if (!previa) porNombre.set(clave, { nombre: a.ubicacion.trim(), url: a.ubicacion_url || '' });
+      else if (!previa.url && a.ubicacion_url) porNombre.set(clave, { ...previa, url: a.ubicacion_url });
+    });
+  return [...porNombre.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+}
+
+export function ActualizacionForm({ actualizacion, etiquetasConocidas, ubicacionesConocidas: conocidas, onCancel, onSave }) {
   const [nombre, setNombre] = useState(actualizacion?.nombre || '');
   const [descripcion, setDescripcion] = useState(actualizacion?.descripcion || '');
   const [interesados, setInteresados] = useState(actualizacion?.interesados || []);
   const [ubicacion, setUbicacion] = useState(actualizacion?.ubicacion || '');
+  const [ubicacionUrl, setUbicacionUrl] = useState(actualizacion?.ubicacion_url || '');
+  /* El link que se llenó solo, para saber si se puede reemplazar: si la
+     persona escribió el suyo, no se le pisa al cambiar la ubicación. */
+  const [linkSugerido, setLinkSugerido] = useState('');
+
+  function cambiarUbicacion(valor) {
+    setUbicacion(valor);
+    const conocida = (conocidas || []).find((u) => normalizarTexto(u.nombre) === normalizarTexto(valor.trim()));
+    const linkPropio = ubicacionUrl.trim() && ubicacionUrl !== linkSugerido;
+    if (linkPropio) return;
+    const nuevo = conocida?.url || '';
+    setUbicacionUrl(nuevo);
+    setLinkSugerido(nuevo);
+  }
+  /* Al salir del campo, si es una ubicación conocida escrita distinto
+     ("biblioteca civil"), queda con la escritura de siempre. */
+  function fijarEscrituraDeUbicacion() {
+    const conocida = (conocidas || []).find((u) => normalizarTexto(u.nombre) === normalizarTexto(ubicacion.trim()));
+    if (conocida) setUbicacion(conocida.nombre);
+  }
   const [etiquetas, setEtiquetas] = useState(actualizacion?.etiquetas || []);
   const [etiquetaEnCurso, setEtiquetaEnCurso] = useState('');
   const [imagen, setImagen] = useState(actualizacion?.imagen || null);
@@ -54,29 +97,68 @@ export function ActualizacionForm({ actualizacion, etiquetasConocidas, onCancel,
       agregarEtiqueta(etiquetaEnCurso);
     }
   }
-  function handleImagenChange(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  /* La imagen llega por tres caminos —examinar, el botón de pegar y Ctrl+V—
+     y los tres pasan por aquí, con el mismo límite. */
+  function cargarImagen(archivo) {
     setErrorImagen('');
-    if (file.size > 3 * 1024 * 1024) {
-      setErrorImagen('La imagen no puede pesar más de 3 MB.');
-      e.target.value = '';
+    if (archivo.size > 3 * 1024 * 1024) {
+      setErrorImagen('La imagen no puede pesar más de 3 MB. Si es un pantallazo, recórtalo a la parte que importa.');
       return;
     }
     const reader = new FileReader();
     reader.onload = () => setImagen(reader.result);
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(archivo);
+  }
+  function handleImagenChange(e) {
+    const file = e.target.files?.[0];
+    if (file) cargarImagen(file);
     e.target.value = '';
+  }
+  /* Ctrl+V en cualquier parte del formulario. Solo se intercepta si lo que se
+     pega es una imagen: pegar texto en el nombre o la descripción sigue
+     funcionando como siempre. */
+  function handlePegar(e) {
+    const item = Array.from(e.clipboardData?.items || []).find((i) => i.kind === 'file' && i.type.startsWith('image/'));
+    const archivo = item?.getAsFile();
+    if (!archivo) return;
+    e.preventDefault();
+    cargarImagen(archivo);
+  }
+  /* El botón lee el portapapeles directamente. No todos los navegadores lo
+     permiten (Firefox no, y Chrome pide permiso la primera vez); si no se
+     puede, se dice cómo hacerlo con Ctrl+V, que funciona en todos. */
+  async function pegarDelPortapapeles() {
+    setErrorImagen('');
+    if (!navigator.clipboard?.read) {
+      setErrorImagen('Este navegador no deja leer el portapapeles desde el botón: haz clic en el formulario y pega con Ctrl+V.');
+      return;
+    }
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const tipo = item.types.find((t) => t.startsWith('image/'));
+        if (tipo) {
+          cargarImagen(await item.getType(tipo));
+          return;
+        }
+      }
+      setErrorImagen('No hay ninguna imagen en el portapapeles.');
+    } catch {
+      setErrorImagen('No se pudo leer el portapapeles (¿se negó el permiso?). Haz clic en el formulario y pega con Ctrl+V.');
+    }
   }
   function submit(e) {
     e.preventDefault();
     if (!nombre.trim()) return;
-    onSave({ nombre: nombre.trim(), descripcion: descripcion.trim(), interesados, ubicacion: ubicacion.trim(), etiquetas, imagen });
+    onSave({
+      nombre: nombre.trim(), descripcion: descripcion.trim(), interesados,
+      ubicacion: ubicacion.trim(), ubicacion_url: ubicacionUrl.trim(), etiquetas, imagen,
+    });
   }
   const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
 
   return (
-    <form onSubmit={submit} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
+    <form onSubmit={submit} onPaste={handlePegar} className="bg-white border border-navy-200 rounded-xl p-5 mb-6">
       <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-4">
         {actualizacion ? 'Editar actualización' : 'Nueva actualización'}
       </p>
@@ -103,7 +185,28 @@ export function ActualizacionForm({ actualizacion, etiquetasConocidas, onCancel,
         </div>
         <div>
           <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Ubicación de la actualización</label>
-          <input value={ubicacion} onChange={(e) => setUbicacion(e.target.value)} placeholder="Ej. Plano estructural — hoja 3" className={cellInput} />
+          <input
+            list="ubicaciones-conocidas"
+            value={ubicacion}
+            onChange={(e) => cambiarUbicacion(e.target.value)}
+            onBlur={fijarEscrituraDeUbicacion}
+            aria-label="Ubicación"
+            placeholder="Ej. Plano estructural — hoja 3"
+            className={cellInput}
+          />
+          <datalist id="ubicaciones-conocidas">
+            {(conocidas || []).map((u) => <option key={u.nombre} value={u.nombre} />)}
+          </datalist>
+          <input
+            value={ubicacionUrl}
+            onChange={(e) => setUbicacionUrl(e.target.value)}
+            aria-label="Link de la ubicación"
+            placeholder="Link de la ubicación (opcional), ej. la carpeta de Drive"
+            className={`${cellInput} mt-2`}
+          />
+          <p className="text-[11px] text-navy-400 mt-0.5">
+            Si eliges una ubicación que ya se usó (ej. Biblioteca civil), su link se llena solo.
+          </p>
         </div>
         <div>
           <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Etiquetas</label>
@@ -148,12 +251,20 @@ export function ActualizacionForm({ actualizacion, etiquetasConocidas, onCancel,
               {imagen ? 'Cambiar imagen' : 'Subir imagen'}
               <input type="file" accept="image/*" className="hidden" onChange={handleImagenChange} />
             </label>
+            <button
+              type="button"
+              onClick={pegarDelPortapapeles}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-lime-600 hover:text-lime-700"
+            >
+              <ClipboardPaste className="w-3.5 h-3.5" /> Pegar del portapapeles
+            </button>
             {imagen && (
               <button type="button" onClick={() => setImagen(null)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:text-red-600">
                 <Trash2 className="w-3.5 h-3.5" /> Eliminar imagen
               </button>
             )}
           </div>
+          <p className="text-[11px] text-navy-400 mt-1">También puedes pegar un pantallazo con Ctrl+V en cualquier parte del formulario.</p>
           {errorImagen && <p className="text-xs text-red-500 mt-1">{errorImagen}</p>}
         </div>
       </div>
@@ -309,6 +420,7 @@ export function ActualizacionesView({ categorias, actualizaciones, perfil, onAdd
         <ActualizacionForm
           actualizacion={editandoId ? deEstaCategoria.find((a) => a.id === editandoId) : null}
           etiquetasConocidas={etiquetasConocidas}
+          ubicacionesConocidas={ubicacionesConocidas(actualizaciones)}
           onCancel={cerrarFormulario}
           onSave={(datos) => {
             if (editandoId) onUpdate(editandoId, datos);
@@ -373,9 +485,21 @@ export function ActualizacionesView({ categorias, actualizaciones, perfil, onAdd
                 {/* Ubicación: separada de Interesados/Etiquetas — línea propia, */}
                 {/* estilo de texto simple (no una "pastilla" más), para que no */}
                 {/* se confunda visualmente con los demás badges.              */}
-                {a.ubicacion && (
+                {/* Con link, la ubicación entera es el enlace; sin texto,  */}
+                {/* el enlace se nombra solo, para no mostrar una URL larga.  */}
+                {(a.ubicacion || a.ubicacion_url) && (
                   <p className="flex items-center gap-1.5 text-sm text-navy-600 mt-3">
-                    <MapPin className="w-3.5 h-3.5 text-navy-400 shrink-0" /> {a.ubicacion}
+                    <MapPin className="w-3.5 h-3.5 text-navy-400 shrink-0" />
+                    {a.ubicacion_url ? (
+                      <a
+                        href={normalizeUrl(a.ubicacion_url)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-nashville-600 hover:text-nashville-700 underline underline-offset-2 break-all"
+                      >
+                        {a.ubicacion || 'Abrir ubicación'} <ExternalLink className="w-3 h-3 shrink-0" />
+                      </a>
+                    ) : a.ubicacion}
                   </p>
                 )}
 
