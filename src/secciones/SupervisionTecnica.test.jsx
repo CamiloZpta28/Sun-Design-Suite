@@ -12,6 +12,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
 import SupervisionTecnicaPanel, {
   SITUACION, situacionPorDocumento, sePuedeEnviar, estaAprobado, sePuedeEditarRespuesta,
+  aplicarRespuesta, fechaDeRespuestaDe, pendientesDeRespuesta,
   tituloPaquete, ESTADO_POR_RESULTADO,
 } from './SupervisionTecnica.jsx';
 import { dossierPorEspecialidad, requiereSupervisionTecnica } from '../shared/dominio.jsx';
@@ -428,3 +429,122 @@ describe('dossier del proyecto', () => {
     expect(() => dossierPorEspecialidad(undefined)).not.toThrow();
   });
 });
+
+describe('respuestas parciales', () => {
+  /* Supervisión devolvió dos de los tres el 15; la memoria eléctrica sigue
+     esperando. */
+  const parcial = paquete({
+    fecha_respuesta: '2026-09-15',
+    documentos: [
+      { codigo: 'C-1', resultado: 'apc', fecha_respuesta: '2026-09-15' },
+      { codigo: 'C-2', resultado: 'comentarios', fecha_respuesta: '2026-09-15' },
+      { codigo: 'E-1', resultado: null },
+    ],
+  });
+  /* El radio de un documento: APC, APCC o Con comentarios, en ese orden. */
+  const marcar = (codigo, cual) => {
+    const radios = document.querySelectorAll(`input[type="radio"][name$="-${codigo}"]`);
+    fireEvent.click(radios[{ apc: 0, apcc: 1, comentarios: 2 }[cual]]);
+  };
+  const ponerFecha = (valor) => {
+    const fechas = document.querySelectorAll('input[type="date"]');
+    fireEvent.change(fechas[fechas.length - 1], { target: { value: valor } });
+  };
+
+  it('el que no tiene resultado sigue en revisión, aunque el paquete ya tenga respuesta', () => {
+    const mapa = situacionPorDocumento([parcial]);
+    expect(mapa.get('C-1').situacion).toBe(SITUACION.APC);
+    expect(mapa.get('C-2').situacion).toBe(SITUACION.CON_COMENTARIOS);
+    expect(mapa.get('E-1').situacion).toBe(SITUACION.EN_REVISION);
+    expect(pendientesDeRespuesta(parcial).map((d) => d.codigo)).toEqual(['E-1']);
+  });
+
+  it('aplicar una respuesta solo toca los documentos marcados, con su fecha', () => {
+    const resto = aplicarRespuesta(parcial, '2026-09-22', { 'E-1': 'apcc' });
+    expect(resto.documentos.find((d) => d.codigo === 'E-1')).toMatchObject({ resultado: 'apcc', fecha_respuesta: '2026-09-22' });
+    expect(resto.documentos.find((d) => d.codigo === 'C-1')).toMatchObject({ resultado: 'apc', fecha_respuesta: '2026-09-15' });
+    /* El paquete queda con la fecha de la respuesta más reciente… */
+    expect(resto.fecha_respuesta).toBe('2026-09-22');
+    /* …aunque la que se registre de último sea de un día anterior. */
+    expect(aplicarRespuesta({ ...parcial, fecha_respuesta: '2026-09-22' }, '2026-09-18', { 'E-1': 'apc' }).fecha_respuesta).toBe('2026-09-22');
+    /* Al corregir, la respuesta se reescribe con la fecha que se puso. */
+    expect(aplicarRespuesta(parcial, '2026-09-10', { 'C-1': 'apcc' }, { esCorreccion: true }).fecha_respuesta).toBe('2026-09-10');
+  });
+
+  /* Los paquetes guardados antes no tienen fecha por documento. */
+  it('un paquete viejo toma la fecha del paquete', () => {
+    const viejo = paquete({ fecha_respuesta: '2026-08-01', documentos: [{ codigo: 'C-1', resultado: 'apc' }, { codigo: 'C-2', resultado: null }] });
+    expect(fechaDeRespuestaDe(viejo, viejo.documentos[0])).toBe('2026-08-01');
+    expect(fechaDeRespuestaDe(viejo, viejo.documentos[1])).toBe('');
+  });
+
+  it('se puede guardar una respuesta con solo algunos documentos', () => {
+    const { onGuardar } = montar({ supervision: { paquetes: [paquete()] } });
+    fireEvent.click(screen.getByText('Paquete 1'));
+    fireEvent.click(screen.getByText('Registrar respuesta'));
+    ponerFecha('2026-09-15');
+    /* Sin marcar ninguno no hay nada que guardar. */
+    expect(screen.getByText('Guardar respuesta').disabled).toBe(true);
+    marcar('C-1', 'apc');
+    marcar('C-2', 'comentarios');
+    expect(screen.getByText(/El documento sin marcar sigue esperando respuesta/)).toBeTruthy();
+    fireEvent.click(screen.getByText('Guardar respuesta parcial'));
+    fireEvent.click(screen.getByText('Guardar sin cambiar estados'));
+
+    const [nuevaSupervision, accion] = onGuardar.mock.calls[0];
+    const docs = nuevaSupervision.paquetes[0].documentos;
+    expect(docs.map((d) => d.resultado)).toEqual(['apc', 'comentarios', null]);
+    expect(docs[0].fecha_respuesta).toBe('2026-09-15');
+    expect(nuevaSupervision.paquetes[0].fecha_respuesta).toBe('2026-09-15');
+    expect(accion).toMatch(/quedan 1 esperando respuesta/);
+  });
+
+  it('la tarjeta dice cuántos faltan y cuáles', () => {
+    montar({ supervision: { paquetes: [parcial] } });
+    expect(screen.getByText('1 esperando respuesta')).toBeTruthy();
+    fireEvent.click(screen.getByText('Paquete 1'));
+    expect(screen.getByText(/parcial, 2 de 3/)).toBeTruthy();
+    const tarjeta = within(screen.getByText('Paquete 1').closest('div.overflow-hidden'));
+    const filaElectrica = tarjeta.getByText('Memoria eléctrica').parentElement;
+    expect(filaElectrica.textContent).toContain('Esperando respuesta');
+  });
+
+  it('lo que falta se registra después, con su propia fecha', () => {
+    const { onGuardar } = montar({ supervision: { paquetes: [parcial] } });
+    fireEvent.click(screen.getByText('Paquete 1'));
+    fireEvent.click(screen.getByText('Registrar lo que falta (1)'));
+    /* Solo el que falta, y la fecha en blanco: es otra respuesta. */
+    const tarjeta = within(screen.getByText('Paquete 1').closest('div.overflow-hidden'));
+    expect(tarjeta.queryByText('Memoria civil')).toBe(null);
+    expect(tarjeta.getByText('Memoria eléctrica')).toBeTruthy();
+    expect(document.querySelectorAll('input[type="date"]')[0].value).toBe('');
+    marcar('E-1', 'apc');
+    ponerFecha('2026-09-22');
+    fireEvent.click(screen.getByText('Guardar respuesta'));
+    fireEvent.click(screen.getByText('Guardar sin cambiar estados'));
+
+    const paq = onGuardar.mock.calls[0][0].paquetes[0];
+    expect(paq.documentos.map((d) => d.resultado)).toEqual(['apc', 'comentarios', 'apc']);
+    expect(paq.documentos.map((d) => d.fecha_respuesta)).toEqual(['2026-09-15', '2026-09-15', '2026-09-22']);
+    expect(paq.fecha_respuesta).toBe('2026-09-22');
+  });
+
+  /* Los que volvieron con comentarios no tienen que esperar al resto: se
+     pueden mandar en el paquete siguiente, y lo que falta del primero se
+     sigue pudiendo registrar. */
+  it('no hay que esperar el resto para armar la vuelta siguiente', () => {
+    const siguiente = paquete({ id: 'paq-2', numero: 2, fecha_entrega: '2026-09-20', documentos: [{ codigo: 'C-2', resultado: null }] });
+    montar({ supervision: { paquetes: [parcial, siguiente] } });
+    fireEvent.click(screen.getByText('Paquete 1'));
+    expect(screen.queryByText('Corregir respuesta')).toBe(null);
+    expect(screen.getByText('Registrar lo que falta (1)')).toBeTruthy();
+  });
+
+  it('las cifras del dossier cuentan al que falta como en revisión', () => {
+    montar({ supervision: { paquetes: [parcial] } });
+    const cifra = (etiqueta) => screen.getAllByText(etiqueta).find((n) => n.tagName === 'P').previousSibling.textContent;
+    expect(cifra('En revisión')).toBe('1');
+    expect(cifra('Con comentarios')).toBe('1');
+  });
+});
+

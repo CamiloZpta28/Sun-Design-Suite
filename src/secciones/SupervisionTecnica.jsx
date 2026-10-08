@@ -18,6 +18,11 @@
    estar en dos paquetes sin responder a la vez, y los que ya están en APC no
    se vuelven a ofrecer.
 
+   La respuesta puede llegar por partes: Supervisión devuelve primero unos
+   documentos y días después el resto. Por eso cada documento guarda su
+   propio resultado y su propia fecha de respuesta, y el que todavía no la
+   tiene sigue "en revisión" aunque el paquete ya tenga otros respondidos.
+
    Todo vive en projects.data.supervision (la misma vía de guardado que las
    pestañas técnicas), así que no hace falta ninguna tabla nueva.
    ============================================================================ */
@@ -72,15 +77,19 @@ const SITUACION_POR_RESULTADO = {
 /**
  * Situación de cada documento a partir de los paquetes, en orden cronológico:
  * manda siempre el paquete más reciente en el que aparece.
+ *
+ * Lo que decide es el resultado DEL DOCUMENTO, no si el paquete tiene fecha
+ * de respuesta: en una respuesta parcial, el paquete ya tiene fecha pero los
+ * documentos que Supervisión no ha devuelto siguen en revisión. (Antes, sin
+ * respuestas parciales, un documento sin resultado en un paquete respondido
+ * no podía existir.)
  * @returns {Map<string, {situacion: string, paquete: object|null}>}
  */
 export function situacionPorDocumento(paquetes) {
   const mapa = new Map();
   (paquetes || []).forEach((paq) => {
     (paq.documentos || []).forEach((d) => {
-      const situacion = paq.fecha_respuesta
-        ? (SITUACION_POR_RESULTADO[d.resultado] || SITUACION.CON_COMENTARIOS)
-        : SITUACION.EN_REVISION;
+      const situacion = SITUACION_POR_RESULTADO[d.resultado] || SITUACION.EN_REVISION;
       mapa.set(d.codigo, { situacion, paquete: paq });
     });
   });
@@ -122,6 +131,39 @@ export function sePuedeEditarRespuesta(paquete, paquetes) {
     };
   }
   return { permitido: true, motivo: null };
+}
+
+/** Los documentos de un paquete que todavía esperan respuesta. */
+export function pendientesDeRespuesta(paquete) {
+  return (paquete.documentos || []).filter((d) => !d.resultado);
+}
+
+/** Fecha en que le respondieron a un documento. Los paquetes guardados antes
+ *  de las respuestas parciales no la tienen por documento: era la del
+ *  paquete. */
+export function fechaDeRespuestaDe(paquete, doc) {
+  if (!doc.resultado) return '';
+  return doc.fecha_respuesta || paquete.fecha_respuesta || '';
+}
+
+/**
+ * Aplica una respuesta (completa, parcial, el resto, o una corrección) al
+ * paquete. Solo cambian los documentos que se marcaron; los que se dejaron
+ * sin marcar quedan como estaban. Cada documento marcado se queda con la
+ * fecha de ESTA respuesta, y el paquete con la de la más reciente —salvo al
+ * corregir, que reescribe la respuesta con la fecha que se puso—.
+ */
+export function aplicarRespuesta(paquete, fecha, resultados, { esCorreccion = false } = {}) {
+  const documentos = (paquete.documentos || []).map((d) => {
+    const r = resultados[d.codigo];
+    return r ? { ...d, resultado: r, fecha_respuesta: fecha } : d;
+  });
+  const anterior = paquete.fecha_respuesta || '';
+  return {
+    ...paquete,
+    fecha_respuesta: esCorreccion || fecha > anterior ? fecha : anterior,
+    documentos,
+  };
 }
 
 /** Nombre visible de un paquete: "Paquete 2" o "Paquete 2 · Civil". */
@@ -286,27 +328,34 @@ function PaqueteForm({ grupos, situaciones, preseleccion, numero, onCancel, onSa
 }
 
 /* ---------------------------------------------------------------------------
-   Registro de la respuesta de Supervisión a un paquete: una sola fecha, y el
-   resultado documento por documento.
+   Registro de la respuesta de Supervisión a un paquete: una fecha, y el
+   resultado documento por documento. No hace falta marcarlos todos: los que
+   se dejan sin marcar siguen esperando respuesta.
+
+   `soloPendientes` es para registrar lo que falta de una respuesta parcial:
+   se muestran solo los documentos que siguen esperando, con la fecha vacía
+   (es otra respuesta, de otro día).
    ------------------------------------------------------------------------- */
-function RespuestaForm({ paquete, nombrePorCodigo, codigoFinalPorCodigo, esCorreccion, onCancel, onSave }) {
+function RespuestaForm({ paquete, nombrePorCodigo, codigoFinalPorCodigo, esCorreccion, soloPendientes, onCancel, onSave }) {
+  const docs = soloPendientes ? pendientesDeRespuesta(paquete) : (paquete.documentos || []);
   /* Al corregir una respuesta ya registrada se parte de lo que quedó
      guardado, no de cero. */
-  const [fecha, setFecha] = useState(paquete.fecha_respuesta || '');
+  const [fecha, setFecha] = useState(soloPendientes ? '' : (paquete.fecha_respuesta || ''));
   const [resultados, setResultados] = useState(() => {
     const inicial = {};
-    (paquete.documentos || []).forEach((d) => { inicial[d.codigo] = d.resultado || null; });
+    docs.forEach((d) => { inicial[d.codigo] = d.resultado || null; });
     return inicial;
   });
 
-  const total = (paquete.documentos || []).length;
+  const total = docs.length;
   const valores = Object.values(resultados);
   const decididos = valores.filter(Boolean).length;
+  const sinMarcar = total - decididos;
   const cuenta = (valor) => valores.filter((r) => r === valor).length;
 
   function marcarTodos(resultado) {
     const nuevo = {};
-    (paquete.documentos || []).forEach((d) => { nuevo[d.codigo] = resultado; });
+    docs.forEach((d) => { nuevo[d.codigo] = resultado; });
     setResultados(nuevo);
   }
 
@@ -336,7 +385,7 @@ function RespuestaForm({ paquete, nombrePorCodigo, codigoFinalPorCodigo, esCorre
       </div>
 
       <div className="space-y-1 mb-3 max-h-80 overflow-y-auto pr-1">
-        {(paquete.documentos || []).map((d) => (
+        {docs.map((d) => (
           <div key={d.codigo} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm py-1.5 border-b border-navy-100 last:border-0">
             <span className="font-mono text-xs text-navy-500 shrink-0">{codigoFinalPorCodigo.get(d.codigo) || d.codigo}</span>
             <span className="flex-1 min-w-[12rem] text-navy-700">{nombrePorCodigo.get(d.codigo) || '(documento que ya no está en el dossier)'}</span>
@@ -359,16 +408,23 @@ function RespuestaForm({ paquete, nombrePorCodigo, codigoFinalPorCodigo, esCorre
       <div className="flex items-center gap-3 flex-wrap">
         <button
           onClick={() => onSave(fecha, resultados)}
-          disabled={!fecha || decididos < total}
+          disabled={!fecha || decididos === 0}
           className="bg-lime-500 hover:bg-lime-600 disabled:opacity-50 disabled:cursor-not-allowed text-navy-900 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
         >
-          {esCorreccion ? 'Guardar corrección' : 'Guardar respuesta'}
+          {esCorreccion ? 'Guardar corrección' : sinMarcar > 0 && decididos > 0 ? 'Guardar respuesta parcial' : 'Guardar respuesta'}
         </button>
         <button onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700">Cancelar</button>
         <span className="text-xs text-navy-500">
           {decididos} de {total} marcados · {RESULTADOS.map((r) => `${cuenta(r.valor)} ${r.etiqueta}`).join(' · ')}
         </span>
+        {!fecha && decididos > 0 && <span className="text-xs text-amber-600">Falta la fecha de respuesta</span>}
       </div>
+      {decididos > 0 && sinMarcar > 0 && (
+        <p className="text-xs text-violet-700 mt-2">
+          {sinMarcar === 1 ? 'El documento sin marcar sigue' : `Los ${sinMarcar} documentos sin marcar siguen`} esperando respuesta: lo
+          que falte se registra después, cuando llegue.
+        </p>
+      )}
     </div>
   );
 }
@@ -427,7 +483,7 @@ export default function SupervisionTecnicaPanel({
   const paquetes = supervision?.paquetes || [];
   const [creando, setCreando] = useState(false);
   const [preseleccion, setPreseleccion] = useState([]);
-  const [respondiendo, setRespondiendo] = useState(null); // id del paquete
+  const [respondiendo, setRespondiendo] = useState(null); // { id, soloPendientes }
   const [abiertos, setAbiertos] = useState(() => new Set());
   const [confirmacion, setConfirmacion] = useState(null);
   const [renombrando, setRenombrando] = useState(null); // id del paquete
@@ -505,7 +561,7 @@ export default function SupervisionTecnicaPanel({
   /* Antes de guardar la respuesta se calcula qué estados de Control Documental
      quedarían distintos, para poder preguntar. Un documento que YA está en el
      estado que le tocaría no aparece: no hay nada que cambiarle. */
-  function prepararRespuesta(paquete, fecha, resultados) {
+  function prepararRespuesta(paquete, fecha, resultados, { esCorreccion = false } = {}) {
     const cambios = (paquete.documentos || []).map((d) => {
       const nuevo = ESTADO_POR_RESULTADO[resultados[d.codigo]];
       const anterior = (estadoDocs || {})[d.codigo]?.estado || 'Pendiente';
@@ -518,13 +574,13 @@ export default function SupervisionTecnicaPanel({
       };
     }).filter((c) => c.nuevo && c.nuevo !== c.anterior);
 
-    const paquetesActualizados = paquetes.map((p) => (p.id !== paquete.id ? p : {
-      ...p,
-      fecha_respuesta: fecha,
-      documentos: (p.documentos || []).map((d) => ({ ...d, resultado: resultados[d.codigo] || null })),
-    }));
+    const actualizado = aplicarRespuesta(paquete, fecha, resultados, { esCorreccion });
+    const paquetesActualizados = paquetes.map((p) => (p.id !== paquete.id ? p : actualizado));
     const nuevaSupervision = { ...(supervision || {}), paquetes: paquetesActualizados };
-    const resumen = `Supervisión técnica: registró la respuesta del ${tituloPaquete(paquete).toLowerCase()}`;
+    const quedan = pendientesDeRespuesta(actualizado).length;
+    const marcados = Object.values(resultados).filter(Boolean).length;
+    const resumen = `Supervisión técnica: ${esCorreccion ? 'corrigió la respuesta' : `registró la respuesta de ${marcados} documento(s)`} del ${tituloPaquete(paquete).toLowerCase()}`
+      + (quedan > 0 ? ` (quedan ${quedan} esperando respuesta)` : '');
 
     if (cambios.length === 0) {
       onGuardar(nuevaSupervision, resumen, []);
@@ -613,6 +669,11 @@ export default function SupervisionTecnicaPanel({
                 const abierto = abiertos.has(paq.id);
                 const respondido = !!paq.fecha_respuesta;
                 const docs = paq.documentos || [];
+                const pendientes = pendientesDeRespuesta(paq).length;
+                const parcial = respondido && pendientes > 0;
+                /* La fecha de cada documento se muestra solo si la respuesta
+                   llegó en más de un día: si no, ya está en la cabecera. */
+                const variasFechas = new Set(docs.filter((d) => d.resultado).map((d) => fechaDeRespuestaDe(paq, d))).size > 1;
                 const apc = docs.filter((d) => d.resultado === 'apc').length;
                 const apcc = docs.filter((d) => d.resultado === 'apcc').length;
                 const conCom = docs.filter((d) => d.resultado === 'comentarios').length;
@@ -647,6 +708,11 @@ export default function SupervisionTecnicaPanel({
                                 {conCom} con comentarios
                               </span>
                             )}
+                            {parcial && (
+                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-violet-50 text-violet-700 border-violet-200">
+                                {pendientes} esperando respuesta
+                              </span>
+                            )}
                           </>
                         ) : (
                           <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-violet-50 text-violet-700 border-violet-200">
@@ -660,7 +726,16 @@ export default function SupervisionTecnicaPanel({
                       <div className="px-4 pb-4 border-t border-navy-100">
                         <div className="flex items-center gap-4 flex-wrap text-xs text-navy-500 py-2">
                           <span>Entrega: <strong className="text-navy-700">{formatDate(paq.fecha_entrega) || '—'}</strong></span>
-                          <span>Respuesta: <strong className="text-navy-700">{formatDate(paq.fecha_respuesta) || 'pendiente'}</strong></span>
+                          <span>
+                            Respuesta:{' '}
+                            <strong className="text-navy-700">
+                              {!respondido
+                                ? 'pendiente'
+                                : parcial
+                                  ? `parcial, ${docs.length - pendientes} de ${docs.length} (la última el ${formatDate(paq.fecha_respuesta)})`
+                                  : formatDate(paq.fecha_respuesta)}
+                            </strong>
+                          </span>
                           {paq.creado_por && <span>Creado por {paq.creado_por}</span>}
                           {puedeEditar && renombrando !== paq.id && (
                             <button
@@ -693,14 +768,17 @@ export default function SupervisionTecnicaPanel({
                           </form>
                         )}
 
-                        {respondiendo === paq.id ? (
+                        {respondiendo?.id === paq.id ? (
                           <RespuestaForm
                             paquete={paq}
                             nombrePorCodigo={nombrePorCodigo}
                             codigoFinalPorCodigo={codigoFinalPorCodigo}
-                            esCorreccion={respondido}
+                            esCorreccion={respondido && !respondiendo.soloPendientes}
+                            soloPendientes={respondiendo.soloPendientes}
                             onCancel={() => setRespondiendo(null)}
-                            onSave={(fecha, resultados) => prepararRespuesta(paq, fecha, resultados)}
+                            onSave={(fecha, resultados) => prepararRespuesta(paq, fecha, resultados, {
+                              esCorreccion: respondido && !respondiendo.soloPendientes,
+                            })}
                           />
                         ) : (
                           <>
@@ -709,7 +787,10 @@ export default function SupervisionTecnicaPanel({
                                 <div key={d.codigo} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm py-1.5 border-b border-navy-100 last:border-0">
                                   <span className="font-mono text-xs text-navy-500 shrink-0">{codigoFinalPorCodigo.get(d.codigo) || d.codigo}</span>
                                   <span className="flex-1 min-w-[12rem] text-navy-700">{nombrePorCodigo.get(d.codigo) || '(documento que ya no está en el dossier)'}</span>
-                                  {respondido && (
+                                  {respondido && !d.resultado && (
+                                    <span className="text-xs font-semibold text-violet-600 shrink-0">Esperando respuesta</span>
+                                  )}
+                                  {d.resultado && (
                                     d.resultado === 'comentarios'
                                       ? <span className="flex items-center gap-1 text-xs font-semibold text-orange-600 shrink-0"><MessageSquare className="w-3.5 h-3.5" /> Con comentarios</span>
                                       : (
@@ -717,6 +798,9 @@ export default function SupervisionTecnicaPanel({
                                           <Check className="w-3.5 h-3.5" /> {d.resultado === 'apcc' ? 'APCC' : 'APC'}
                                         </span>
                                       )
+                                  )}
+                                  {d.resultado && variasFechas && (
+                                    <span className="text-[11px] text-navy-400 shrink-0">{formatDate(fechaDeRespuestaDe(paq, d))}</span>
                                   )}
                                 </div>
                               ))}
@@ -726,15 +810,27 @@ export default function SupervisionTecnicaPanel({
                               <div className="flex items-center gap-3 flex-wrap mt-3">
                                 {!respondido && (
                                   <button
-                                    onClick={() => setRespondiendo(paq.id)}
+                                    onClick={() => setRespondiendo({ id: paq.id, soloPendientes: false })}
                                     className="flex items-center gap-1.5 text-sm font-semibold text-navy-700 border border-navy-300 rounded-lg px-3 py-1.5 hover:border-navy-400"
                                   >
                                     <Send className="w-3.5 h-3.5" /> Registrar respuesta
                                   </button>
                                 )}
+                                {/* Lo que falta de una respuesta parcial se
+                                    registra siempre: esos documentos no pueden
+                                    estar en otro paquete (siguen en revisión),
+                                    así que no hay historia que se contradiga. */}
+                                {parcial && (
+                                  <button
+                                    onClick={() => setRespondiendo({ id: paq.id, soloPendientes: true })}
+                                    className="flex items-center gap-1.5 text-sm font-semibold text-navy-700 border border-navy-300 rounded-lg px-3 py-1.5 hover:border-navy-400"
+                                  >
+                                    <Send className="w-3.5 h-3.5" /> Registrar lo que falta ({pendientes})
+                                  </button>
+                                )}
                                 {respondido && correccion.permitido && (
                                   <button
-                                    onClick={() => setRespondiendo(paq.id)}
+                                    onClick={() => setRespondiendo({ id: paq.id, soloPendientes: false })}
                                     className="flex items-center gap-1.5 text-sm font-semibold text-navy-700 border border-navy-300 rounded-lg px-3 py-1.5 hover:border-navy-400"
                                   >
                                     <Pencil className="w-3.5 h-3.5" /> Corregir respuesta

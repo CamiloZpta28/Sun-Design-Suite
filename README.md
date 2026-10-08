@@ -176,6 +176,31 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Supervisión técnica: respuestas parciales.** Supervisión a veces
+  devuelve solo una parte de un paquete (los comentarios de 10 de 46
+  documentos, y el resto días después), pero la respuesta no se podía
+  guardar hasta marcar todos.
+  - Ahora se guarda con los que se marcaron (*Guardar respuesta parcial*).
+    Los demás siguen **en revisión**, no "con comentarios": hasta ahora un
+    documento sin resultado en un paquete respondido se contaba como con
+    comentarios, y eso ya no vale.
+  - La tarjeta del paquete dice cuántos faltan ("36 esperando respuesta",
+    "Respuesta: parcial, 10 de 46") y cuáles. Con **Registrar lo que falta**
+    se abren solo esos, con la fecha en blanco: es otra respuesta, de otro
+    día.
+  - Cada documento guarda su propia fecha de respuesta (`fecha_respuesta`
+    dentro de cada documento del paquete); el paquete se queda con la de la
+    más reciente. Si la respuesta llegó en más de un día, la fecha sale junto
+    a cada documento. Los paquetes viejos no la tienen por documento y toman
+    la del paquete.
+  - Los que volvieron con comentarios se pueden mandar en el paquete
+    siguiente sin esperar el resto, y lo que falta del primero se sigue
+    pudiendo registrar (esos documentos no pueden estar en otro paquete).
+    Corregir una respuesta ya registrada sigue con la regla de siempre.
+  - Al corregir, la respuesta se reescribe con una sola fecha para los
+    documentos que se marquen.
+  - No necesita migración: todo vive en `projects.data.supervision`.
+
 - **"Todas", en Actualizaciones, muestra solo las últimas 10.** Es para ver
   qué cambió hace poco, no para leer el archivo entero. Abajo, *Ver 10 más*
   trae las anteriores de a diez, y al volver a la pestaña arranca otra vez en
