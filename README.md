@@ -176,6 +176,13 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **"Todas", en Actualizaciones, muestra solo las últimas 10.** Es para ver
+  qué cambió hace poco, no para leer el archivo entero. Abajo, *Ver 10 más*
+  trae las anteriores de a diez, y al volver a la pestaña arranca otra vez en
+  las últimas 10. Las pestañas por categoría y el buscador no se recortan. El
+  número está en `CUANTAS_EN_TODAS` (`Actualizaciones.jsx`). No necesita
+  migración.
+
 - **Actualizaciones abre en "Todas".** Antes abría siempre en la primera
   categoría (Paneles, inversores y tracker), y para ver qué había cambiado
   últimamente había que recorrerlas una por una. Ahora hay una pestaña

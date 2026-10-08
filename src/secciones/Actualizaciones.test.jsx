@@ -318,3 +318,46 @@ describe('la pestaña "Todas"', () => {
   });
 });
 
+describe('"Todas" muestra solo las últimas 10', () => {
+  const categorias = [{ id: 'c1', nombre: 'Paneles', orden: 0 }, { id: 'c2', nombre: 'Cerramiento', orden: 1 }];
+  /* 23 actualizaciones, numeradas de la más vieja (1) a la más nueva (23). */
+  const actualizaciones = Array.from({ length: 23 }, (_, i) => ({
+    id: `a${i + 1}`, categoria_id: i % 2 ? 'c2' : 'c1', nombre: `Actualización ${i + 1}`,
+    interesados: [], etiquetas: [], created_at: new Date(Date.UTC(2026, 0, i + 1)).toISOString(),
+  }));
+  const pintarVista = () => render(<ActualizacionesView categorias={categorias} actualizaciones={actualizaciones} perfil={ingeniero} {...sinAcciones} />);
+  const numeros = () => screen.queryAllByText(/^Actualización \d+$/).map((n) => Number(n.textContent.split(' ')[1]));
+
+  it('al abrir, solo las 10 más recientes', () => {
+    pintarVista();
+    expect(numeros()).toEqual([23, 22, 21, 20, 19, 18, 17, 16, 15, 14]);
+    expect(screen.getByText('Ver 10 más · quedan 13 anteriores')).toBeTruthy();
+  });
+
+  it('"Ver más" trae las anteriores de a 10, hasta que no quedan', () => {
+    pintarVista();
+    fireEvent.click(screen.getByText('Ver 10 más · quedan 13 anteriores'));
+    expect(numeros().length).toBe(20);
+    fireEvent.click(screen.getByText('Ver 3 más · quedan 3 anteriores'));
+    expect(numeros().length).toBe(23);
+    expect(screen.queryByText(/Ver \d+ más/)).toBe(null);
+  });
+
+  it('al volver a "Todas" arranca otra vez en las últimas 10', () => {
+    pintarVista();
+    fireEvent.click(screen.getByText('Ver 10 más · quedan 13 anteriores'));
+    fireEvent.click(screen.getByRole('button', { name: 'Paneles (12)' }));
+    fireEvent.click(screen.getByText('Todas'));
+    expect(numeros().length).toBe(10);
+  });
+
+  it('las categorías y el buscador no se recortan', () => {
+    pintarVista();
+    fireEvent.click(screen.getByRole('button', { name: 'Paneles (12)' }));
+    expect(numeros().length).toBe(12);
+    fireEvent.click(screen.getByText('Todas'));
+    fireEvent.change(screen.getByPlaceholderText('Buscar en TODAS las categorías…'), { target: { value: 'actualización' } });
+    expect(numeros().length).toBe(23);
+  });
+});
+

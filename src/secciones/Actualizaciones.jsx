@@ -298,6 +298,9 @@ export function ActualizacionForm({ actualizacion, etiquetasConocidas, ubicacion
    lo que la gente quiere ver al entrar es qué cambió últimamente, no la
    primera categoría de la lista. */
 export const TODAS = 'todas';
+/* En "Todas" solo las últimas: es para ver qué cambió hace poco, no para
+   leer el archivo entero (para eso están las categorías y el buscador). */
+export const CUANTAS_EN_TODAS = 10;
 
 export function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategoria, onRenameCategoria, onDeleteCategoria, onAdd, onUpdate, onDelete, categoriaPreseleccionada }) {
   const [categoriaActiva, setCategoriaActiva] = useState(categoriaPreseleccionada || TODAS);
@@ -306,6 +309,7 @@ export function ActualizacionesView({ categorias, actualizaciones, perfil, onAdd
   const [confirmandoId, setConfirmandoId] = useState(null);
   const [confirmandoCategoria, setConfirmandoCategoria] = useState(null);
   const [busqueda, setBusqueda] = useState('');
+  const [cuantasEnTodas, setCuantasEnTodas] = useState(CUANTAS_EN_TODAS);
   const [imagenAmpliada, setImagenAmpliada] = useState(null);
 
   // Al llegar desde una notificación de actualización, salta directo a la
@@ -337,6 +341,9 @@ export function ActualizacionesView({ categorias, actualizaciones, perfil, onAdd
   const deEstaCategoria = (buscandoGlobal || enTodas ? actualizaciones : actualizaciones.filter((a) => a.categoria_id === categoriaObj.id))
     .filter((a) => (buscandoGlobal ? coincideBusqueda(a) : true))
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // más reciente primero
+  const recortada = enTodas && !buscandoGlobal;
+  const visibles = recortada ? deEstaCategoria.slice(0, cuantasEnTodas) : deEstaCategoria;
+  const quedanPorVer = deEstaCategoria.length - visibles.length;
 
   function cerrarFormulario() {
     setCreando(false);
@@ -367,12 +374,14 @@ export function ActualizacionesView({ categorias, actualizaciones, perfil, onAdd
     <div className="p-4 md:p-8 max-w-5xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-navy-800">Actualizaciones</h1>
-        <p className="text-navy-500 text-sm mt-1">Registro de actualizaciones de diseño, por categoría. Se muestra primero la más reciente.</p>
+        <p className="text-navy-500 text-sm mt-1">
+          Registro de actualizaciones de diseño, por categoría. Se muestra primero la más reciente; en "Todas", las últimas {CUANTAS_EN_TODAS}.
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
         <button
-          onClick={() => { setCategoriaActiva(TODAS); setBusqueda(''); cerrarFormulario(); }}
+          onClick={() => { setCategoriaActiva(TODAS); setBusqueda(''); setCuantasEnTodas(CUANTAS_EN_TODAS); cerrarFormulario(); }}
           className={`text-sm font-semibold px-3 py-2 rounded-lg border ${
             enTodas ? 'bg-navy-800 border-navy-800 text-white' : 'bg-white border-navy-200 text-navy-600 hover:text-navy-800'
           }`}
@@ -469,7 +478,7 @@ export function ActualizacionesView({ categorias, actualizaciones, perfil, onAdd
           </p>
         ) : (
           <div className="space-y-4">
-            {deEstaCategoria.map((a) => (
+            {visibles.map((a) => (
               <div key={a.id} className="bg-white border border-navy-200 rounded-xl p-4">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
@@ -562,6 +571,14 @@ export function ActualizacionesView({ categorias, actualizaciones, perfil, onAdd
                 )}
               </div>
             ))}
+            {quedanPorVer > 0 && (
+              <button
+                onClick={() => setCuantasEnTodas((n) => n + CUANTAS_EN_TODAS)}
+                className="w-full text-sm font-semibold text-navy-500 hover:text-navy-700 border border-dashed border-navy-300 hover:border-navy-400 rounded-xl py-3"
+              >
+                Ver {Math.min(quedanPorVer, CUANTAS_EN_TODAS)} más · quedan {quedanPorVer} anteriores
+              </button>
+            )}
           </div>
         )
       )}
