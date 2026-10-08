@@ -1,10 +1,11 @@
 /* ============================================================================
    REUNIONES DEL LUNES — quién va, quién modera y qué queda pendiente
    ----------------------------------------------------------------------------
-   Cada lunes hay tres reuniones —civil, eléctrica y delineantes— y en cada
-   una pasan tres cosas, en este orden: se revisan los pendientes de las
-   anteriores, se tratan los temas que la gente marcó en su resumen del
-   viernes, y salen pendientes nuevos.
+   Cada semana hay cuatro reuniones —la de diseño, con todo el equipo, y las
+   de área: civil, eléctrica y delineantes— y en cada una pasan tres cosas,
+   en este orden: se revisan los pendientes de las anteriores, se tratan los
+   temas que la gente marcó en su resumen del viernes, y salen pendientes
+   nuevos.
 
    La distinción que sostiene todo esto:
 
@@ -40,13 +41,21 @@ export function etiquetaDeEstado(id) {
 /* El líder de cada área es quien gestiona su reunión: edita la rotación,
    corre la fecha si el lunes es festivo y elige al moderador. */
 export const LIDER_DE_REUNION = {
+  diseno: 'lider_diseno',
   civil: 'lider_civil',
   electrica: 'lider_electrico',
   delineantes: 'lider_delineantes',
 };
 
+/* La reunión de diseño no es de un área: va todo el equipo. Por eso no está
+   en REUNIONES, que es la lista con la que el resumen reparte los temas "de
+   mi equipo" por rol; los temas de diseño ya llegan marcados aparte (ver
+   repartirEnReuniones). Va primero, como en la pestaña de temas. */
+export const REUNION_DE_DISENO = { id: 'diseno', label: 'Reunión de diseño', roles: [], todoElEquipo: true };
+export const TODAS_LAS_REUNIONES = [REUNION_DE_DISENO, ...REUNIONES];
+
 export function reunionPorId(id) {
-  return REUNIONES.find((r) => r.id === id) || null;
+  return TODAS_LAS_REUNIONES.find((r) => r.id === id) || null;
 }
 
 /* "lunes 5 de octubre": la reunión es un día concreto, y así se nombra. */
@@ -66,7 +75,9 @@ export function nombreDe(directorio, id) {
 
 /* ------------------------------------------------------------ quién va */
 
-/* Las reuniones a las que va una persona, según sus roles. Es la misma regla
+/* Las reuniones de área a las que va una persona, según sus roles. La de
+   diseño no se cuenta: es de todos, y marcarla como "la tuya" en cada
+   pantalla no diría nada. Es la misma regla
    que reparte los temas del resumen (REUNIONES sale de las categorías de la
    pestaña Equipo), para que no haya dos listas diciendo quién es "civil". */
 export function reunionesDePersona(perfil) {
@@ -75,20 +86,21 @@ export function reunionesDePersona(perfil) {
   return REUNIONES.filter((r) => roles.some((rol) => r.roles.includes(rol)));
 }
 
-/* La reunión con la que abre la pantalla: la de uno. Quien no va a ninguna
-   (el Líder de Diseño, Control de Calidad…) abre en la civil, que es la
-   primera; las demás quedan a un clic. */
+/* La reunión con la que abre la pantalla: la de área de uno. Quien no tiene
+   ninguna (el Líder de Diseño, Control de Calidad…) abre en la de diseño, que
+   es la que sí le toca; las demás quedan a un clic. */
 export function reunionInicial(perfil) {
   const mias = reunionesDePersona(perfil);
-  return (mias[0] || REUNIONES[0]).id;
+  return (mias[0] || REUNION_DE_DISENO).id;
 }
 
-/* Quiénes van a una reunión, por nombre. Los invitados no van a ninguna. */
+/* Quiénes van a una reunión, por nombre. Los invitados no van a ninguna; a
+   la de diseño va todo el resto. */
 export function participantes(reunionId, directorio) {
   const reunion = reunionPorId(reunionId);
   if (!reunion) return [];
   return (directorio || [])
-    .filter((p) => !esInvitado(p) && (p.roles || []).some((rol) => reunion.roles.includes(rol)))
+    .filter((p) => !esInvitado(p) && (reunion.todoElEquipo || (p.roles || []).some((rol) => reunion.roles.includes(rol))))
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 }
 
@@ -165,6 +177,39 @@ export function moderadorSugerido({ reunionId, semana, fecha, sesiones, rotacion
   return { usuarioId: null, saltados };
 }
 
+/* Reuniones que no rotan: siempre las modera quien tiene ese rol. La de
+   diseño la modera el Líder de Diseño. */
+export const MODERADOR_FIJO = { diseno: 'lider_diseno' };
+
+export function tieneRotacion(reunionId) {
+  return !MODERADOR_FIJO[reunionId];
+}
+
+/* Quien tiene el rol que modera una reunión fija. Si por error hubiera dos con
+   el mismo rol, se toma el primero por nombre, para que todos vean al mismo. */
+export function moderadorFijo(reunionId, directorio) {
+  const rol = MODERADOR_FIJO[reunionId];
+  if (!rol) return null;
+  const candidatos = (directorio || [])
+    .filter((p) => (p.roles || []).includes(rol))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  return candidatos[0]?.id || null;
+}
+
+/* Quién modera una sesión y por qué:
+   - 'fijo': la reunión no rota (ver MODERADOR_FIJO). Manda el rol aunque la
+     sesión tenga guardado otro moderador: si el líder cambia, cambia solo.
+   - 'asignado': el líder lo eligió para esa semana.
+   - 'rotacion': le toca por la lista, saltando ausentes. */
+export function moderadorDeLaSesion({ reunionId, semana, fecha, sesion, sesiones, rotaciones, ausencias, directorio }) {
+  if (!tieneRotacion(reunionId)) {
+    return { usuarioId: moderadorFijo(reunionId, directorio), origen: 'fijo', saltados: [] };
+  }
+  if (sesion?.moderador_id) return { usuarioId: sesion.moderador_id, origen: 'asignado', saltados: [] };
+  const sugerido = moderadorSugerido({ reunionId, semana, fecha, sesiones, rotaciones, ausencias });
+  return { usuarioId: sugerido.usuarioId, origen: 'rotacion', saltados: sugerido.saltados };
+}
+
 /* A quién le toca la semana siguiente, para que lo sepa con tiempo y prepare
    la reunión. Se calcula como si la sesión de esta semana ya estuviera
    guardada con quien la modera: si todavía no se ha creado (nadie ha hecho
@@ -174,6 +219,7 @@ export function moderadorSugerido({ reunionId, semana, fecha, sesiones, rotacion
    registra una ausencia, cambia. Se mira la ausencia en el lunes siguiente;
    si ese lunes resulta festivo y la reunión se corre, se recalcula sola. */
 export function proximoModerador({ reunionId, semana, sesiones, rotaciones, ausencias, moderadorActualId }) {
+  if (!tieneRotacion(reunionId)) return null;
   const siguiente = sumarDias(semana, 7);
   const conLaDeEsta = moderadorActualId
     ? [
@@ -256,8 +302,8 @@ export function claveDeTema(usuarioId, texto) {
 
 /* Los temas que le llegan a la sesión de una reunión: los marcados para "Mi
    equipo" en los resúmenes ENVIADOS de la semana anterior, de quienes van a
-   esa reunión. Los marcados para la reunión de diseño no entran: esa reunión
-   no se lleva aquí. Usa el mismo reparto de la pestaña de temas de los
+   esa reunión; a la de diseño, los marcados para "Diseño", sean de quien
+   sean. Usa el mismo reparto de la pestaña de temas de los
    resúmenes, así que lo que se ve allá es lo que llega acá. */
 export function temasParaLaSesion(resumenes, reunionId, semanaSesion, directorio) {
   const grupos = temasDeLaSemana(resumenes, semanaDeLosTemas(semanaSesion), directorio);

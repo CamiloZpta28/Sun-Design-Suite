@@ -1,8 +1,9 @@
 /* ============================================================================
    REUNIONES DEL LUNES
    ----------------------------------------------------------------------------
-   Tres reuniones —civil, eléctrica y delineantes— y en cada sesión, en el
-   orden en que pasan: quién modera, los pendientes que vienen de antes, los
+   Cuatro reuniones —la de diseño, con todo el equipo y moderada siempre por
+   su líder, y las de área: civil, eléctrica y delineantes— y en cada sesión,
+   en el orden en que pasan: quién modera, los pendientes que vienen de antes, los
    temas que llegaron de los resúmenes del viernes y el registro de lo que se
    habló. El cálculo está aparte, en shared/reuniones.js.
 
@@ -23,14 +24,15 @@ import {
 import { copiarTexto } from '../shared/copiar.jsx';
 import { makeId } from '../shared/dominio.jsx';
 import { esInvitado } from '../shared/permisos.js';
-import { REUNIONES, lunesDe, ultimasSemanas } from '../shared/resumenes.js';
+import { lunesDe, ultimasSemanas } from '../shared/resumenes.js';
 import {
   ESTADOS_PENDIENTE, actualizacionValida, bandejaDeLaSesion, etiquetaDeEstado, fechaDeSesion,
   fechaDeSesionValida, fechaLegible, fueraDelEquipo, gestionaReunion, historialDe, idDeSesion,
   limpiarItems, moderadorSugerido, nombreDe, nombreDeProyecto, ordenDeRotacion, participantes,
-  pendientesDeReunion, planAnterior, planDe, proximoModerador, puedeActualizarPendiente, registroDeLaSesion,
+  ausenteEl, moderadorDeLaSesion, pendientesDeReunion, planAnterior, planDe, proximoModerador, puedeActualizarPendiente,
+  registroDeLaSesion, tieneRotacion,
   registroVacio, resolucionValida, reunionInicial, reunionPorId, reunionesDePersona, semanasAbierto,
-  sesionDe, temasParaLaSesion, textoDelRegistro, tienePlan, ultimaJustificacion,
+  sesionDe, temasParaLaSesion, textoDelRegistro, tienePlan, TODAS_LAS_REUNIONES, ultimaJustificacion,
 } from '../shared/reuniones.js';
 
 const entrada = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
@@ -468,8 +470,11 @@ function RotacionEnLectura({ orden, directorio, moderadorId, proximoId, miId, ge
 
 function CabeceraSesion({
   reunionId, semana, fecha, moderadorId, origenModerador, saltados, gestiona, directorio,
-  orden, proximoId, miId, onGuardarSesion, onGuardarRotacion,
+  orden, proximoId, miId, moderadorAusente, onGuardarSesion, onGuardarRotacion,
 }) {
+  /* Una reunión de moderador fijo (la de diseño: siempre su líder) no tiene lista
+     que mostrar ni moderador que elegir. */
+  const fijo = origenModerador === 'fijo';
   const [editandoFecha, setEditandoFecha] = useState(false);
   const [nuevaFecha, setNuevaFecha] = useState(fecha);
   const [verRotacion, setVerRotacion] = useState(false);
@@ -494,11 +499,14 @@ function CabeceraSesion({
             <span className="font-semibold">{nombreDe(directorio, moderadorId)}</span>
           ) : (
             <span className="text-navy-400 italic">
-              {orden.length === 0 ? 'falta armar la rotación' : 'todos los de la lista están ausentes'}
+              {fijo
+                ? 'nadie tiene el rol que modera esta reunión'
+                : orden.length === 0 ? 'falta armar la rotación' : 'todos los de la lista están ausentes'}
             </span>
           )}
           {moderadorId && origenModerador === 'rotacion' && <span className="text-xs text-navy-400">(le toca por rotación)</span>}
-          {gestiona && (
+          {moderadorId && fijo && <span className="text-xs text-navy-400">(siempre modera el líder)</span>}
+          {gestiona && !fijo && (
             <select
               value=""
               aria-label="Elegir moderador"
@@ -509,14 +517,20 @@ function CabeceraSesion({
               {participantes(reunionId, directorio).map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
             </select>
           )}
-          <button
-            onClick={() => { setVerRotacion((v) => !v); setEditandoRotacion(false); }}
-            className="text-xs font-semibold text-lime-600 hover:text-lime-700 underline"
-          >
-            rotación
-          </button>
+          {!fijo && (
+            <button
+              onClick={() => { setVerRotacion((v) => !v); setEditandoRotacion(false); }}
+              className="text-xs font-semibold text-lime-600 hover:text-lime-700 underline"
+            >
+              rotación
+            </button>
+          )}
         </p>
       </div>
+
+      {fijo && moderadorAusente && (
+        <p className="text-xs text-amber-700 mt-1">Tiene ausencia registrada ese día.</p>
+      )}
 
       {proximoId && (
         <p className={`text-xs mt-1 ${proximoId === miId ? 'text-navy-800 font-semibold' : 'text-navy-500'}`}>
@@ -555,7 +569,7 @@ function CabeceraSesion({
         </div>
       )}
 
-      {verRotacion && (
+      {verRotacion && !fijo && (
         <div className="mt-3">
           {editandoRotacion && gestiona ? (
             <EditorRotacion
@@ -905,13 +919,15 @@ export default function ReunionesView({
      esta semana aunque se esté mirando una vieja. */
   const sesion = sesionDe(sesiones, reunionId, semana);
   const fecha = fechaDeSesion(sesion, semana);
-  const sugerido = moderadorSugerido({ reunionId, semana, fecha, sesiones, rotaciones, ausencias });
-  const moderadorId = sesion?.moderador_id || sugerido.usuarioId;
-  const origenModerador = sesion?.moderador_id ? 'asignado' : 'rotacion';
+  const quienModera = moderadorDeLaSesion({ reunionId, semana, fecha, sesion, sesiones, rotaciones, ausencias, directorio });
+  const moderadorId = quienModera.usuarioId;
+  const origenModerador = quienModera.origen;
 
   const sesionActual = sesionDe(sesiones, reunionId, semanaActual);
-  const moderadorActualId = sesionActual?.moderador_id
-    || moderadorSugerido({ reunionId, semana: semanaActual, fecha: fechaDeSesion(sesionActual, semanaActual), sesiones, rotaciones, ausencias }).usuarioId;
+  const moderadorActualId = moderadorDeLaSesion({
+    reunionId, semana: semanaActual, fecha: fechaDeSesion(sesionActual, semanaActual), sesion: sesionActual,
+    sesiones, rotaciones, ausencias, directorio,
+  }).usuarioId;
 
   const gestiona = gestionaReunion(perfil, reunionId);
   const puedeTratar = disponible && (gestiona || (!!perfil?.id && perfil.id === moderadorId));
@@ -968,7 +984,7 @@ export default function ReunionesView({
 
       <div className="flex items-center gap-3 flex-wrap mb-5">
         <div className="flex gap-1 flex-wrap">
-          {REUNIONES.map((r) => (
+          {TODAS_LAS_REUNIONES.map((r) => (
             <button
               key={r.id}
               onClick={() => setReunionId(r.id)}
@@ -976,7 +992,7 @@ export default function ReunionesView({
                 reunionId === r.id ? 'bg-navy-800 text-white border-navy-800' : 'bg-white text-navy-500 border-navy-300 hover:border-navy-400'
               }`}
             >
-              {r.label.replace('Reunión ', '').replace(/^./, (c) => c.toUpperCase())}
+              {r.label.replace(/^Reunión (de )?/, '').replace(/^./, (c) => c.toUpperCase())}
               {mias.includes(r.id) && <span className="ml-1.5 text-[10px] font-semibold opacity-70">· la tuya</span>}
             </button>
           ))}
@@ -1000,7 +1016,8 @@ export default function ReunionesView({
         fecha={fecha}
         moderadorId={moderadorId}
         origenModerador={origenModerador}
-        saltados={sesion?.moderador_id ? [] : sugerido.saltados}
+        saltados={quienModera.saltados}
+        moderadorAusente={!!moderadorId && ausenteEl(ausencias, moderadorId, fecha)}
         gestiona={gestiona && disponible}
         directorio={directorio}
         orden={ordenDeRotacion(rotaciones, reunionId)}

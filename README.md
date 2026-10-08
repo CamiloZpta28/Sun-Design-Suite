@@ -176,6 +176,27 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **La reunión de diseño, en Reuniones.** Es la cuarta pestaña, la primera
+  de la fila, junto a la civil, la eléctrica y la de delineantes. Funciona
+  igual que ellas —pendientes con responsables e historial, temas que llegan
+  del resumen y registro de la sesión— con dos diferencias:
+  - **Va todo el equipo** (menos los invitados). Cualquiera puede quedar como
+    responsable de un pendiente.
+  - **No rota: siempre la modera el Líder de Diseño.** Se declara en
+    `MODERADOR_FIJO` (`src/shared/reuniones.js`), que apunta a un rol y no a
+    una persona: si cambia el líder, cambia solo, y si nadie tiene el rol, la
+    cabecera lo dice. No hay enlace *rotación*, ni *Elegir moderador*, ni
+    aviso de la semana siguiente. El líder sí puede correr la fecha. Si tiene
+    una ausencia registrada ese día se avisa, pero no se reemplaza a nadie.
+  - Los temas que llegan son los que la gente marca con destino **Diseño** en
+    su resumen, sea del área que sea. Antes esos temas solo se veían en la
+    pestaña de temas de Resúmenes; ahora también se tratan aquí.
+  - Quien no tiene reunión de área (el Líder de Diseño, Control de Calidad…)
+    abre la sección en esta; antes abría en la civil.
+  - No tiene plan de la semana: eso sigue siendo solo de la civil.
+  - No necesita migración: las tablas guardan la reunión como texto libre, y
+    las reglas de la base ya dejan al Líder de Diseño gestionar cualquiera.
+
 - **La rotación de moderadores la ve todo el mundo**, no solo el líder: quien
   sigue tiene que saber con tiempo que le toca para preparar la reunión. En
   la cabecera de cada sesión sale *"La semana siguiente modera Dani"* —o *"te

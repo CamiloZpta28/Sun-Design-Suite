@@ -14,7 +14,8 @@ import { describe, it, expect } from 'vitest';
 import {
   actualizacionValida, ausenteEl, bandejaDeLaSesion, fechaLegible, nombreDe,
   fueraDelEquipo, idDePlan, proximoModerador, limpiarItems, nombreDeProyecto, planAnterior, planDe, tienePlan, claveDeTema, fechaDeSesion, fechaDeSesionValida,
-  gestionaReunion, historialDe, idDeSesion, moderadorSugerido, participantes, pendientesDeReunion,
+  gestionaReunion, historialDe, idDeSesion, moderadorDeLaSesion, moderadorFijo, moderadorSugerido, participantes,
+  pendientesDeReunion, proximoModerador, tieneRotacion,
   puedeActualizarPendiente, registroDeLaSesion, registroVacio, resolucionValida, reunionInicial,
   reunionesDePersona, semanaDeLosTemas, semanasAbierto, temasParaLaSesion, textoDelRegistro,
   ultimaJustificacion,
@@ -48,9 +49,9 @@ describe('quién va a qué reunión', () => {
     expect(reunionesDePersona(persona('lucho')).map((r) => r.id)).toEqual(['civil']);
   });
 
-  it('la pantalla abre en la propia; quien no va a ninguna abre en la civil', () => {
+  it('la pantalla abre en la propia; quien no tiene área abre en la de diseño', () => {
     expect(reunionInicial(persona('caro'))).toBe('electrica');
-    expect(reunionInicial(persona('jefa'))).toBe('civil');
+    expect(reunionInicial(persona('jefa'))).toBe('diseno');
   });
 
   it('un invitado no va a ninguna reunión', () => {
@@ -259,10 +260,16 @@ describe('los temas que llegan a la sesión', () => {
     expect(temas[0]).toMatchObject({ autorId: 'ana', autorNombre: 'Ana' });
   });
 
-  /* La reunión de diseño no se lleva en esta sección. */
-  it('los marcados para la reunión de diseño no llegan', () => {
-    const resumenes = [resumen('ana', '2026-09-28', [{ texto: 'Para diseño', reunion: 'diseno' }])];
+  /* A la de diseño llega lo marcado para ella, sea de quien sea: también de
+     quien no tiene reunión de área, como el Líder de Diseño. */
+  it('los marcados para diseño llegan a la de diseño y no a la del área', () => {
+    const resumenes = [
+      resumen('ana', '2026-09-28', [{ texto: 'Para diseño', reunion: 'diseno' }]),
+      resumen('jefa', '2026-09-28', [{ texto: 'Del jefe', reunion: 'diseno' }]),
+    ];
     expect(temasParaLaSesion(resumenes, 'civil', '2026-10-05', directorio)).toEqual([]);
+    expect(temasParaLaSesion(resumenes, 'diseno', '2026-10-05', directorio).map((t) => t.texto))
+      .toEqual(['Para diseño', 'Del jefe']);
   });
 
   it('un borrador sin enviar no llega', () => {
@@ -494,5 +501,53 @@ describe('a quién le toca la semana siguiente', () => {
 
   it('sin rotación no hay pronóstico', () => {
     expect(proximoModerador({ ...base, rotaciones: [], sesiones: [], moderadorActualId: 'ana' })).toBe(null);
+  });
+});
+
+describe('la reunión de diseño: va todo el equipo y siempre la modera su líder', () => {
+  const base = { semana: '2026-10-05', fecha: '2026-10-05', sesiones: [], ausencias: [], directorio };
+
+  it('van todos menos los invitados', () => {
+    expect(participantes('diseno', directorio).map((p) => p.id))
+      .toEqual(['ana', 'beto', 'caro', 'dani', 'eva', 'jefa', 'lucho']);
+  });
+
+  it('la gestiona el Líder de Diseño, no los líderes de área', () => {
+    expect(gestionaReunion(persona('jefa'), 'diseno')).toBe(true);
+    expect(gestionaReunion(persona('lucho'), 'diseno')).toBe(false);
+  });
+
+  it('solo la de diseño tiene moderador fijo; las de área rotan', () => {
+    expect(tieneRotacion('diseno')).toBe(false);
+    ['civil', 'electrica', 'delineantes'].forEach((id) => expect(tieneRotacion(id)).toBe(true));
+  });
+
+  it('la modera quien tiene el rol de Líder de Diseño', () => {
+    expect(moderadorFijo('diseno', directorio)).toBe('jefa');
+    expect(moderadorFijo('diseno', directorio.filter((p) => p.id !== 'jefa'))).toBe(null);
+    expect(moderadorFijo('civil', directorio)).toBe(null);
+  });
+
+  it('manda el rol aunque la sesión tenga guardado otro moderador, y no mira rotación', () => {
+    const r = moderadorDeLaSesion({
+      ...base, reunionId: 'diseno', sesion: { moderador_id: 'ana' },
+      rotaciones: [{ serie: 'diseno', orden: ['ana'] }],
+    });
+    expect(r).toEqual({ usuarioId: 'jefa', origen: 'fijo', saltados: [] });
+  });
+
+  it('la civil sigue igual: asignado si lo eligió el líder, si no rotación', () => {
+    const rotaciones = [{ serie: 'civil', orden: ['ana', 'eva'] }];
+    expect(moderadorDeLaSesion({ ...base, reunionId: 'civil', sesion: { moderador_id: 'eva' }, rotaciones }))
+      .toMatchObject({ usuarioId: 'eva', origen: 'asignado' });
+    expect(moderadorDeLaSesion({ ...base, reunionId: 'civil', sesion: null, rotaciones }))
+      .toMatchObject({ usuarioId: 'ana', origen: 'rotacion' });
+  });
+
+  it('no hay pronóstico de la semana siguiente: siempre es el mismo', () => {
+    expect(proximoModerador({
+      reunionId: 'diseno', semana: '2026-10-05', sesiones: [], ausencias: [],
+      rotaciones: [{ serie: 'diseno', orden: ['ana'] }], moderadorActualId: 'jefa',
+    })).toBe(null);
   });
 });

@@ -29,6 +29,7 @@ const directorio = [
   { id: 'caro', nombre: 'Caro', roles: ['electrico'] },
   { id: 'beto', nombre: 'Beto', roles: ['estructural'] },
   { id: 'lucho', nombre: 'Lucho', roles: ['lider_civil'] },
+  { id: 'jefa', nombre: 'Jefa', roles: ['lider_diseno'] },
   { id: 'nuevo', nombre: 'Nuevo', roles: [] },
 ];
 const yo = (id) => directorio.find((p) => p.id === id);
@@ -408,5 +409,72 @@ describe('el plan de la semana', () => {
     expect(screen.getByText(/Falta correr la migración del plan/)).toBeTruthy();
     expect(screen.queryByTitle('Editar el plan')).toBe(null);
     expect(screen.getByText('Revisar alcance de Chinú 5')).toBeTruthy();
+  });
+});
+
+describe('la reunión de diseño', () => {
+  const abrirDiseno = (props) => {
+    const r = pintar(props);
+    fireEvent.click(screen.getByRole('button', { name: /^Diseño/ }));
+    return r;
+  };
+
+  it('el Líder de Diseño abre directamente en ella, y la modera', () => {
+    pintar({ perfil: yo('jefa') });
+    expect(screen.getByText('Modera:').parentElement.textContent).toContain('Jefa');
+    expect(screen.getByText('(siempre modera el líder)')).toBeTruthy();
+  });
+
+  it('no tiene rotación ni pronóstico de la semana siguiente', () => {
+    abrirDiseno();
+    expect(screen.getByText('Modera:').parentElement.textContent).toContain('Jefa');
+    expect(screen.queryByText('rotación')).toBe(null);
+    expect(screen.queryByText(/La semana siguiente/)).toBe(null);
+  });
+
+  it('ni el líder elige otro moderador, pero sí puede correr la fecha', () => {
+    pintar({ perfil: yo('jefa') });
+    expect(screen.getByText('cambiar fecha')).toBeTruthy();
+    expect(screen.queryByLabelText('Elegir moderador')).toBe(null);
+  });
+
+  it('si el líder tiene ausencia ese día, lo avisa sin reemplazarlo', () => {
+    abrirDiseno({ ausencias: [{ usuario_id: 'jefa', desde: sumarDias(SEMANA, -1), hasta: sumarDias(SEMANA, 6) }] });
+    expect(screen.getByText('Modera:').parentElement.textContent).toContain('Jefa');
+    expect(screen.getByText('Tiene ausencia registrada ese día.')).toBeTruthy();
+  });
+
+  it('si nadie tiene el rol, lo dice', () => {
+    abrirDiseno({ directorio: directorio.filter((p) => p.id !== 'jefa') });
+    expect(screen.getByText('nadie tiene el rol que modera esta reunión')).toBeTruthy();
+  });
+
+  it('le llegan los temas marcados para diseño, y no a la del área', () => {
+    const resumen = {
+      id: 'r1', usuario_id: 'dani', semana: ANTERIOR, enviado: true,
+      bloques: { temas: [{ texto: 'Estandarizar planos', reunion: 'diseno' }] },
+    };
+    pintar({ resumenes: [resumen] });
+    expect(screen.queryByText('Estandarizar planos')).toBe(null);
+    fireEvent.click(screen.getByRole('button', { name: /^Diseño/ }));
+    expect(screen.getByText('Estandarizar planos')).toBeTruthy();
+  });
+
+  it('el líder crea pendientes para cualquiera del equipo, y no hay plan', async () => {
+    const { handlers } = pintar({ perfil: yo('jefa'), pendientes: [] });
+    expect(screen.queryByText('Plan de la semana')).toBe(null);
+    fireEvent.click(screen.getByText('Nuevo pendiente'));
+    fireEvent.change(screen.getByPlaceholderText('Qué hay que hacer'), { target: { value: 'Plantilla de memorias' } });
+    fireEvent.change(screen.getByLabelText('Agregar responsable'), { target: { value: 'caro' } });
+    fireEvent.click(screen.getByText('Crear pendiente'));
+    await vi.waitFor(() => expect(handlers.onCrearPendiente).toHaveBeenCalled());
+    expect(handlers.onAsegurarSesion).toHaveBeenCalledWith('diseno', SEMANA, 'jefa');
+    expect(handlers.onCrearPendiente).toHaveBeenCalledWith(expect.objectContaining({ serie: 'diseno', responsables: ['caro'] }));
+  });
+
+  it('un ingeniero la ve, pero no la gestiona', () => {
+    abrirDiseno({ perfil: yo('ana') });
+    expect(screen.queryByText('cambiar fecha')).toBe(null);
+    expect(screen.queryByText('Nuevo pendiente')).toBe(null);
   });
 });
