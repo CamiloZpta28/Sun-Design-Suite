@@ -176,6 +176,17 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **El link de la carpeta de Drive se puede corregir y quitar.** El lápiz
+  junto al botón *Carpeta* solo le aparecía al equipo asignado y a los
+  desarrolladores. Pero el link lo pone casi siempre un líder al crear el
+  proyecto, y el líder no suele estar en el equipo, así que quien lo ponía no
+  podía tocarlo después. Ahora también lo edita cualquier líder.
+  - Al editarlo aparece un botón para quitarlo; antes había que vaciar el
+    campo y guardar, y nada lo decía.
+  - Al quitarlo, el historial del proyecto guarda cuál era el link, por si se
+    quitó por error.
+  - No necesita migración.
+
 - **La reunión de diseño, en Reuniones.** Es la cuarta pestaña, la primera
   de la fila, junto a la civil, la eléctrica y la de delineantes. Funciona
   igual que ellas —pendientes con responsables e historial, temas que llegan

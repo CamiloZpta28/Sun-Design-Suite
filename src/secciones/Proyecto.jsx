@@ -2415,6 +2415,10 @@ export function ProjectDetail({
   const puedeGestionar = isLeader(perfil); // asignar equipo + cambiar estado + eliminar/renombrar proyecto
   const puedeEditarContenido = isDeveloper(perfil) || isAssignedToProject(perfil, project); // campos técnicos + archivos + notas
   const puedeComentar = isQA(perfil); // comentarios en Control Documental
+  /* El link de la carpeta lo pone casi siempre un líder al crear el proyecto,
+     y el líder no suele estar en el equipo asignado: si solo pudiera
+     cambiarlo el equipo, quien lo puso no podría corregirlo después. */
+  const puedeEditarCarpeta = puedeGestionar || puedeEditarContenido;
 
   async function loadHistorial() {
     setLoadingHistorial(true);
@@ -2613,18 +2617,20 @@ export function ProjectDetail({
     setEditingNombre(false);
     setHistorial(null);
   }
-  function saveDriveUrl() {
-    const nuevo = driveUrlDraft.trim();
+  function saveDriveUrl(valor = driveUrlDraft) {
+    const nuevo = valor.trim();
     const anterior = project.data.general?.drive_url || '';
     if (nuevo === anterior) {
       setEditingDriveUrl(false);
       return;
     }
     const nuevoGeneral = { ...project.data.general, drive_url: nuevo };
+    /* Al quitarlo, el historial guarda cuál era: si se quitó por error, es
+       la única parte de donde se puede recuperar. */
     updateProject(
       project.id,
       (p) => ({ ...p, data: { ...p.data, general: nuevoGeneral } }),
-      nuevo ? 'Actualizó el link de la carpeta de Drive' : 'Quitó el link de la carpeta de Drive',
+      nuevo ? 'Actualizó el link de la carpeta de Drive' : `Quitó el link de la carpeta de Drive (era ${anterior})`,
       'general',
       () => supabase.rpc('merge_project_data_section', { p_id: project.id, p_section: 'general', p_value: nuevoGeneral })
     );
@@ -2776,6 +2782,7 @@ export function ProjectDetail({
                     autoFocus
                     value={driveUrlDraft}
                     onChange={(e) => setDriveUrlDraft(e.target.value)}
+                    aria-label="Link de la carpeta de Drive"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') saveDriveUrl();
                       if (e.key === 'Escape') { setDriveUrlDraft(project.data.general?.drive_url || ''); setEditingDriveUrl(false); }
@@ -2783,9 +2790,14 @@ export function ProjectDetail({
                     placeholder="Pega el link de la carpeta de Drive…"
                     className="text-xs font-mono text-white bg-navy-800 border border-navy-600 rounded px-2 py-1 w-56 focus:outline-none focus:ring-2 focus:ring-lime-400"
                   />
-                  <button onClick={saveDriveUrl} title="Guardar" className="text-emerald-400 hover:text-emerald-300 shrink-0">
+                  <button onClick={() => saveDriveUrl()} title="Guardar" className="text-emerald-400 hover:text-emerald-300 shrink-0">
                     <Check className="w-4 h-4" />
                   </button>
+                  {project.data.general?.drive_url && (
+                    <button onClick={() => saveDriveUrl('')} title="Quitar el link" className="text-red-300 hover:text-red-200 shrink-0">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                   <button
                     onClick={() => { setDriveUrlDraft(project.data.general?.drive_url || ''); setEditingDriveUrl(false); }}
                     title="Cancelar"
@@ -2811,7 +2823,7 @@ export function ProjectDetail({
                   >
                     <Folder className="w-3.5 h-3.5" /> Carpeta
                   </button>
-                  {puedeEditarContenido && (
+                  {puedeEditarCarpeta && (
                     <button
                       onClick={() => { setDriveUrlDraft(project.data.general?.drive_url || ''); setEditingDriveUrl(true); }}
                       title="Editar link de Drive"

@@ -870,3 +870,53 @@ describe('la revisión eléctrica se retiró', () => {
     expect(screen.queryByText(/Caro/)).toBe(null);
   });
 });
+
+describe('el link de la carpeta de Drive', () => {
+  const LINK = 'https://drive.google.com/drive/folders/abc';
+  const conLink = () => proyecto({ data: { ...proyecto().data, general: { ...proyecto().data.general, drive_url: LINK } } });
+  /* Un líder que no está en el equipo del proyecto: es quien suele crear el
+     proyecto y poner el link, y quien antes ya no podía tocarlo. */
+  const liderDeFuera = { id: 'u3', nombre: 'Lía', roles: ['lider_electrico'] };
+
+  /* updateProject recibe la función que transforma el proyecto: se aplica
+     para ver qué queda guardado, en vez de fiarse del mensaje. */
+  const pintar = (perfil, project = conLink()) => {
+    const updateProject = vi.fn();
+    render(<ProjectDetail project={project} perfil={perfil} {...props} updateProject={updateProject} />);
+    const guardado = () => updateProject.mock.calls[0][1](project).data.general.drive_url;
+    return { updateProject, guardado };
+  };
+
+  it('un líder que no está en el equipo lo puede cambiar', () => {
+    const { updateProject, guardado } = pintar(liderDeFuera);
+    fireEvent.click(screen.getByTitle('Editar link de Drive'));
+    const campo = screen.getByLabelText('Link de la carpeta de Drive');
+    expect(campo.value).toBe(LINK);
+    fireEvent.change(campo, { target: { value: '  https://drive.google.com/drive/folders/nuevo ' } });
+    fireEvent.keyDown(campo, { key: 'Enter' });
+    expect(updateProject).toHaveBeenCalledTimes(1);
+    expect(guardado()).toBe('https://drive.google.com/drive/folders/nuevo');
+    expect(updateProject.mock.calls[0][2]).toBe('Actualizó el link de la carpeta de Drive');
+  });
+
+  it('se puede quitar, y el historial guarda cuál era', () => {
+    const { updateProject, guardado } = pintar(liderDeFuera);
+    fireEvent.click(screen.getByTitle('Editar link de Drive'));
+    fireEvent.click(screen.getByTitle('Quitar el link'));
+    expect(guardado()).toBe('');
+    expect(updateProject.mock.calls[0][2]).toBe(`Quitó el link de la carpeta de Drive (era ${LINK})`);
+    expect(screen.queryByLabelText('Link de la carpeta de Drive')).toBe(null);
+  });
+
+  it('sin link guardado no hay nada que quitar', () => {
+    pintar(liderDeFuera, proyecto());
+    fireEvent.click(screen.getByTitle('Editar link de Drive'));
+    expect(screen.queryByTitle('Quitar el link')).toBe(null);
+  });
+
+  it('quien no es líder ni está en el equipo no lo toca', () => {
+    pintar(perfilAjeno);
+    expect(screen.getByTitle('Abrir carpeta de Drive')).toBeTruthy();
+    expect(screen.queryByTitle('Editar link de Drive')).toBe(null);
+  });
+});
