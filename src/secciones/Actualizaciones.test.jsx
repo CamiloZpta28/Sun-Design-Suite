@@ -132,7 +132,7 @@ describe('el formulario de una actualización', () => {
     fireEvent.change(ubicacion(), { target: { value: 'Plano 3' } });
     fireEvent.change(link(), { target: { value: ' https://drive.google.com/x ' } });
     fireEvent.click(screen.getByText('Crear actualización'));
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ ubicacion: 'Plano 3', ubicacion_url: 'https://drive.google.com/x' }));
+    expect(onSave.mock.calls[0][0]).toMatchObject({ ubicacion: 'Plano 3', ubicacion_url: 'https://drive.google.com/x' });
   });
 
   it('un pantallazo pegado con Ctrl+V queda como imagen', async () => {
@@ -245,3 +245,76 @@ describe('elegir una ubicación conocida', () => {
     expect(ubicacion().value).toBe('Biblioteca civil');
   });
 });
+
+describe('la pestaña "Todas"', () => {
+  const categorias = [
+    { id: 'c1', nombre: 'Paneles', orden: 0 },
+    { id: 'c2', nombre: 'Cerramiento', orden: 1 },
+  ];
+  /* Ninguna de estas fechas importa en sí: solo su orden. */
+  const actualizaciones = [
+    { id: 'a1', categoria_id: 'c1', nombre: 'Vieja de paneles', interesados: [], etiquetas: [], created_at: '2026-01-01T10:00:00.000Z' },
+    { id: 'a2', categoria_id: 'c2', nombre: 'Nueva de cerramiento', interesados: [], etiquetas: [], created_at: '2026-03-01T10:00:00.000Z' },
+    { id: 'a3', categoria_id: 'c1', nombre: 'Media de paneles', interesados: [], etiquetas: [], created_at: '2026-02-01T10:00:00.000Z' },
+  ];
+  const pintarVista = (extra = {}) => {
+    const onAdd = vi.fn();
+    const utils = render(
+      <ActualizacionesView categorias={categorias} actualizaciones={actualizaciones} perfil={ingeniero} {...sinAcciones} onAdd={onAdd} {...extra} />,
+    );
+    return { onAdd, ...utils };
+  };
+  const titulos = () => screen.queryAllByText(/de (paneles|cerramiento)$/).map((n) => n.textContent);
+
+  it('abre en "Todas", con la más reciente primero y la categoría de cada una', () => {
+    pintarVista();
+    expect(screen.getByText('Todas').closest('button').className).toContain('bg-navy-800');
+    expect(titulos()).toEqual(['Nueva de cerramiento', 'Media de paneles', 'Vieja de paneles']);
+    expect(screen.getAllByRole('button', { name: 'Paneles' }).length).toBe(2);
+    expect(screen.getByRole('button', { name: 'Cerramiento' })).toBeTruthy();
+  });
+
+  it('los filtros por categoría siguen ahí', () => {
+    pintarVista();
+    fireEvent.click(screen.getByRole('button', { name: 'Paneles (2)' }));
+    expect(titulos()).toEqual(['Media de paneles', 'Vieja de paneles']);
+    fireEvent.click(screen.getByText('Todas'));
+    expect(titulos().length).toBe(3);
+  });
+
+  it('desde una notificación abre en su categoría', () => {
+    pintarVista({ categoriaPreseleccionada: 'c2' });
+    expect(titulos()).toEqual(['Nueva de cerramiento']);
+  });
+
+  it('crear desde "Todas" pide la categoría', () => {
+    const { onAdd, container } = pintarVista();
+    fireEvent.click(screen.getByText('Nueva actualización'));
+    fireEvent.change(container.querySelector('input[required]'), { target: { value: 'Ajuste' } });
+    expect(screen.getByText('Crear actualización').disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText('Categoría'), { target: { value: 'c2' } });
+    fireEvent.click(screen.getByText('Crear actualización'));
+    expect(onAdd).toHaveBeenCalledWith('c2', expect.objectContaining({ nombre: 'Ajuste' }));
+  });
+
+  it('dentro de una categoría no la pide: es esa', () => {
+    const { onAdd, container } = pintarVista({ categoriaPreseleccionada: 'c1' });
+    fireEvent.click(screen.getByText('Nueva actualización en "Paneles"'));
+    expect(screen.queryByLabelText('Categoría')).toBe(null);
+    fireEvent.change(container.querySelector('input[required]'), { target: { value: 'Ajuste' } });
+    fireEvent.click(screen.getByText('Crear actualización'));
+    expect(onAdd).toHaveBeenCalledWith('c1', expect.objectContaining({ nombre: 'Ajuste' }));
+  });
+
+  /* Si borran la categoría que alguien tiene abierta, vuelve a "Todas" y no
+     a otra categoría cualquiera. */
+  it('si la categoría abierta desaparece, vuelve a "Todas"', () => {
+    const { rerender } = pintarVista({ categoriaPreseleccionada: 'c2' });
+    rerender(
+      <ActualizacionesView categorias={[categorias[0]]} actualizaciones={actualizaciones.filter((a) => a.categoria_id === 'c1')} perfil={ingeniero} {...sinAcciones} />,
+    );
+    expect(screen.getByText('Todas').closest('button').className).toContain('bg-navy-800');
+    expect(titulos()).toEqual(['Media de paneles', 'Vieja de paneles']);
+  });
+});
+

@@ -176,6 +176,20 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Actualizaciones abre en "Todas".** Antes abría siempre en la primera
+  categoría (Paneles, inversores y tracker), y para ver qué había cambiado
+  últimamente había que recorrerlas una por una. Ahora hay una pestaña
+  **Todas**, la primera de la fila y la que abre por defecto: las de todas
+  las categorías, la más reciente primero, cada una con su categoría (que se
+  puede pulsar para ir a ella).
+  - Las pestañas por categoría siguen igual, y una notificación sigue
+    abriendo en la categoría de su actualización.
+  - Crear desde "Todas" pide elegir la categoría en el formulario; desde una
+    categoría no la pide, es esa.
+  - Si alguien borra la categoría que otra persona tiene abierta, esta vuelve
+    a "Todas" en vez de saltar a otra categoría cualquiera.
+  - No necesita migración.
+
 - **Actualizaciones: pegar pantallazos y ubicación con link.**
   - **Imagen:** además de *Subir imagen*, se puede pegar un pantallazo con
     Ctrl+V en cualquier parte del formulario, o con el botón *Pegar del

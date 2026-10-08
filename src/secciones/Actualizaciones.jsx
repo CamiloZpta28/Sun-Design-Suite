@@ -43,7 +43,11 @@ export function ubicacionesConocidas(actualizaciones) {
   return [...porNombre.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 }
 
-export function ActualizacionForm({ actualizacion, etiquetasConocidas, ubicacionesConocidas: conocidas, onCancel, onSave }) {
+/* `categorias` solo llega cuando se crea desde la pestaña "Todas": ahí no
+   hay una categoría activa que dé por sentada, así que se elige aquí. */
+export function ActualizacionForm({ actualizacion, etiquetasConocidas, ubicacionesConocidas: conocidas, categorias, onCancel, onSave }) {
+  const pideCategoria = !actualizacion && Array.isArray(categorias);
+  const [categoriaId, setCategoriaId] = useState('');
   const [nombre, setNombre] = useState(actualizacion?.nombre || '');
   const [descripcion, setDescripcion] = useState(actualizacion?.descripcion || '');
   const [interesados, setInteresados] = useState(actualizacion?.interesados || []);
@@ -149,11 +153,11 @@ export function ActualizacionForm({ actualizacion, etiquetasConocidas, ubicacion
   }
   function submit(e) {
     e.preventDefault();
-    if (!nombre.trim()) return;
+    if (!nombre.trim() || (pideCategoria && !categoriaId)) return;
     onSave({
       nombre: nombre.trim(), descripcion: descripcion.trim(), interesados,
       ubicacion: ubicacion.trim(), ubicacion_url: ubicacionUrl.trim(), etiquetas, imagen,
-    });
+    }, categoriaId || null);
   }
   const cellInput = 'w-full rounded-md border border-navy-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-lime-400';
 
@@ -164,6 +168,15 @@ export function ActualizacionForm({ actualizacion, etiquetasConocidas, ubicacion
       </p>
 
       <div className="grid grid-cols-1 gap-4 mb-4">
+        {pideCategoria && (
+          <div>
+            <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Categoría</label>
+            <select value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} aria-label="Categoría" className={cellInput}>
+              <option value="">Elige la categoría…</option>
+              {categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+          </div>
+        )}
         <div>
           <label className="block text-xs font-semibold uppercase text-navy-500 mb-1">Nombre de la actualización</label>
           <input value={nombre} onChange={(e) => setNombre(e.target.value)} className={cellInput} required />
@@ -270,7 +283,7 @@ export function ActualizacionForm({ actualizacion, etiquetasConocidas, ubicacion
       </div>
 
       <div className="flex items-center gap-3">
-        <button type="submit" disabled={!nombre.trim()} className="bg-lime-500 hover:bg-lime-600 disabled:opacity-40 disabled:cursor-not-allowed text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
+        <button type="submit" disabled={!nombre.trim() || (pideCategoria && !categoriaId)} className="bg-lime-500 hover:bg-lime-600 disabled:opacity-40 disabled:cursor-not-allowed text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors">
           {actualizacion ? 'Guardar cambios' : 'Crear actualización'}
         </button>
         <button type="button" onClick={onCancel} className="text-sm text-navy-500 hover:text-navy-700">
@@ -281,8 +294,13 @@ export function ActualizacionForm({ actualizacion, etiquetasConocidas, ubicacion
   );
 }
 
+/* La pestaña con las de todas las categorías. Es la que abre por defecto:
+   lo que la gente quiere ver al entrar es qué cambió últimamente, no la
+   primera categoría de la lista. */
+export const TODAS = 'todas';
+
 export function ActualizacionesView({ categorias, actualizaciones, perfil, onAddCategoria, onRenameCategoria, onDeleteCategoria, onAdd, onUpdate, onDelete, categoriaPreseleccionada }) {
-  const [categoriaActiva, setCategoriaActiva] = useState(categorias[0]?.id || null);
+  const [categoriaActiva, setCategoriaActiva] = useState(categoriaPreseleccionada || TODAS);
   const [creando, setCreando] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
   const [confirmandoId, setConfirmandoId] = useState(null);
@@ -301,7 +319,10 @@ export function ActualizacionesView({ categorias, actualizaciones, perfil, onAdd
   // igual que la vez anterior, sin duplicados por mayúsculas/tildes).
   const etiquetasConocidas = Array.from(new Set(actualizaciones.flatMap((a) => a.etiquetas || []))).sort();
 
-  const categoriaObj = categorias.find((c) => c.id === categoriaActiva) || categorias[0];
+  /* Si la categoría activa se borró (aquí o desde otro computador), se
+     vuelve a "Todas" en vez de saltar a otra categoría cualquiera. */
+  const categoriaObj = categorias.find((c) => c.id === categoriaActiva) || null;
+  const enTodas = !categoriaObj;
   const busquedaLimpia = normalizarTexto(busqueda.trim());
   // Con una búsqueda activa, el buscador es GLOBAL (no hace falta entrar a
   // la categoría): se buscan TODAS las actualizaciones, de cualquier
@@ -313,7 +334,7 @@ export function ActualizacionesView({ categorias, actualizaciones, perfil, onAdd
     const enDescripcion = normalizarTexto(a.descripcion).includes(busquedaLimpia);
     return enEtiquetas || enNombre || enDescripcion;
   }
-  const deEstaCategoria = (buscandoGlobal ? actualizaciones : actualizaciones.filter((a) => a.categoria_id === categoriaObj?.id))
+  const deEstaCategoria = (buscandoGlobal || enTodas ? actualizaciones : actualizaciones.filter((a) => a.categoria_id === categoriaObj.id))
     .filter((a) => (buscandoGlobal ? coincideBusqueda(a) : true))
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // más reciente primero
 
@@ -331,7 +352,7 @@ export function ActualizacionesView({ categorias, actualizaciones, perfil, onAdd
   }
   const puedeGestionarCategorias = isLeader(perfil);
 
-  if (!categoriaObj) {
+  if (categorias.length === 0) {
     return (
       <div className="p-4 md:p-8 max-w-5xl mx-auto">
         <h1 className="text-2xl font-bold text-navy-800 mb-4">Actualizaciones</h1>
@@ -350,6 +371,14 @@ export function ActualizacionesView({ categorias, actualizaciones, perfil, onAdd
       </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
+        <button
+          onClick={() => { setCategoriaActiva(TODAS); setBusqueda(''); cerrarFormulario(); }}
+          className={`text-sm font-semibold px-3 py-2 rounded-lg border ${
+            enTodas ? 'bg-navy-800 border-navy-800 text-white' : 'bg-white border-navy-200 text-navy-600 hover:text-navy-800'
+          }`}
+        >
+          Todas <span className={enTodas ? 'text-navy-300' : 'text-navy-400'}>({actualizaciones.length})</span>
+        </button>
         {categorias.map((c) => {
           const activo = categoriaActiva === c.id;
           const cantidad = actualizaciones.filter((a) => a.categoria_id === c.id).length;
@@ -368,7 +397,7 @@ export function ActualizacionesView({ categorias, actualizaciones, perfil, onAdd
                   </button>
                   {confirmandoCategoria === c.id ? (
                     <span className="flex items-center gap-1 pr-2 text-xs">
-                      <button onClick={() => { onDeleteCategoria(c.id); setConfirmandoCategoria(null); if (categoriaActiva === c.id) setCategoriaActiva(null); }} className="font-bold text-red-500">Sí</button>
+                      <button onClick={() => { onDeleteCategoria(c.id); setConfirmandoCategoria(null); if (categoriaActiva === c.id) setCategoriaActiva(TODAS); }} className="font-bold text-red-500">Sí</button>
                       <button onClick={() => setConfirmandoCategoria(null)} className={activo ? 'text-navy-300' : 'text-navy-400'}>No</button>
                     </span>
                   ) : (
@@ -392,7 +421,7 @@ export function ActualizacionesView({ categorias, actualizaciones, perfil, onAdd
             onClick={() => setCreando(true)}
             className="flex items-center gap-1.5 bg-lime-500 hover:bg-lime-600 text-navy-900 font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors"
           >
-            <Plus className="w-4 h-4" /> Nueva actualización en "{categoriaObj.nombre}"
+            <Plus className="w-4 h-4" /> {enTodas ? 'Nueva actualización' : `Nueva actualización en "${categoriaObj.nombre}"`}
           </button>
           <div className="relative flex-1 min-w-[200px] max-w-xs">
             <Search className="w-4 h-4 text-navy-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -421,10 +450,11 @@ export function ActualizacionesView({ categorias, actualizaciones, perfil, onAdd
           actualizacion={editandoId ? deEstaCategoria.find((a) => a.id === editandoId) : null}
           etiquetasConocidas={etiquetasConocidas}
           ubicacionesConocidas={ubicacionesConocidas(actualizaciones)}
+          categorias={enTodas ? categorias : undefined}
           onCancel={cerrarFormulario}
-          onSave={(datos) => {
+          onSave={(datos, categoriaElegida) => {
             if (editandoId) onUpdate(editandoId, datos);
-            else onAdd(categoriaObj.id, datos);
+            else onAdd(enTodas ? categoriaElegida : categoriaObj.id, datos);
             cerrarFormulario();
           }}
         />
@@ -433,7 +463,9 @@ export function ActualizacionesView({ categorias, actualizaciones, perfil, onAdd
       {!creando && !editandoId && (
         deEstaCategoria.length === 0 ? (
           <p className="text-sm text-navy-400 italic text-center py-10">
-            {busquedaLimpia ? `Ninguna actualización (en ninguna categoría) coincide con "${busqueda}".` : `Aún no hay actualizaciones en "${categoriaObj.nombre}".`}
+            {busquedaLimpia
+              ? `Ninguna actualización (en ninguna categoría) coincide con "${busqueda}".`
+              : enTodas ? 'Aún no hay actualizaciones.' : `Aún no hay actualizaciones en "${categoriaObj.nombre}".`}
           </p>
         ) : (
           <div className="space-y-4">
@@ -441,7 +473,7 @@ export function ActualizacionesView({ categorias, actualizaciones, perfil, onAdd
               <div key={a.id} className="bg-white border border-navy-200 rounded-xl p-4">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
-                    {buscandoGlobal && (
+                    {(buscandoGlobal || enTodas) && (
                       <button
                         onClick={() => { setCategoriaActiva(a.categoria_id); setBusqueda(''); }}
                         className="text-[11px] font-semibold uppercase text-lime-700 bg-lime-100 px-2 py-0.5 rounded-full mb-1.5 inline-block hover:bg-lime-200"
