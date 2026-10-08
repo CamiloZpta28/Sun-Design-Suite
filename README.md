@@ -176,6 +176,35 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Menos espera al entrar, y sin pantallazo blanco.** Se reportó que la
+  plataforma tardaba en cargar y a veces quedaba en blanco hasta recargar.
+  Tres causas, tres arreglos:
+  - **La carga inicial iba en fila.** Unas treinta consultas a Supabase, cada
+    una esperando a la anterior, y la pantalla no aparecía hasta la última
+    (reuniones, plantillas, actualizaciones…). Ahora van en paralelo
+    (`loadSharedData` en `App.jsx`): la espera es la de la consulta más lenta,
+    no la suma. Además cada paso va por su lado: si uno falla, se anota en la
+    consola y el resto sigue; antes un fallo dejaba "Cargando proyectos…" para
+    siempre.
+  - **No había barrera de errores.** Cualquier error al pintar desmontaba la
+    aplicación entera: eso es el pantallazo blanco. Ahora
+    `src/shared/BarreraDeErrores.jsx` muestra un aviso con botón de recargar,
+    una vez alrededor de toda la aplicación y otra alrededor de cada sección
+    (si falla una, el menú sigue ahí).
+  - **Los despliegues dejaban pestañas huérfanas.** Las secciones pesadas se
+    descargan aparte, y cada despliegue les cambia el nombre de archivo. Quien
+    tenía la plataforma abierta desde antes pedía archivos que ya no existían,
+    y Vercel le devolvía la página principal en su lugar: la sección no
+    cargaba y todo quedaba en blanco. Con lo seguido que se está desplegando,
+    pasaba seguido. Ahora la plataforma reconoce ese error y recarga sola, una
+    vez (si vuelve a fallar en menos de un minuto, muestra el aviso en vez de
+    recargar en ciclo). En `vercel.json`, `/assets/` ya no se redirige a la
+    página principal, y esos archivos —que cambian de nombre con cada
+    versión— se guardan en el navegador sin volver a preguntar, lo que hace
+    más rápidas las entradas siguientes. La página principal, en cambio, se
+    revalida siempre, para que nadie se quede con una versión vieja.
+  - No necesita migración. Lo de `vercel.json` solo se nota ya desplegado.
+
 - **El link de la carpeta de Drive se puede corregir y quitar.** El lápiz
   junto al botón *Carpeta* solo le aparecía al equipo asignado y a los
   desarrolladores. Pero el link lo pone casi siempre un líder al crear el

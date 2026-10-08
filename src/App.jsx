@@ -1,4 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
+import BarreraDeErrores from './shared/BarreraDeErrores.jsx';
 import {
   LayoutDashboard, FolderKanban, Layers, Link2, Zap, Cog, Plus, Search, X, Trash2, ChevronLeft,
   Pencil, MapPin, Calendar, Users, ExternalLink, Check, UploadCloud, XCircle, Loader2,
@@ -1959,210 +1960,291 @@ export default function App() {
     setPlanesReunion(planes || []);
   }
 
+  /* Todo lo que la aplicación necesita al entrar.
+
+     Va en paralelo: son una treintena de consultas independientes, y antes
+     iban una detrás de otra, así que la espera era la SUMA de todas (varios
+     segundos, y creciendo con cada sección nueva). En paralelo es la de la
+     más lenta.
+
+     Y cada paso va por su lado: si uno falla (la red se cae a mitad, una
+     tabla sin migrar que lanza en vez de devolver error), se anota en la
+     consola y los demás siguen. Antes un fallo cortaba la carga entera y la
+     pantalla se quedaba en "Cargando proyectos…" hasta recargar. */
   async function loadSharedData(ownUserId) {
-    const { data: projRows } = await supabase.from('projects').select('*').order('created_at', { ascending: true });
-    if (!projRows || projRows.length === 0) {
-      await supabase.from('projects').insert(INITIAL_PROJECTS.map(projectToRow));
-      setProjects(INITIAL_PROJECTS);
-    } else {
-      setProjects(projRows.map(rowToProject));
-    }
-
-    const { data: linkRows } = await supabase.from('links').select('*').order('created_at', { ascending: true });
-    if (!linkRows || linkRows.length === 0) {
-      await supabase.from('links').insert(INITIAL_LINKS);
-      setLinks(INITIAL_LINKS);
-    } else {
-      setLinks(linkRows);
-    }
-
-    const [{ data: profileRows }, { data: roleRows }, { data: datosRows, error: errorDatos }] = await Promise.all([
-      supabase.from('profiles').select('*'),
-      supabase.from('user_roles').select('*'),
-      supabase.from('datos_personales').select('*'),
-    ]);
-    if (errorDatos) console.warn('No se pudieron cargar los datos personales (¿falta la migración del rol Invitado?):', errorDatos.message);
-    const rolesByUser = new Map();
-    (roleRows || []).forEach((r) => {
-      if (!rolesByUser.has(r.user_id)) rolesByUser.set(r.user_id, []);
-      rolesByUser.get(r.user_id).push(r.role_key);
-    });
-    const datosByUser = new Map((datosRows || []).map((d) => [d.user_id, d]));
-    /* Con la tabla ya creada, quien no tiene fila ahí (o no puede verla) se
-       queda sin datos: no se vuelve a buscar en el perfil. */
-    const merged = (profileRows || []).map((row) => rowToProfile(
-      row, rolesByUser.get(row.id) || [], errorDatos ? null : (datosByUser.get(row.id) || {}),
-    ));
-    setDirectorio(merged);
-    if (ownUserId) {
-      const yo = merged.find((u) => u.id === ownUserId);
-      if (yo) setPerfil(yo);
-      /* Mis propias notificaciones (RLS ya las filtra por usuario, pero
-         igual filtramos explícito para dejarlo claro). Antes de traerlas
-         se borran las que ya vencieron —leídas hace más de un día—:
-         entrar a la aplicación es el único momento en que hace falta
-         limpiarlas, y así la tabla no crece sin control. */
-      const { error: errorLimpieza } = await supabase.from('notificaciones').delete()
-        .eq('usuario_id', ownUserId).eq('leida', true).lt('leida_at', fechaDeCorte());
-      if (errorLimpieza) console.error('Error borrando notificaciones leídas:', errorLimpieza);
-      const { data: notifRows } = await supabase.from('notificaciones').select('*').eq('usuario_id', ownUserId).order('created_at', { ascending: false }).limit(50);
-      setMisNotificaciones(notificacionesVigentes(notifRows || []));
-    }
-
-    const { data: carpetaRows } = await supabase.from('instructivo_carpetas').select('*').order('created_at', { ascending: true });
-    setCarpetas(carpetaRows || []);
-    const { data: videoRows } = await supabase.from('instructivo_videos').select('*').order('created_at', { ascending: true });
-    setVideos(videoRows || []);
-
-    const { data: invRows } = await supabase.from('inversionistas').select('*').order('created_at', { ascending: true });
-    if (!invRows || invRows.length === 0) {
-      const semilla = ['FENOGE', 'CFM', 'FMO', 'Bancolombia'];
-      await supabase.from('inversionistas').insert(semilla.map((nombre) => ({ nombre }))).then(({ error }) => {
-        if (error) console.error('Error creando inversionistas semilla:', error);
-      });
-      setInversionistas(semilla);
-      setInversionistasDetalle(semilla.map((nombre) => ({ nombre })));
-    } else {
-      setInversionistas(invRows.map((r) => r.nombre));
-      setInversionistasDetalle(invRows);
-    }
-
-    const { data: orRows } = await supabase.from('operadores_red').select('*').order('created_at', { ascending: true });
-    setOperadoresRed(orRows || []);
-
-    const { data: instRows } = await supabase.from('instaladores').select('*').order('created_at', { ascending: true });
-    if (!instRows || instRows.length === 0) {
-      await supabase.from('instaladores').insert({ nombre: 'Solenium' }).then(({ error }) => {
-        if (error) console.error('Error creando instalador semilla:', error);
-      });
-      setInstaladores([{ nombre: 'Solenium' }]);
-    } else {
-      setInstaladores(instRows);
-    }
-
-    const { data: ingRows } = await supabase.from('ingenieros_proyectos').select('*').order('created_at', { ascending: true });
-    setIngenierosProyectos(ingRows || []);
-
-    if (ownUserId) {
-      const { data: visitaRows } = await supabase.from('project_last_view').select('project_id, viewed_at').eq('usuario_id', ownUserId);
-      const mapa = {};
-      (visitaRows || []).forEach((r) => { mapa[r.project_id] = r.viewed_at; });
-      setMisVisitas(mapa);
-    }
-
-    const { data: paisRows } = await supabase.from('paises').select('*').order('created_at', { ascending: true });
-    if (!paisRows || paisRows.length === 0) {
-      await supabase.from('paises').insert({ nombre: 'Colombia' }).then(({ error }) => {
-        if (error) console.error('Error creando país semilla:', error);
-      });
-      setPaises(['Colombia']);
-    } else {
-      setPaises(paisRows.map((r) => r.nombre));
-    }
-
-    const { data: provRows } = await supabase.from('proveedores').select('*').order('created_at', { ascending: true });
-    if (!provRows || provRows.length === 0) {
-      const semillaProv = ['Zentrack', 'TRINA', 'Antai'];
-      await supabase.from('proveedores').insert(semillaProv.map((nombre) => ({ nombre }))).then(({ error }) => {
-        if (error) console.error('Error creando proveedores semilla:', error);
-      });
-      setProveedores(semillaProv);
-    } else {
-      setProveedores(provRows.map((r) => r.nombre));
-    }
-
-    await cargarDossiers();
-    await cargarResumenes();
-    await cargarReuniones();
-
-    const { data: plantillaRows } = await supabase.from('cimentacion_plantillas').select('*').order('created_at', { ascending: true });
-    setPlantillasCimentacion((plantillaRows || []).map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {} })));
-
-    // Equipos eléctricos: si la tabla está completamente vacía (primera vez
-    // que se abre esta pestaña), la sembramos con las 68 plantillas de
-    // ejemplo del Excel — mismo criterio que países/proveedores/mallas.
-    const { data: equipoRows } = await supabase.from('equipo_plantillas').select('*').order('created_at', { ascending: true });
-    if (!equipoRows || equipoRows.length === 0) {
-      const semillaEquipos = EQUIPO_SEED.map((s) => ({
-        id: makeId('equipo'),
-        tipo: s.tipo,
-        nombre: s.nombre,
-        datos: { especificacion: s.especificacion, atributos: {}, imagen: null },
-      }));
-      await supabase.from('equipo_plantillas').insert(semillaEquipos).then(({ error }) => {
-        if (error) console.error('Error creando plantillas semilla de equipos eléctricos:', error);
-      });
-      setPlantillasEquipos(semillaEquipos);
-    } else {
-      setPlantillasEquipos(equipoRows.map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {} })));
-    }
-
-    const { data: canalizacionRows } = await supabase.from('canalizacion_plantillas').select('*').order('created_at', { ascending: true });
-    const idsExistentes = new Set((canalizacionRows || []).map((r) => r.id));
-    const seedFaltante = construirSeedCanalizaciones().filter((s) => !idsExistentes.has(s.id));
-    if (seedFaltante.length > 0) {
-      // "upsert" en vez de "insert": si por alguna carrera de red ya existieran
-      // (ej. dos pestañas abiertas a la vez), no falla — simplemente no las duplica.
-      await supabase.from('canalizacion_plantillas').upsert(seedFaltante).then(({ error }) => {
-        if (error) console.error('Error creando plantillas semilla de canalizaciones:', error);
-      });
-      setPlantillasCanalizaciones([...(canalizacionRows || []).map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {}, es_principal: r.es_principal || false })), ...seedFaltante]);
-    } else {
-      setPlantillasCanalizaciones((canalizacionRows || []).map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {}, es_principal: r.es_principal || false })));
-    }
-
-    const { data: diametroRows } = await supabase.from('diametros_tuberia').select('*').order('created_at', { ascending: true });
-    if (!diametroRows || diametroRows.length === 0) {
-      const semillaDiametros = ['3/4"', '1"', '1 1/4"', '2"', '4"', '6"'];
-      await supabase.from('diametros_tuberia').insert(semillaDiametros.map((nombre) => ({ nombre }))).then(({ error }) => {
-        if (error) console.error('Error creando diámetros semilla:', error);
-      });
-      setDiametrosTuberia(semillaDiametros);
-    } else {
-      setDiametrosTuberia(diametroRows.map((r) => r.nombre));
-    }
-
-    const { data: cruceRows } = await supabase.from('cruce_plantillas').select('*').order('created_at', { ascending: true });
-    setPlantillasCruces((cruceRows || []).map((r) => ({ id: r.id, nombre: r.nombre, datos: r.datos || {} })));
-
-    const { data: catRows } = await supabase.from('actualizacion_categorias').select('*').order('orden', { ascending: true });
-    if (!catRows || catRows.length === 0) {
-      const semillaCat = ACTUALIZACION_CATEGORIAS_SEED.map((c, i) => ({ ...c, orden: i }));
-      await supabase.from('actualizacion_categorias').insert(semillaCat).then(({ error }) => {
-        if (error) console.error('Error creando categorías semilla de actualizaciones:', error);
-      });
-      setActualizacionCategorias(semillaCat);
-    } else {
-      setActualizacionCategorias(catRows);
-    }
-    const { data: actRows } = await supabase.from('actualizaciones').select('*').order('created_at', { ascending: false });
-    setActualizaciones((actRows || []).map((r) => ({ id: r.id, categoria_id: r.categoria_id, nombre: r.nombre, descripcion: r.descripcion || '', interesados: r.interesados || [], ubicacion: r.ubicacion || '', etiquetas: r.etiquetas || [], imagen: r.imagen || null, creado_por: r.creado_por, created_at: r.created_at })));
-
-    const { data: mallaRows } = await supabase.from('mallas').select('*').order('created_at', { ascending: true });
-    if (!mallaRows || mallaRows.length === 0) {
-      await supabase.from('mallas').insert({ nombre: 'D84' }).then(({ error }) => {
-        if (error) console.error('Error creando malla semilla:', error);
-      });
-      setMallas(['D84']);
-    } else {
-      setMallas(mallaRows.map((r) => r.nombre));
-    }
-
-    // Si la tabla aún no existe (falta correr la migración), seguimos con
-    // los valores por defecto que ya trae el código — sin tronar la carga.
-    try {
-      const { data: paramRow, error: paramError } = await supabase.from('parametros_ingenieria').select('*').eq('id', 'global').maybeSingle();
-      if (!paramError && paramRow?.datos) {
-        aplicarParametrosIngenieria(paramRow.datos);
-        setParametrosIngenieria({
-          recubrimiento: RECUBRIMIENTO_CIMENTACION,
-          barras: { ...BARRA_ACERO },
-          traslapos: { ...TRASLAPO_TABLE },
-        });
+    async function cargarProyectos() {
+      const { data: projRows } = await supabase.from('projects').select('*').order('created_at', { ascending: true });
+      if (!projRows || projRows.length === 0) {
+        await supabase.from('projects').insert(INITIAL_PROJECTS.map(projectToRow));
+        setProjects(INITIAL_PROJECTS);
+      } else {
+        setProjects(projRows.map(rowToProject));
       }
-    } catch (e) {
-      console.error('No se pudieron cargar los parámetros de ingeniería (¿falta correr la migración?):', e);
     }
+
+    async function cargarEnlaces() {
+      const { data: linkRows } = await supabase.from('links').select('*').order('created_at', { ascending: true });
+      if (!linkRows || linkRows.length === 0) {
+        await supabase.from('links').insert(INITIAL_LINKS);
+        setLinks(INITIAL_LINKS);
+      } else {
+        setLinks(linkRows);
+      }
+    }
+
+    async function cargarEquipo() {
+      const [{ data: profileRows }, { data: roleRows }, { data: datosRows, error: errorDatos }] = await Promise.all([
+        supabase.from('profiles').select('*'),
+        supabase.from('user_roles').select('*'),
+        supabase.from('datos_personales').select('*'),
+      ]);
+      if (errorDatos) console.warn('No se pudieron cargar los datos personales (¿falta la migración del rol Invitado?):', errorDatos.message);
+      const rolesByUser = new Map();
+      (roleRows || []).forEach((r) => {
+        if (!rolesByUser.has(r.user_id)) rolesByUser.set(r.user_id, []);
+        rolesByUser.get(r.user_id).push(r.role_key);
+      });
+      const datosByUser = new Map((datosRows || []).map((d) => [d.user_id, d]));
+      /* Con la tabla ya creada, quien no tiene fila ahí (o no puede verla) se
+         queda sin datos: no se vuelve a buscar en el perfil. */
+      const merged = (profileRows || []).map((row) => rowToProfile(
+        row, rolesByUser.get(row.id) || [], errorDatos ? null : (datosByUser.get(row.id) || {}),
+      ));
+      setDirectorio(merged);
+      if (ownUserId) {
+        const yo = merged.find((u) => u.id === ownUserId);
+        if (yo) setPerfil(yo);
+        /* Mis propias notificaciones (RLS ya las filtra por usuario, pero
+           igual filtramos explícito para dejarlo claro). Antes de traerlas
+           se borran las que ya vencieron —leídas hace más de un día—:
+           entrar a la aplicación es el único momento en que hace falta
+           limpiarlas, y así la tabla no crece sin control. */
+        const { error: errorLimpieza } = await supabase.from('notificaciones').delete()
+          .eq('usuario_id', ownUserId).eq('leida', true).lt('leida_at', fechaDeCorte());
+        if (errorLimpieza) console.error('Error borrando notificaciones leídas:', errorLimpieza);
+        const { data: notifRows } = await supabase.from('notificaciones').select('*').eq('usuario_id', ownUserId).order('created_at', { ascending: false }).limit(50);
+        setMisNotificaciones(notificacionesVigentes(notifRows || []));
+      }
+    }
+
+    async function cargarInstructivos() {
+      const { data: carpetaRows } = await supabase.from('instructivo_carpetas').select('*').order('created_at', { ascending: true });
+      setCarpetas(carpetaRows || []);
+      const { data: videoRows } = await supabase.from('instructivo_videos').select('*').order('created_at', { ascending: true });
+      setVideos(videoRows || []);
+    }
+
+    async function cargarInversionistas() {
+      const { data: invRows } = await supabase.from('inversionistas').select('*').order('created_at', { ascending: true });
+      if (!invRows || invRows.length === 0) {
+        const semilla = ['FENOGE', 'CFM', 'FMO', 'Bancolombia'];
+        await supabase.from('inversionistas').insert(semilla.map((nombre) => ({ nombre }))).then(({ error }) => {
+          if (error) console.error('Error creando inversionistas semilla:', error);
+        });
+        setInversionistas(semilla);
+        setInversionistasDetalle(semilla.map((nombre) => ({ nombre })));
+      } else {
+        setInversionistas(invRows.map((r) => r.nombre));
+        setInversionistasDetalle(invRows);
+      }
+    }
+
+    async function cargarOperadoresDeRed() {
+      const { data: orRows } = await supabase.from('operadores_red').select('*').order('created_at', { ascending: true });
+      setOperadoresRed(orRows || []);
+    }
+
+    async function cargarInstaladores() {
+      const { data: instRows } = await supabase.from('instaladores').select('*').order('created_at', { ascending: true });
+      if (!instRows || instRows.length === 0) {
+        await supabase.from('instaladores').insert({ nombre: 'Solenium' }).then(({ error }) => {
+          if (error) console.error('Error creando instalador semilla:', error);
+        });
+        setInstaladores([{ nombre: 'Solenium' }]);
+      } else {
+        setInstaladores(instRows);
+      }
+    }
+
+    async function cargarIngenierosDeProyectos() {
+      const { data: ingRows } = await supabase.from('ingenieros_proyectos').select('*').order('created_at', { ascending: true });
+      setIngenierosProyectos(ingRows || []);
+    }
+
+    async function cargarVisitas() {
+      if (ownUserId) {
+        const { data: visitaRows } = await supabase.from('project_last_view').select('project_id, viewed_at').eq('usuario_id', ownUserId);
+        const mapa = {};
+        (visitaRows || []).forEach((r) => { mapa[r.project_id] = r.viewed_at; });
+        setMisVisitas(mapa);
+      }
+    }
+
+    async function cargarPaises() {
+      const { data: paisRows } = await supabase.from('paises').select('*').order('created_at', { ascending: true });
+      if (!paisRows || paisRows.length === 0) {
+        await supabase.from('paises').insert({ nombre: 'Colombia' }).then(({ error }) => {
+          if (error) console.error('Error creando país semilla:', error);
+        });
+        setPaises(['Colombia']);
+      } else {
+        setPaises(paisRows.map((r) => r.nombre));
+      }
+    }
+
+    async function cargarProveedores() {
+      const { data: provRows } = await supabase.from('proveedores').select('*').order('created_at', { ascending: true });
+      if (!provRows || provRows.length === 0) {
+        const semillaProv = ['Zentrack', 'TRINA', 'Antai'];
+        await supabase.from('proveedores').insert(semillaProv.map((nombre) => ({ nombre }))).then(({ error }) => {
+          if (error) console.error('Error creando proveedores semilla:', error);
+        });
+        setProveedores(semillaProv);
+      } else {
+        setProveedores(provRows.map((r) => r.nombre));
+      }
+    }
+
+    async function cargarPlantillasDeCimentacion() {
+      const { data: plantillaRows } = await supabase.from('cimentacion_plantillas').select('*').order('created_at', { ascending: true });
+      setPlantillasCimentacion((plantillaRows || []).map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {} })));
+    }
+
+    async function cargarPlantillasDeEquipos() {
+      // Equipos eléctricos: si la tabla está completamente vacía (primera vez
+      // que se abre esta pestaña), la sembramos con las 68 plantillas de
+      // ejemplo del Excel — mismo criterio que países/proveedores/mallas.
+      const { data: equipoRows } = await supabase.from('equipo_plantillas').select('*').order('created_at', { ascending: true });
+      if (!equipoRows || equipoRows.length === 0) {
+        const semillaEquipos = EQUIPO_SEED.map((s) => ({
+          id: makeId('equipo'),
+          tipo: s.tipo,
+          nombre: s.nombre,
+          datos: { especificacion: s.especificacion, atributos: {}, imagen: null },
+        }));
+        await supabase.from('equipo_plantillas').insert(semillaEquipos).then(({ error }) => {
+          if (error) console.error('Error creando plantillas semilla de equipos eléctricos:', error);
+        });
+        setPlantillasEquipos(semillaEquipos);
+      } else {
+        setPlantillasEquipos(equipoRows.map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {} })));
+      }
+    }
+
+    async function cargarPlantillasDeCanalizaciones() {
+      const { data: canalizacionRows } = await supabase.from('canalizacion_plantillas').select('*').order('created_at', { ascending: true });
+      const idsExistentes = new Set((canalizacionRows || []).map((r) => r.id));
+      const seedFaltante = construirSeedCanalizaciones().filter((s) => !idsExistentes.has(s.id));
+      if (seedFaltante.length > 0) {
+        // "upsert" en vez de "insert": si por alguna carrera de red ya existieran
+        // (ej. dos pestañas abiertas a la vez), no falla — simplemente no las duplica.
+        await supabase.from('canalizacion_plantillas').upsert(seedFaltante).then(({ error }) => {
+          if (error) console.error('Error creando plantillas semilla de canalizaciones:', error);
+        });
+        setPlantillasCanalizaciones([...(canalizacionRows || []).map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {}, es_principal: r.es_principal || false })), ...seedFaltante]);
+      } else {
+        setPlantillasCanalizaciones((canalizacionRows || []).map((r) => ({ id: r.id, tipo: r.tipo, nombre: r.nombre, datos: r.datos || {}, es_principal: r.es_principal || false })));
+      }
+    }
+
+    async function cargarDiametrosDeTuberia() {
+      const { data: diametroRows } = await supabase.from('diametros_tuberia').select('*').order('created_at', { ascending: true });
+      if (!diametroRows || diametroRows.length === 0) {
+        const semillaDiametros = ['3/4"', '1"', '1 1/4"', '2"', '4"', '6"'];
+        await supabase.from('diametros_tuberia').insert(semillaDiametros.map((nombre) => ({ nombre }))).then(({ error }) => {
+          if (error) console.error('Error creando diámetros semilla:', error);
+        });
+        setDiametrosTuberia(semillaDiametros);
+      } else {
+        setDiametrosTuberia(diametroRows.map((r) => r.nombre));
+      }
+    }
+
+    async function cargarPlantillasDeCruces() {
+      const { data: cruceRows } = await supabase.from('cruce_plantillas').select('*').order('created_at', { ascending: true });
+      setPlantillasCruces((cruceRows || []).map((r) => ({ id: r.id, nombre: r.nombre, datos: r.datos || {} })));
+    }
+
+    async function cargarCategoriasDeActualizaciones() {
+      const { data: catRows } = await supabase.from('actualizacion_categorias').select('*').order('orden', { ascending: true });
+      if (!catRows || catRows.length === 0) {
+        const semillaCat = ACTUALIZACION_CATEGORIAS_SEED.map((c, i) => ({ ...c, orden: i }));
+        await supabase.from('actualizacion_categorias').insert(semillaCat).then(({ error }) => {
+          if (error) console.error('Error creando categorías semilla de actualizaciones:', error);
+        });
+        setActualizacionCategorias(semillaCat);
+      } else {
+        setActualizacionCategorias(catRows);
+      }
+    }
+
+    async function cargarActualizaciones() {
+      const { data: actRows } = await supabase.from('actualizaciones').select('*').order('created_at', { ascending: false });
+      setActualizaciones((actRows || []).map((r) => ({ id: r.id, categoria_id: r.categoria_id, nombre: r.nombre, descripcion: r.descripcion || '', interesados: r.interesados || [], ubicacion: r.ubicacion || '', etiquetas: r.etiquetas || [], imagen: r.imagen || null, creado_por: r.creado_por, created_at: r.created_at })));
+    }
+
+    async function cargarMallas() {
+      const { data: mallaRows } = await supabase.from('mallas').select('*').order('created_at', { ascending: true });
+      if (!mallaRows || mallaRows.length === 0) {
+        await supabase.from('mallas').insert({ nombre: 'D84' }).then(({ error }) => {
+          if (error) console.error('Error creando malla semilla:', error);
+        });
+        setMallas(['D84']);
+      } else {
+        setMallas(mallaRows.map((r) => r.nombre));
+      }
+    }
+
+    async function cargarParametrosDeIngenieria() {
+      // Si la tabla aún no existe (falta correr la migración), seguimos con
+      // los valores por defecto que ya trae el código — sin tronar la carga.
+      try {
+        const { data: paramRow, error: paramError } = await supabase.from('parametros_ingenieria').select('*').eq('id', 'global').maybeSingle();
+        if (!paramError && paramRow?.datos) {
+          aplicarParametrosIngenieria(paramRow.datos);
+          setParametrosIngenieria({
+            recubrimiento: RECUBRIMIENTO_CIMENTACION,
+            barras: { ...BARRA_ACERO },
+            traslapos: { ...TRASLAPO_TABLE },
+          });
+        }
+      } catch (e) {
+        console.error('No se pudieron cargar los parámetros de ingeniería (¿falta correr la migración?):', e);
+      }
+    }
+
+    const pasos = [
+      ['proyectos', cargarProyectos],
+      ['enlaces', cargarEnlaces],
+      ['equipo', cargarEquipo],
+      ['instructivos', cargarInstructivos],
+      ['inversionistas', cargarInversionistas],
+      ['operadores de red', cargarOperadoresDeRed],
+      ['instaladores', cargarInstaladores],
+      ['ingenieros de proyectos', cargarIngenierosDeProyectos],
+      ['visitas', cargarVisitas],
+      ['países', cargarPaises],
+      ['proveedores', cargarProveedores],
+      ['dossiers', cargarDossiers],
+      ['resúmenes', cargarResumenes],
+      ['reuniones', cargarReuniones],
+      ['plantillas de cimentación', cargarPlantillasDeCimentacion],
+      ['plantillas de equipos', cargarPlantillasDeEquipos],
+      ['plantillas de canalizaciones', cargarPlantillasDeCanalizaciones],
+      ['diámetros de tubería', cargarDiametrosDeTuberia],
+      ['plantillas de cruces', cargarPlantillasDeCruces],
+      ['categorías de actualizaciones', cargarCategoriasDeActualizaciones],
+      ['actualizaciones', cargarActualizaciones],
+      ['mallas', cargarMallas],
+      ['parámetros de ingeniería', cargarParametrosDeIngenieria],
+    ];
+    await Promise.all(pasos.map(async ([nombre, paso]) => {
+      try {
+        await paso();
+      } catch (e) {
+        console.error(`No se pudo cargar: ${nombre}`, e);
+      }
+    }));
 
     setDataLoaded(true);
   }
@@ -3449,7 +3531,11 @@ export default function App() {
           <p className="text-white font-bold text-sm flex-1">Sun Design Suite</p>
           <NotificationBell notificaciones={misNotificaciones} onAbrirNotificacion={handleAbrirNotificacion} onMarcarTodasLeidas={handleMarcarTodasLeidas} dark />
         </div>
-        {/* Las secciones pesadas se descargan al abrirlas (ver SECCIONES). */}
+        {/* Las secciones pesadas se descargan al abrirlas (ver SECCIONES).
+            La barrera va por sección: si una falla, el menú sigue ahí para
+            irse a otra, y al cambiar de sección (la llave) se vuelve a
+            intentar. */}
+        <BarreraDeErrores key={`${vistaActual}-${selectedId || ''}`}>
         <Suspense fallback={<LoadingScreen mensaje="Cargando sección…" />}>
         {vistaActual === 'dashboard' && (
           <Dashboard
@@ -3671,6 +3757,7 @@ export default function App() {
           />
         )}
         </Suspense>
+        </BarreraDeErrores>
       </main>
 
       {showCreate && puedeCrearProyectos && (
