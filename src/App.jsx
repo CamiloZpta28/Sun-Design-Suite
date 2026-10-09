@@ -1,5 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import BarreraDeErrores from './shared/BarreraDeErrores.jsx';
+import { servicioImagenesReunion } from './shared/almacenImagenes.js';
 import {
   LayoutDashboard, FolderKanban, Layers, Link2, Zap, Cog, Plus, Search, X, Trash2, ChevronLeft,
   Pencil, MapPin, Calendar, Users, ExternalLink, Check, UploadCloud, XCircle, Loader2,
@@ -2938,11 +2939,14 @@ export default function App() {
   /* Crea el pendiente con su primera entrada de historial. Se espera a la base
      antes de mostrarlo: un pendiente que aparece y después desaparece porque
      no se guardó es peor que esperar un segundo. */
-  async function handleCrearPendiente({ serie, texto, responsables, sesionId }) {
+  async function handleCrearPendiente({ serie, texto, responsables, sesionId, imagenes }) {
     const ahora = new Date().toISOString();
     const pendiente = {
       id: makeId('pend'), serie, texto, responsables: responsables || [], estado: 'pendiente',
       sesion_origen: sesionId || null, creado_por: perfil?.id || null, created_at: ahora, updated_at: ahora,
+      /* Solo si trae: sin la migración de imágenes la columna no existe, y un
+         pendiente sin imágenes tiene que poder crearse igual. */
+      ...(imagenes?.length ? { imagenes } : {}),
     };
     const { error } = await supabase.from('reuniones_pendientes').insert(pendiente);
     if (error) {
@@ -3000,6 +3004,21 @@ export default function App() {
     /* Solo a los que entraron: a quien ya estaba no hay nada nuevo que decirle. */
     const nuevos = responsables.filter((id) => !(pendiente.responsables || []).includes(id));
     notificarResponsables(nuevos, pendiente.serie, pendiente.texto);
+  }
+
+  /* Agregar o quitar imágenes de un pendiente. Las que se quitan se dejan en
+     el almacenamiento: la misma imagen puede seguir en el tema del que salió
+     el pendiente, y borrarla lo dejaría con una imagen rota. */
+  async function handleCambiarImagenesPendiente(pendiente, imagenes) {
+    const ahora = new Date().toISOString();
+    const { error } = await supabase.from('reuniones_pendientes').update({ imagenes, updated_at: ahora }).eq('id', pendiente.id);
+    if (error) {
+      console.error('Error guardando las imágenes del pendiente:', error);
+      alert('No se pudieron guardar las imágenes. Detalle: ' + error.message);
+      return false;
+    }
+    setPendientesReunion((prev) => prev.map((p) => (p.id === pendiente.id ? { ...p, imagenes, updated_at: ahora } : p)));
+    return true;
   }
 
   async function handleEliminarPendiente(pendiente) {
@@ -3687,6 +3706,7 @@ export default function App() {
             ausencias={ausencias}
             onGuardarAusencia={handleGuardarAusencia}
             onBorrarAusencia={handleBorrarAusencia}
+            imagenes={servicioImagenesReunion}
           />
         )}
         {vistaActual === 'reuniones' && (
@@ -3710,6 +3730,8 @@ export default function App() {
             onEliminarPendiente={handleEliminarPendiente}
             onResolverTema={handleResolverTema}
             onDeshacerTema={handleDeshacerTema}
+            imagenes={servicioImagenesReunion}
+            onCambiarImagenes={handleCambiarImagenesPendiente}
             proyectos={projects}
             planes={planesReunion}
             planesDisponibles={planesDisponibles}

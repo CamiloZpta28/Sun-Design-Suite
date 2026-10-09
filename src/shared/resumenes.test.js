@@ -15,7 +15,7 @@ import {
   BLOQUES_RESUMEN, cambiosEntreFotos, cuentaDeFoto, etiquetaDeSemana, fotoConComparacion,
   fotoDeLaSemana, fotoDeProyecto, lunesDe, misDocumentosDelProyecto, nivelDeEstado,
   REUNIONES, cierreDeSemana, cierreValido, contarTemas, estadoDeEntrega, notaDeCierre,
-  repartirEnReuniones, temasDeLaSemana, textoDeTemas, lineasDeBloque, normalizarTemas,
+  repartirEnReuniones, temasDeLaSemana, textoDeTemas, lineasDeBloque, normalizarTemas, normalizarTema,
   ausenciaDeLaSemana, ausenciasQueTocan, rangoDeAusenciaValido, etiquetaDeMotivo,
   sinCerradosRepetidos, ESTADOS_CERRADOS, estaCerrado, sumarDias, textoDelResumen, ultimasSemanas, viernesDe,
   ROLES_TRANSVERSALES, usaAvanceCompacto, totalDeAvance,
@@ -812,3 +812,28 @@ describe('el texto de una reunión concreta', () => {
     expect(texto.startsWith('Reunión civil · Del 7 al 11')).toBe(true);
   });
 });
+
+describe('las imágenes de un tema', () => {
+  /* normalizarTema reconstruye el tema campo por campo: si no las conociera,
+     las imágenes se perderían en silencio en el primer guardado. */
+  it('viajan con el tema al normalizarlo', () => {
+    expect(normalizarTema({ texto: 'Anclajes', reunion: 'diseno', imagenes: ['img-1.png'] }))
+      .toEqual({ texto: 'Anclajes', reunion: 'diseno', imagenes: ['img-1.png'] });
+    expect(normalizarTemas([{ texto: ' Anclajes ', imagenes: ['img-1.png'] }]))
+      .toEqual([{ texto: 'Anclajes', reunion: 'equipo', imagenes: ['img-1.png'] }]);
+  });
+
+  it('un tema sin imágenes queda igual que siempre', () => {
+    expect(normalizarTema({ texto: 'Anclajes', imagenes: [] })).toEqual({ texto: 'Anclajes', reunion: 'equipo' });
+    expect('imagenes' in normalizarTema('Anclajes')).toBe(false);
+  });
+
+  it('llegan a los temas de la semana', () => {
+    const grupos = temasDeLaSemana([{
+      usuario_id: 'u1', semana: '2026-10-05', enviado: true,
+      bloques: { temas: [{ texto: 'Anclajes', reunion: 'equipo', imagenes: ['img-1.png'] }] },
+    }], '2026-10-05', [{ id: 'u1', nombre: 'Ana', roles: ['civil'] }]);
+    expect(grupos[0].temas[0].imagenes).toEqual(['img-1.png']);
+  });
+});
+

@@ -315,7 +315,7 @@ export function temasParaLaSesion(resumenes, reunionId, semanaSesion, directorio
       const clave = claveDeTema(g.usuario_id, t.texto);
       if (vistos.has(clave)) return;
       vistos.add(clave);
-      temas.push({ clave, autorId: g.usuario_id, autorNombre: g.nombre, texto: t.texto });
+      temas.push({ clave, autorId: g.usuario_id, autorNombre: g.nombre, texto: t.texto, imagenes: t.imagenes || [] });
     });
   });
   return temas;

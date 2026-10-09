@@ -37,12 +37,13 @@ import { FiltroFichas, alternarEn, Avatar } from '../shared/ui.jsx';
 import { copiarTexto } from '../shared/copiar.jsx';
 import {
   BLOQUES_RESUMEN, DESTINOS_TEMA, DESTINO_POR_DEFECTO, cierreDeSemana, cierreValido, contarTemas, cuentaDeFoto, estadoDeEntrega,
-  etiquetaDeSemana, fotoConComparacion, fotoDeLaSemana, lineasDeBloque, lunesDe, normalizarTema,
+  etiquetaDeSemana, fotoConComparacion, fotoDeLaSemana, lineasDeBloque, lunesDe, normalizarTema, normalizarTemas,
   notaDeCierre, repartirEnReuniones, MOTIVOS_AUSENCIA, etiquetaDeMotivo, ausenciaDeLaSemana,
   usaAvanceCompacto, totalDeAvance,
   ausenciasQueTocan, rangoDeAusenciaValido,
   sumarDias, temasDeLaSemana, textoDeTemas, textoDelResumen, ultimasSemanas,
 } from '../shared/resumenes.js';
+import { BotonAgregarImagen, GaleriaImagenes, useSubirImagenes } from '../shared/imagenes.jsx';
 
 /* "viernes 11 de septiembre" — cómo se lee una fecha suelta en la cabecera. */
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -274,11 +275,32 @@ function ElegirReunion({ valor, onChange }) {
 
 /* Con `conDestino`, cada renglón es { texto, reunion } en vez de una cadena;
    sin él, la lista sigue siendo de texto pelado como los otros tres bloques. */
-function ListaEditable({ lineas, onChange, ayuda, vacio, conDestino }) {
+function ListaEditable({ lineas, onChange, ayuda, vacio, conDestino, imagenes }) {
   /* Índice del renglón que se está escribiendo, o null si todos están
      quemados. Es estado de interfaz puro: no se guarda. */
   const [editando, setEditando] = useState(null);
   const valores = lineas || [];
+  /* Subir una imagen tarda: cuando termina, la lista ya pudo cambiar (se
+     siguió escribiendo). Se agrega sobre la versión de ESE momento, no sobre
+     la de cuando se empezó a subir, o se perdería lo escrito mientras tanto. */
+  const ultimos = useRef(valores);
+  ultimos.current = valores;
+  function agregarImagenesA(i, rutas) {
+    onChange(ultimos.current.map((l, j) => {
+      if (j !== i) return l;
+      const tema = normalizarTema(l);
+      return { ...tema, imagenes: [...(tema.imagenes || []), ...rutas] };
+    }));
+  }
+  function quitarImagen(i, ruta) {
+    onChange(valores.map((l, j) => {
+      if (j !== i) return l;
+      const tema = normalizarTema(l);
+      return normalizarTema({ ...tema, imagenes: (tema.imagenes || []).filter((r) => r !== ruta) });
+    }));
+  }
+  const indicePegado = useRef(null);
+  const pegar = useSubirImagenes(conDestino ? imagenes : null, (rutas) => agregarImagenesA(indicePegado.current, rutas));
 
   const textoDe = (l) => (conDestino ? normalizarTema(l).texto : (l || ''));
   const conTexto = (l, texto) => (conDestino ? { ...normalizarTema(l), texto } : texto);
@@ -310,7 +332,8 @@ function ListaEditable({ lineas, onChange, ayuda, vacio, conDestino }) {
     <div>
       <div className="space-y-1.5">
         {valores.map((linea, i) => (
-          <div key={i} className="flex items-center gap-2">
+          <div key={i}>
+            <div className="flex items-center gap-2">
             <span className="text-navy-300 shrink-0">-</span>
             {editando === i ? (
               <>
@@ -318,6 +341,7 @@ function ListaEditable({ lineas, onChange, ayuda, vacio, conDestino }) {
                   autoFocus
                   value={textoDe(linea)}
                   onChange={(e) => cambiar(i, e.target.value)}
+                  onPaste={conDestino ? (e) => { indicePegado.current = i; pegar.alPegar(e); } : undefined}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') { e.preventDefault(); quemar(); }
                     if (e.key === 'Escape') { e.preventDefault(); quemar(); }
@@ -350,6 +374,7 @@ function ListaEditable({ lineas, onChange, ayuda, vacio, conDestino }) {
             {conDestino && (
               <ElegirReunion valor={normalizarTema(linea).reunion} onChange={(r) => cambiarReunion(i, r)} />
             )}
+            {conDestino && <BotonAgregarImagen servicio={imagenes} soloIcono onAgregadas={(rutas) => agregarImagenesA(i, rutas)} />}
             <button
               type="button"
               onClick={() => quitar(i)}
@@ -358,9 +383,20 @@ function ListaEditable({ lineas, onChange, ayuda, vacio, conDestino }) {
             >
               <X className="w-3.5 h-3.5" />
             </button>
+            </div>
+            {conDestino && (
+              <GaleriaImagenes
+                rutas={normalizarTema(linea).imagenes}
+                firmar={imagenes?.firmar}
+                onQuitar={(ruta) => quitarImagen(i, ruta)}
+                className="pl-4 mt-1"
+              />
+            )}
           </div>
         ))}
       </div>
+      {pegar.subiendo && <p className="text-xs text-navy-400 mt-1">Subiendo la imagen…</p>}
+      {pegar.error && <p className="text-xs text-red-500 mt-1">{pegar.error}</p>}
       <button
         type="button"
         onClick={agregar}
@@ -375,8 +411,10 @@ function ListaEditable({ lineas, onChange, ayuda, vacio, conDestino }) {
   );
 }
 
-function BloqueEnLectura({ bloque, lineas }) {
+function BloqueEnLectura({ bloque, lineas, firmar }) {
   const limpias = lineasDeBloque(bloque.key, { [bloque.key]: lineas });
+  /* Las imágenes de cada tema, en el mismo orden que sus renglones. */
+  const imagenesDe = bloque.key === 'temas' ? normalizarTemas(lineas).map((t) => t.imagenes) : [];
   return (
     <div>
       <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-1">{bloque.label}</p>
@@ -384,7 +422,12 @@ function BloqueEnLectura({ bloque, lineas }) {
         <p className="text-sm text-navy-300 italic">{bloque.vacio}</p>
       ) : (
         <ul className="space-y-0.5">
-          {limpias.map((l, i) => <li key={i} className="text-sm text-navy-700">- {l}</li>)}
+          {limpias.map((l, i) => (
+            <li key={i} className="text-sm text-navy-700">
+              - {l}
+              <GaleriaImagenes rutas={imagenesDe[i]} firmar={firmar} className="pl-3 mt-1 mb-1" />
+            </li>
+          ))}
         </ul>
       )}
     </div>
@@ -394,7 +437,7 @@ function BloqueEnLectura({ bloque, lineas }) {
 /* Un resumen ya enviado, en lectura: lo que ve el resto del equipo. */
 /* `compacto` se decide por los roles de QUIEN escribió el resumen, no por
    quien lo lee: el de un geotécnico se resume igual lo mire quien lo mire. */
-function ResumenEnLectura({ resumen, onAbrirProyecto, compacto }) {
+function ResumenEnLectura({ resumen, onAbrirProyecto, compacto, firmar }) {
   const fotos = resumen?.proyectos || [];
   return (
     <div className="space-y-4">
@@ -405,7 +448,7 @@ function ResumenEnLectura({ resumen, onAbrirProyecto, compacto }) {
         </div>
       )}
       {BLOQUES_RESUMEN.map((bloque) => (
-        <BloqueEnLectura key={bloque.key} bloque={bloque} lineas={resumen?.bloques?.[bloque.key]} />
+        <BloqueEnLectura key={bloque.key} bloque={bloque} lineas={resumen?.bloques?.[bloque.key]} firmar={firmar} />
       ))}
     </div>
   );
@@ -413,7 +456,7 @@ function ResumenEnLectura({ resumen, onAbrirProyecto, compacto }) {
 
 /* ------------------------------------------------------------- mi resumen */
 
-function MiResumen({ semana, cierre, guardado, fotosEnVivo, onGuardar, onAbrirProyecto, compacto }) {
+function MiResumen({ semana, cierre, guardado, fotosEnVivo, onGuardar, onAbrirProyecto, compacto, imagenes }) {
   const [bloques, setBloques] = useState(() => guardado?.bloques || {});
   const [hasta, setHasta] = useState(() => guardado?.hasta || cierre);
   const [incluirAvance, setIncluirAvance] = useState(true);
@@ -503,7 +546,7 @@ function MiResumen({ semana, cierre, guardado, fotosEnVivo, onGuardar, onAbrirPr
 
       {BLOQUES_RESUMEN.map((bloque) => (
         enviado ? (
-          <BloqueEnLectura key={bloque.key} bloque={bloque} lineas={bloques[bloque.key]} />
+          <BloqueEnLectura key={bloque.key} bloque={bloque} lineas={bloques[bloque.key]} firmar={imagenes?.firmar} />
         ) : (
           <div key={bloque.key}>
             <p className="text-xs font-bold uppercase tracking-wide text-navy-500 mb-2">{bloque.label}</p>
@@ -512,6 +555,7 @@ function MiResumen({ semana, cierre, guardado, fotosEnVivo, onGuardar, onAbrirPr
               ayuda={bloque.ayuda}
               vacio={bloque.vacio}
               conDestino={bloque.conDestino}
+              imagenes={imagenes}
               onChange={(nuevas) => editar(() => setBloques((prev) => ({ ...prev, [bloque.key]: nuevas })))}
             />
           </div>
@@ -655,7 +699,7 @@ const CHIP_ENTREGA = {
   vencido: { texto: 'No lo envió', clase: 'bg-red-100 text-red-700' },
 };
 
-function FilaPersona({ persona, resumen, onAbrirProyecto, cierre, ausencia }) {
+function FilaPersona({ persona, resumen, onAbrirProyecto, cierre, ausencia, firmar }) {
   const [abierto, setAbierto] = useState(false);
   /* Un borrador ajeno no se muestra: mientras no esté enviado, no está dicho. */
   const enviado = !!resumen?.enviado;
@@ -683,7 +727,7 @@ function FilaPersona({ persona, resumen, onAbrirProyecto, cierre, ausencia }) {
       </button>
       {abierto && enviado && (
         <div className="border-t border-navy-100 px-3 py-3">
-          <ResumenEnLectura resumen={resumen} onAbrirProyecto={onAbrirProyecto} compacto={usaAvanceCompacto(persona)} />
+          <ResumenEnLectura resumen={resumen} onAbrirProyecto={onAbrirProyecto} compacto={usaAvanceCompacto(persona)} firmar={firmar} />
         </div>
       )}
     </div>
@@ -831,7 +875,7 @@ function PanelAusencias({ ausencias, gente, perfil, semana, onGuardar, onBorrar 
   );
 }
 
-function VistaEquipo({ directorio, resumenesDeLaSemana, onAbrirProyecto, cierre, semana, ausencias, perfil, onGuardarAusencia, onBorrarAusencia }) {
+function VistaEquipo({ directorio, resumenesDeLaSemana, onAbrirProyecto, cierre, semana, ausencias, perfil, onGuardarAusencia, onBorrarAusencia, firmar }) {
   const [roles, setRoles] = useState([]);
 
   const porUsuario = new Map(resumenesDeLaSemana.map((r) => [r.usuario_id, r]));
@@ -895,6 +939,7 @@ function VistaEquipo({ directorio, resumenesDeLaSemana, onAbrirProyecto, cierre,
             onAbrirProyecto={onAbrirProyecto}
             cierre={cierre}
             ausencia={ausenciaDe(persona.id)}
+            firmar={firmar}
           />
         ))}
       </div>
@@ -1015,7 +1060,7 @@ function VistaTemas({ resumenes, semana, directorio, cierre, onIrASemana }) {
 
 /* ------------------------------------------------------------------ raíz */
 
-export default function ResumenesView({ perfil, directorio, projects, dossiers, resumenes, onGuardar, onAbrirProyecto, cierres, onGuardarCierre, ausencias, onGuardarAusencia, onBorrarAusencia }) {
+export default function ResumenesView({ perfil, directorio, projects, dossiers, resumenes, onGuardar, onAbrirProyecto, cierres, onGuardarCierre, ausencias, onGuardarAusencia, onBorrarAusencia, imagenes }) {
   const [semana, setSemana] = useState(() => lunesDe());
   const [pestana, setPestana] = useState('mio');
 
@@ -1103,6 +1148,7 @@ export default function ResumenesView({ perfil, directorio, projects, dossiers, 
           compacto={usaAvanceCompacto(perfil)}
           onGuardar={onGuardar}
           onAbrirProyecto={onAbrirProyecto}
+          imagenes={imagenes}
         />
       ) : (
         <VistaEquipo
@@ -1115,6 +1161,7 @@ export default function ResumenesView({ perfil, directorio, projects, dossiers, 
           perfil={perfil}
           onGuardarAusencia={onGuardarAusencia}
           onBorrarAusencia={onBorrarAusencia}
+          firmar={imagenes?.firmar}
         />
       )}
     </div>

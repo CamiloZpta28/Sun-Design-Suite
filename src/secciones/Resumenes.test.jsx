@@ -12,7 +12,7 @@
    ============================================================================ */
 
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import ResumenesView, { diaYMes, esSoloDesarrollador } from './Resumenes.jsx';
 import { lunesDe, sumarDias, viernesDe } from '../shared/resumenes.js';
 
@@ -897,3 +897,82 @@ describe('escribir un tema con espacios', () => {
     expect(caja.value).toBe('Mesa técnica ');
   });
 });
+
+describe('imágenes en los temas', () => {
+  const png = (nombre) => new File([new Uint8Array(4)], nombre, { type: 'image/png' });
+  const imagenes = {
+    subir: vi.fn(async (archivo) => `ruta-${archivo.name}`),
+    firmar: async (ruta) => `https://firmada/${ruta}`,
+  };
+  const srcs = () => screen.queryAllByAltText('Imagen adjunta').map((i) => i.getAttribute('src'));
+  function escribirUnTema(texto) {
+    fireEvent.click(screen.getAllByText('Agregar renglón')[3]);
+    fireEvent.change(screen.getByPlaceholderText(/Lo que quieres hablar el lunes/), { target: { value: texto } });
+  }
+
+  it('un tema puede llevar imágenes, y se guardan con él', async () => {
+    const guardados = [];
+    pintar({ imagenes, onGuardar: (r) => guardados.push(r) });
+    escribirUnTema('Fisura en el muro');
+    /* Pegada mientras se escribe… */
+    fireEvent.paste(screen.getByPlaceholderText(/Lo que quieres hablar el lunes/), {
+      clipboardData: { items: [{ kind: 'file', type: 'image/png', getAsFile: () => png('pegada.png') }] },
+    });
+    await waitFor(() => expect(srcs()).toEqual(['https://firmada/ruta-pegada.png']));
+    fireEvent.click(screen.getByTitle('Listo (o pulsa Enter)'));
+    /* …o adjunta con el botón del renglón. */
+    fireEvent.change(screen.getByTestId('adjuntar-imagen'), { target: { files: [png('adjunta.png')] } });
+    await waitFor(() => expect(srcs().length).toBe(2));
+    fireEvent.click(screen.getByText('Enviar'));
+    const temas = guardados[guardados.length - 1].bloques.temas;
+    expect(temas).toEqual([{ texto: 'Fisura en el muro', reunion: 'equipo', imagenes: ['ruta-pegada.png', 'ruta-adjunta.png'] }]);
+  });
+
+  it('se puede quitar una imagen del tema', async () => {
+    const guardados = [];
+    pintar({ imagenes, onGuardar: (r) => guardados.push(r) });
+    escribirUnTema('Fisura');
+    fireEvent.click(screen.getByTitle('Listo (o pulsa Enter)'));
+    fireEvent.change(screen.getByTestId('adjuntar-imagen'), { target: { files: [png('a.png')] } });
+    await waitFor(() => expect(srcs().length).toBe(1));
+    fireEvent.click(screen.getByLabelText('Quitar la imagen'));
+    fireEvent.click(screen.getByText('Enviar'));
+    expect(guardados[guardados.length - 1].bloques.temas).toEqual([{ texto: 'Fisura', reunion: 'equipo' }]);
+  });
+
+  it('el resumen enviado las sigue mostrando', async () => {
+    const enviado = {
+      id: 'r1', usuario_id: 'u1', semana: SEMANA, hasta: null, enviado: true, proyectos: [],
+      bloques: { temas: [{ texto: 'Fisura en el muro', reunion: 'equipo', imagenes: ['fisura.png'] }] },
+    };
+    pintar({ imagenes, resumenes: [enviado] });
+    await waitFor(() => expect(srcs()).toEqual(['https://firmada/fisura.png']));
+  });
+
+  /* Subir tarda: si mientras tanto se sigue escribiendo, al llegar la imagen
+     no se puede perder lo escrito. */
+  it('lo que se escribe mientras sube la imagen no se pierde', async () => {
+    let terminar;
+    const lenta = { ...imagenes, subir: () => new Promise((r) => { terminar = r; }) };
+    const guardados = [];
+    pintar({ imagenes: lenta, onGuardar: (r) => guardados.push(r) });
+    escribirUnTema('Fisura');
+    const caja = screen.getByPlaceholderText(/Lo que quieres hablar el lunes/);
+    fireEvent.paste(caja, { clipboardData: { items: [{ kind: 'file', type: 'image/png', getAsFile: () => png('p.png') }] } });
+    fireEvent.change(caja, { target: { value: 'Fisura en el muro norte' } });
+    terminar('ruta-p.png');
+    await waitFor(() => expect(srcs().length).toBe(1));
+    fireEvent.click(screen.getByTitle('Listo (o pulsa Enter)'));
+    fireEvent.click(screen.getByText('Enviar'));
+    expect(guardados[guardados.length - 1].bloques.temas)
+      .toEqual([{ texto: 'Fisura en el muro norte', reunion: 'equipo', imagenes: ['ruta-p.png'] }]);
+  });
+
+  /* Los otros bloques no adjuntan: no van a ninguna reunión. */
+  it('solo los temas ofrecen adjuntar', () => {
+    pintar({ imagenes });
+    escribirEnLoMejor('Una entrega');
+    expect(screen.queryByTestId('adjuntar-imagen')).toBe(null);
+  });
+});
+

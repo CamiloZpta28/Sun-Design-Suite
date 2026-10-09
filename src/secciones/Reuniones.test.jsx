@@ -12,7 +12,7 @@
    ============================================================================ */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 import ReunionesView from './Reuniones.jsx';
 import { lunesDe, sumarDias } from '../shared/resumenes.js';
 import { puedeVerVista } from '../shared/permisos.js';
@@ -62,6 +62,13 @@ function pintar(props = {}) {
     onDeshacerTema: vi.fn(),
     onGuardarPlan: vi.fn(async () => true),
     onAbrirProyecto: vi.fn(),
+    onCambiarImagenes: vi.fn(async () => true),
+    /* El almacenamiento de imágenes, de mentiras: sube devolviendo una ruta
+       y firma devolviendo un enlace predecible. */
+    imagenes: {
+      subir: vi.fn(async (archivo) => `ruta-${archivo.name}`),
+      firmar: async (ruta) => `https://firmada/${ruta}`,
+    },
   };
   const utils = render(
     <ReunionesView
@@ -240,7 +247,7 @@ describe('los pendientes', () => {
     await vi.waitFor(() => expect(handlers.onCrearPendiente).toHaveBeenCalled());
     expect(handlers.onAsegurarSesion).toHaveBeenCalledWith('civil', SEMANA, 'ana');
     expect(handlers.onCrearPendiente).toHaveBeenCalledWith({
-      serie: 'civil', texto: 'Planos de vía', responsables: ['dani'], sesionId: `sesion-civil-${SEMANA}`,
+      serie: 'civil', texto: 'Planos de vía', responsables: ['dani'], sesionId: `sesion-civil-${SEMANA}`, imagenes: [],
     });
   });
 
@@ -478,3 +485,67 @@ describe('la reunión de diseño', () => {
     expect(screen.queryByText('Nuevo pendiente')).toBe(null);
   });
 });
+
+describe('imágenes en pendientes y temas', () => {
+  const png = (nombre) => new File([new Uint8Array(4)], nombre, { type: 'image/png' });
+  const srcs = (raiz = screen) => raiz.queryAllByAltText('Imagen adjunta').map((i) => i.getAttribute('src'));
+  const tarjetaDe = (texto) => within(screen.getByText(texto).closest('div.rounded-xl'));
+
+  it('un pendiente nuevo puede llevar imágenes, adjuntas o pegadas', async () => {
+    const { handlers } = pintar({ perfil: yo('lucho') });
+    fireEvent.click(screen.getByText('Nuevo pendiente'));
+    const caja = screen.getByPlaceholderText('Qué hay que hacer');
+    fireEvent.change(caja, { target: { value: 'Revisar el muro' } });
+    fireEvent.change(screen.getAllByTestId('adjuntar-imagen').pop(), { target: { files: [png('muro.png')] } });
+    fireEvent.paste(caja, { clipboardData: { items: [{ kind: 'file', type: 'image/png', getAsFile: () => png('pantallazo.png') }] } });
+    await waitFor(() => expect(srcs()).toEqual(['https://firmada/ruta-muro.png', 'https://firmada/ruta-pantallazo.png']));
+    fireEvent.change(screen.getByLabelText('Agregar responsable'), { target: { value: 'dani' } });
+    fireEvent.click(screen.getByText('Crear pendiente'));
+    await waitFor(() => expect(handlers.onCrearPendiente).toHaveBeenCalled());
+    expect(handlers.onCrearPendiente.mock.calls[0][0].imagenes).toEqual(['ruta-muro.png', 'ruta-pantallazo.png']);
+  });
+
+  /* Pegar texto en la caja sigue siendo pegar texto. */
+  it('pegar texto en el pendiente no sube nada', () => {
+    const { handlers } = pintar({ perfil: yo('lucho') });
+    fireEvent.click(screen.getByText('Nuevo pendiente'));
+    const sinCancelar = fireEvent.paste(screen.getByPlaceholderText('Qué hay que hacer'), {
+      clipboardData: { items: [{ kind: 'string', type: 'text/plain', getAsFile: () => null }] },
+    });
+    expect(sinCancelar).toBe(true);
+    expect(handlers.imagenes.subir).not.toHaveBeenCalled();
+  });
+
+  it('la tarjeta muestra sus imágenes, y el responsable puede agregar y quitar', async () => {
+    const conImagen = { ...pendienteViejo, imagenes: ['img-1.png'] };
+    const { handlers } = pintar({ perfil: yo('dani'), pendientes: [conImagen] });
+    const tarjeta = tarjetaDe('Revisar alcance de Chinú 5');
+    await waitFor(() => expect(srcs(tarjeta)).toEqual(['https://firmada/img-1.png']));
+    fireEvent.change(tarjeta.getByTestId('adjuntar-imagen'), { target: { files: [png('avance.png')] } });
+    await waitFor(() => expect(handlers.onCambiarImagenes).toHaveBeenCalledWith(conImagen, ['img-1.png', 'ruta-avance.png']));
+    fireEvent.click(tarjeta.getByLabelText('Quitar la imagen'));
+    expect(handlers.onCambiarImagenes).toHaveBeenLastCalledWith(conImagen, []);
+  });
+
+  it('quien no puede actualizarlo las ve, pero no las toca', async () => {
+    pintar({ perfil: yo('beto'), pendientes: [{ ...pendienteViejo, imagenes: ['img-1.png'] }] });
+    const tarjeta = tarjetaDe('Revisar alcance de Chinú 5');
+    await waitFor(() => expect(srcs(tarjeta)).toEqual(['https://firmada/img-1.png']));
+    expect(tarjeta.queryByTestId('adjuntar-imagen')).toBe(null);
+    expect(tarjeta.queryByLabelText('Quitar la imagen')).toBe(null);
+  });
+
+  it('un tema muestra sus imágenes, y al volverlo pendiente se las pasa', async () => {
+    const resumen = {
+      id: 'r1', usuario_id: 'dani', semana: ANTERIOR, enviado: true,
+      bloques: { temas: [{ texto: 'Fisura en el muro', reunion: 'equipo', imagenes: ['fisura.png'] }] },
+    };
+    const { handlers } = pintar({ perfil: yo('lucho'), resumenes: [resumen] });
+    await waitFor(() => expect(srcs(tarjetaDe('Fisura en el muro'))).toEqual(['https://firmada/fisura.png']));
+    fireEvent.click(screen.getByText('Volver pendiente'));
+    fireEvent.click(screen.getByText('Crear pendiente'));
+    await waitFor(() => expect(handlers.onCrearPendiente).toHaveBeenCalled());
+    expect(handlers.onCrearPendiente.mock.calls[0][0].imagenes).toEqual(['fisura.png']);
+  });
+});
+

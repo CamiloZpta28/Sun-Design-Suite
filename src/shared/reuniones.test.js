@@ -245,6 +245,15 @@ describe('el historial', () => {
 describe('los temas que llegan a la sesión', () => {
   const resumen = (usuario_id, semana, temas, enviado = true) => ({ usuario_id, semana, enviado, bloques: { temas } });
 
+  it('cada tema trae sus imágenes a la sesión (o ninguna)', () => {
+    const resumenes = [resumen('ana', '2026-09-28', [
+      { texto: 'Con pantallazo', reunion: 'equipo', imagenes: ['img-1.png'] },
+      { texto: 'Sin pantallazo', reunion: 'equipo' },
+    ])];
+    expect(temasParaLaSesion(resumenes, 'civil', '2026-10-05', directorio).map((t) => t.imagenes))
+      .toEqual([['img-1.png'], []]);
+  });
+
   it('la sesión de una semana mira los resúmenes de la anterior', () => {
     expect(semanaDeLosTemas('2026-10-05')).toBe('2026-09-28');
   });

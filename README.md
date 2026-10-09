@@ -176,6 +176,31 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Imágenes en los temas y pendientes de las reuniones.** Opcionales, con
+  el botón de la imagen o pegándolas con Ctrl+V.
+  - **Temas:** se adjuntan al escribir el tema en el resumen (botón en el
+    renglón, o Ctrl+V mientras se escribe). Se ven en el resumen enviado, en
+    la vista del equipo y en la bandeja de la reunión. Al volver un tema
+    pendiente, el pendiente hereda sus imágenes.
+  - **Pendientes:** al crearlos, y después las agrega o quita quien puede
+    actualizar el pendiente (sus responsables, el moderador y quien gestiona
+    la reunión). Los demás las ven.
+  - **Dónde viven:** no dentro de las filas, como en Actualizaciones, sino en
+    un bucket **privado** de Supabase Storage (`reuniones`); la fila guarda
+    solo la ruta. Los pendientes y los resúmenes se cargan todos al entrar, y
+    con los pantallazos adentro cada entrada bajaría megas. Para mostrarlas se
+    pide un enlace firmado que vence en una hora (`shared/almacenImagenes.js`);
+    las piezas de pantalla están en `shared/imagenes.jsx`. Los invitados no
+    las ven.
+  - Límite: 5 MB por imagen (la pantalla y el bucket).
+  - Una imagen que se quita deja de mostrarse pero se queda en el
+    almacenamiento: la misma puede seguir en el tema del que salió el
+    pendiente. Si algún día pesa, se limpia con un proceso aparte.
+  - **Necesita migración:** `migration_reuniones_imagenes.sql` (columna
+    `imagenes` en `reuniones_pendientes`, el bucket y sus reglas). Si no se
+    corre, nada se rompe: al adjuntar, la plataforma dice que falta la
+    migración.
+
 - **Supervisión técnica: respuestas parciales.** Supervisión a veces
   devuelve solo una parte de un paquete (los comentarios de 10 de 46
   documentos, y el resto días después), pero la respuesta no se podía

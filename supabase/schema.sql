@@ -509,6 +509,8 @@ create table if not exists reuniones_pendientes (
     check (estado in ('pendiente', 'en_curso', 'finalizado')),
   -- La sesión donde nació, para el registro de esa sesión.
   sesion_origen text,
+  -- Rutas de sus imágenes en el bucket "reuniones" (no la imagen misma).
+  imagenes jsonb not null default '[]'::jsonb,
   creado_por uuid references auth.users(id) on delete set null,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -1522,3 +1524,18 @@ begin
     execute format('create policy "Invitado no ve reuniones" on %I as restrictive for select to authenticated using (not es_invitado())', t);
   end loop;
 end $$;
+
+-- ---------- Imágenes de las reuniones ----------
+-- Bucket privado: la fila del pendiente (o el tema, dentro del resumen)
+-- guarda solo la ruta. Los invitados no las ven.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('reuniones', 'reuniones', false, 5242880, array['image/png', 'image/jpeg', 'image/webp', 'image/gif'])
+on conflict (id) do nothing;
+
+create policy "Imagenes de reuniones: lectura del equipo"
+  on storage.objects for select
+  using (bucket_id = 'reuniones' and auth.role() = 'authenticated' and not es_invitado());
+
+create policy "Imagenes de reuniones: el equipo sube"
+  on storage.objects for insert
+  with check (bucket_id = 'reuniones' and auth.role() = 'authenticated' and not es_invitado());

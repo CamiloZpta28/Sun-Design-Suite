@@ -24,6 +24,7 @@ import {
 import { copiarTexto } from '../shared/copiar.jsx';
 import { makeId } from '../shared/dominio.jsx';
 import { esInvitado } from '../shared/permisos.js';
+import { BotonAgregarImagen, GaleriaImagenes, useSubirImagenes } from '../shared/imagenes.jsx';
 import { lunesDe, ultimasSemanas } from '../shared/resumenes.js';
 import {
   ESTADOS_PENDIENTE, actualizacionValida, bandejaDeLaSesion, etiquetaDeEstado, fechaDeSesion,
@@ -94,7 +95,7 @@ function SelectorResponsables({ seleccion, onChange, directorio, reunionId }) {
 
 function TarjetaPendiente({
   pendiente, historial, directorio, perfil, gestiona, esModerador,
-  onActualizar, onCambiarResponsables, onEliminar,
+  onActualizar, onCambiarResponsables, onEliminar, imagenes, onCambiarImagenes,
 }) {
   const [actualizando, setActualizando] = useState(false);
   const [estado, setEstado] = useState(pendiente.estado);
@@ -133,6 +134,17 @@ function TarjetaPendiente({
           </span>
         )}
       </p>
+
+      {/* Las imágenes las agrega o quita quien puede actualizar el pendiente:
+          un pantallazo de cómo va es parte de decir cómo va. */}
+      <GaleriaImagenes
+        rutas={pendiente.imagenes}
+        firmar={imagenes?.firmar}
+        onQuitar={puede && onCambiarImagenes
+          ? (ruta) => onCambiarImagenes(pendiente, (pendiente.imagenes || []).filter((r) => r !== ruta))
+          : undefined}
+        className="mt-2"
+      />
 
       {ultima && (
         <p className="text-xs text-navy-600 mt-1.5 bg-navy-50 rounded-md px-2 py-1.5">
@@ -198,6 +210,12 @@ function TarjetaPendiente({
               <UserCog className="w-3.5 h-3.5" /> Responsables
             </button>
           )}
+          {puede && onCambiarImagenes && (
+            <BotonAgregarImagen
+              servicio={imagenes}
+              onAgregadas={(rutas) => onCambiarImagenes(pendiente, [...(pendiente.imagenes || []), ...rutas])}
+            />
+          )}
           <button onClick={() => setVerHistorial((v) => !v)} className="flex items-center gap-1 text-xs font-semibold text-navy-500 hover:text-navy-700">
             <History className="w-3.5 h-3.5" /> Historial ({entradas.length})
           </button>
@@ -231,21 +249,25 @@ function TarjetaPendiente({
 
 /* ------------------------------------------------------ pendiente nuevo */
 
-function NuevoPendiente({ reunionId, directorio, onCrear }) {
+function NuevoPendiente({ reunionId, directorio, onCrear, imagenes: servicio }) {
   const [abierto, setAbierto] = useState(false);
   const [texto, setTexto] = useState('');
   const [responsables, setResponsables] = useState([]);
+  const [imagenes, setImagenes] = useState([]);
   const [guardando, setGuardando] = useState(false);
-  const listo = texto.trim() && responsables.length > 0;
+  const agregar = (rutas) => setImagenes((prev) => [...prev, ...rutas]);
+  const pegar = useSubirImagenes(servicio, agregar);
+  const listo = texto.trim() && responsables.length > 0 && !pegar.subiendo;
 
   async function crear() {
     if (!listo) return;
     setGuardando(true);
-    const creado = await onCrear({ texto: texto.trim(), responsables });
+    const creado = await onCrear({ texto: texto.trim(), responsables, imagenes });
     setGuardando(false);
     if (creado) {
       setTexto('');
       setResponsables([]);
+      setImagenes([]);
       setAbierto(false);
     }
   }
@@ -263,11 +285,15 @@ function NuevoPendiente({ reunionId, directorio, onCrear }) {
         autoFocus
         value={texto}
         onChange={(e) => setTexto(e.target.value)}
+        onPaste={pegar.alPegar}
         placeholder="Qué hay que hacer"
         className={entrada}
       />
       <SelectorResponsables seleccion={responsables} onChange={setResponsables} directorio={directorio} reunionId={reunionId} />
-      <div className="flex gap-2">
+      <GaleriaImagenes rutas={imagenes} firmar={servicio?.firmar} onQuitar={(ruta) => setImagenes((prev) => prev.filter((r) => r !== ruta))} />
+      {pegar.subiendo && <p className="text-xs text-navy-400">Subiendo la imagen…</p>}
+      {pegar.error && <p className="text-xs text-red-500">{pegar.error}</p>}
+      <div className="flex items-center gap-2">
         <button
           onClick={crear}
           disabled={!listo || guardando}
@@ -276,6 +302,7 @@ function NuevoPendiente({ reunionId, directorio, onCrear }) {
           Crear pendiente
         </button>
         <button onClick={() => setAbierto(false)} className="text-sm text-navy-500 hover:text-navy-700 px-2">Cancelar</button>
+        <span className="ml-auto"><BotonAgregarImagen servicio={servicio} onAgregadas={agregar} /></span>
       </div>
       {texto.trim() && responsables.length === 0 && (
         <p className="text-xs text-navy-400">Un pendiente sin responsable no lo cierra nadie: elige al menos uno.</p>
@@ -286,7 +313,7 @@ function NuevoPendiente({ reunionId, directorio, onCrear }) {
 
 /* ------------------------------------------------------------ los temas */
 
-function TemaDeLaBandeja({ tema, directorio, puedeTratar, reunionId, onConvertir, onCerrar, onDeshacer, pendientes }) {
+function TemaDeLaBandeja({ tema, directorio, puedeTratar, reunionId, onConvertir, onCerrar, onDeshacer, pendientes, imagenes }) {
   const [modo, setModo] = useState(null); // null | 'pendiente' | 'cerrar'
   const [texto, setTexto] = useState(tema.texto);
   const [responsables, setResponsables] = useState(() => (
@@ -317,6 +344,7 @@ function TemaDeLaBandeja({ tema, directorio, puedeTratar, reunionId, onConvertir
     <div className={`border rounded-xl px-3 py-2.5 ${r ? 'bg-navy-50 border-navy-200' : 'bg-white border-navy-200'}`}>
       <p className="text-sm text-navy-800 break-words">{tema.texto}</p>
       <p className="text-xs text-navy-400 mt-0.5">{tema.autorNombre}</p>
+      <GaleriaImagenes rutas={tema.imagenes} firmar={imagenes?.firmar} className="mt-1.5" />
 
       {r ? (
         <div className="flex items-start gap-2 mt-1.5">
@@ -903,7 +931,7 @@ export default function ReunionesView({
   sesiones, rotaciones, pendientes, historial, temasTratados,
   onAsegurarSesion, onGuardarSesion, onGuardarRotacion,
   onCrearPendiente, onActualizarPendiente, onCambiarResponsables, onEliminarPendiente,
-  onResolverTema, onDeshacerTema,
+  onResolverTema, onDeshacerTema, imagenes, onCambiarImagenes,
   proyectos, planes, planesDisponibles = true, onGuardarPlan, onAbrirProyecto,
 }) {
   const [reunionId, setReunionId] = useState(() => reunionInicial(perfil));
@@ -952,11 +980,15 @@ export default function ReunionesView({
     return accion(id);
   }
 
-  const crearPendiente = ({ texto, responsables }) => conSesion((id) => onCrearPendiente({ serie: reunionId, texto, responsables, sesionId: id }));
+  const crearPendiente = ({ texto, responsables, imagenes: rutas }) => conSesion((id) => onCrearPendiente({
+    serie: reunionId, texto, responsables, sesionId: id, imagenes: rutas,
+  }));
 
   async function convertirTema(tema, { texto, responsables, conclusion }) {
     return conSesion(async (id) => {
-      const creado = await onCrearPendiente({ serie: reunionId, texto, responsables, sesionId: id });
+      /* El pendiente hereda las imágenes del tema: el pantallazo que motivó
+         el tema es justo el que explica qué hay que hacer. */
+      const creado = await onCrearPendiente({ serie: reunionId, texto, responsables, sesionId: id, imagenes: tema.imagenes || [] });
       if (!creado) return false;
       return onResolverTema({ sesionId: id, tema, resultado: 'pendiente', conclusion, pendienteId: creado.id });
     });
@@ -1042,10 +1074,12 @@ export default function ReunionesView({
               onActualizar={onActualizarPendiente}
               onCambiarResponsables={onCambiarResponsables}
               onEliminar={onEliminarPendiente}
+              imagenes={imagenes}
+              onCambiarImagenes={onCambiarImagenes}
             />
           ))}
         </div>
-        {puedeTratar && <NuevoPendiente reunionId={reunionId} directorio={directorio} onCrear={crearPendiente} />}
+        {puedeTratar && <NuevoPendiente reunionId={reunionId} directorio={directorio} onCrear={crearPendiente} imagenes={imagenes} />}
       </Bloque>
 
       <Bloque titulo={`Temas de los resúmenes${temas.length > 0 ? ` (${porTratar} por tratar)` : ''}`}>
@@ -1066,6 +1100,7 @@ export default function ReunionesView({
                 onConvertir={convertirTema}
                 onCerrar={cerrarTema}
                 onDeshacer={onDeshacerTema}
+                imagenes={imagenes}
               />
             ))}
           </div>
@@ -1132,6 +1167,8 @@ export default function ReunionesView({
                   onActualizar={onActualizarPendiente}
                   onCambiarResponsables={onCambiarResponsables}
                   onEliminar={onEliminarPendiente}
+                  imagenes={imagenes}
+                  onCambiarImagenes={onCambiarImagenes}
                 />
               ))}
             </div>

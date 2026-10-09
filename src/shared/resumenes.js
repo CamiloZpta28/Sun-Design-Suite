@@ -347,9 +347,13 @@ export const DESTINO_POR_DEFECTO = 'equipo';
    normalizarTemas—, no de quien los está escribiendo. */
 export function normalizarTema(tema) {
   if (typeof tema === 'string') return { texto: tema, reunion: DESTINO_POR_DEFECTO };
+  /* Las imágenes (rutas en el bucket "reuniones") viajan con el tema. Solo se
+     incluyen si hay: así un tema sin imágenes queda igual que siempre. */
+  const imagenes = Array.isArray(tema?.imagenes) ? tema.imagenes.filter(Boolean) : [];
   return {
     texto: (tema && tema.texto) || '',
     reunion: (tema && tema.reunion) || DESTINO_POR_DEFECTO,
+    ...(imagenes.length > 0 ? { imagenes } : {}),
   };
 }
 
