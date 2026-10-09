@@ -11,8 +11,9 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
 import SupervisionTecnicaPanel, {
+  PaqueteForm,
   SITUACION, situacionPorDocumento, sePuedeEnviar, estaAprobado, sePuedeEditarRespuesta,
-  aplicarRespuesta, fechaDeRespuestaDe, pendientesDeRespuesta,
+  aplicarRespuesta, fechaDeRespuestaDe, pendientesDeRespuesta, comentariosSinResolver,
   tituloPaquete, ESTADO_POR_RESULTADO,
 } from './SupervisionTecnica.jsx';
 import { dossierPorEspecialidad, requiereSupervisionTecnica } from '../shared/dominio.jsx';
@@ -206,7 +207,7 @@ describe('panel', () => {
     const { onGuardar } = montar({ supervision: { paquetes: [respondido] } });
 
     fireEvent.click(screen.getByText('Paquete 1'));
-    fireEvent.click(screen.getByText(/Nuevo paquete con los 2 que tienen comentarios/));
+    fireEvent.click(screen.getByText(/Nuevo paquete con los 2 que siguen con comentarios/));
 
     const fechas = document.querySelectorAll('input[type="date"]');
     fireEvent.change(fechas[0], { target: { value: '2026-10-01' } });
@@ -289,7 +290,7 @@ describe('APCC — aprobado con comentarios menores', () => {
   it('no se arrastra al paquete siguiente, pero sí se puede elegir a mano', () => {
     const { onGuardar } = montar({ supervision: { paquetes: [respondido] } });
     fireEvent.click(screen.getByText('Paquete 1'));
-    fireEvent.click(screen.getByText(/Nuevo paquete con los 1 que tienen comentarios/));
+    fireEvent.click(screen.getByText(/Nuevo paquete con el que sigue con comentarios/));
     fireEvent.change(document.querySelector('input[type="date"]'), { target: { value: '2026-10-01' } });
     fireEvent.click(screen.getByText(/Crear paquete \(1\)/));
 
@@ -384,7 +385,7 @@ describe('al abrir el formulario, la pantalla sube hasta él', () => {
     });
     montar({ supervision: { paquetes: [respondido] } });
     fireEvent.click(screen.getByText('Paquete 1'));
-    fireEvent.click(screen.getByText(/Nuevo paquete con los 1 que tienen comentarios/));
+    fireEvent.click(screen.getByText(/Nuevo paquete con el que sigue con comentarios/));
     await new Promise((r) => setTimeout(r, 5));
     expect(scrollIntoView).toHaveBeenCalled();
   });
@@ -545,6 +546,86 @@ describe('respuestas parciales', () => {
     const cifra = (etiqueta) => screen.getAllByText(etiqueta).find((n) => n.tagName === 'P').previousSibling.textContent;
     expect(cifra('En revisión')).toBe('1');
     expect(cifra('Con comentarios')).toBe('1');
+  });
+});
+
+/* El caso de Girón Oriente 1: el paquete 1 tuvo respuesta parcial con
+   comentarios; algunos se corrigieron en un paquete posterior y quedaron APC.
+   Al volver al paquete 1 a resolver lo que falta, lo ya aprobado no se puede
+   colar en el paquete nuevo. */
+describe('volver a un paquete viejo después de corregir parte en otro', () => {
+  const p1 = paquete({
+    id: 'p1', numero: 1, fecha_respuesta: '2026-08-04',
+    documentos: [
+      { codigo: 'C-1', resultado: 'comentarios', fecha_respuesta: '2026-08-04' },
+      { codigo: 'C-2', resultado: 'comentarios', fecha_respuesta: '2026-08-04' },
+      { codigo: 'E-1', resultado: null },
+    ],
+  });
+  const p2 = paquete({
+    id: 'p2', numero: 2, fecha_entrega: '2026-09-04', fecha_respuesta: '2026-09-19',
+    documentos: [{ codigo: 'C-1', resultado: 'apc', fecha_respuesta: '2026-09-19' }],
+  });
+
+  it('solo cuenta como pendiente del paquete lo que sigue con comentarios por él', () => {
+    const situaciones = situacionPorDocumento([p1, p2]);
+    expect(comentariosSinResolver(p1, situaciones).map((d) => d.codigo)).toEqual(['C-2']);
+    expect(comentariosSinResolver(p2, situaciones)).toEqual([]);
+  });
+
+  /* Si se corrigió y volvió a tener comentarios en el otro paquete, ese es
+     el que lo tiene pendiente, no el viejo. */
+  it('si se reenvió y volvió con comentarios, lo tiene pendiente el paquete nuevo', () => {
+    const p2ConCom = { ...p2, documentos: [{ codigo: 'C-1', resultado: 'comentarios', fecha_respuesta: '2026-09-19' }] };
+    const situaciones = situacionPorDocumento([p1, p2ConCom]);
+    expect(comentariosSinResolver(p1, situaciones).map((d) => d.codigo)).toEqual(['C-2']);
+    expect(comentariosSinResolver(p2ConCom, situaciones).map((d) => d.codigo)).toEqual(['C-1']);
+  });
+
+  it('el botón del paquete viejo arma el paquete solo con lo que falta', () => {
+    const { onGuardar } = montar({ supervision: { paquetes: [p1, p2] } });
+    fireEvent.click(screen.getByText('Paquete 1'));
+    fireEvent.click(screen.getByText(/Nuevo paquete con el que sigue con comentarios/));
+    const fechas = document.querySelectorAll('input[type="date"]');
+    fireEvent.change(fechas[0], { target: { value: '2026-10-09' } });
+    fireEvent.click(screen.getByText(/Crear paquete \(1\)/));
+    const [nuevaSupervision] = onGuardar.mock.calls[0];
+    expect(nuevaSupervision.paquetes[2].documentos.map((d) => d.codigo)).toEqual(['C-2']);
+  });
+
+  /* C-1 se reenvió y volvió a tener comentarios en el paquete 2: se puede
+     enviar, pero es pendiente del 2, no del 1. */
+  it('el botón del paquete viejo no se lleva lo que es pendiente de otro', () => {
+    const p2ConCom = { ...p2, documentos: [{ codigo: 'C-1', resultado: 'comentarios', fecha_respuesta: '2026-09-19' }] };
+    montar({ supervision: { paquetes: [p1, p2ConCom] } });
+    fireEvent.click(screen.getByText('Paquete 1'));
+    fireEvent.click(screen.getByText(/Nuevo paquete con el que sigue con comentarios/));
+    expect(screen.getByText(/Crear paquete \(1\)/)).toBeTruthy();
+  });
+
+  /* Defensa propia del formulario: aunque le lleguen preseleccionados, los
+     que no se pueden enviar no cuentan. */
+  it('el formulario descarta de la preselección lo que no se puede enviar', () => {
+    const onSave = vi.fn();
+    render(
+      <PaqueteForm
+        grupos={GRUPOS} situaciones={situacionPorDocumento([p1, p2])} preseleccion={['C-1', 'C-2']}
+        numero={3} onCancel={() => {}} onSave={onSave}
+      />,
+    );
+    fireEvent.change(document.querySelector('input[type="date"]'), { target: { value: '2026-10-09' } });
+    fireEvent.click(screen.getByText(/Crear paquete \(1\)/));
+    expect(onSave.mock.calls[0][0]).toEqual(['C-2']);
+  });
+
+  it('si ya se corrigieron todos, el paquete viejo no ofrece armar otro', () => {
+    const p2Todos = { ...p2, documentos: [
+      { codigo: 'C-1', resultado: 'apc', fecha_respuesta: '2026-09-19' },
+      { codigo: 'C-2', resultado: 'apc', fecha_respuesta: '2026-09-19' },
+    ] };
+    montar({ supervision: { paquetes: [p1, p2Todos] } });
+    fireEvent.click(screen.getByText('Paquete 1'));
+    expect(screen.queryByText(/Nuevo paquete con/)).toBe(null);
   });
 });
 

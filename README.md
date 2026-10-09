@@ -176,6 +176,23 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Supervisión técnica: el paquete siguiente ya no arrastra lo que se
+  corrigió en otro.** Pasó en Girón Oriente 1: el paquete 1 volvió con
+  comentarios (en respuesta parcial), varios de esos se corrigieron en el
+  paquete 5 y quedaron APC, y al volver al paquete 1 a resolver lo que
+  faltaba, "Nuevo paquete con los que tienen comentarios" metía también los
+  ya aprobados. Salían en gris, pero contaban en "Crear paquete (10)".
+  - El botón ahora toma solo los que **siguen** con comentarios **por ese
+    paquete** (`comentariosSinResolver`): uno que se corrigió en otro paquete
+    (APC, o en revisión otra vez) no entra, y uno que volvió a tener
+    comentarios en un paquete posterior es pendiente de ese, no del viejo.
+    El botón dice cuántos quedan, y no aparece si ya no queda ninguno.
+  - Además, el formulario descarta por su cuenta de la preselección lo que no
+    se puede enviar: un documento en gris ya no puede quedar contado.
+  - La cabecera del paquete sigue diciendo cuántos volvieron con comentarios
+    en él: es lo que respondió Supervisión ese día.
+  - No necesita migración.
+
 - **Vuelve el revisor eléctrico, con otras reglas.** En el equipo de cada
   proyecto aparece otra vez "Revisor eléctrico".
   - **Quién puede serlo:** un Ing. Eléctrico que no desarrolle ya ese

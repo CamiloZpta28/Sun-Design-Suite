@@ -166,6 +166,21 @@ export function aplicarRespuesta(paquete, fecha, resultados, { esCorreccion = fa
   };
 }
 
+/**
+ * Los documentos de un paquete que volvieron con comentarios y TODAVÍA están
+ * así por culpa de este paquete. Un documento que volvió con comentarios aquí
+ * pero ya se corrigió en un paquete posterior (y quedó APC, o está en
+ * revisión otra vez) no es un pendiente de este paquete: arrastrarlo al
+ * siguiente sería volver a entregar algo ya resuelto.
+ */
+export function comentariosSinResolver(paquete, situaciones) {
+  return (paquete.documentos || []).filter((d) => {
+    if (d.resultado !== 'comentarios') return false;
+    const actual = situaciones.get(d.codigo);
+    return actual?.situacion === SITUACION.CON_COMENTARIOS && actual.paquete?.id === paquete.id;
+  });
+}
+
 /** Nombre visible de un paquete: "Paquete 2" o "Paquete 2 · Civil". */
 export function tituloPaquete(paquete) {
   return paquete.nombre ? `Paquete ${paquete.numero} · ${paquete.nombre}` : `Paquete ${paquete.numero}`;
@@ -179,8 +194,13 @@ function Chip({ situacion }) {
 /* ---------------------------------------------------------------------------
    Formulario de un paquete nuevo: qué se entrega y cuándo.
    ------------------------------------------------------------------------- */
-function PaqueteForm({ grupos, situaciones, preseleccion, numero, onCancel, onSave }) {
-  const [seleccion, setSeleccion] = useState(() => new Set(preseleccion || []));
+export function PaqueteForm({ grupos, situaciones, preseleccion, numero, onCancel, onSave }) {
+  /* Lo que llega preseleccionado se filtra igual que lo que se marca a mano:
+     un documento que no se puede enviar no puede quedar contado en el
+     paquete aunque su casilla salga gris. */
+  const [seleccion, setSeleccion] = useState(() => new Set((preseleccion || []).filter(
+    (codigo) => sePuedeEnviar(situaciones.get(codigo)?.situacion || SITUACION.SIN_ENVIAR),
+  )));
   const [fecha, setFecha] = useState('');
   const [nombre, setNombre] = useState('');
 
@@ -596,11 +616,12 @@ export default function SupervisionTecnicaPanel({
     setRespondiendo(null);
   }
 
-  /* La vuelta siguiente arrastra SOLO los que volvieron con comentarios: un
-     APCC ya está aprobado y no necesita otra revisión (si se quiere volver a
-     entregar corregido, se agrega a mano). */
+  /* La vuelta siguiente arrastra SOLO los que volvieron con comentarios y
+     siguen así: un APCC ya está aprobado y no necesita otra revisión (si se
+     quiere volver a entregar corregido, se agrega a mano), y uno que ya se
+     corrigió en un paquete posterior no se vuelve a entregar. */
   function nuevoPaqueteConComentarios(paquete) {
-    abrirFormulario((paquete.documentos || []).filter((d) => d.resultado === 'comentarios').map((d) => d.codigo));
+    abrirFormulario(comentariosSinResolver(paquete, situaciones).map((d) => d.codigo));
   }
 
   const dossierVacio = todosLosDocs.length === 0;
@@ -677,6 +698,7 @@ export default function SupervisionTecnicaPanel({
                 const apc = docs.filter((d) => d.resultado === 'apc').length;
                 const apcc = docs.filter((d) => d.resultado === 'apcc').length;
                 const conCom = docs.filter((d) => d.resultado === 'comentarios').length;
+                const porCorregir = comentariosSinResolver(paq, situaciones).length;
                 const correccion = sePuedeEditarRespuesta(paq, paquetes);
                 return (
                   <div key={paq.id} className="bg-white border border-navy-200 rounded-xl overflow-hidden">
@@ -841,12 +863,12 @@ export default function SupervisionTecnicaPanel({
                                     <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" /> {correccion.motivo}
                                   </span>
                                 )}
-                                {respondido && conCom > 0 && (
+                                {respondido && porCorregir > 0 && (
                                   <button
                                     onClick={() => nuevoPaqueteConComentarios(paq)}
                                     className="flex items-center gap-1.5 text-sm font-semibold text-lime-700 border border-lime-400 bg-lime-50 rounded-lg px-3 py-1.5 hover:bg-lime-100"
                                   >
-                                    <Plus className="w-3.5 h-3.5" /> Nuevo paquete con los {conCom} que tienen comentarios
+                                    <Plus className="w-3.5 h-3.5" /> Nuevo paquete con {porCorregir === 1 ? 'el que sigue' : `los ${porCorregir} que siguen`} con comentarios
                                   </button>
                                 )}
                                 <button
