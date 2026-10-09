@@ -6,7 +6,7 @@ import {
   Pencil, MapPin, Calendar, Users, ExternalLink, Check, UploadCloud, XCircle, Loader2,
   RefreshCw, LogOut, ShieldCheck, Lock, UserCog, ChevronDown, ChevronRight,
   Video, PartyPopper, PieChart, AlertTriangle, Menu, UserPlus, Boxes, GitBranch, Bell, Route, FileText, CalendarCheck,
-  Handshake
+  Handshake, ClipboardCheck
 } from 'lucide-react';
 import { supabase, retornoDeAcceso } from './supabaseClient';
 import { AuthGate, NuevaContrasena } from './secciones/Acceso.jsx';
@@ -32,7 +32,7 @@ import { ACTUALIZACION_CATEGORIAS_SEED } from './secciones/actualizacionesDatos.
 import {
   ROLES, usaResumenPersonal, esRolMultiple, equipoComoArray, equipoNombres, ALL_ROLE_DEFS,
   EQUIPO_CATEGORIAS, rolesLabel, isLeader, isDesignLeader, canAssignRole,
-  esInvitado, puedeVerVista, puedeVerDatosPersonales, separarDatosPersonales
+  esInvitado, puedeVerVista, puedeVerDatosPersonales, separarDatosPersonales, proyectosQueReviso
 } from './shared/permisos.js';
 import logoMark from './assets/logo-s-mark.png';
 
@@ -624,6 +624,34 @@ function cuantosEnEstado(n, estado) {
   if (estado === 'pausa') return `${n} en pausa`;
   const palabra = (STATUS_CONFIG[estado]?.label || estado).toLowerCase();
   return `${n} ${palabra}${n === 1 ? '' : 's'}`;
+}
+
+/* Los proyectos que la persona revisa sin desarrollarlos (revisor
+   eléctrico). Van aparte de "Mis proyectos" porque ahí no edita nada: solo
+   comenta los entregables eléctricos. */
+export function MisRevisiones({ projects, onOpen, directorio }) {
+  return (
+    <div className="px-4 md:px-8 pb-8 max-w-6xl mx-auto">
+      <div className="border-t border-navy-200 pt-6">
+        <h2 className="text-xl font-bold text-navy-800 flex items-center gap-2">
+          <ClipboardCheck className="w-5 h-5 text-emerald-500" /> Mis revisiones
+        </h2>
+        <p className="text-navy-500 text-sm mt-1 mb-4">
+          Proyectos donde eres el revisor eléctrico: no editas su información, solo comentas los entregables eléctricos en
+          Control Documental.
+        </p>
+        {projects.length === 0 ? (
+          <p className="text-sm text-navy-400 italic">Todavía no te han asignado como revisor de ningún proyecto.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {projects.map((p) => (
+              <ProjectCard key={p.id} project={p} onClick={() => onOpen(p.id)} directorio={directorio} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function ProjectListView({
@@ -3497,6 +3525,7 @@ export default function App() {
   const misProyectos = projects
     .filter((p) => equipoNombres(p.equipo).includes(perfil.nombre))
     .sort((a, b) => new Date(misVisitas[b.id] || b.created_at || 0) - new Date(misVisitas[a.id] || a.created_at || 0));
+  const misRevisiones = proyectosQueReviso(projects, perfil);
   const selectedProject = projects.find((p) => p.id === selectedId);
   const stats = {
     activo: projects.filter((p) => p.estado === 'activo').length,
@@ -3588,14 +3617,20 @@ export default function App() {
           />
         )}
         {vistaActual === 'mis' && (
-          <ProjectListView
-            projects={misProyectos}
-            title="Mis Proyectos"
-            subtitle={`Proyectos donde ${perfil.nombre} hace parte del equipo`}
-            onOpen={openProject}
-            onNewProject={abrirCrearProyecto}
-            directorio={directorio}
-          />
+          <>
+            <ProjectListView
+              projects={misProyectos}
+              title="Mis Proyectos"
+              subtitle={`Proyectos donde ${perfil.nombre} hace parte del equipo`}
+              onOpen={openProject}
+              onNewProject={abrirCrearProyecto}
+              directorio={directorio}
+            />
+            {/* Solo a quien puede ser revisor (Ing. Eléctrico) o ya lo es. */}
+            {((perfil.roles || []).includes('electrico') || misRevisiones.length > 0) && (
+              <MisRevisiones projects={misRevisiones} onOpen={openProject} directorio={directorio} />
+            )}
+          </>
         )}
         {vistaActual === 'todos' && (
           <ProjectListView

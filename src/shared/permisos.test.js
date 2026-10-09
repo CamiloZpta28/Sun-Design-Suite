@@ -12,6 +12,7 @@ import {
   esInvitado, isLeader, isDeveloper, isDesignLeader, isQA, canAssignRole, rolesLabel,
   puedeVerVista, VISTAS_DEL_INVITADO, puedeVerDatosPersonales, separarDatosPersonales,
   CAMPOS_DATOS_PERSONALES, ALL_ROLE_DEFS, EQUIPO_CATEGORIAS,
+  REVISOR_ELECTRICO, esRevisorElectricoDe, proyectosQueReviso, puedeComentarDocumento,
 } from './permisos.js';
 
 const proyecto = (equipo) => ({ id: 'p1', nombre: 'Chinú 3', equipo });
@@ -198,4 +199,50 @@ describe('datos personales', () => {
    TeamRolesView), no como una categoría más. */
 it('los invitados no son una categoría de Equipo', () => {
   expect(EQUIPO_CATEGORIAS.map((c) => c.id)).not.toContain('invitados');
+});
+
+describe('el revisor eléctrico', () => {
+  const caro = { id: 'u3', nombre: 'Caro', roles: ['electrico'] };
+  const conRevisor = proyecto({ electrico: ['Beto'], [REVISOR_ELECTRICO]: 'Caro' });
+  const electrico = { responsables: { electrico: 'R', delineante: 'E' } };
+  const civil = { responsables: { civil: 'E' } };
+
+  /* No desarrolla el proyecto: no cuenta como asignado, así que no edita
+     nada y el proyecto no le sale en "Mis proyectos". */
+  it('no cuenta como asignado', () => {
+    expect(EQUIPO_CLAVES_SIN_ASIGNACION).toContain(REVISOR_ELECTRICO);
+    expect(isAssignedToProject(caro, conRevisor)).toBe(false);
+    expect(equipoNombres(conRevisor.equipo)).toEqual(['Beto']);
+  });
+
+  it('es revisor quien está puesto ahí y sigue siendo Ing. Eléctrico', () => {
+    expect(esRevisorElectricoDe(caro, conRevisor)).toBe(true);
+    expect(esRevisorElectricoDe({ ...caro, roles: ['civil'] }, conRevisor)).toBe(false);
+    expect(esRevisorElectricoDe({ ...caro, roles: [] }, conRevisor)).toBe(false);
+    expect(esRevisorElectricoDe({ nombre: 'Beto', roles: ['electrico'] }, conRevisor)).toBe(false);
+    expect(esRevisorElectricoDe(null, conRevisor)).toBe(false);
+  });
+
+  /* Empezó en blanco: el revisor de la mecánica vieja no revive. */
+  it('el de la clave vieja no es revisor', () => {
+    expect(esRevisorElectricoDe(caro, proyecto({ aprobador_electrico: 'Caro' }))).toBe(false);
+  });
+
+  it('sus revisiones son los proyectos donde está puesto', () => {
+    const otro = { ...proyecto({ [REVISOR_ELECTRICO]: 'Dani' }), id: 'p2' };
+    expect(proyectosQueReviso([conRevisor, otro], caro).map((p) => p.id)).toEqual(['p1']);
+  });
+
+  it('comenta los entregables que tienen de responsable a Ing. Eléctrico, y solo esos', () => {
+    expect(puedeComentarDocumento(caro, conRevisor, electrico)).toBe(true);
+    expect(puedeComentarDocumento(caro, conRevisor, civil)).toBe(false);
+    expect(puedeComentarDocumento(caro, conRevisor, {})).toBe(false);
+    /* En un proyecto que no revisa, ninguno. */
+    expect(puedeComentarDocumento(caro, proyecto({ electrico: ['Caro'] }), electrico)).toBe(false);
+  });
+
+  it('Control de Calidad sigue comentando todos', () => {
+    const qa = { nombre: 'Quique', roles: ['control_calidad'] };
+    expect(puedeComentarDocumento(qa, conRevisor, civil)).toBe(true);
+  });
 });

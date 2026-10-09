@@ -855,19 +855,103 @@ describe('las fechas del proyecto las mueve un líder', () => {
   });
 });
 
-describe('la revisión eléctrica se retiró', () => {
-  it('el proyecto ya no pide un revisor eléctrico', () => {
-    render(<ProjectDetail project={proyecto()} perfil={perfilLider} {...props} />);
-    expect(screen.queryByText('Revisor eléctrico')).toBe(null);
+describe('el revisor eléctrico', () => {
+  const directorio = [
+    { id: 'u1', nombre: 'Ana', roles: ['lider_diseno', 'civil'] },
+    { id: 'u2', nombre: 'Beto', roles: ['electrico'] },
+    { id: 'u3', nombre: 'Caro', roles: ['electrico'] },
+    { id: 'u4', nombre: 'Dani', roles: ['civil'] },
+  ];
+  const caro = directorio[2];
+  const pintarFicha = (perfil, equipo = { civil: ['Ana'], electrico: ['Beto'] }, extra = {}) => {
+    const updateProject = vi.fn();
+    render(<ProjectDetail project={proyecto({ equipo, ...extra })} perfil={perfil} {...props} directorio={directorio} updateProject={updateProject} />);
+    return { updateProject };
+  };
+  const selectorRevisor = () => screen.getByText('Revisor eléctrico').parentElement.querySelector('select');
+  const irAGeneral = () => fireEvent.click(
+    screen.getAllByRole('button').find((b) => b.textContent.trim().startsWith('General')),
+  );
+
+  /* Solo ingenieros eléctricos, y no los que ya desarrollan el proyecto:
+     nadie se revisa a sí mismo. */
+  it('el líder lo elige entre los eléctricos que no desarrollan el proyecto', () => {
+    const { updateProject } = pintarFicha(perfilLider);
+    const opciones = [...selectorRevisor().options].map((o) => o.textContent);
+    expect(opciones).toEqual(['Sin asignar', 'Caro']);
+    fireEvent.change(selectorRevisor(), { target: { value: 'Caro' } });
+    const [, actualizar] = updateProject.mock.calls[0];
+    expect(actualizar(proyecto()).equipo.revisor_electrico).toBe('Caro');
   });
 
-  /* Los proyectos de antes tienen la clave guardada; eso no puede volver a
-     pintar el campo ni cambiarle los permisos a nadie. */
-  it('un proyecto viejo con revisor guardado no lo muestra', () => {
-    const viejo = proyecto({ equipo: { civil: ['Ana'], aprobador_electrico: 'Caro' } });
-    render(<ProjectDetail project={viejo} perfil={perfilLider} {...props} />);
-    expect(screen.queryByText('Revisor eléctrico')).toBe(null);
-    expect(screen.queryByText(/Caro/)).toBe(null);
+  it('quien no es líder lo ve, pero no lo cambia', () => {
+    pintarFicha(perfilAjeno, { civil: ['Ana'], revisor_electrico: 'Caro' });
+    expect(screen.getByText('Revisor eléctrico').parentElement.textContent).toContain('Caro');
+    expect(screen.getByText('Revisor eléctrico').parentElement.querySelector('select')).toBe(null);
+  });
+
+  /* Empezó en blanco: el revisor que tenía un proyecto con la mecánica vieja
+     no reaparece. */
+  it('un proyecto viejo con revisor guardado arranca sin revisor', () => {
+    pintarFicha(perfilLider, { civil: ['Ana'], aprobador_electrico: 'Caro' });
+    expect(selectorRevisor().value).toBe('');
+  });
+
+  /* El revisor no desarrolla el proyecto: no edita su información. */
+  it('el revisor no puede editar el proyecto', () => {
+    pintarFicha(caro, { civil: ['Ana'], revisor_electrico: 'Caro' });
+    irAGeneral();
+    expect(screen.getByText(/Solo el equipo asignado puede editar/)).toBeTruthy();
+    expect(screen.queryByText(/Editar/)).toBe(null);
+  });
+});
+
+describe('Control Documental · el revisor eléctrico comenta', () => {
+  const dossier = {
+    id: 'dos-1', nombre: 'CFM', version: 1,
+    documentos: [
+      { id: 'a', codigo: 'X-CIV-PL-001', nombre: 'Cerramiento', especialidad: 'CIVIL', tipo: 'Plano', responsables: { delineante: 'E', civil: 'R' } },
+      { id: 'd', codigo: 'X-ELE-PL-001', nombre: 'Unifilar', especialidad: 'ELECTRICA', tipo: 'Plano', responsables: { electrico: 'R', delineante: 'E' } },
+    ],
+  };
+  const conDossier = proyecto({ dossier_id: 'dos-1', equipo: { civil: ['Ana'], electrico: ['Beto'], revisor_electrico: 'Caro' } });
+  const pintarCD = (props = {}) => {
+    const onDocChange = vi.fn();
+    render(
+      <DocumentControlPanel
+        project={conDossier} puedeEditarContenido={false} puedeComentar={false} esRevisorElectrico
+        onDocChange={onDocChange} dossiers={[dossier]} {...props}
+      />,
+    );
+    return { onDocChange };
+  };
+  /* El botón de escribir un comentario: con edición cerrada, es el único
+     "Agregar" que puede salir al desplegar un documento. */
+  const botonesDeComentar = () => screen.queryAllByText('Agregar');
+
+  it('puede comentar un entregable que tiene de responsable a Ing. Eléctrico', () => {
+    const { onDocChange } = pintarCD();
+    fireEvent.click(screen.getByText('Unifilar'));
+    expect(botonesDeComentar().length).toBe(1);
+    fireEvent.click(botonesDeComentar()[0]);
+    const caja = screen.getByPlaceholderText('Comentarios de control de calidad…');
+    fireEvent.change(caja, { target: { value: 'Revisar calibre del alimentador' } });
+    fireEvent.click(screen.getByText('Guardar'));
+    expect(onDocChange).toHaveBeenCalledWith(expect.objectContaining({ codigo: 'X-ELE-PL-001' }), { comentarios: 'Revisar calibre del alimentador' });
+  });
+
+  it('en uno que no es eléctrico, solo lee', () => {
+    pintarCD();
+    fireEvent.click(screen.getByText('Cerramiento'));
+    expect(botonesDeComentar().length).toBe(0);
+  });
+
+  it('se le dice qué puede hacer', () => {
+    pintarCD();
+    expect(screen.getByText(/Eres el revisor eléctrico/)).toBeTruthy();
+    cleanup();
+    pintarCD({ esRevisorElectrico: false });
+    expect(screen.getByText(/Solo "Control de Calidad Interno" y el revisor eléctrico/)).toBeTruthy();
   });
 });
 

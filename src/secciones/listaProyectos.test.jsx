@@ -24,7 +24,7 @@ vi.mock('../supabaseClient', () => {
   return { supabase: cadena() };
 });
 
-const { ProjectListView, ProjectFormModal } = await import('../App.jsx');
+const { ProjectListView, ProjectFormModal, MisRevisiones } = await import('../App.jsx');
 
 afterEach(cleanup);
 
@@ -222,5 +222,20 @@ describe('el aviso de proyecto repetido', () => {
     llenarCodigo();
     fireEvent.click(screen.getByText('ábrelo aquí'));
     expect(abiertos).toEqual(['pb']);
+  });
+});
+
+describe('Mis revisiones', () => {
+  it('muestra los proyectos que la persona revisa, y abre el que se pulsa', () => {
+    const onOpen = vi.fn();
+    render(<MisRevisiones projects={[proyecto('p1', 'Activo Uno', 'activo')]} onOpen={onOpen} directorio={[]} />);
+    expect(screen.getByText('Mis revisiones')).toBeTruthy();
+    fireEvent.click(screen.getByText('Activo Uno'));
+    expect(onOpen).toHaveBeenCalledWith('p1');
+  });
+
+  it('sin revisiones lo dice', () => {
+    render(<MisRevisiones projects={[]} onOpen={() => {}} directorio={[]} />);
+    expect(screen.getByText(/Todavía no te han asignado como revisor/)).toBeTruthy();
   });
 });

@@ -25,7 +25,7 @@ import { allFieldGroups, allGroupedFieldKeys, displayLabelFor, groupToOpenFor, r
 import { STRUCTURE_LABELS, getStructureType } from '../technical-notes/index.js';
 import {
   ROLES, equipoNombres, equipoTexto, isAssignedToProject, isDeveloper,
-  isLeader, isQA, roleLabel, textoQueElaboro,
+  isLeader, isQA, roleLabel, textoQueElaboro, REVISOR_ELECTRICO, esRevisorElectricoDe, equipoComoArray,
 } from '../shared/permisos.js';
 import { ResumenLineas, atributosLineas, FiltroFichas, alternarEn } from '../shared/ui.jsx';
 import { SIN_ASIGNAR, responsablesDeDocumento, valoresDeResponsable } from '../shared/responsables.js';
@@ -34,7 +34,7 @@ import { TablaEstaciones } from '../shared/TablaEstaciones.jsx';
 import { SeccionDeVia } from './seccionDeVia.jsx';
 import { usePresenciaProyecto, quienEdita, PresenciaBarra, AvisoPestanaOcupada } from '../shared/presencia.jsx';
 import {
-  camposPlegables, MESES_ENERGIA, COLOMBIA, DOC_ESTADOS, DOC_ESTADO_CONFIG, DOC_ESTADO_CORTO, EquipoField,
+  camposPlegables, MESES_ENERGIA, COLOMBIA, DOC_ESTADOS, DOC_ESTADO_CONFIG, DOC_ESTADO_CORTO, EquipoField, EquipoSelect,
   EspecialidadBarra, GRUPO_NOTAS_TECNICAS, IngenieroProyectosField, InstaladorPicker,
   InversionistaPicker, OperadorRedPicker, PaisPicker, ProgresoDonut, ProveedorPicker,
   SCHEMA, STATUS_CONFIG, StatusBadge, buildProjectCode, categoriaLabel, dossierPorEspecialidad,
@@ -1665,7 +1665,7 @@ export function DocumentoCard({ doc, codigoFinal, estadoDoc, estadoValor, puedeE
             />
           </div>
           <div>
-            <p className="text-xs font-semibold text-navy-400 mb-1">Comentarios de Control de Calidad</p>
+            <p className="text-xs font-semibold text-navy-400 mb-1">Comentarios de Control de Calidad y revisión eléctrica</p>
             <ComentarioEditable
               value={estadoDoc.comentarios}
               onCommit={(val) => onDocChange(doc, { comentarios: val })}
@@ -1684,7 +1684,7 @@ export function DocumentoCard({ doc, codigoFinal, estadoDoc, estadoValor, puedeE
   );
 }
 
-export function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, onDocChange, dossiers, miNombre }) {
+export function DocumentControlPanel({ project, puedeEditarContenido, puedeComentar, esRevisorElectrico = false, onDocChange, dossiers, miNombre }) {
   /* Un proyecto sin la sección "general" no puede dejar la pantalla en
      blanco: se trabaja sobre un objeto vacío. */
   const general = project.data?.general || {};
@@ -1862,9 +1862,15 @@ export function DocumentControlPanel({ project, puedeEditarContenido, puedeComen
         })}
       </div>
 
-      {!puedeComentar && (
+      {!puedeComentar && esRevisorElectrico && (
+        <p className="flex items-center gap-1.5 text-xs text-navy-500 mb-4">
+          <ClipboardCheck className="w-3.5 h-3.5 text-emerald-500" /> Eres el revisor eléctrico: puedes comentar los
+          entregables que tienen de responsable a Ing. Eléctrico. Lo demás es de solo lectura.
+        </p>
+      )}
+      {!puedeComentar && !esRevisorElectrico && (
         <p className="flex items-center gap-1.5 text-xs text-navy-400 mb-4">
-          <Lock className="w-3.5 h-3.5" /> Solo "Control de Calidad Interno" puede escribir comentarios.
+          <Lock className="w-3.5 h-3.5" /> Solo "Control de Calidad Interno" y el revisor eléctrico pueden escribir comentarios.
         </p>
       )}
       <div className="space-y-6">
@@ -1884,7 +1890,7 @@ export function DocumentControlPanel({ project, puedeEditarContenido, puedeComen
                     estadoDoc={estadoDoc}
                     estadoValor={estadoValor}
                     puedeEditarContenido={puedeEditarContenido}
-                    puedeComentar={puedeComentar}
+                    puedeComentar={puedeComentar || (esRevisorElectrico && !!(doc.responsables || {}).electrico)}
                     onDocChange={onDocChange}
                     equipo={equipo}
                     miNombre={miNombre}
@@ -2414,7 +2420,10 @@ export function ProjectDetail({
 
   const puedeGestionar = isLeader(perfil); // asignar equipo + cambiar estado + eliminar/renombrar proyecto
   const puedeEditarContenido = isDeveloper(perfil) || isAssignedToProject(perfil, project); // campos técnicos + archivos + notas
-  const puedeComentar = isQA(perfil); // comentarios en Control Documental
+  const puedeComentar = isQA(perfil); // comentarios en Control Documental, en todos los entregables
+  /* El revisor eléctrico comenta solo los entregables eléctricos (ver
+     puedeComentarDocumento); no edita nada más. */
+  const esRevisorElectrico = esRevisorElectricoDe(perfil, project);
   /* El link de la carpeta lo pone casi siempre un líder al crear el proyecto,
      y el líder no suele estar en el equipo asignado: si solo pudiera
      cambiarlo el equipo, quien lo puso no podría corregirlo después. */
@@ -2678,7 +2687,7 @@ export function ProjectDetail({
     const accion = patch.estado !== undefined
       ? `Actualizó el estado de "${doc.nombre}" a "${patch.estado}"`
       : patch.comentarios !== undefined
-        ? `Comentó (control de calidad) en "${doc.nombre}"`
+        ? `Comentó (${esRevisorElectrico && !puedeComentar ? 'revisión eléctrica' : 'control de calidad'}) en "${doc.nombre}"`
         : `Agregó una observación en "${doc.nombre}"`;
     updateProject(
       project.id,
@@ -2945,6 +2954,27 @@ export function ProjectDetail({
               );
             })}
 
+            {/* Revisor eléctrico: un Ing. Eléctrico que NO desarrolla el     */}
+            {/* proyecto. No cuenta como asignado (no edita nada), comenta los */}
+            {/* entregables eléctricos y el proyecto le sale en "Mis           */}
+            {/* revisiones". No se ofrecen los eléctricos que ya lo desarrollan: */}
+            {/* nadie se revisa a sí mismo.                                    */}
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-navy-100 flex items-center justify-center shrink-0 mt-0.5">
+                <ClipboardCheck className="w-4 h-4 text-navy-500" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-navy-400 mb-0.5">Revisor eléctrico</p>
+                <EquipoSelect
+                  role={{ key: REVISOR_ELECTRICO, filterRoleKey: 'electrico' }}
+                  valorActual={project.equipo[REVISOR_ELECTRICO]}
+                  directorio={directorio.filter((u) => !equipoComoArray(project.equipo.electrico).includes(u.nombre))}
+                  onChange={(val) => handleEquipoChange(REVISOR_ELECTRICO, val)}
+                  readOnly={!puedeGestionar}
+                />
+              </div>
+            </div>
+
             {/* Ingeniero de proyectos: no tiene cuenta, sale de un catálogo   */}
             {/* compartido (nombre + matrícula) en vez de "directorio".        */}
             <div className="flex items-start gap-2.5">
@@ -3096,6 +3126,7 @@ export function ProjectDetail({
                 project={project}
                 puedeEditarContenido={puedeEditarContenido}
                 puedeComentar={puedeComentar}
+                esRevisorElectrico={esRevisorElectrico}
                 onDocChange={handleDocChange}
                 dossiers={dossiers}
                 miNombre={perfil?.nombre}

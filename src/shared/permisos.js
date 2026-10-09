@@ -65,8 +65,15 @@ export function equipoComoArray(valor) {
      clave sigue aquí porque los proyectos de antes la tienen guardada: si se
      quitara, esas personas pasarían de pronto a contar como asignadas, con
      permiso de edición y el proyecto metido en sus "Mis proyectos". Quitar
-     una pantalla no puede repartir permisos. */
-export const EQUIPO_CLAVES_SIN_ASIGNACION = ['ingeniero_proyectos', 'aprobador_electrico'];
+     una pantalla no puede repartir permisos.
+
+   - 'revisor_electrico' es la revisión eléctrica que volvió, con clave nueva
+     para empezar en blanco (las asignaciones viejas de 'aprobador_electrico'
+     no reaparecen). El revisor no desarrolla el proyecto: no edita nada, solo
+     comenta entregables (ver puedeComentarDocumento), y el proyecto le sale
+     en "Mis revisiones", no en "Mis proyectos". */
+export const REVISOR_ELECTRICO = 'revisor_electrico';
+export const EQUIPO_CLAVES_SIN_ASIGNACION = ['ingeniero_proyectos', 'aprobador_electrico', REVISOR_ELECTRICO];
 /* Todos los nombres asignados a un proyecto, sin importar el rol.         */
 export function equipoNombres(equipo) {
   return Object.entries(equipo || {})
@@ -210,6 +217,27 @@ export function canAssignRole(perfil, roleKey) {
 }
 export function isAssignedToProject(perfil, project) {
   return !!perfil && !esInvitado(perfil) && equipoNombres(project.equipo).includes(perfil.nombre);
+}
+
+/* ¿Es esta persona el revisor eléctrico del proyecto? Además de estar puesta
+   ahí, tiene que seguir siendo Ing. Eléctrico: si le quitan el rol, pierde la
+   revisión aunque el proyecto conserve su nombre. */
+export function esRevisorElectricoDe(perfil, project) {
+  if (!perfil || esInvitado(perfil) || !(perfil.roles || []).includes('electrico')) return false;
+  return (project?.equipo || {})[REVISOR_ELECTRICO] === perfil.nombre;
+}
+
+/* Los proyectos que una persona revisa: su sección "Mis revisiones". */
+export function proyectosQueReviso(projects, perfil) {
+  return (projects || []).filter((p) => esRevisorElectricoDe(perfil, p));
+}
+
+/* ¿Puede escribir los comentarios de este entregable? Control de Calidad,
+   en todos. El revisor eléctrico, en los que el dossier le pone a Ing.
+   Eléctrico como responsable (elabore o revise): los civiles no son suyos. */
+export function puedeComentarDocumento(perfil, project, doc) {
+  if (isQA(perfil)) return true;
+  return esRevisorElectricoDe(perfil, project) && !!(doc?.responsables || {}).electrico;
 }
 
 /* Quiénes elaboraron el proyecto: no solo los civiles. En el rótulo de la

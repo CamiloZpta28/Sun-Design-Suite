@@ -176,6 +176,33 @@ ingeniero. Cada persona:
 
 ## Notas y siguientes pasos
 
+- **Vuelve el revisor eléctrico, con otras reglas.** En el equipo de cada
+  proyecto aparece otra vez "Revisor eléctrico".
+  - **Quién puede serlo:** un Ing. Eléctrico que no desarrolle ya ese
+    proyecto (los eléctricos asignados no se ofrecen: nadie se revisa a sí
+    mismo). Uno por proyecto. Lo asigna **solo un líder**, como el resto del
+    equipo.
+  - **Qué puede hacer:** nada de editar. No cuenta como asignado
+    (`revisor_electrico` está en `EQUIPO_CLAVES_SIN_ASIGNACION`), así que ve el
+    proyecto en solo lectura. Lo único que escribe son los **comentarios de
+    los entregables que tienen de responsable a Ing. Eléctrico** según el
+    dossier (elabore o revise), en el mismo campo que Control de Calidad, que
+    ahora se llama "Comentarios de Control de Calidad y revisión eléctrica".
+    Control de Calidad sigue comentando todos. En el historial queda como
+    "Comentó (revisión eléctrica)".
+  - **Dónde los ve:** en "Mis Proyectos" hay una sección nueva, **Mis
+    revisiones**, con los proyectos que revisa. Les sale a los Ing.
+    Eléctricos (y a quien tenga alguna revisión).
+  - Si a la persona le quitan el rol de Ing. Eléctrico, pierde la revisión
+    aunque el proyecto conserve su nombre.
+  - **Empieza en blanco:** usa una clave nueva. La de la mecánica retirada
+    (`aprobador_electrico`) sigue guardada en los proyectos viejos y sigue sin
+    contar para nada; esos revisores no reaparecen.
+  - Un entregable que el dossier no le asigna a nadie (o los de proyectos sin
+    dossier) no lo comenta el revisor: no tiene cómo saberse si es eléctrico.
+  - No necesita migración: el revisor vive en `projects.equipo`, como el resto
+    del equipo.
+
 - **Imágenes en los temas y pendientes de las reuniones.** Opcionales, con
   el botón de la imagen o pegándolas con Ctrl+V.
   - **Temas:** se adjuntan al escribir el tema en el resumen (botón en el
